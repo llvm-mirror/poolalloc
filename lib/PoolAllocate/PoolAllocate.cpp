@@ -566,8 +566,7 @@ void PoolAllocate::ProcessFunctionBody(Function &F, Function &NewF) {
          E = G.getScalarMap().global_end(); I != E; ++I) {
     // Map all node reachable from this global to the corresponding nodes in
     // the globals graph.
-    DSGraph::computeNodeMapping(G.getNodeForValue(*I).getNode(),
-                                GG.getNodeForValue(*I),
+    DSGraph::computeNodeMapping(G.getNodeForValue(*I), GG.getNodeForValue(*I),
                                 GlobalsGraphNodeMapping);
   }
   
