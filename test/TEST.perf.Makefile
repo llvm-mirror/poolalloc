@@ -97,6 +97,8 @@ endif
 # Rules for running the tests
 ############################################################################
 
+ifndef PROGRAMS_HAVE_CUSTOM_RUN_RULES
+
 #
 # Generate events for Pool Allocated CBE
 #
@@ -114,13 +116,32 @@ endif
 # Generate events for CBE
 #
 $(PROGRAMS_TO_TEST:%=Output/test.$(TEST).%): \
-Output/test.$(TEST).%: Output/%.cbe
+Output/test.$(TEST).%: Output/%.nonpa.cbe
 	@echo "========================================="
 	@echo "Running '$(TEST)' test on '$(TESTNAME)' program"
 ifeq ($(RUN_OPTIONS),)
 	$(VERB) cat $(STDIN_FILENAME) | $(PERFEX) -o $@ $(EVENTS) $< > /dev/null
 else
 	$(VERB) cat $(STDIN_FILENAME) | $(PERFEX) -o $@ $(EVENTS) $< $(RUN_OPTIONS) > /dev/null
+endif
+
+else
+
+# This rule runs the generated executable, generating timing information, for
+# SPEC
+$(PROGRAMS_TO_TEST:%=Output/test.$(TEST).pa.%): \
+Output/test.$(TEST).pa.%: Output/%.poolalloc.cbe
+	-$(SPEC_SANDBOX) poolalloccbe-$(RUN_TYPE) /dev/null $(REF_IN_DIR) \
+             $(RUNSAFELY) $(STDIN_FILENAME) $(STDOUT_FILENAME) \
+                  $(PERFEX) -o $@ $(EVENTS) ../../$< $(RUN_OPTIONS)
+
+# This rule runs the generated executable, generating timing information, for
+# SPEC
+$(PROGRAMS_TO_TEST:%=Output/test.$(TEST).%): \
+Output/test.$(TEST).%: Output/%.nonpa.cbe
+	-$(SPEC_SANDBOX) nonpacbe-$(RUN_TYPE) /dev/null $(REF_IN_DIR) \
+             $(RUNSAFELY) $(STDIN_FILENAME) $(STDOUT_FILENAME) \
+                  $(PERFEX) -o $@ $(EVENTS) ../../$< $(RUN_OPTIONS)
 endif
 
 ############################################################################
