@@ -353,6 +353,8 @@ namespace {
     Value *getTransformedValue(Value *V) {
       if (isa<ConstantPointerNull>(V))                // null -> uint 0
         return Constant::getNullValue(SCALARUINTTYPE);
+      if (isa<UndefValue>(V))                // undef -> uint undef
+        return UndefValue::get(SCALARUINTTYPE);
 
       assert(getNodeIfCompressed(V) && "Value is not compressed!");
       Value *&RV = OldToNewValueMap[V];
@@ -582,7 +584,13 @@ void InstructionRewriter::visitGetElementPtrInst(GetElementPtrInst &GEPI) {
 }
 
 void InstructionRewriter::visitLoadInst(LoadInst &LI) {
-  if (isa<ConstantPointerNull>(LI.getOperand(0))) return; // load null ??
+  if (isa<ConstantPointerNull>(LI.getOperand(0))) { // load null ??
+    // Load null doesn't make any sense, but if the result is a pointer into a
+    // compressed pool, we have to transform it.
+    if (isa<PointerType>(LI.getType()) && getPoolInfo(&LI))
+      setTransformedValue(LI, UndefValue::get(SCALARUINTTYPE));
+    return;
+  }
 
   const CompressedPoolInfo *SrcPI = getPoolInfo(LI.getOperand(0));
   if (SrcPI == 0) {
