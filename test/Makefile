@@ -24,3 +24,15 @@ vtl::
                PROJECT_DIR=$(BUILD_OBJ_ROOT) $(MAKE) -j1 TEST=pavtl \
                    test)
 	@printf "\a"; sleep 1; printf "\a"; sleep 1; printf "\a"
+
+perf::
+	(cd $(LLVM_OBJ_ROOT)/test/Programs/$(SUBDIR); \
+               PROJECT_DIR=$(BUILD_OBJ_ROOT) $(MAKE) -j1 TEST=perf \
+                   test)
+	@printf "\a"; sleep 1; printf "\a"; sleep 1; printf "\a"
+
+strace::
+	(cd $(LLVM_OBJ_ROOT)/test/Programs/$(SUBDIR); \
+               PROJECT_DIR=$(BUILD_OBJ_ROOT) $(MAKE) -j1 TEST=strace \
+                   test)
+	@printf "\a"; sleep 1; printf "\a"; sleep 1; printf "\a"
