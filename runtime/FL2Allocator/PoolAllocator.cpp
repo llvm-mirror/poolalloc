@@ -179,8 +179,14 @@ public:
 
 // create - Create a new (empty) slab and add it to the end of the Pools list.
 void PoolSlab::create(PoolTy *Pool, unsigned SizeHint) {
-  if (Pool->DeclaredSize == 0)
+  if (Pool->DeclaredSize == 0) {
+    unsigned Align = Pool->Alignment;
+    if (SizeHint < sizeof(FreedNodeHeader)-sizeof(NodeHeader))
+      SizeHint = sizeof(FreedNodeHeader)-sizeof(NodeHeader);
+    SizeHint = SizeHint+sizeof(FreedNodeHeader)+(Align-1);
+    SizeHint = (SizeHint & ~(Align-1))-sizeof(FreedNodeHeader);
     Pool->DeclaredSize = SizeHint;
+  }
 
   unsigned Size = Pool->AllocSize;
   Pool->AllocSize <<= 1;
@@ -350,8 +356,12 @@ void poolinit(PoolTy *Pool, unsigned DeclaredSize, unsigned ObjAlignment) {
 
   // Round the declared size up to an alignment boundary-header size, just like
   // we have to do for objects.
-  DeclaredSize = DeclaredSize+sizeof(FreedNodeHeader)+(ObjAlignment-1);
-  DeclaredSize = (DeclaredSize & ~(ObjAlignment-1))-sizeof(FreedNodeHeader);
+  if (DeclaredSize) {
+    if (DeclaredSize < sizeof(FreedNodeHeader)-sizeof(NodeHeader))
+      DeclaredSize = sizeof(FreedNodeHeader)-sizeof(NodeHeader);
+    DeclaredSize = DeclaredSize+sizeof(FreedNodeHeader)+(ObjAlignment-1);
+    DeclaredSize = (DeclaredSize & ~(ObjAlignment-1))-sizeof(FreedNodeHeader);
+  }
 
   Pool->DeclaredSize = DeclaredSize;
 
