@@ -51,23 +51,44 @@ struct LargeArrayHeader {
 };
 
 
+// FreeList*Size - These are size classes for each of the freelists in a pool.
+// An object in a particular free list is guaranteed to be <= this size.
+enum {
+  FreeListZeroSize = 16,
+  FreeListOneSize  = 64,
+  FreeListTwoSize  = 256,
+
+  // There are four free lists.
+  LargeFreeList = 3
+};
+
 struct PoolTy {
   // Lists - the list of slabs in this pool.
   PoolSlab *Slabs;
+
+  // The free node lists for objects of various sizes.  
+  FreedNodeHeader *FreeNodeLists[4];
+
+  // NumObjects - the number of poolallocs for this pool.
+  unsigned NumObjects;
+
+  // BytesAllocated - The total number of bytes ever allocated from this pool.
+  // Together with NumObjects, allows us to calculate average object size.
+  unsigned BytesAllocated;
 
   // LargeArrays - A doubly linked list of large array chunks, dynamically
   // allocated with malloc.
   LargeArrayHeader *LargeArrays;
 
-  // The list of free'd nodes.
-  FreedNodeHeader *FreeNodeList;
-
   // The size to allocate for the next slab.
   unsigned AllocSize;
+
+  // The declared size of the pool, just kept for the record.
+  unsigned DeclaredSize;
 };
 
 extern "C" {
-  void poolinit(PoolTy *Pool);
+  void poolinit(PoolTy *Pool, unsigned DeclaredSize);
   void poolmakeunfreeable(PoolTy *Pool);
   void pooldestroy(PoolTy *Pool);
   void *poolalloc(PoolTy *Pool, unsigned NumBytes);
