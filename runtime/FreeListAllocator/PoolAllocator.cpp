@@ -13,6 +13,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "PoolAllocator.h"
+#include "PageManager.h"
 #include <assert.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -56,7 +57,7 @@ struct SlabHeader
 //  Allocate memory for a new slab and initialize the slab.
 //
 struct SlabHeader *
-createSlab (unsigned int NodeSize, unsigned int NodesPerSlab = 128)
+createSlab (unsigned int NodeSize, unsigned int NodesPerSlab = 0)
 {
   // Pointer to the new Slab
   struct SlabHeader * NewSlab;
@@ -65,15 +66,25 @@ createSlab (unsigned int NodeSize, unsigned int NodesPerSlab = 128)
   NodePointer p;
 
   //
+  // Determine how many nodes should exist within a slab.
+  //
+  if (NodesPerSlab == 0)
+  {
+    NodesPerSlab = (PageSize - sizeof (struct SlabHeader)) / (sizeof (unsigned char *) + NodeSize);
+  }
+
+  //
   // Determine the size of the slab.
   //
   int slab_size = ((sizeof (unsigned char *) + NodeSize) * NodesPerSlab) +
                    sizeof (struct SlabHeader);
 
+  assert (slab_size <= PageSize);
+
   //
   // Allocate a piece of memory for the new slab.
   //
-  NewSlab = (struct SlabHeader *) malloc (slab_size);
+  NewSlab = (struct SlabHeader *) AllocatePage ();
   assert (NewSlab != NULL);
 
   //
@@ -154,6 +165,11 @@ void poolinit(PoolTy *Pool, unsigned int NodeSize)
   Pool->FreeList = NULL;
   Pool->FreeablePool = 1;
 
+  //
+  // Initialize the page manager.
+  //
+  InitializePageManager ();
+
   return;
 }
 
@@ -173,7 +189,7 @@ void pooldestroy(PoolTy *Pool)
   assert(Pool && "Null pool pointer passed in to pooldestroy!\n");
   for (Slabp = Pool->Slabs; Slabp != NULL; Slabp=Slabp->Next)
   {
-    free (Slabp);
+    FreePage (Slabp);
   }
 
   return;
