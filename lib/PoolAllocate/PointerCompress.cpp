@@ -973,7 +973,7 @@ void InstructionRewriter::visitCallInst(CallInst &CI) {
   unsigned NumPoolArgs = FI ? FI->ArgNodes.size() : 0;
   for (unsigned i = 1, e = CI.getNumOperands(); i != e; ++i)
     if (isa<PointerType>(CI.getOperand(i)->getType()) && i > NumPoolArgs) {
-      Argument *FormalArg = next(FI->F.abegin(), i-1-NumPoolArgs);
+      Argument *FormalArg = next(FI->F.arg_begin(), i-1-NumPoolArgs);
         
       DSGraph::computeNodeMapping(CG->getNodeForValue(FormalArg),
                                   getMappedNodeHandle(CI.getOperand(i)),
@@ -1004,7 +1004,7 @@ void InstructionRewriter::visitCallInst(CallInst &CI) {
   std::vector<Value*> Operands;
   Operands.reserve(CI.getNumOperands()-1);
 
-  Function::aiterator AI = FI->F.abegin();
+  Function::arg_iterator AI = FI->F.arg_begin();
   
   // Pass pool descriptors.
   for (unsigned i = 1; i != NumPoolArgs+1; ++i)
@@ -1290,7 +1290,7 @@ GetFunctionClone(Function *F, std::set<const DSNode*> &PoolsToCompress,
   for (unsigned i = 0; i != NumPoolArgs; ++i)
     ParamTypes.push_back(FTy->getParamType(i));
 
-  Function::aiterator AI = FI.F.abegin();
+  Function::arg_iterator AI = FI.F.arg_begin();
   for (unsigned i = NumPoolArgs, e = FTy->getNumParams(); i != e; ++i, ++AI)
     if (isa<PointerType>(FTy->getParamType(i)) &&
         PoolsToCompress.count(CG.getNodeForValue(AI).getNode())) {
@@ -1327,8 +1327,9 @@ GetFunctionClone(Function *F, std::set<const DSNode*> &PoolsToCompress,
   std::vector<std::pair<Value*,Value*> > RemappedArgs;
 
   // Process arguments, setting up the ValueMap for them.
-  Function::aiterator CI = Clone->abegin();   // Iterator over cloned fn args.
-  for (Function::aiterator I = F->abegin(), E = F->aend(); I != E; ++I, ++CI) {
+  Function::arg_iterator CI = Clone->arg_begin();// Iterate over cloned fn args.
+  for (Function::arg_iterator I = F->arg_begin(), E = F->arg_end();
+       I != E; ++I, ++CI) {
     // Transfer the argument names over.
     CI->setName(I->getName());
 

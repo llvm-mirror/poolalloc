@@ -232,7 +232,8 @@ static void MarkNodesWhichMustBePassedIn(hash_set<const DSNode*> &MarkedNodes,
   // Mark globals and incomplete nodes as live... (this handles arguments)
   if (F.getName() != "main") {
     // All DSNodes reachable from arguments must be passed in.
-    for (Function::aiterator I = F.abegin(), E = F.aend(); I != E; ++I) {
+    for (Function::arg_iterator I = F.arg_begin(), E = F.arg_end();
+         I != E; ++I) {
       DSGraph::ScalarMapTy::iterator AI = G.getScalarMap().find(I);
       if (AI != G.getScalarMap().end())
         if (DSNode *N = AI->second.getNode())
@@ -320,7 +321,7 @@ Function *PoolAllocate::MakeFunctionClone(Function &F) {
   // Set the rest of the new arguments names to be PDa<n> and add entries to the
   // pool descriptors map
   std::map<const DSNode*, Value*> &PoolDescriptors = FI.PoolDescriptors;
-  Function::aiterator NI = New->abegin();
+  Function::arg_iterator NI = New->arg_begin();
   
   for (unsigned i = 0, e = FI.ArgNodes.size(); i != e; ++i, ++NI) {
     NI->setName("PDa");
@@ -330,7 +331,8 @@ Function *PoolAllocate::MakeFunctionClone(Function &F) {
   // Map the existing arguments of the old function to the corresponding
   // arguments of the new function, and copy over the names.
   std::map<const Value*, Value*> ValueMap;
-  for (Function::aiterator I = F.abegin(); NI != New->aend(); ++I, ++NI) {
+  for (Function::arg_iterator I = F.arg_begin();
+       NI != New->arg_end(); ++I, ++NI) {
     ValueMap[I] = NI;
     NI->setName(I->getName());
   }
@@ -338,8 +340,11 @@ Function *PoolAllocate::MakeFunctionClone(Function &F) {
   // Populate the value map with all of the globals in the program.
   // FIXME: This should be unnecessary!
   Module &M = *F.getParent();
-  for (Module::iterator I = M.begin(), E=M.end(); I!=E; ++I)    ValueMap[I] = I;
-  for (Module::giterator I = M.gbegin(), E=M.gend(); I!=E; ++I) ValueMap[I] = I;
+  for (Module::iterator I = M.begin(), E=M.end(); I!=E; ++I)
+    ValueMap[I] = I;
+  for (Module::global_iterator I = M.global_begin(), E = M.global_end();
+       I != E; ++I)
+    ValueMap[I] = I;
 
   // Perform the cloning.
   std::vector<ReturnInst*> Returns;

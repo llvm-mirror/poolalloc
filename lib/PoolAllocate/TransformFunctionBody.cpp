@@ -484,7 +484,7 @@ void FuncTransform::visitCallSite(CallSite CS) {
     NewCallee = new CastInst(CS.getCalledValue(), PFTy, "tmp", TheCall);
   }
 
-  Function::aiterator FAI = CF->abegin(), E = CF->aend();
+  Function::arg_iterator FAI = CF->arg_begin(), E = CF->arg_end();
   CallSite::arg_iterator AI = CS.arg_begin(), AE = CS.arg_end();
   for ( ; FAI != E && AI != AE; ++FAI, ++AI)
     if (!isa<Constant>(*AI))
