@@ -21,6 +21,10 @@
 #include <cassert>
 #include <vector>
 
+// Define this if we want to use memalign instead of mmap to get pages.
+// Empirically, this slows down the pool allocator a LOT.
+#define USE_MEMALIGN 0
+
 unsigned PageSize = 0;
 
 // Explicitly use the malloc allocator here, to avoid depending on the C++
@@ -32,6 +36,7 @@ void InitializePageManager() {
   if (!PageSize) PageSize = sysconf(_SC_PAGESIZE);
 }
 
+#if !USE_MEMALIGN
 static void *GetPages(unsigned NumPages) {
 #if defined(i386) || defined(__i386__) || defined(__x86__)
   /* Linux and *BSD tend to have these flags named differently. */
@@ -56,11 +61,17 @@ static void *GetPages(unsigned NumPages) {
   assert(pa != MAP_FAILED && "MMAP FAILED!");
   return pa;
 }
+#endif
 
 
 /// AllocatePage - This function returns a chunk of memory with size and
 /// alignment specified by PageSize.
 void *AllocatePage() {
+#if USE_MEMALIGN
+  void *Addr;
+  posix_memalign(&Addr, PageSize, PageSize);
+  return Addr;
+#else
   if (FreePages && !FreePages->empty()) {
     void *Result = FreePages->back();
     FreePages->pop_back();
@@ -68,7 +79,7 @@ void *AllocatePage() {
   }
 
   // Allocate several pages, and put the extras on the freelist...
-  unsigned NumToAllocate = 10;
+  unsigned NumToAllocate = 8;
   char *Ptr = (char*)GetPages(NumToAllocate);
 
   if (!FreePages) {
@@ -80,13 +91,18 @@ void *AllocatePage() {
   for (unsigned i = 1; i != NumToAllocate; ++i)
     FreePages->push_back(Ptr+i*PageSize);
   return Ptr;
+#endif
 }
 
 
 /// FreePage - This function returns the specified page to the pagemanager for
 /// future allocation.
 void FreePage(void *Page) {
+#if USE_MEMALIGN
+  free(Page);
+#else
   assert(FreePages && "No pages allocated!");
   FreePages->push_back(Page);
   //munmap(Page, 1);
+#endif
 }
