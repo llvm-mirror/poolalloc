@@ -13,13 +13,6 @@ LEVEL = .
 DIRS = lib runtime
 
 #
-# This is needed since the tags generation code expects a tools directory
-# to exist.
-#
-all::
-	mkdir -p tools
-
-#
 # Include the Master Makefile that knows how to build all.
 #
 include $(LEVEL)/Makefile.common
