@@ -26,7 +26,13 @@ NORMAL_PROBLEM_SIZE_DIRS := \
    External/Povray \
    External/FPGrowth \
    External/Namd \
-   External/SPEC/CINT2000
+   External/SPEC/CINT2000/164.gzip \
+   External/SPEC/CINT2000/175.vpr \
+   External/SPEC/CINT2000/176.gcc \
+   External/SPEC/CINT2000/252.eon \
+   External/SPEC/CINT2000/253.perlbmk \
+   External/SPEC/CINT2000/254.gap \
+   External/SPEC/CINT2000/300.twolf
 
 NORMAL_PROBLEM_SIZE_DIRS := \
    $(addprefix $(LLVM_OBJ_ROOT)/projects/llvm-test/,$(NORMAL_PROBLEM_SIZE_DIRS))
