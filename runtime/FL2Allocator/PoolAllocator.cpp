@@ -74,12 +74,16 @@ void poolinit(PoolTy *Pool) {
   Pool->Slabs = 0;
   Pool->FreeNodeList = 0;
   Pool->LargeArrays = 0;
+
+  //printf("init pool 0x%X\n", Pool);
 }
 
 // pooldestroy - Release all memory allocated for a pool
 //
 void pooldestroy(PoolTy *Pool) {
   assert(Pool && "Null pool pointer passed in to pooldestroy!\n");
+
+  //printf("destroy pool 0x%X\n", Pool);
 
   // Free all allocated slabs.
   PoolSlab *PS = Pool->Slabs;
@@ -117,10 +121,12 @@ void *poolalloc(PoolTy *Pool, unsigned NumBytes) {
       NextNodes->NormalHeader.Next = FirstNode->NormalHeader.Next;
       Pool->FreeNodeList = NextNodes;
       FirstNode->NormalHeader.ObjectSize = NumBytes;
+      //printf("alloc 0x%X -> 0x%X\n", Pool, &FirstNode->NormalHeader+1);
       return &FirstNode->NormalHeader+1;
     } else if (FirstNodeSize > NumBytes) {
       Pool->FreeNodeList = FirstNode->NormalHeader.Next;   // Unlink
       FirstNode->NormalHeader.ObjectSize = FirstNodeSize;
+      //printf("alloc 0x%X -> 0x%X\n", Pool, &FirstNode->NormalHeader+1);
       return &FirstNode->NormalHeader+1;
     }
   }
@@ -148,10 +154,12 @@ void *poolalloc(PoolTy *Pool, unsigned NumBytes) {
           NextNodes->NormalHeader.Next = FNN->NormalHeader.Next;
           *FN = NextNodes;
           FNN->NormalHeader.ObjectSize = NumBytes;
+          //printf("alloc 0x%X -> 0x%X\n", Pool, &FNN->NormalHeader+1);
           return &FNN->NormalHeader+1;
         } else {
           *FN = FNN->NormalHeader.Next;   // Unlink
           FNN->NormalHeader.ObjectSize = FNN->Size;
+          //printf("alloc 0x%X -> 0x%X\n", Pool, &FNN->NormalHeader+1);
           return &FNN->NormalHeader+1;
         }
       }
@@ -167,9 +175,12 @@ void *poolalloc(PoolTy *Pool, unsigned NumBytes) {
   LargeArrayHeader *LAH = (LargeArrayHeader*)malloc(sizeof(LargeArrayHeader) + 
                                                     NumBytes);
   LAH->Next = Pool->LargeArrays;
+  if (LAH->Next)
+    LAH->Next->Prev = &LAH->Next;
   Pool->LargeArrays = LAH;
   LAH->Prev = &Pool->LargeArrays;
   LAH->Marker = ~0U;
+  //printf("alloc large 0x%X -> 0x%X\n", Pool, LAH+1);
   return LAH+1;
 }
 
@@ -177,6 +188,8 @@ void *poolalloc(PoolTy *Pool, unsigned NumBytes) {
 void poolfree(PoolTy *Pool, void *Node) {
   assert(Pool && "Null pool pointer passed in to poolfree!\n");
   if (Node == 0) return;
+
+  //printf("free 0x%X <- 0x%X\n", Pool, Node);
 
   // Check to see how many elements were allocated to this node...
   FreedNodeHeader *FNH = (FreedNodeHeader*)((char*)Node-sizeof(NodeHeader));
