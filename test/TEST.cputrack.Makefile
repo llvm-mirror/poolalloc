@@ -71,6 +71,12 @@ Output/$(TEST).pa.%.wc: Output/%.poolalloc.cbe
 	@echo "Running '$(TEST)' test on '$(TESTNAME)' program"
 	$(VERB) $(CPUTRACK) $(EVENTS_WC)      -o $@ $< $(RUN_OPTIONS) < $(STDIN_FILENAME) > /dev/null 2>&1
 
+$(PROGRAMS_TO_TEST:%=Output/$(TEST).pa.%.tlb): \
+Output/$(TEST).pa.%.tlb: Output/%.poolalloc.cbe
+	@echo "========================================="
+	@echo "Running '$(TEST)' test on '$(TESTNAME)' program"
+	$(VERB) $(CPUTRACK) $(EVENTS_TLB)      -o $@ $< $(RUN_OPTIONS) < $(STDIN_FILENAME) > /dev/null 2>&1
+
 #
 # Generate events for CBE
 #
@@ -92,6 +98,12 @@ Output/$(TEST).%.wc: Output/%.nonpa.cbe
 	@echo "Running '$(TEST)' test on '$(TESTNAME)' program"
 	$(VERB) $(CPUTRACK) $(EVENTS_WC)      -o $@ $< $(RUN_OPTIONS) < $(STDIN_FILENAME) > /dev/null 2>&1
 
+$(PROGRAMS_TO_TEST:%=Output/$(TEST).%.tlb): \
+Output/$(TEST).%.tlb: Output/%.nonpa.cbe
+	@echo "========================================="
+	@echo "Running '$(TEST)' test on '$(TESTNAME)' program"
+	$(VERB) $(CPUTRACK) $(EVENTS_TLB)      -o $@ $< $(RUN_OPTIONS) < $(STDIN_FILENAME) > /dev/null 2>&1
+
 else
 
 # This rule runs the generated executable, generating timing information, for
@@ -101,7 +113,6 @@ Output/$(TEST).pa.%.dcrd: Output/%.poolalloc.cbe
 	-$(SPEC_SANDBOX) poolalloccbe-$(RUN_TYPE) $@.out $(REF_IN_DIR) \
              $(RUNSAFELY) $(STDIN_FILENAME) $(STDOUT_FILENAME) \
                   $(CPUTRACK) $(EVENTS_DC_RD)   -o $(BUILD_OBJ_DIR)/$@ $(BUILD_OBJ_DIR)/$< $(RUN_OPTIONS)
-
 
 $(PROGRAMS_TO_TEST:%=Output/$(TEST).pa.%.ec): \
 Output/$(TEST).pa.%.ec: Output/%.poolalloc.cbe
@@ -114,6 +125,12 @@ Output/$(TEST).pa.%.wc: Output/%.poolalloc.cbe
 	-$(SPEC_SANDBOX) poolalloccbe-$(RUN_TYPE) $@.out $(REF_IN_DIR) \
              $(RUNSAFELY) $(STDIN_FILENAME) $(STDOUT_FILENAME) \
                   $(CPUTRACK) $(EVENTS_WC)      -o $(BUILD_OBJ_DIR)/$@ $(BUILD_OBJ_DIR)/$< $(RUN_OPTIONS)
+
+$(PROGRAMS_TO_TEST:%=Output/$(TEST).pa.%.tlb): \
+Output/$(TEST).pa.%.tlb: Output/%.poolalloc.cbe
+	-$(SPEC_SANDBOX) poolalloccbe-$(RUN_TYPE) $@.out $(REF_IN_DIR) \
+             $(RUNSAFELY) $(STDIN_FILENAME) $(STDOUT_FILENAME) \
+                  $(CPUTRACK) $(EVENTS_TLB)      -o $(BUILD_OBJ_DIR)/$@ $(BUILD_OBJ_DIR)/$< $(RUN_OPTIONS)
 
 # This rule runs the generated executable, generating timing information, for
 # SPEC
@@ -134,6 +151,12 @@ Output/$(TEST).%.wc: Output/%.nonpa.cbe
 	-$(SPEC_SANDBOX) nonpacbe-$(RUN_TYPE) $@.out $(REF_IN_DIR) \
              $(RUNSAFELY) $(STDIN_FILENAME) $(STDOUT_FILENAME) \
                   $(CPUTRACK) $(EVENTS_WC)      -o $(BUILD_OBJ_DIR)/$@ $(BUILD_OBJ_DIR)/$< $(RUN_OPTIONS)
+
+$(PROGRAMS_TO_TEST:%=Output/$(TEST).%.tlb): \
+Output/$(TEST).%.tlb: Output/%.nonpa.cbe
+	-$(SPEC_SANDBOX) nonpacbe-$(RUN_TYPE) $@.out $(REF_IN_DIR) \
+             $(RUNSAFELY) $(STDIN_FILENAME) $(STDOUT_FILENAME) \
+                  $(CPUTRACK) $(EVENTS_TLB)      -o $(BUILD_OBJ_DIR)/$@ $(BUILD_OBJ_DIR)/$< $(RUN_OPTIONS)
 endif
 
 ############################################################################
@@ -147,6 +170,8 @@ Output/%.$(TEST).report.txt: \
                      $(PROGRAMS_TO_TEST:%=Output/$(TEST).pa.%.wc)     \
                      $(PROGRAMS_TO_TEST:%=Output/$(TEST).%.ec)     \
                      $(PROGRAMS_TO_TEST:%=Output/$(TEST).pa.%.ec)     \
+                     $(PROGRAMS_TO_TEST:%=Output/$(TEST).%.tlb)     \
+                     $(PROGRAMS_TO_TEST:%=Output/$(TEST).pa.%.tlb)     \
 	                   $(PROGRAMS_TO_TEST:%=Output/%.poolalloc.out-cbe.time) \
                      $(PROGRAMS_TO_TEST:%=Output/%.nonpa.out-cbe.time)
 	@echo "Program:" $* > $@
@@ -171,6 +196,10 @@ Output/%.$(TEST).report.txt: \
 	@cat  Output/$(TEST).$*.ec | tail -1 | awk '{print $$4}' >> $@
 	@printf "CBE-L2-Data-Misses: " >> $@
 	@cat  Output/$(TEST).$*.ec | tail -1 | awk '{print $$5}' >> $@
+	@printf "CBE-PA-DTLB-Misses: " >> $@
+	@cat  Output/$(TEST).pa.$*.tlb | tail -1 | awk '{print $$5}' >> $@
+	@printf "CBE-DTLB-Misses: " >> $@
+	@cat  Output/$(TEST).$*.tlb | tail -1 | awk '{print $$5}' >> $@
 	@printf "CBE-RUN-TIME: " >> $@
 	@grep "^program" Output/$*.nonpa.out-cbe.time >> $@
 	@printf "CBE-PA-RUN-TIME: " >> $@

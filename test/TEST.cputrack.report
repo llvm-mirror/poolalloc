@@ -83,12 +83,14 @@ my $PTRDIST   = 'MultiSource/Benchmarks/Ptrdist';
  ["NormalL2DataReadMiss",    'CBE-L2-Data-Read-Misses: ([0-9]+)'],
  ["NormalL2DataMiss",    'CBE-L2-Data-Misses: ([0-9]+)'],
  ["NormalWriteCacheMiss",    'CBE-WCache-Misses: ([0-9]+)'],
+ ["NormalDTLBMiss",    'CBE-DTLB-Misses: ([0-9]+)'],
 
  ["PoolAllocL1DataRead",    'CBE-PA-L1-Data-Reads: ([0-9]+)'],
  ["PoolAllocL1DataMiss",    'CBE-PA-L1-Data-Misses: ([0-9]+)'],
  ["PoolAllocL2DataReadMiss",    'CBE-PA-L2-Data-Read-Misses: ([0-9]+)'],
  ["PoolAllocL2DataMiss",    'CBE-PA-L2-Data-Misses: ([0-9]+)'],
  ["PoolAllocWriteCacheMiss",    'CBE-PA-WCache-Misses: ([0-9]+)'],
+ ["PoolAllocDTLBMiss",    'CBE-PA-DTLB-Misses: ([0-9]+)'],
  []
 );
 
