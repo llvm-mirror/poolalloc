@@ -15,11 +15,7 @@
 #ifndef POOLALLOCATOR_RUNTIME_H
 #define POOLALLOCATOR_RUNTIME_H
 
-struct SlabHeader;
-typedef struct NodePointer
-{
-  struct NodePointer * Next;
-} NodePointer;
+#include "PoolSlab.h"
 
 typedef struct PoolTy {
   // NodeSize - Keep track of the object size tracked by this pool
@@ -27,6 +23,9 @@ typedef struct PoolTy {
 
   // Pointer to the list of slabs allocated for this pool
   struct SlabHeader * Slabs;
+
+  // List of slabs used to hold arrays
+  struct SlabHeader * ArraySlabs;
 
   // Pointer to the free list of nodes
   struct NodePointer FreeList;

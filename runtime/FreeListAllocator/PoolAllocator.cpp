@@ -14,6 +14,7 @@
 
 #include "PoolAllocator.h"
 #include "PageManager.h"
+#include "PoolSlab.h"
 #include <assert.h>
 #include <stdlib.h>
 
@@ -25,29 +26,6 @@
 //  PoolSlab implementation
 //
 //===----------------------------------------------------------------------===//
-struct SlabHeader
-{
-  // Flags whether this is an array
-  unsigned int IsArray;
-
-  // Number of nodes per slab
-  unsigned int NodesPerSlab;
-
-  // Reference Count
-  unsigned int LiveNodes;
-
-  // Next free data block
-  unsigned int NextFreeData;
-
-  // Pointer to the next slab
-  struct SlabHeader * Next;
-
-  // Pointer to the data area (will be in the same page)
-  unsigned char * Data;
-
-  // Pointer to the list of nodes
-  NodePointer BlockList [];
-};
 
 //
 // Function: createSlab ()
@@ -166,7 +144,7 @@ void poolinit(PoolTy *Pool, unsigned int NodeSize)
 
   // We must alway return unique pointers, even if they asked for 0 bytes
   Pool->NodeSize = NodeSize ? NodeSize : 1;
-  Pool->Slabs = NULL;
+  Pool->Slabs = Pool->ArraySlabs = NULL;
   Pool->FreeList.Next = NULL;
   Pool->FreeablePool = 1;
 
@@ -289,6 +267,37 @@ poolallocarray(PoolTy* Pool, unsigned ArraySize)
   assert(Pool && "Null pool pointer passed into poolallocarray!\n");
 
   //
+  // Scan the list of array slabs to see if there is one that fits.
+  //
+  struct SlabHeader * Slabp = Pool->ArraySlabs;
+  struct SlabHeader * Prevp = NULL;
+
+  for (; Slabp != NULL; Prevp = Slabp, Slabp=Slabp->Next)
+  {
+    //
+    // Check to see if this slab has enough room.
+    //
+    if (Slabp->NodesPerSlab >= ArraySize)
+    {
+      if (Prevp == NULL)
+      {
+        //
+        // This is the first item.  Change the head of the list.
+        //
+        Pool->ArraySlabs = Slabp->Next;
+      }
+      else
+      {
+        //
+        // This is some other item.  Modify the preceding item.
+        //
+        Prevp->Next = Slabp->Next;
+      }
+      return (&(Slabp->Data[0]));
+    }
+  }
+
+  //
   // Create a new slab and mark it as an array.
   //
   struct SlabHeader * NewSlab = createSlab (Pool->NodeSize, ArraySize);
@@ -304,7 +313,7 @@ void
 poolfree (PoolTy * Pool, void * Block)
 {
   assert(Pool && "Null pool pointer passed in to poolfree!\n");
-  assert(Block && "Null pool pointer passed in to poolfree!\n");
+  assert(Block && "Null block pointer passed in to poolfree!\n");
 
   //
   // Find the header of the memory block.
@@ -312,15 +321,18 @@ poolfree (PoolTy * Pool, void * Block)
   struct SlabHeader * slabp = DataOwner (Block);
 
   //
-  // If the owner is an array, just nuke the whole thing for now.
-  // FIXME: Inefficient!  Danger Will Robinson!
+  // If the owning slab is an array, add it back to the free array list.
   //
   if (slabp->IsArray)
   {
-    FreePage (slabp);
+    slabp->Next = Pool->ArraySlabs;
+    Pool->ArraySlabs = slabp;
     return;
   }
 
+  //
+  // Find the node pointer that corresponds to this data block.
+  //
   NodePointer Node;
   Node.Next = &(slabp->BlockList[((unsigned char *)Block - slabp->Data)/Pool->NodeSize]);
 
