@@ -26,9 +26,9 @@ typedef unsigned long uintptr_t;
 
 #ifndef NDEBUG
 // Configuration macros.  Define up to one of these.
-//#define PRINT_NUM_POOLS          // Print use dynamic # pools info
+#define PRINT_NUM_POOLS          // Print use dynamic # pools info
 //#define PRINT_POOLDESTROY_STATS  // When pools are destroyed, print stats
-#define PRINT_POOL_TRACE         // Print a full trace
+//#define PRINT_POOL_TRACE         // Print a full trace
 #endif
 
 //===----------------------------------------------------------------------===//
@@ -117,6 +117,12 @@ static void PrintPoolStats(PoolTy<PoolTraits> *Pool) {
 static unsigned PoolCounter = 0;
 static unsigned PoolsInited = 0;
 
+// MaxHeapSize - The maximum size of the heap ever.
+static unsigned MaxHeapSize = 0;
+
+// CurHeapSize - The current size of the heap.
+static unsigned CurHeapSize = 0;
+
 template<typename PoolTraits>
 static void PoolCountPrinter() {
   DO_IF_TRACE(PrintLivePoolInfo<PoolTraits>());
@@ -124,6 +130,9 @@ static void PoolCountPrinter() {
           "*** %d DYNAMIC POOLS INITIALIZED ***\n\n"
           "*** %d DYNAMIC POOLS ALLOCATED FROM ***\n\n",
           PoolsInited, PoolCounter);
+  fprintf(stderr, "MaxHeapSize = %fKB  HeapSizeAtExit = %fKB   "
+          "NOTE: only valid if using Heuristic=AllPools and no "
+          "bumpptr/realloc!\n", MaxHeapSize/1024.0, CurHeapSize/1024.0);
 }
 
 template<typename PoolTraits>
@@ -520,6 +529,9 @@ static void *poolalloc_internal(PoolTy<PoolTraits> *Pool, unsigned NumBytes) {
   NumBytes = (NumBytes & ~(Alignment-1)) - 
              sizeof(FreedNodeHeader<PoolTraits>); // Truncate
 
+  DO_IF_PNP(CurHeapSize += NumBytes);
+  DO_IF_PNP(if (CurHeapSize > MaxHeapSize) MaxHeapSize = CurHeapSize);
+
   DO_IF_PNP(++Pool->NumObjects);
   DO_IF_PNP(Pool->BytesAllocated += NumBytes);
 
@@ -658,6 +670,8 @@ static void poolfree_internal(PoolTy<PoolTraits> *Pool, void *Node) {
 
   if (Size == ~1U) goto LargeArrayCase;
   DO_IF_TRACE(fprintf(stderr, "%d bytes\n", Size));
+
+  DO_IF_PNP(CurHeapSize -= Size);
   
   // If the node immediately after this one is also free, merge it into node.
   FreedNodeHeader<PoolTraits> *NextFNH;
@@ -711,6 +725,7 @@ static void poolfree_internal(PoolTy<PoolTraits> *Pool, void *Node) {
 LargeArrayCase:
   LargeArrayHeader *LAH = ((LargeArrayHeader*)Node)-1;
   DO_IF_TRACE(fprintf(stderr, "%d bytes [large]\n", LAH->Size));
+  DO_IF_PNP(CurHeapSize -= LAH->Size);
 
   // Unlink it from the list of large arrays and free it.
   LAH->UnlinkFromList();
