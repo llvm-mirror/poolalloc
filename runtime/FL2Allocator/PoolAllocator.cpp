@@ -18,6 +18,8 @@
 #include <stdio.h>
 #include <string.h>
 
+typedef long intptr_t;
+
 // Performance tweaking macros.
 #define INITIAL_SLAB_SIZE 4096
 #define LARGE_SLAB_SIZE   4096
@@ -121,6 +123,14 @@ static void PoolCountPrinter() {
           PoolsInited, PoolCounter);
 }
 
+static void InitPrintNumPools() {
+  static bool Initialized = 0;
+  if (!Initialized) {
+    Initialized = 1;
+    atexit(PoolCountPrinter);
+  }
+}
+
 #define DO_IF_PNP(X) X
 #else
 #define DO_IF_PNP(X)
@@ -163,6 +173,7 @@ struct PoolSlab {
 
 public:
   static void create(PoolTy *Pool, unsigned SizeHint);
+  static void *create_for_bp(PoolTy *Pool);
   void destroy();
 
   PoolSlab *getNext() const { return Next; }
@@ -202,9 +213,117 @@ void PoolSlab::create(PoolTy *Pool, unsigned SizeHint) {
   Pool->Slabs = PS;
 }
 
+/// create_for_bp - This creates a slab for a bump-pointer pool.
+void *PoolSlab::create_for_bp(PoolTy *Pool) {
+  unsigned Size = Pool->AllocSize;
+  Pool->AllocSize <<= 1;
+  PoolSlab *PS = (PoolSlab*)malloc(Size+sizeof(PoolSlab));
+  char *PoolBody = (char*)(PS+1);
+
+  // Update the end pointer.
+  Pool->FreeNodeLists[1] = (FreedNodeHeader*)(PoolBody+Size);
+
+  // Add the slab to the list...
+  PS->Next = Pool->Slabs;
+  Pool->Slabs = PS;
+  return PoolBody;
+}
+
+
 void PoolSlab::destroy() {
   free(this);
 }
+
+//===----------------------------------------------------------------------===//
+//
+//  Bump-pointer pool allocator library implementation
+//
+//===----------------------------------------------------------------------===//
+
+void poolinit_bp(PoolTy *Pool, unsigned ObjAlignment) {
+  DO_IF_PNP(memset(Pool, 0, sizeof(PoolTy)));
+  Pool->Slabs = 0;
+  if (ObjAlignment < 4) ObjAlignment = __alignof(double);
+  Pool->AllocSize = INITIAL_SLAB_SIZE;
+  Pool->Alignment = ObjAlignment;
+  Pool->LargeArrays = 0;
+  Pool->FreeNodeLists[0] = 0;   // This is our bump pointer.
+  Pool->FreeNodeLists[1] = 0;   // This is our end pointer.
+
+  DO_IF_TRACE(fprintf(stderr, "[%d] poolinit_bp(0x%X, %d)\n", addPoolNumber(Pool),
+                      Pool, ObjAlignment));
+  DO_IF_PNP(++PoolsInited);  // Track # pools initialized
+  DO_IF_PNP(InitPrintNumPools());
+}
+
+void *poolalloc_bp(PoolTy *Pool, unsigned NumBytes) {
+  assert(Pool && "Bump pointer pool does not support null PD!");
+  DO_IF_TRACE(fprintf(stderr, "[%d] poolalloc_bp(%d) -> ",
+                      getPoolNumber(Pool), NumBytes));
+  DO_IF_PNP(if (Pool->NumObjects == 0) ++PoolCounter);  // Track # pools.
+
+  if (NumBytes >= LARGE_SLAB_SIZE)
+    goto LargeObject;
+
+  if (NumBytes < 1) NumBytes = 1;
+
+  unsigned Alignment;
+  char *BumpPtr, *EndPtr;
+  Alignment = Pool->Alignment-1;
+  BumpPtr = (char*)Pool->FreeNodeLists[0]; // Get our bump pointer.
+  EndPtr  = (char*)Pool->FreeNodeLists[1]; // Get our end pointer.
+
+TryAgain:
+  // Align the bump pointer to the required boundary.
+  BumpPtr = (char*)(intptr_t((BumpPtr+Alignment)) & ~Alignment);
+
+  if (BumpPtr + NumBytes < EndPtr) {
+    void *Result = BumpPtr;
+    // Update bump ptr.
+    Pool->FreeNodeLists[0] = (FreedNodeHeader*)(BumpPtr+NumBytes);
+    DO_IF_TRACE(fprintf(stderr, "0x%X\n", Result));
+    return Result;
+  }
+  
+  BumpPtr = (char*)PoolSlab::create_for_bp(Pool);
+  EndPtr  = (char*)Pool->FreeNodeLists[1]; // Get our updated end pointer.  
+  goto TryAgain;
+
+LargeObject:
+  // Otherwise, the allocation is a large array.  Since we're not going to be
+  // able to help much for this allocation, simply pass it on to malloc.
+  LargeArrayHeader *LAH = (LargeArrayHeader*)malloc(sizeof(LargeArrayHeader) + 
+                                                    NumBytes);
+  LAH->Size = NumBytes;
+  LAH->Marker = ~0U;
+  LAH->LinkIntoList(&Pool->LargeArrays);
+  DO_IF_TRACE(fprintf(stderr, "0x%X  [large]\n", LAH+1));
+  return LAH+1;
+}
+
+void pooldestroy_bp(PoolTy *Pool) {
+  assert(Pool && "Null pool pointer passed in to pooldestroy!\n");
+
+  DO_IF_TRACE(fprintf(stderr, "[%d] pooldestroy_bp", removePoolNumber(Pool)));
+  DO_IF_POOLDESTROY_STATS(PrintPoolStats(Pool));
+
+  // Free all allocated slabs.
+  PoolSlab *PS = Pool->Slabs;
+  while (PS) {
+    PoolSlab *Next = PS->getNext();
+    PS->destroy();
+    PS = Next;
+  }
+
+  // Free all of the large arrays.
+  LargeArrayHeader *LAH = Pool->LargeArrays;
+  while (LAH) {
+    LargeArrayHeader *Next = LAH->Next;
+    free(LAH);
+    LAH = Next;
+  }
+}
+
 
 
 //===----------------------------------------------------------------------===//
@@ -223,17 +342,10 @@ void poolinit(PoolTy *Pool, unsigned DeclaredSize, unsigned ObjAlignment) {
   if (ObjAlignment < 4) ObjAlignment = __alignof(double);
   Pool->Alignment = ObjAlignment;
 
-  DO_IF_TRACE(fprintf(stderr, "[%d] poolinit(0x%X, %d)\n", addPoolNumber(Pool),
-                      Pool, DeclaredSize));
+  DO_IF_TRACE(fprintf(stderr, "[%d] poolinit(0x%X, %d, %d)\n",
+                      addPoolNumber(Pool), Pool, DeclaredSize, ObjAlignment));
   DO_IF_PNP(++PoolsInited);  // Track # pools initialized
-
-#ifdef PRINT_NUM_POOLS
-  static bool Initialized = 0;
-  if (!Initialized) {
-    Initialized = 1;
-    atexit(PoolCountPrinter);
-  }
-#endif
+  DO_IF_PNP(InitPrintNumPools());
 }
 
 // pooldestroy - Release all memory allocated for a pool

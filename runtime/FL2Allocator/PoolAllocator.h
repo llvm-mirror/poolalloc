@@ -121,6 +121,13 @@ extern "C" {
   /// future.  :(
   ///
   unsigned poolobjsize(PoolTy *Pool, void *Node);
+
+  // Bump pointer pool library.  This is a pool implementation that does not
+  // support frees or reallocs to the pool.  As such, it can be much more
+  // efficient and simpler than a general pool implementation.
+  void poolinit_bp(PoolTy *Pool, unsigned ObjAlignment);
+  void *poolalloc_bp(PoolTy *Pool, unsigned NumBytes);
+  void pooldestroy_bp(PoolTy *Pool);
 }
 
 #endif
