@@ -20,10 +20,10 @@
 #include "llvm/Target/TargetData.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/Transforms/Utils/Cloning.h"
-#include "Support/CommandLine.h"
-#include "Support/Debug.h"
-#include "Support/DepthFirstIterator.h"
-#include "Support/Statistic.h"
+#include "llvm/ADT/DepthFirstIterator.h"
+#include "llvm/ADT/Statistic.h"
+#include "llvm/Support/CommandLine.h"
+#include "llvm/Support/Debug.h"
 using namespace llvm;
 using namespace PA;
 
