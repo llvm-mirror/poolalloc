@@ -76,3 +76,5 @@ test.$(TEST).%: Output/%.$(TEST).report.txt
 	@echo ">>> ========= '$(RELDIR)/$*' Program"
 	@echo "---------------------------------------------------------------"
 	@cat $<
+
+REPORT_DEPENDENCIES := $(PA_RT_O) $(PA_SO)
