@@ -846,22 +846,11 @@ void FuncTransform::visitMallocInst(MallocInst &MI) {
   else
     V = new CallInst(PAInfo.PoolAlloc, make_vector(PH, 0), Name, &MI);
 
-  //Added by Dinakar to store the type
-  //  std::cout << " In pool allocation for instruction \n";
-  //  std::cout << MI << "\n";
-  //  std::cout << MI.getType() << "\n";
-  const Type *phtype = 0;
-  if (const PointerType * ptype = dyn_cast<PointerType>(MI.getType())) {
-    phtype = ptype->getElementType();
-  }
-  assert((phtype != 0) && "Needs to be implemented \n ");
+  const Type *phtype = MI.getType()->getElementType();
   std::map<const Value*, const Type*> &PoolDescType = FI.PoolDescType;
-  if (PoolDescType.count(PH)) {
-    //There is already an entry, so this is just sanity check 
-    assert((phtype == PoolDescType[PH]) && "pool allocate type info wrong");
-  } else {
+  if (!PoolDescType.count(PH))
     PoolDescType[PH] = phtype;
-  }
+
   MI.setName("");  // Nuke MIs name
   
   Value *Casted = V;
