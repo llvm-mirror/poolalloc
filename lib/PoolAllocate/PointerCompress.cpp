@@ -268,7 +268,8 @@ namespace {
     /// getNodeIfCompressed - If the specified value is a pointer that will be
     /// compressed, return the DSNode corresponding to the pool it belongs to.
     const DSNode *getNodeIfCompressed(Value *V) {
-      if (!isa<PointerType>(V->getType())) return false;
+      if (!isa<PointerType>(V->getType()) || isa<ConstantPointerNull>(V))
+        return false;
       DSNode *N = DSG.getNodeForValue(V).getNode();
       return PoolInfo.count(N) ? N : 0;
     }
@@ -296,6 +297,7 @@ namespace {
 
     void visitCastInst(CastInst &CI);
     void visitPHINode(PHINode &PN);
+    void visitLoadInst(LoadInst &LI);
     void visitStoreInst(StoreInst &SI);
 
     void visitCallInst(CallInst &CI);
@@ -362,6 +364,48 @@ void InstructionRewriter::visitPHINode(PHINode &PN) {
   setTransformedValue(PN, New);
 }
 
+void InstructionRewriter::visitLoadInst(LoadInst &LI) {
+  if (isa<ConstantPointerNull>(LI.getOperand(0))) return; // load null ??
+
+  const CompressedPoolInfo *SrcPI = getPoolInfo(LI.getOperand(0));
+  if (SrcPI == 0) {
+    assert(getPoolInfo(&LI) == 0 &&
+           "Cannot load a compressed pointer from non-compressed memory!");
+    return;
+  }
+
+  // We care about two cases, here:
+  //  1. Loading a normal value from a ptr compressed data structure.
+  //  2. Loading a compressed ptr from a ptr compressed data structure.
+  bool LoadingCompressedPtr = getNodeIfCompressed(&LI) != 0;
+  
+  // Get the pool base pointer.
+  Constant *Zero = Constant::getNullValue(Type::UIntTy);
+  Value *BasePtrPtr = new GetElementPtrInst(SrcPI->getPoolDesc(), Zero, Zero,
+                                            "poolbaseptrptr", &LI);
+  Value *BasePtr = new LoadInst(BasePtrPtr, "poolbaseptr", &LI);
+
+  // Get the pointer to load from.
+  std::vector<Value*> Ops;
+  Ops.push_back(getTransformedValue(LI.getOperand(0)));
+  Value *SrcPtr = new GetElementPtrInst(BasePtr, Ops,
+                                        LI.getOperand(0)->getName()+".pp", &LI);
+  const Type *DestTy = LoadingCompressedPtr ? Type::UIntTy : LI.getType();
+  SrcPtr = new CastInst(SrcPtr, PointerType::get(DestTy),
+                        SrcPtr->getName(), &LI);
+  std::string OldName = LI.getName(); LI.setName("");
+  Value *NewLoad = new LoadInst(SrcPtr, OldName, &LI);
+
+  if (LoadingCompressedPtr) {
+    setTransformedValue(LI, NewLoad);
+  } else {
+    LI.replaceAllUsesWith(NewLoad);
+    LI.eraseFromParent();
+  }
+}
+
+
+
 void InstructionRewriter::visitStoreInst(StoreInst &SI) {
   const CompressedPoolInfo *DestPI = getPoolInfo(SI.getOperand(1));
   if (DestPI == 0) {
@@ -391,6 +435,8 @@ void InstructionRewriter::visitStoreInst(StoreInst &SI) {
   Value *BasePtrPtr = new GetElementPtrInst(DestPI->getPoolDesc(), Zero, Zero,
                                             "poolbaseptrptr", &SI);
   Value *BasePtr = new LoadInst(BasePtrPtr, "poolbaseptr", &SI);
+
+  // Get the pointer to store to.
   std::vector<Value*> Ops;
   Ops.push_back(getTransformedValue(SI.getOperand(1)));
   Value *DestPtr = new GetElementPtrInst(BasePtr, Ops,
