@@ -92,7 +92,10 @@ createSlab (PoolTy * Pool, unsigned int NodesPerSlab = 0)
     //
     // Bump the number of nodes in the slab up to the maximum.
     //
-    NodesPerSlab = MaxNodesPerPage;
+    if (NodesPerSlab == 0)
+    {
+      NodesPerSlab = MaxNodesPerPage;
+    }
   }
 
   NewSlab->NodesPerSlab = NodesPerSlab;
