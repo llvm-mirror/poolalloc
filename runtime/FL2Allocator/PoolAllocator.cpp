@@ -34,7 +34,7 @@
 //===----------------------------------------------------------------------===//
 
 #ifdef PRINT_POOL_TRACE
-#define DO_IF_POOLDESTROY_STATS
+#define PRINT_POOLDESTROY_STATS
 
 struct PoolID {
   PoolTy *PD;
