@@ -630,6 +630,39 @@ static PoolSlab *SearchForContainingSlab(PoolTy *Pool, void *Node,
   return PS;
 }
 
+// same as above, but this is the actual run time check called from the
+// code to check if the node belongs to the pool or not, so will be 
+// like crazy, (use a hash table ?)
+// FIXME cannot call this for pointers in the middle of the node yet,
+// asserts out if we do
+void poolcheck(PoolTy *Pool, void *Node) {
+   PoolSlab *PS = (PoolSlab*)Pool->Ptr1;
+  unsigned NodeSize = Pool->NodeSize;
+
+  // Search the partially allocated slab list for the slab that contains this
+  // node.
+  int Idx = -1;
+  if (PS) {               // Pool->Ptr1 could be null if Ptr2 isn't
+    for (; PS; PS = PS->Next) {
+      Idx = PS->containsElement(Node, NodeSize);
+      if (Idx != -1) break;
+    }
+  }
+
+  // If the partially allocated slab list doesn't contain it, maybe the
+  // completely allocated list does.
+  if (PS == 0) {
+    PS = (PoolSlab*)Pool->Ptr2;
+    while (1) {
+      assert(PS && "poolfree: node being free'd not found in allocation "
+             " pool specified!\n");
+      Idx = PS->containsElement(Node, NodeSize);
+      if (Idx != -1) break;
+      PS = PS->Next;
+    }
+  }
+}
+
 void poolfree(PoolTy *Pool, void *Node) {
   assert(Pool && "Null pool pointer passed in to poolfree!\n");
 
