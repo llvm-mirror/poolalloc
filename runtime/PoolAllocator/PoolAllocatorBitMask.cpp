@@ -52,38 +52,36 @@ private:
   // UsedEnd - 1 past the last allocated node in slab. 0 if slab is empty
   unsigned short UsedEnd;
 
-  // AllocatedBitVector - One bit is set for every node in this slab which has
-  // been allocated.
-  unsigned char AllocatedBitVector[NodesPerSlab/8];
-
-  // StartOfAllocation - A bit is set if this is the start of an allocation,
-  // either a unit allocation or an array.
-  unsigned char StartOfAllocation[NodesPerSlab/8];
+  // NodeFlagsVector - This array contains two bits for each node in this pool
+  // slab.  The first (low address) bit indicates whether this node has been
+  // allocated, and the second (next higher) bit indicates whether this is the
+  // start of an allocation.
+  unsigned char NodeFlagsVector[NodesPerSlab/4];
 
   char Data[1];   // Buffer to hold data in this slab... VARIABLE SIZED
 
   bool isNodeAllocated(unsigned NodeNum) {
-    return AllocatedBitVector[NodeNum >> 3] & (1 << (NodeNum & 7));
+    return NodeFlagsVector[NodeNum >> 2] & (1 << (NodeNum & 3));
   }
 
   void markNodeAllocated(unsigned NodeNum) {
-    AllocatedBitVector[NodeNum >> 3] |= 1 << (NodeNum & 7);
+    NodeFlagsVector[NodeNum >> 2] |= 1 << (NodeNum & 3);
+  }
+
+  void markNodeFree(unsigned NodeNum) {
+    NodeFlagsVector[NodeNum >> 2] &= ~(1 << (NodeNum & 3));
   }
 
   void setStartBit(unsigned NodeNum) {
-    StartOfAllocation[NodeNum >> 3] |= 1 << (NodeNum & 7);
+    NodeFlagsVector[NodeNum >> 2] |= 1 << ((NodeNum & 3)+4);
   }
 
   bool isStartOfAllocation(unsigned NodeNum) {
-    return StartOfAllocation[NodeNum >> 3] & (1 << (NodeNum & 7));
+    return NodeFlagsVector[NodeNum >> 2] & (1 << ((NodeNum & 3)+4));
   }
   
-  void markNodeFree(unsigned NodeNum) {
-    AllocatedBitVector[NodeNum >> 3] &= ~(1 << (NodeNum & 7));
-  }
-
   void clearStartBit(unsigned NodeNum) {
-    StartOfAllocation[NodeNum >> 3] &= ~(1 << (NodeNum & 7));
+    NodeFlagsVector[NodeNum >> 2] &= ~(1 << ((NodeNum & 3)+4));
   }
 
 public:
@@ -127,7 +125,6 @@ public:
   // freeElement - Free the single node, small array, or entire array indicated.
   void freeElement(unsigned ElementIdx);
 };
-
 
 // create - Create a new (empty) slab and add it to the end of the Pools list.
 PoolSlab *PoolSlab::create(PoolTy *Pool) {
