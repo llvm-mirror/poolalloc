@@ -20,8 +20,7 @@
 
 namespace llvm {
 
-class BUDataStructures;
-class TDDataStructures;
+class CompleteBUDataStructures;
 class DSNode;
 class DSGraph;
 class Type;
@@ -96,8 +95,7 @@ namespace PA {
 ///
 class PoolAllocate : public Pass {
   Module *CurModule;
-  BUDataStructures *BU;
-  TDDataStructures *TDDS;
+  CompleteBUDataStructures *BU;
 
   std::map<Function*, PA::FuncInfo> FunctionInfo;
 
@@ -131,7 +129,7 @@ class PoolAllocate : public Pass {
   
   virtual void getAnalysisUsage(AnalysisUsage &AU) const;
   
-  BUDataStructures &getBUDataStructures() const { return *BU; }
+  CompleteBUDataStructures &getBUDataStructures() const { return *BU; }
   
   //Dinakar to get function info for all (cloned functions) 
   PA::FuncInfo *getFunctionInfo(Function *F) {
@@ -197,7 +195,7 @@ class PoolAllocate : public Pass {
   void CreatePools(Function &F, const std::vector<DSNode*> &NodesToPA,
                    std::map<DSNode*, Value*> &PoolDescriptors);
   
-  void TransformBody(DSGraph &g, DSGraph &tdg, PA::FuncInfo &fi,
+  void TransformBody(DSGraph &g, PA::FuncInfo &fi,
                      std::set<std::pair<AllocaInst*, Instruction*> > &poolUses,
                      std::set<std::pair<AllocaInst*, CallInst*> > &poolFrees,
                      Function &F);
