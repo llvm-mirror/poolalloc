@@ -6,6 +6,6 @@ LEVEL=..
 #
 # List all of the subdirectories that we will compile.
 #
-DIRS=poolalloc
+DIRS=PoolAllocator
 
 include $(LEVEL)/Makefile.common
