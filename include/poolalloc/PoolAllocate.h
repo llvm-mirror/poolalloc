@@ -85,10 +85,6 @@ class PoolAllocate : public Pass {
   
   std::map<Function*, PA::FuncInfo> FunctionInfo;
 
-  void buildIndirectFunctionSets(Module &M);   
-
-  void FindFunctionPoolArgs(Function &F);   
-  
   // Debug function to print the FuncECs
   void printFuncECs();
   
@@ -101,16 +97,21 @@ class PoolAllocate : public Pass {
   // the same function pointer are in the same class.
   EquivalenceClasses<Function *> FuncECs;
 
-  // Map from an Indirect call site to the set of Functions that it can point to
+  /// Map from an Indirect call site to the set of Functions that it can point
+  /// to.
   std::multimap<CallSite, Function *> CallSiteTargets;
 
-  // This maps an equivalence class to the last pool argument number for that 
-  // class. This is used because the pool arguments for all functions within
-  // an equivalence class is passed to all the functions in that class.
-  // If an equivalence class does not require pool arguments, it is not
-  // on this map.
+  /// This maps an equivalence class to the last pool argument number for that 
+  /// class. This is used because the pool arguments for all functions within
+  /// an equivalence class is passed to all the functions in that class.
+  /// If an equivalence class does not require pool arguments, it is not
+  /// on this map.
   std::map<Function *, int> EqClass2LastPoolArg;
 
+  /// GlobalNodes - For each node (with an H marker) in the globals graph, this
+  /// map contains the global variable that holds the pool descriptor for the
+  /// node.
+  std::map<DSNode*, GlobalVariable*> GlobalNodes;
  public:
   bool run(Module &M);
   
@@ -148,6 +149,21 @@ class PoolAllocate : public Pass {
   /// them.
   ///
   void AddPoolPrototypes();
+  
+  /// BuildIndirectFunctionSets - Iterate over the module looking for indirect
+  /// calls to functions
+  void BuildIndirectFunctionSets(Module &M);   
+
+  /// SetupGlobalPools - Create global pools for all DSNodes in the globals
+  /// graph which contain heap objects.  If a global variable points to a piece
+  /// of memory allocated from the heap, this pool gets a global lifetime.
+  ///
+  /// This method returns true if correct pool allocation of the module cannot
+  /// be performed because there is no main function for the module and there
+  /// are global pools.
+  bool SetupGlobalPools(Module &M);
+
+  void FindFunctionPoolArgs(Function &F);   
   
   /// MakeFunctionClone - If the specified function needs to be modified for
   /// pool allocation support, make a clone of it, adding additional arguments
