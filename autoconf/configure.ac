@@ -15,13 +15,19 @@ dnl AC_OUTPUT
 dnl **************************************************************************
 dnl * Initialize
 dnl **************************************************************************
-AC_INIT([[[LLVM]]],[[[1.0]]],[llvmbugs@cs.uiuc.edu])
+AC_INIT([[[Pool Allocation]]],[[[1.0]]],[llvmbugs@cs.uiuc.edu])
 
 dnl Place all of the extra autoconf files into the config subdirectory
 AC_CONFIG_AUX_DIR([autoconf])
 
-dnl Configure a header file
-dnl AC_CONFIG_HEADERS(include/Config/config.h)
+dnl Configure Makefiles
+AC_CONFIG_MAKEFILE(Makefile)
+AC_CONFIG_MAKEFILE(lib/Makefile)
+AC_CONFIG_MAKEFILE(lib/PoolAllocate/Makefile)
+AC_CONFIG_MAKEFILE(runtime/Makefile)
+AC_CONFIG_MAKEFILE(runtime/PoolAllocator/Makefile)
+AC_CONFIG_MAKEFILE(test/Makefile)
+AC_CONFIG_MAKEFILE(test/TEST.poolalloc.Makefile)
 
 dnl **************************************************************************
 dnl * Determine which system we are building on
@@ -66,10 +72,10 @@ dnl * Set the location of various third-party software packages
 dnl **************************************************************************
 
 dnl Location of LLVM source code
-AC_ARG_WITH(llvmsrc,AC_HELP_STRING([--with-llvmsrc],[Location of LLVM Source Code]),AC_SUBST(LLVM_SRC,[$withval]),AC_SUBST(LLVM_SRC,[/home/vadve/${USER}/llvm]))
+AC_ARG_WITH(llvmsrc,AC_HELP_STRING([--with-llvmsrc],[Location of LLVM Source Code]),AC_SUBST(LLVM_SRC,[$withval]),AC_SUBST(LLVM_SRC,[`cd ${srcdir}/../..; pwd`]))
 
 dnl Location of LLVM object code
-AC_ARG_WITH(llvmobj,AC_HELP_STRING([--with-llvmobj],[Location of LLVM Object Code]),AC_SUBST(LLVM_OBJ,[$withval]),AC_SUBST(LLVM_OBJ,[/home/vadve/${USER}/llvm]))
+AC_ARG_WITH(llvmobj,AC_HELP_STRING([--with-llvmobj],[Location of LLVM Object Code]),AC_SUBST(LLVM_OBJ,[$withval]),AC_SUBST(LLVM_OBJ,[`cd ../..; pwd`]))
 
 dnl **************************************************************************
 dnl * Create the output files
