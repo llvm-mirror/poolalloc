@@ -913,28 +913,20 @@ void InstructionRewriter::visitCallInst(CallInst &CI) {
   DSGraph::NodeMapTy CalleeCallerMap;
   
   // Do we need to compress the return value?
-  if (isa<PointerType>(CI.getType()) && getNodeIfCompressed(&CI)) {
+  if (isa<PointerType>(CI.getType()))
     DSGraph::computeNodeMapping(CG->getReturnNodeFor(FI->F),
                                 getMappedNodeHandle(&CI), CalleeCallerMap);
-    PoolsToCompress.insert(CG->getReturnNodeFor(FI->F).getNode());
-  }
     
   // Find the arguments we need to compress.
   unsigned NumPoolArgs = FI ? FI->ArgNodes.size() : 0;
   for (unsigned i = 1, e = CI.getNumOperands(); i != e; ++i)
-    if (isa<PointerType>(CI.getOperand(i)->getType()) &&
-        getNodeIfCompressed(CI.getOperand(i))) {
+    if (isa<PointerType>(CI.getOperand(i)->getType()) && i > NumPoolArgs) {
       Argument *FormalArg = next(FI->F.abegin(), i-1-NumPoolArgs);
         
       DSGraph::computeNodeMapping(CG->getNodeForValue(FormalArg),
                                   getMappedNodeHandle(CI.getOperand(i)),
                                   CalleeCallerMap);
-        
-      PoolsToCompress.insert(CG->getNodeForValue(FormalArg).getNode());
     }
-
-  // If this function doesn't require compression, there is nothing to do!
-  if (PoolsToCompress.empty()) return;
 
   // Now that we know the basic pools passed/returned through the
   // argument/retval of the call, add the compressed pools that are reachable
@@ -946,6 +938,9 @@ void InstructionRewriter::visitCallInst(CallInst &CI) {
     if (PoolInfo.count(I->second.getNode()))
       PoolsToCompress.insert(I->first);
   }
+
+  // If this function doesn't require compression, there is nothing to do!
+  if (PoolsToCompress.empty()) return;
     
   // Get the clone of this function that uses compressed pointers instead of
   // normal pointers.
@@ -1168,9 +1163,16 @@ CompressPoolsInFunction(Function &F,
   std::cerr << "In function '" << F.getName() << "':\n";
   for (std::map<const DSNode*, CompressedPoolInfo>::iterator
          I = PoolsToCompress.begin(), E = PoolsToCompress.end(); I != E; ++I) {
+
     I->second.Initialize(PoolsToCompress, TD);
-    std::cerr << "  COMPRESSING POOL:\nPCS:";
-    I->second.dump();
+
+    // Only dump info about a compressed pool if this is the home for it.
+    if (isa<AllocaInst>(I->second.getPoolDesc()) ||
+        (isa<GlobalValue>(I->second.getPoolDesc()) &&
+         F.hasExternalLinkage() && F.getName() == "main")) {
+      std::cerr << "  COMPRESSING POOL:\nPCS:";
+      I->second.dump();
+    }
   }
   
   // Finally, rewrite the function body to use compressed pointers!
