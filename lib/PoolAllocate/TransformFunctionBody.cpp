@@ -381,20 +381,6 @@ void FuncTransform::visitCallSite(CallSite CS) {
   Function *CF = CS.getCalledFunction();
   Instruction *TheCall = CS.getInstruction();
 
-  // optimization for function pointers that are basically gotten from a cast
-  // with only one use and constant expressions with casts in them
-  if (!CF) {
-    Value *CV = CS.getCalledValue();
-    if (CastInst* CastI = dyn_cast<CastInst>(CV)) {
-      if (isa<Function>(CastI->getOperand(0)) && 
-	  CastI->getOperand(0)->getType() == CastI->getType())
-	CF = dyn_cast<Function>(CastI->getOperand(0));
-    } else if (ConstantExpr *CE = dyn_cast<ConstantExpr>(CV)) {
-      if (CE->getOpcode() == Instruction::Cast)
-        CF = dyn_cast<Function>(CE->getOperand(0));
-    }
-  }
-
   // If this function is one of the memory manipulating functions built into
   // libc, emulate it with pool calls as appropriate.
   if (CF && CF->isExternal())
