@@ -836,15 +836,15 @@ void FuncTransform::visitMallocInst(MallocInst &MI) {
   // NB: PH is zero even if the node is collapsed
   if (PH == 0) return;
 
+  std::string Name = MI.getName(); MI.setName("");
+
   // Insert a call to poolalloc
   Value *V;
   if (MI.isArrayAllocation()) 
-    V = new CallInst(PAInfo.PoolAllocArray, 
-		     make_vector(PH, MI.getOperand(0), 0),
-		     MI.getName(), &MI);
+    V = new CallInst(PAInfo.PoolAllocArray, make_vector(PH, MI.getOperand(0),0),
+		     Name, &MI);
   else
-    V = new CallInst(PAInfo.PoolAlloc, make_vector(PH, 0),
-		     MI.getName(), &MI);
+    V = new CallInst(PAInfo.PoolAlloc, make_vector(PH, 0), Name, &MI);
 
   //Added by Dinakar to store the type
   //  std::cout << " In pool allocation for instruction \n";
@@ -867,9 +867,8 @@ void FuncTransform::visitMallocInst(MallocInst &MI) {
   Value *Casted = V;
 
   // Cast to the appropriate type if necessary
-  if (V->getType() != MI.getType()) {
+  if (V->getType() != MI.getType())
     Casted = new CastInst(V, MI.getType(), V->getName(), &MI);
-  }
     
   // Update def-use info
   MI.replaceAllUsesWith(Casted);
@@ -1009,8 +1008,7 @@ void FuncTransform::visitCallInst(CallInst &CI) {
 	else
 	  assert(0 && "Function pointer cast not handled as called function\n");
       }
-    }    
-
+    }
   }
 
   DSGraph &CallerG = G;
@@ -1102,7 +1100,7 @@ void FuncTransform::visitCallInst(CallInst &CI) {
     // Add the rest of the arguments (the original arguments of the function)...
     Args.insert(Args.end(), CI.op_begin()+1, CI.op_end());
     
-    std::string Name = CI.getName();
+    std::string Name = CI.getName(); CI.setName("");
     
     Value *NewCall;
     if (Args.size() > CI.getNumOperands() - 1) {
@@ -1219,7 +1217,7 @@ void FuncTransform::visitCallInst(CallInst &CI) {
     // Add the rest of the arguments...
     Args.insert(Args.end(), CI.op_begin()+1, CI.op_end());
     
-    std::string Name = CI.getName(); 
+    std::string Name = CI.getName(); CI.setName("");
 
     std::map<Value*,const Value*>::iterator CNewII; 
     
