@@ -180,7 +180,7 @@ void CompressedPoolInfo::Initialize(std::map<const DSNode*,
   NewTy = ComputeCompressedType(Pool->getType(), 0, Nodes);
 
   // Get the compressed type size.
-  NewSize = TD.getTypeSize(NewTy);
+  NewSize = NewTy->isSized() ? TD.getTypeSize(NewTy) : 0;
 }
 
 
@@ -193,7 +193,7 @@ ComputeCompressedType(const Type *OrigTy, unsigned NodeOffset,
   if (const PointerType *PTY = dyn_cast<PointerType>(OrigTy)) {
     // FIXME: check to see if this pointer is actually compressed!
     return MEMUINTTYPE;
-  } else if (OrigTy->isFirstClassType())
+  } else if (OrigTy->isFirstClassType() || OrigTy == Type::VoidTy)
     return OrigTy;
 
   // Okay, we have an aggregate type.
@@ -204,7 +204,12 @@ ComputeCompressedType(const Type *OrigTy, unsigned NodeOffset,
       Elements.push_back(ComputeCompressedType(STy->getElementType(i),
                                                NodeOffset, Nodes));
     return StructType::get(Elements);
+  } else if (const ArrayType *ATy = dyn_cast<ArrayType>(OrigTy)) {
+    return ArrayType::get(ComputeCompressedType(ATy->getElementType(),
+                                                NodeOffset, Nodes),
+                          ATy->getNumElements());
   } else {
+    std::cerr << "TYPE: " << *OrigTy << "\n";
     assert(0 && "FIXME: Unhandled aggregate type!");
   }
 }
