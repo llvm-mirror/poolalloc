@@ -742,7 +742,10 @@ void PoolAllocate::InitializeAndDestroyPools(Function &F,
     std::set<std::pair<AllocaInst*, CallInst*> >::iterator PFI =
       PoolFrees.lower_bound(std::make_pair(PD, (CallInst*)0));
     if (PFI != PoolFrees.end() && PFI->first < PD) ++PFI;
-    for (; PFI != PoolFrees.end() && PFI->first == PD; )
-      DeleteIfIsPoolFree((PFI++)->second, PD, PoolFrees);
+    for (; PFI != PoolFrees.end() && PFI->first == PD; ) {
+      CallInst *PoolFree = (PFI++)->second;
+      if (!LiveBlocks.count(PoolFree->getParent()))
+        DeleteIfIsPoolFree(PoolFree, PD, PoolFrees);
+    }
   }
 }
