@@ -181,7 +181,7 @@ class PoolAllocate : public Pass {
 			   hash_set<Function*> &visited);
 
   void TransformBody(DSGraph &g, DSGraph &tdg, PA::FuncInfo &fi,
-                     std::set<std::pair<AllocaInst*, BasicBlock*> > &poolUses,
+                     std::set<std::pair<AllocaInst*, Instruction*> > &poolUses,
                      std::set<std::pair<AllocaInst*, CallInst*> > &poolFrees,
                      Function &F);
 };
