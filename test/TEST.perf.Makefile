@@ -130,18 +130,18 @@ else
 # This rule runs the generated executable, generating timing information, for
 # SPEC
 $(PROGRAMS_TO_TEST:%=Output/test.$(TEST).pa.%): \
-Output/test.$(TEST).pa.%: Output/%.poolalloc.cbe
-	-$(SPEC_SANDBOX) poolalloccbe-$(RUN_TYPE) /dev/null $(REF_IN_DIR) \
+Output/test.$(TEST).pa.%: Output/%.poolalloc.cbe  Output/test.$(TEST).%
+	-$(SPEC_SANDBOX) poolalloccbe-$(RUN_TYPE) $@.out $(REF_IN_DIR) \
              $(RUNSAFELY) $(STDIN_FILENAME) $(STDOUT_FILENAME) \
-                  $(PERFEX) -o $@ $(EVENTS) ../../$< $(RUN_OPTIONS)
+                  $(PERFEX) -o $(BUILD_OBJ_DIR)/$@ $(EVENTS) $(BUILD_OBJ_DIR)/$< $(RUN_OPTIONS)
 
 # This rule runs the generated executable, generating timing information, for
 # SPEC
 $(PROGRAMS_TO_TEST:%=Output/test.$(TEST).%): \
 Output/test.$(TEST).%: Output/%.nonpa.cbe
-	-$(SPEC_SANDBOX) nonpacbe-$(RUN_TYPE) /dev/null $(REF_IN_DIR) \
+	-$(SPEC_SANDBOX) nonpacbe-$(RUN_TYPE) $@.out $(REF_IN_DIR) \
              $(RUNSAFELY) $(STDIN_FILENAME) $(STDOUT_FILENAME) \
-                  $(PERFEX) -o $@ $(EVENTS) ../../$< $(RUN_OPTIONS)
+                  $(PERFEX) -o $(BUILD_OBJ_DIR)/$@ $(EVENTS) $(BUILD_OBJ_DIR)/$< $(RUN_OPTIONS)
 endif
 
 ############################################################################
