@@ -21,7 +21,7 @@ PROGDIR := $(shell cd $(LLVM_OBJ_ROOT)/projects/llvm-test; pwd)/
 RELDIR  := $(subst $(PROGDIR),,$(CURDIR))
 
 # Pool allocator pass shared object
-PA_SO    := $(PROJECT_DIR)/lib/Debug/libpoolalloc.so
+PA_SO    := $(PROJECT_DIR)/lib/Debug/libpoolalloc$(SHLIBEXT)
 
 # Pool allocator runtime library
 #PA_RT    := $(PROJECT_DIR)/lib/Bytecode/libpoolalloc_fl_rt.bc
