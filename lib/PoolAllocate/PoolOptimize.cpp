@@ -59,6 +59,10 @@ bool PoolOptimize::runOnModule(Module &M) {
   Function *PoolRealloc = M.getOrInsertFunction("poolrealloc",
                                                 VoidPtrTy, PoolDescPtrTy,
                                                 VoidPtrTy, Type::UIntTy, 0);
+  // The poolmemalign function.
+  Function *PoolMemAlign = M.getOrInsertFunction("poolmemalign",
+                                                 VoidPtrTy, PoolDescPtrTy,
+                                                 Type::UIntTy, Type::UIntTy, 0);
 
   // Get the poolfree function.
   Function *PoolFree = M.getOrInsertFunction("poolfree", Type::VoidTy,
@@ -81,6 +85,9 @@ bool PoolOptimize::runOnModule(Module &M) {
   Function *Realloc = M.getOrInsertFunction("realloc",
                                             VoidPtrTy, VoidPtrTy, Type::UIntTy,
                                             0);
+  Function *MemAlign = M.getOrInsertFunction("memalign",
+                                             VoidPtrTy, Type::UIntTy,
+                                             Type::UIntTy, 0);
 
 
   // Optimize poolreallocs
@@ -125,6 +132,21 @@ bool PoolOptimize::runOnModule(Module &M) {
         cast<Constant>(CI->getOperand(1))->isNullValue()) {
       Value *New = new MallocInst(Type::SByteTy, CI->getOperand(2),
                                   CI->getName(), CI);
+      CI->replaceAllUsesWith(New);
+      CI->eraseFromParent();
+    }
+  }
+
+  // Optimize poolmemaligns
+  getCallsOf(PoolFree, Calls);
+  for (unsigned i = 0, e = Calls.size(); i != e; ++i) {
+    CallInst *CI = Calls[i];
+    // poolmemalign(null, X, Y) -> memalign(X, Y)
+    if (isa<ConstantPointerNull>(CI->getOperand(1))) {
+      std::vector<Value*> Ops;
+      Ops.push_back(CI->getOperand(2));
+      Ops.push_back(CI->getOperand(3));
+      Value *New = new CallInst(MemAlign, Ops, CI->getName(), CI);
       CI->replaceAllUsesWith(New);
       CI->eraseFromParent();
     }

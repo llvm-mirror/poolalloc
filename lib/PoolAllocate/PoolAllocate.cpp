@@ -165,6 +165,10 @@ void PoolAllocate::AddPoolPrototypes() {
   PoolRealloc = CurModule->getOrInsertFunction("poolrealloc",
                                                VoidPtrTy, PoolDescPtrTy,
                                                VoidPtrTy, Type::UIntTy, 0);
+  // The poolmemalign function.
+  PoolMemAlign = CurModule->getOrInsertFunction("poolmemalign",
+                                                VoidPtrTy, PoolDescPtrTy,
+                                                Type::UIntTy, Type::UIntTy, 0);
 
   // Get the poolfree function.
   PoolFree = CurModule->getOrInsertFunction("poolfree", Type::VoidTy,

@@ -63,6 +63,7 @@ namespace {
     void visitMallocInst(MallocInst &MI);
     void visitCallocCall(CallSite CS);
     void visitReallocCall(CallSite CS);
+    void visitMemAlignCall(CallSite CS);
     void visitFreeInst(FreeInst &FI);
     void visitCallSite(CallSite CS);
     void visitCallInst(CallInst &CI) { visitCallSite(&CI); }
@@ -232,8 +233,8 @@ void FuncTransform::visitFreeInst(FreeInst &FrI) {
 void FuncTransform::visitCallocCall(CallSite CS) {
   Module *M = CS.getInstruction()->getParent()->getParent()->getParent();
   assert(CS.arg_end()-CS.arg_begin() == 2 && "calloc takes two arguments!");
-  Value *V1 = *CS.arg_begin();
-  Value *V2 = *(CS.arg_begin()+1);
+  Value *V1 = CS.getArgument(0);
+  Value *V2 = CS.getArgument(1);
   if (V1->getType() != V2->getType()) {
     V1 = new CastInst(V1, Type::UIntTy, V1->getName(), CS.getInstruction());
     V2 = new CastInst(V2, Type::UIntTy, V2->getName(), CS.getInstruction());
@@ -271,8 +272,8 @@ void FuncTransform::visitReallocCall(CallSite CS) {
   assert(CS.arg_end()-CS.arg_begin() == 2 && "realloc takes two arguments!");
   Instruction *I = CS.getInstruction();
   Value *PH = getPoolHandle(I);
-  Value *OldPtr = *CS.arg_begin();
-  Value *Size = *(CS.arg_begin()+1);
+  Value *OldPtr = CS.getArgument(0);
+  Value *Size = CS.getArgument(1);
 
   if (Size->getType() != Type::UIntTy)
     Size = new CastInst(Size, Type::UIntTy, Size->getName(), I);
@@ -291,6 +292,71 @@ void FuncTransform::visitReallocCall(CallSite CS) {
 
   // Update def-use info
   I->replaceAllUsesWith(Casted);
+
+  // If we are modifying the original function, update the DSGraph.
+  if (!FI.Clone) {
+    // V and Casted now point to whatever the original allocation did.
+    G.getScalarMap().replaceScalar(I, V);
+    if (V != Casted)
+      G.getScalarMap()[Casted] = G.getScalarMap()[V];
+  } else {             // Otherwise, update the NewToOldValueMap
+    UpdateNewToOldValueMap(I, V, V != Casted ? Casted : 0);
+  }
+
+  // Remove old allocation instruction.
+  I->eraseFromParent();
+}
+
+
+/// visitMemAlignCall - Handle memalign and posix_memalign.
+///
+void FuncTransform::visitMemAlignCall(CallSite CS) {
+  Instruction *I = CS.getInstruction();
+  Value *ResultDest = 0;
+  Value *Align = 0;
+  Value *Size = 0;
+  Value *PH;
+
+  if (CS.getCalledFunction()->getName() == "memalign") {
+    Align = CS.getArgument(0);
+    Size = CS.getArgument(1);
+    PH = getPoolHandle(I);
+  } else {
+    assert(CS.getCalledFunction()->getName() == "posix_memalign");
+    ResultDest = CS.getArgument(0);
+    Align   = CS.getArgument(1);
+    Size    = CS.getArgument(2);
+
+    assert(0 && "posix_memalign not implemented fully!");
+    // We need to get the pool descriptor corresponding to *ResultDest.
+    PH = getPoolHandle(I);
+
+    // Return success always.
+    Value *RetVal = Constant::getNullValue(I->getType());
+    I->replaceAllUsesWith(RetVal);
+
+    static const Type *PtrPtr=PointerType::get(PointerType::get(Type::SByteTy));
+    if (ResultDest->getType() != PtrPtr)
+      ResultDest = new CastInst(ResultDest, PtrPtr, ResultDest->getName(), I);
+  }
+
+  if (Align->getType() != Type::UIntTy)
+    Align = new CastInst(Align, Type::UIntTy, Align->getName(), I);
+  if (Size->getType() != Type::UIntTy)
+    Size = new CastInst(Size, Type::UIntTy, Size->getName(), I);
+
+  std::string Name = I->getName(); I->setName("");
+  Instruction *V = new CallInst(PAInfo.PoolMemAlign,
+                                make_vector(PH, Align, Size, 0), Name, I);
+
+  Instruction *Casted = V;
+  if (V->getType() != I->getType())
+    Casted = new CastInst(V, I->getType(), V->getName(), I);
+
+  if (ResultDest)
+    new StoreInst(V, ResultDest, I);
+  else
+    I->replaceAllUsesWith(Casted);
 
   // If we are modifying the original function, update the DSGraph.
   if (!FI.Clone) {
@@ -335,11 +401,14 @@ void FuncTransform::visitCallSite(CallSite CS) {
     } else if (CF->getName() == "realloc") {
       visitReallocCall(CS);
       return;
-    } else if (CF->getName() == "strdup") {
-      assert(0 && "strdup should have been linked into the program!");
     } else if (CF->getName() == "memalign" ||
                CF->getName() == "posix_memalign") {
-      std::cerr << "MEMALIGN USED BUT NOT HANDLED!\n";
+      visitMemAlignCall(CS);
+      return;
+    } else if (CF->getName() == "strdup") {
+      assert(0 && "strdup should have been linked into the program!");
+    } else if (CF->getName() == "valloc") {
+      std::cerr << "VALLOC USED BUT NOT HANDLED!\n";
       abort();
     }
 

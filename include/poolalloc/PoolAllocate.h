@@ -95,7 +95,8 @@ class PoolAllocate : public ModulePass {
 
  public:
 
-  Function *PoolInit, *PoolDestroy, *PoolAlloc, *PoolRealloc, *PoolFree;
+  Function *PoolInit, *PoolDestroy, *PoolAlloc, *PoolRealloc, *PoolMemAlign;
+  Function *PoolFree;
   static const Type *PoolDescPtrTy;
 
   PA::Heuristic *CurHeuristic;
