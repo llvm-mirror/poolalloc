@@ -113,26 +113,35 @@ class PoolAllocate : public ModulePass {
   
   PA::EquivClassGraphs &getECGraphs() const { return *ECGraphs; }
   
-  //Dinakar to get function info for all (cloned functions) 
-  PA::FuncInfo *getFunctionInfo(Function *F) {
-    //If it is cloned or not check it out
-    if (FunctionInfo.count(F))
-      return &FunctionInfo[F];
-    else {
-      //Probably cloned
-      std::map<Function *, PA::FuncInfo>::iterator fI = FunctionInfo.begin(), 
-	fE = FunctionInfo.end();
-      for (; fI != fE; ++fI)
-	if (fI->second.Clone == F)
-	  return &fI->second;
-      return 0;
-    }
-  }
-  
+  /// getFuncInfo - Return the FuncInfo object for the specified function.
   PA::FuncInfo *getFuncInfo(Function &F) {
     std::map<Function*, PA::FuncInfo>::iterator I = FunctionInfo.find(&F);
     return I != FunctionInfo.end() ? &I->second : 0;
   }
+
+  /// getFuncInfoOrClone - Return the function info object for for the specified
+  /// function.  If this function is a clone of another function, return the
+  /// function info object for the original function.
+  PA::FuncInfo *getFuncInfoOrClone(Function &F) {
+    // If it is cloned or not check it out.
+    if (PA::FuncInfo *FI = getFuncInfo(F))
+      return FI;
+    // Maybe this is a function clone?
+    for (std::map<Function*, PA::FuncInfo>::iterator I = FunctionInfo.begin(),
+           E = FunctionInfo.end(); I != E; ++I)
+      if (I->second.Clone == &F)
+        return &I->second;
+    return 0;
+  }
+  
+
+  /// releaseMemory - When the pool allocator is no longer used, release
+  /// resources used by it.
+  virtual void releaseMemory() {
+    FunctionInfo.clear();
+    GlobalNodes.clear();
+  }
+
 
   Module *getCurModule() { return CurModule; }
 
