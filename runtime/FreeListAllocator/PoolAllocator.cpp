@@ -51,9 +51,17 @@ createSlab (unsigned int NodeSize, unsigned int NodesPerSlab = 0)
   //
   // If we can't fit a node into a page, give up.
   //
+  if (NodeSize > PageSize)
+  {
+    fprintf (stderr, "Node size is too big.\n");
+    fflush (stderr);
+    abort();
+  }
+
   if (MaxNodesPerPage == 0)
   {
     fprintf (stderr, "Node size is too large\n");
+    fflush (stderr);
     abort();
   }
 
@@ -66,19 +74,23 @@ createSlab (unsigned int NodeSize, unsigned int NodesPerSlab = 0)
     if (NewSlab == NULL)
     {
       fprintf (stderr, "Failed large allocation\n");
+      fflush (stderr);
       abort();
     }
     NewSlab->IsArray = 1;
+    NewSlab->IsManaged = 0;
   }
   else
   {
     NewSlab = (struct SlabHeader *) AllocatePage ();
     if (NewSlab == NULL)
     {
-      fprintf (stderr, "Failed regular allocation");
+      fprintf (stderr, "Failed regular allocation\n");
+      fflush (stderr);
       abort();
     }
     NewSlab->IsArray = 0;
+    NewSlab->IsManaged = 1;
 
     //
     // Bump the number of nodes in the slab up to the maximum.
@@ -90,7 +102,6 @@ createSlab (unsigned int NodeSize, unsigned int NodesPerSlab = 0)
   NewSlab->NextFreeData = NewSlab->LiveNodes = 0;
   NewSlab->Next = NULL;
   NewSlab->Data = (unsigned char *)NewSlab + sizeof (struct SlabHeader) + ((NodesPerSlab) * sizeof (NodePointer));
-
   return NewSlab;
 }
 
@@ -187,27 +198,48 @@ pooldestroy(PoolTy *Pool)
 {
   // Pointer to scan Slab list
   struct SlabHeader * Slabp;
+  struct SlabHeader * Nextp;
 
   assert(Pool && "Null pool pointer passed in to pooldestroy!\n");
-  for (Slabp = Pool->Slabs; Slabp != NULL; Slabp=Slabp->Next)
+
+  //
+  // Deallocate all of the pages.
+  //
+  Slabp = Pool->Slabs;
+  while (Slabp != NULL)
   {
-    FreePage (Slabp);
+    // Record the next step
+    Nextp = Slabp->Next;
+
+    // Deallocate the memory if it is managed.
+    if (Slabp->IsManaged)
+    {
+      FreePage (Slabp);
+    }
+
+    // Move to the next node.
+    Slabp = Nextp;
   }
 
   return;
 }
 
 void *
-poolalloc(PoolTy *Pool)
+poolalloc(PoolTy *Pool, unsigned NodeSize)
 {
+  void * Data;
   assert(Pool && "Null pool pointer passed in to poolalloc!\n");
+  assert((NodeSize <= Pool->NodeSize) && "Wrong Node Size!\n");
 
   //
-  // Check to see if we have a slab.  If we don't, get one.
+  // If we don't have a slab, this is our first initialization.  Do some
+  // quick stuff.
   //
   if (Pool->Slabs == NULL)
   {
     Pool->Slabs = createSlab (Pool->NodeSize);
+    (Pool->Slabs->NextFreeData)++;
+    return (Pool->Slabs->Data);
   }
 
   //
@@ -218,7 +250,9 @@ poolalloc(PoolTy *Pool)
     //
     // Return the block and increment the index of the next free data block.
     //
-    return (Pool->Slabs->Data + (Pool->NodeSize * Pool->Slabs->NextFreeData++));
+    Data = (Pool->Slabs->Data + (Pool->NodeSize * Pool->Slabs->NextFreeData));
+    (Pool->Slabs->NextFreeData)++;
+    return (Data);
   }
 
   //
@@ -234,10 +268,12 @@ poolalloc(PoolTy *Pool)
     NewSlab->Next = Pool->Slabs;
     Pool->Slabs = NewSlab;
 
+    (NewSlab->NextFreeData)++;
+
     //
     // Return the block and increment the index of the next free data block.
     //
-    return (Pool->Slabs->Data + (Pool->NodeSize * Pool->Slabs->NextFreeData++));
+    return (Pool->Slabs->Data);
   }
 
   //
@@ -255,7 +291,7 @@ poolalloc(PoolTy *Pool)
   //
   // Find the data block that corresponds with this pointer.
   //
-  void * Data = (slabp->Data + (Pool->NodeSize * (Pool->FreeList.Next - &(slabp->BlockList[0]))));
+  Data = (slabp->Data + (Pool->NodeSize * (Pool->FreeList.Next - &(slabp->BlockList[0]))));
 
   //
   // Unlink the first block.
