@@ -66,6 +66,7 @@ createSlab (PoolTy * Pool, unsigned int NodesPerSlab = 0)
   if (NodesPerSlab > MaxNodesPerPage)
   {
     unsigned NumBytes = sizeof(SlabHeader) + NodeSize * NodesPerSlab;
+    NumBytes += NodesPerSlab * sizeof (NodePointer);
     NewSlab = (struct SlabHeader *)GetPages((NumBytes+PageSize-1)/PageSize);
     if (NewSlab == NULL)
     {
