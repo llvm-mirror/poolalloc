@@ -95,7 +95,7 @@ unsigned Heuristic::getRecommendedAlignment(const Type *Ty,
   if (Ty == Type::VoidTy)  // Is this void or collapsed?
     return 0;  // No known alignment, let runtime decide.
 
-  return Wants8ByteAlignment(Ty, 0, TD);
+  return Wants8ByteAlignment(Ty, 0, TD) ? 8 : 4;
 }
 
 /// getRecommendedAlignment - Return the recommended object alignment for this
