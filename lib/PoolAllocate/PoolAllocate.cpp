@@ -576,14 +576,15 @@ static void DeleteIfIsPoolFree(Instruction *I, AllocaInst *PD,
 void PoolAllocate::CalculateLivePoolFreeBlocks(std::set<BasicBlock*>&LiveBlocks,
                                                Value *PD) {
   for (Value::use_iterator I = PD->use_begin(), E = PD->use_end(); I != E; ++I){
-    // The only users of the pool should be call instructions.
-    CallInst *U = cast<CallInst>(*I);
-    if (U->getCalledValue() != PoolFree && U->getCalledValue() != PoolDestroy) {
+    // The only users of the pool should be call & invoke instructions.
+    CallSite U = CallSite::get(*I);
+    if (U.getCalledValue() != PoolFree && U.getCalledValue() != PoolDestroy) {
       // This block and every block that can reach this block must keep pool
       // frees.
       for (idf_ext_iterator<BasicBlock*, std::set<BasicBlock*> >
-             DI = idf_ext_begin(U->getParent(), LiveBlocks),
-             DE = idf_ext_end(U->getParent(), LiveBlocks); DI != DE; ++DI)
+             DI = idf_ext_begin(U.getInstruction()->getParent(), LiveBlocks),
+             DE = idf_ext_end(U.getInstruction()->getParent(), LiveBlocks);
+           DI != DE; ++DI)
         /* empty */;
     }
   }
