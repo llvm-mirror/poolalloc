@@ -1,4 +1,11 @@
 //===-- PoolAllocate.cpp - Pool Allocation Pass ---------------------------===//
+// 
+//                     The LLVM Compiler Infrastructure
+//
+// This file was developed by the LLVM research group and is distributed under
+// the University of Illinois Open Source License. See LICENSE.TXT for details.
+// 
+//===----------------------------------------------------------------------===//
 //
 // This transform changes programs so that disjoint data structures are
 // allocated out of different pools of memory, increasing locality.
