@@ -26,6 +26,9 @@ typedef struct PoolTy {
   // NodeSize - Keep track of the object size tracked by this pool
   unsigned NodeSize;
 
+  // Maximum number of nodes per page
+  unsigned int MaxNodesPerPage;
+
   // Pointer to the list of slabs allocated for this pool
   struct SlabHeader * Slabs;
 

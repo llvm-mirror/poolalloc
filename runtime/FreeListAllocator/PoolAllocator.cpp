@@ -39,18 +39,13 @@ struct SlabHeader *
 createSlab (PoolTy * Pool, unsigned int NodesPerSlab = 0)
 {
   // Maximum number of nodes per page
-  unsigned int MaxNodesPerPage;
+  unsigned int MaxNodesPerPage = Pool->MaxNodesPerPage;
 
   // Pointer to the new Slab
   struct SlabHeader * NewSlab;
 
   // Save locally the node size
   unsigned int NodeSize = Pool->NodeSize;
-
-  //
-  // Determine how many nodes can exist within a regular slab.
-  //
-  MaxNodesPerPage = (PageSize - sizeof (struct SlabHeader)) / (sizeof (NodePointer) + NodeSize);
 
   //
   // If we can't fit a node into a page, give up.
@@ -166,6 +161,9 @@ poolinit (PoolTy *Pool, unsigned int NodeSize)
 #if 0
   Pool->FreeablePool = 1;
 #endif /* 0 */
+
+  // Calculate once for this pool the maximum number of nodes per page
+  Pool->MaxNodesPerPage = (PageSize - sizeof (struct SlabHeader)) / (sizeof (NodePointer) + NodeSize);
 
   //
   // Initialize the page manager.
