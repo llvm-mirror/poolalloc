@@ -1119,12 +1119,12 @@ void PointerCompress::FindPoolsToCompress(std::set<const DSNode*> &Pools,
   // globals graph, and if so, if it is compressed.
   for (DSGraph::node_iterator I = DSG.node_begin(), E = DSG.node_end();
        I != E;++I)
-    if (GlobalsGraphNodeMapping.count(*I)) {
+    if (GlobalsGraphNodeMapping.count(I)) {
       // If it is a global pool, set up the pool descriptor appropriately.
-      DSNode *GGN = GlobalsGraphNodeMapping[*I].getNode();
+      DSNode *GGN = GlobalsGraphNodeMapping[I].getNode();
       if (CompressedGlobalPools.count(GGN)) {
-        Pools.insert(*I);
-        PreassignedPools[*I] = CompressedGlobalPools[GGN];
+        Pools.insert(I);
+        PreassignedPools[I] = CompressedGlobalPools[GGN];
       }
     }
 }

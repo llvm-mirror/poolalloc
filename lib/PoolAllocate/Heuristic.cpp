@@ -146,7 +146,7 @@ struct AllButUnreachableFromMemoryHeuristic : public Heuristic {
     std::set<const DSNode*> ReachableFromMemory;
     for (DSGraph::node_iterator I = G.node_begin(), E = G.node_end();
          I != E; ++I) {
-      DSNode *N = *I;
+      DSNode *N = I;
       // Ignore nodes that are just globals and not arrays.
       /*
       if (N->isArray() || N->isHeapNode() || N->isAllocaNode() ||
