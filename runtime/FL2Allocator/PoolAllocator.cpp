@@ -251,6 +251,7 @@ void PoolSlab::create_for_ptrcomp(PoolTy *Pool, void *SMem, unsigned Size) {
     Pool->DeclaredSize = SizeHint;
   }
 
+  Size -= sizeof(PoolSlab) + sizeof(NodeHeader) + sizeof(FreedNodeHeader);
   PoolSlab *PS = (PoolSlab*)SMem;
   char *PoolBody = (char*)(PS+1);
 
@@ -260,7 +261,7 @@ void PoolSlab::create_for_ptrcomp(PoolTy *Pool, void *SMem, unsigned Size) {
   unsigned Alignment = Pool->Alignment;
   if (Alignment > sizeof(FreedNodeHeader)) {
     PoolBody += Alignment-sizeof(FreedNodeHeader);
-    Size -= Alignment-sizeof(FreedNodeHeader)-sizeof(PoolSlab);
+    Size -= Alignment-sizeof(FreedNodeHeader);
   }
 
   // Add the body of the slab to the free list.
@@ -273,6 +274,7 @@ void PoolSlab::create_for_ptrcomp(PoolTy *Pool, void *SMem, unsigned Size) {
   FreedNodeHeader *End =
       (FreedNodeHeader*)(PoolBody + sizeof(NodeHeader) + Size);
   End->Header.Size = ~0; // Looks like an allocated chunk
+  PS->Next = 0;
 }
 
 
@@ -709,8 +711,12 @@ void poolinit_pc(PoolTy *Pool, unsigned NodeSize, unsigned ObjAlignment) {
 }
 
 void pooldestroy_pc(PoolTy *Pool) {
+  assert(Pool && "Null pool pointer passed in to pooldestroy!\n");
   if (Pool->Slabs == 0)
     return;   // no memory allocated from this pool.
+
+  DO_IF_TRACE(fprintf(stderr, "[%d] pooldestroy", removePoolNumber(Pool)));
+  DO_IF_POOLDESTROY_STATS(PrintPoolStats(Pool));
 
   // If there is space to remember this pool, do so.
   for (unsigned i = 0; i != 4; ++i)
@@ -720,6 +726,8 @@ void pooldestroy_pc(PoolTy *Pool) {
     }
 
   // Otherwise, just munmap it.
+  DO_IF_TRACE(fprintf(stderr, "UNMAPPING ADDR SPACE: %p -> %p\n",
+                      Pool->Slabs, (char*)Pool->Slabs+POOLSIZE));
   munmap(Pool->Slabs, POOLSIZE);
 }
 
