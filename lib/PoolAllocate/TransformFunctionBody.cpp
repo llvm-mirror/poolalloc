@@ -8,7 +8,7 @@
 #include "poolalloc/PoolAllocate.h"
 #include "llvm/Analysis/DataStructure.h"
 #include "llvm/Analysis/DSGraph.h"
-#include "llvm/Function.h"
+#include "llvm/Module.h"
 #include "llvm/DerivedTypes.h"
 #include "llvm/Constants.h"
 #include "llvm/Instructions.h"
@@ -52,6 +52,8 @@ namespace {
 
     void visitInstruction(Instruction &I);
     void visitMallocInst(MallocInst &MI);
+    void visitCallocCall(CallSite CS);
+    void visitReallocCall(CallSite CS);
     void visitFreeInst(FreeInst &FI);
     void visitCallSite(CallSite CS);
     void visitCallInst(CallInst &CI) { visitCallSite(&CI); }
@@ -60,6 +62,9 @@ namespace {
     void visitStoreInst (StoreInst &I);
 
   private:
+    Instruction *TransformAllocationInstr(Instruction *I, Value *Size);
+    Instruction *InsertPoolFreeInstr(Value *V, Instruction *Where);
+
     void UpdateNewToOldValueMap(Value *OldVal, Value *NewV1, Value *NewV2) {
       std::map<Value*, const Value*>::iterator I =
         FI.NewToOldValueMap.find(OldVal);
@@ -125,16 +130,46 @@ void FuncTransform::visitStoreInst(StoreInst &SI) {
   visitInstruction(SI);
 }
 
+Instruction *FuncTransform::TransformAllocationInstr(Instruction *I,
+                                                     Value *Size) {
+  std::string Name = I->getName(); I->setName("");
+
+  // Insert a call to poolalloc
+  Value *PH = getPoolHandle(I);
+  Instruction *V = new CallInst(PAInfo.PoolAlloc, make_vector(PH, Size, 0),
+                                Name, I);
+
+  AddPoolUse(*V, PH, PoolUses);
+
+  // Cast to the appropriate type if necessary
+  Instruction *Casted = V;
+  if (V->getType() != I->getType())
+    Casted = new CastInst(V, I->getType(), V->getName(), I);
+    
+  // Update def-use info
+  I->replaceAllUsesWith(Casted);
+
+  // If we are modifying the original function, update the DSGraph.
+  if (!FI.Clone) {
+    // V and Casted now point to whatever the original allocation did.
+    G.getScalarMap().replaceScalar(I, V);
+    if (V != Casted)
+      G.getScalarMap()[Casted] = G.getScalarMap()[V];
+  } else {             // Otherwise, update the NewToOldValueMap
+    UpdateNewToOldValueMap(I, V, V != Casted ? Casted : 0);
+  }
+
+  // Remove old allocation instruction.
+  I->getParent()->getInstList().erase(I);
+  return Casted;
+}
+
+
 void FuncTransform::visitMallocInst(MallocInst &MI) {
   // Get the pool handle for the node that this contributes to...
   Value *PH = getPoolHandle(&MI);
-  
-  // NB: PH is zero even if the node is collapsed
   if (PH == 0) return;
 
-  std::string Name = MI.getName(); MI.setName("");
-
-  // Insert a call to poolalloc
   TargetData &TD = PAInfo.getAnalysis<TargetData>();
   Value *AllocSize =
     ConstantUInt::get(Type::UIntTy, TD.getTypeSize(MI.getAllocatedType()));
@@ -143,60 +178,118 @@ void FuncTransform::visitMallocInst(MallocInst &MI) {
     AllocSize = BinaryOperator::create(Instruction::Mul, AllocSize,
                                        MI.getOperand(0), "sizetmp", &MI);
 
-  Instruction *V = new CallInst(PAInfo.PoolAlloc, make_vector(PH, AllocSize, 0),
-                                Name, &MI);
-
-  AddPoolUse(*V, PH, PoolUses);
-
-  // Cast to the appropriate type if necessary
-  Value *Casted = V;
-  if (V->getType() != MI.getType())
-    Casted = new CastInst(V, MI.getType(), V->getName(), &MI);
-    
-  // Update def-use info
-  MI.replaceAllUsesWith(Casted);
-
-  // If we are modifying the original function, update the DSGraph... 
-  if (!FI.Clone) {
-    G.getScalarMap().replaceScalar(&MI, V);
-    if (V != Casted)
-      G.getScalarMap()[Casted] = G.getScalarMap()[V];
-  } else {             // Otherwise, update the NewToOldValueMap
-    UpdateNewToOldValueMap(&MI, V, V != Casted ? Casted : 0);
-  }
-
-  // Remove old malloc instruction
-  MI.getParent()->getInstList().erase(&MI);
+  TransformAllocationInstr(&MI, AllocSize);
 }
 
-void FuncTransform::visitFreeInst(FreeInst &FrI) {
-  Value *Arg = FrI.getOperand(0);
+
+Instruction *FuncTransform::InsertPoolFreeInstr(Value *Arg, Instruction *Where){
   Value *PH = getPoolHandle(Arg);  // Get the pool handle for this DSNode...
-  if (PH == 0) return;
+  if (PH == 0) return 0;
 
   // Insert a cast and a call to poolfree...
   Value *Casted = Arg;
   if (Arg->getType() != PointerType::get(Type::SByteTy))
     Casted = new CastInst(Arg, PointerType::get(Type::SByteTy),
-				 Arg->getName()+".casted", &FrI);
+				 Arg->getName()+".casted", Where);
 
   CallInst *FreeI = new CallInst(PAInfo.PoolFree, make_vector(PH, Casted, 0), 
-				 "", &FrI);
-  // Delete the now obsolete free instruction...
-  FrI.getParent()->getInstList().erase(&FrI);
-
+				 "", Where);
   AddPoolUse(*FreeI, PH, PoolFrees);
-  
-  // Update the NewToOldValueMap if this is a clone
-  if (!FI.NewToOldValueMap.empty()) {
-    std::map<Value*,const Value*>::iterator II =
-      FI.NewToOldValueMap.find(&FrI);
-    assert(II != FI.NewToOldValueMap.end() && 
-	   "FrI not found in clone?");
-    FI.NewToOldValueMap.insert(std::make_pair(FreeI, II->second));
-    FI.NewToOldValueMap.erase(II);
+  return FreeI;
+}
+
+
+void FuncTransform::visitFreeInst(FreeInst &FrI) {
+  if (Instruction *I = InsertPoolFreeInstr(FrI.getOperand(0), &FrI)) {
+    // Delete the now obsolete free instruction...
+    FrI.getParent()->getInstList().erase(&FrI);
+ 
+    // Update the NewToOldValueMap if this is a clone
+    if (!FI.NewToOldValueMap.empty()) {
+      std::map<Value*,const Value*>::iterator II =
+        FI.NewToOldValueMap.find(&FrI);
+      assert(II != FI.NewToOldValueMap.end() && 
+             "FrI not found in clone?");
+      FI.NewToOldValueMap.insert(std::make_pair(I, II->second));
+      FI.NewToOldValueMap.erase(II);
+    }
   }
 }
+
+
+void FuncTransform::visitCallocCall(CallSite CS) {
+  Module *M = CS.getInstruction()->getParent()->getParent()->getParent();
+  assert(CS.arg_end()-CS.arg_begin() == 2 && "calloc takes two arguments!");
+  Value *V1 = *CS.arg_begin();
+  Value *V2 = *(CS.arg_begin()+1);
+  if (V1->getType() != V2->getType()) {
+    V1 = new CastInst(V1, Type::UIntTy, V1->getName(), CS.getInstruction());
+    V2 = new CastInst(V2, Type::UIntTy, V2->getName(), CS.getInstruction());
+  }
+
+  V2 = BinaryOperator::create(Instruction::Mul, V1, V2, "size",
+                              CS.getInstruction());
+  if (V2->getType() != Type::UByteTy)
+    V2 = new CastInst(V2, Type::UIntTy, V2->getName(), CS.getInstruction());
+
+  BasicBlock::iterator BBI =
+    TransformAllocationInstr(CS.getInstruction(), V2);
+  Value *Ptr = BBI++;
+
+  // We just turned the call of 'calloc' into the equivalent of malloc.  To
+  // finish calloc, we need to zero out the memory.
+  Function *MemSet = M->getOrInsertFunction("llvm.memset",
+                                            Type::VoidTy,
+                                            PointerType::get(Type::SByteTy),
+                                            Type::UByteTy, Type::UIntTy,
+                                            Type::UIntTy, 0);
+
+  if (Ptr->getType() != PointerType::get(Type::SByteTy))
+    Ptr = new CastInst(Ptr, PointerType::get(Type::SByteTy), Ptr->getName(),
+                       BBI);
+  
+  // We know that the memory returned by poolalloc is at least 4 byte aligned.
+  new CallInst(MemSet, make_vector(Ptr, ConstantUInt::get(Type::UByteTy, 0),
+                                   V2,  ConstantUInt::get(Type::UIntTy, 4), 0),
+               "", BBI);
+}
+
+
+void FuncTransform::visitReallocCall(CallSite CS) {
+  Module *M = CS.getInstruction()->getParent()->getParent()->getParent();
+  assert(CS.arg_end()-CS.arg_begin() == 2 && "realloc takes two arguments!");
+  Value *OldPtr = *CS.arg_begin();
+  Value *Size = *(CS.arg_begin()+1);
+
+  BasicBlock::iterator BBI =
+    TransformAllocationInstr(CS.getInstruction(), Size);
+  Value *NewPtr = BBI++;
+
+  // We just turned the call of 'realloc' into the equivalent of malloc.  To
+  // finish realloc, we need to copy the memory from the old block to the new,
+  // then free the old block.
+  const Type *SBPtr = PointerType::get(Type::SByteTy);
+  Function *MemCpy = M->getOrInsertFunction("llvm.memcpy",
+                                            Type::VoidTy, SBPtr, SBPtr,
+                                            Type::UIntTy, Type::UIntTy, 0);
+
+  if (NewPtr->getType() != SBPtr)
+    NewPtr = new CastInst(NewPtr, SBPtr, NewPtr->getName(), BBI);
+  if (OldPtr->getType() != SBPtr)
+    OldPtr = new CastInst(OldPtr, SBPtr, OldPtr->getName(), BBI);
+  if (Size->getType() != Type::UIntTy)
+    Size = new CastInst(Size, Type::UIntTy, Size->getName(), BBI);
+  
+  // We know that the memory returned by poolalloc is at least 4 byte aligned.
+  new CallInst(MemCpy, make_vector(NewPtr, OldPtr, Size, 
+                                   ConstantUInt::get(Type::UIntTy, 4), 0),
+               "", BBI);
+
+  // Free the old memory now.
+  InsertPoolFreeInstr(OldPtr, BBI);
+}
+
+
 
 void FuncTransform::visitCallSite(CallSite CS) {
   Function *CF = CS.getCalledFunction();
@@ -217,6 +310,23 @@ void FuncTransform::visitCallSite(CallSite CS) {
           CF = dyn_cast<Function>(CPR->getValue());
     }
   }
+
+  // If this function is one of the memory manipulating functions built into
+  // libc, emulate it with pool calls as appropriate.
+  if (CF && CF->isExternal())
+    if (CF->getName() == "calloc") {
+      visitCallocCall(CS);
+      return;
+    } else if (CF->getName() == "realloc") {
+      visitReallocCall(CS);
+      return;
+    } else if (CF->getName() == "strdup") {
+      assert(0 && "strdup should have been linked into the program!");
+    } else if (CF->getName() == "memalign" ||
+               CF->getName() == "posix_memalign") {
+      std::cerr << "MEMALIGN USED BUT NOT HANDLED!\n";
+      abort();
+    }
 
   // We need to figure out which local pool descriptors correspond to the pool
   // descriptor arguments passed into the function call.  Calculate a mapping
