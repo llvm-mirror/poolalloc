@@ -90,10 +90,12 @@ sub Ratio {
  ["L1Miss",   'CBE-L1-Cache-Misses: ([0-9]+)'],
  ["PAL1Miss",   'CBE-PA-L1-Cache-Misses: ([0-9]+)'],
  ["PAL1Ratio", \&Ratio],
-
+ ["ALLPAL1Miss", 'CBE-ALLPA-L1-Cache-Misses: ([0-9]+)'],
+ [],
  ["L2Miss",   'CBE-L2-Cache-Misses: ([.0-9]+)'],
  ["PAL2Miss",   'CBE-PA-L2-Cache-Misses: ([.0-9]+)'],
  ["PAL2Ratio", \&Ratio],
+ ["ALLPAL2Miss", 'CBE-ALLPA-L2-Cache-Misses: ([0-9]+)'],
  []
 );
 
