@@ -25,18 +25,6 @@ P3_EVENTS := -ec en='L2 Cache Request Misses (highly correlated)'
 EVENTS := $(P4_EVENTS)
 
 #
-# Generate events for LLC
-#
-#$(PROGRAMS_TO_TEST:%=test.$(TEST).%): \
-#test.$(TEST).%: Output/%.llc
-#	@echo "========================================="
-#	@echo "Running '$(TEST)' test on '$(TESTNAME)' program"
-#	$(VERB) $(VTL) activity $* -d 50 -c sampling -o "$(EVENTS)" -app $<
-#	-$(VERB) $(VTL) run $*
-#	-$(VERB) $(VTL) view > $@
-#	$(VERB)  $(VTL) delete $* -f
-
-#
 # Once the results are generated, create files containing each individiual
 # piece of performance information.
 #
@@ -88,7 +76,7 @@ endif
 	$(VERB)  $(VTL) delete $* -f
 
 #
-# Generate events for Pool Allocated CBE
+# Generate events for CBE
 #
 $(PROGRAMS_TO_TEST:%=Output/test.$(TEST).%): \
 Output/test.$(TEST).%: Output/%.cbe
