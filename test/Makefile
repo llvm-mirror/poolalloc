@@ -22,6 +22,9 @@ progtest::
 	(cd $(LLVM_OBJ_ROOT)/test/Programs/MultiSource/Benchmarks/Ptrdist; \
                PROJECT_DIR=$(BUILD_OBJ_ROOT) $(MAKE) -j1 TEST=poolalloc \
                    report.html)
+	(cd $(LLVM_OBJ_ROOT)/test/Programs/MultiSource/Benchmarks/FreeBench/analyzer; \
+               PROJECT_DIR=$(BUILD_OBJ_ROOT) $(MAKE) -j1 TEST=poolalloc \
+                   LARGE_PROBLEM_SIZE=1 report.html)
 	(cd $(LLVM_OBJ_ROOT)/test/Programs/MultiSource/Benchmarks/MallocBench/cfrac; \
                PROJECT_DIR=$(BUILD_OBJ_ROOT) $(MAKE) -j1 TEST=poolalloc \
                    report.html)
@@ -34,6 +37,9 @@ progtest::
 	@(cd $(LLVM_OBJ_ROOT)/test/Programs/MultiSource/Benchmarks/Ptrdist; \
                PROJECT_DIR=$(BUILD_OBJ_ROOT) $(MAKE) -j1 TEST=poolalloc \
                    report)
+	(cd $(LLVM_OBJ_ROOT)/test/Programs/MultiSource/Benchmarks/FreeBench/analyzer; \
+               PROJECT_DIR=$(BUILD_OBJ_ROOT) $(MAKE) -j1 TEST=poolalloc \
+                   LARGE_PROBLEM_SIZE=1 report)
 	@(cd $(LLVM_OBJ_ROOT)/test/Programs/MultiSource/Benchmarks/MallocBench/cfrac; \
                PROJECT_DIR=$(BUILD_OBJ_ROOT) $(MAKE) -j1 TEST=poolalloc \
                    report)
