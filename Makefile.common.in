@@ -1,0 +1,99 @@
+#
+# Set this variable to the top of the LLVM source tree.
+#
+LLVM_SRC_ROOT = @LLVM_SRC@
+
+#
+# Set this variable to the top level directory where LLVM was built
+# (this is *not* the same as OBJ_ROOT as defined in LLVM's Makefile.config).
+#
+LLVM_OBJ_ROOT = @LLVM_OBJ@
+
+#
+# Include LLVM's Master Makefile.
+#
+include $(LLVM_SRC_ROOT)/Makefile.common
+
+#
+# Extra rules and information for building bytecode libraries.
+#
+ifdef BCNAME
+
+#
+# Location of the LLVM Tools
+#
+TOOLS    = $(LLVM_OBJ_ROOT)/tools/$(CONFIGURATION)
+
+#
+# LLVM Tool Definitions...
+#
+LCC      = $(LLVMGCCDIR)/bin/gcc
+LCC1     = $(LLVMGCCDIR)/lib/gcc-lib/$(LLVMGCCARCH)/cc1
+LCXX     = $(LLVMGCCDIR)/bin/g++
+LCC1XX   = $(LLVMGCCDIR)/lib/gcc-lib/$(LLVMGCCARCH)/cc1plus
+LLI      = $(TOOLS)/lli
+LLC      = $(TOOLS)/llc
+LAS      = $(TOOLS)/as
+LGCCAS   = $(TOOLS)/gccas
+LGCCLD   = $(TOOLS)/gccld -L$(LLVMGCCDIR)/lib/gcc-lib/$(LLVMGCCARCH) -L$(LLVMGCCDIR)/lib
+LGCCLDPROG = $(TOOLS)/gccld
+LDIS     = $(TOOLS)/dis 
+LOPT     = $(TOOLS)/opt
+LLINK    = $(TOOLS)/link
+LANALYZE = $(TOOLS)/analyze
+LBUGPOINT= $(TOOLS)/bugpoint
+
+LCCFLAGS  += -O2 -Wall
+LCXXFLAGS += -O2 -Wall
+
+#
+# Declare the following suffixes
+#
+.SUFFIXES: .bc,.ll
+
+DESTLIBDIR  := $(LEVEL)/bytecode/$(CONFIGURATION)
+DESTLIBNAME := $(DESTLIBDIR)/lib$(BCNAME).bc
+
+all:: $(DESTLIBNAME)
+
+# Figure out what object files we want to build...
+LObjs    := $(sort $(addsuffix .bc, $(basename $(Source))))
+LObjects := $(addprefix $(CONFIGURATION)/, $(LObjs))
+
+.PRECIOUS: $(LObjects)
+
+#
+# If the library specified a list of symbols to export, add an internalize pass
+# to the link options.
+#
+ifdef EXPORTED_SYMBOL_LIST
+LLINK_OPTS += -internalize -internalize-public-api-list=$(EXPORTED_SYMBOL_LIST)
+endif
+
+# Standard set of postlink optimizations...
+LLINK_OPTS +=  -inline -globaldce -funcresolve -deadtypeelim -instcombine -simplifycfg
+
+# Link the library, then perform postlink optimization...
+$(DESTLIBNAME): $(DESTLIBDIR)/.dir $(LObjects) $(LLINK) $(LOPT)
+	$(VERB) $(LLINK) -f $(LObjects) $(LDFLAGS) | \
+	 $(LOPT) -f -q $(LLINK_OPTS) -o $@
+
+#
+# Install target for libraries: Copy into the gcc install directory.
+#
+INSTALL_DIR := $(LLVMGCCDIR)/bytecode-libs/
+
+install:: $(DESTLIBNAME)
+	$(VERB) cp $(DESTLIBNAME) $(INSTALL_DIR)
+
+#
+# Rules for building bytecode libraries
+#
+$(CONFIGURATION)/%.bc: $(CONFIGURATION)/%.ll $(CONFIGURATION)/.dir
+	$(VERB) echo "Assembling " $<
+	$(VERB) $(LAS) -f $< -o $@
+
+$(CONFIGURATION)/%.ll: %.c $(CONFIGURATION)/.dir
+	$(VERB) echo "Compiling " $<
+	$(VERB) $(LLVMGCCDIR)/bin/gcc $(CPPFLAGS) $(LCCFLAGS) -S $< -o $@
+endif
