@@ -20,9 +20,6 @@
 #include <assert.h>
 #include <stdlib.h>
 
-#undef assert
-#define assert(X)
-
 //===----------------------------------------------------------------------===//
 //
 //  Defintion of Slab Data Structures
