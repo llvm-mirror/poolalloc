@@ -17,6 +17,7 @@
 #include "llvm/Support/InstVisitor.h"
 #include "Support/Debug.h"
 #include "Support/VectorExtras.h"
+#include <iostream>
 using namespace llvm;
 using namespace PA;
 
