@@ -15,7 +15,11 @@ DIRS = lib runtime
 #
 # Include the Master Makefile that knows how to build all.
 #
-include $(LEVEL)/Makefile.common
+-include $(LEVEL)/Makefile.common
+
+notconfigured:
+	@echo "ERROR: You must configure this project before you can use it!"
+	@exit 1
 
 distclean:: clean
 	${RM} -f Makefile.common Makefile.config
