@@ -35,13 +35,17 @@
 //  Allocate memory for a new slab and initialize the slab.
 //
 struct SlabHeader *
-createSlab (unsigned int NodeSize, unsigned int NodesPerSlab = 0)
+createSlab (PoolTy * Pool, unsigned int NodesPerSlab = 0)
 {
   // Maximum number of nodes per page
   unsigned int MaxNodesPerPage;
 
   // Pointer to the new Slab
   struct SlabHeader * NewSlab;
+
+  // Save locally the node size
+  unsigned int NodeSize = Pool->NodeSize;
+  unsigned int PageSize = Pool->PageSize;
 
   //
   // Determine how many nodes can exist within a regular slab.
@@ -53,7 +57,7 @@ createSlab (unsigned int NodeSize, unsigned int NodesPerSlab = 0)
   //
   if (NodeSize > PageSize)
   {
-    fprintf (stderr, "Node size is too big.\n");
+    fprintf (stderr, "Node size %d is larger than page size %d.\n", NodeSize, PageSize);
     fflush (stderr);
     abort();
   }
@@ -112,7 +116,7 @@ createSlab (unsigned int NodeSize, unsigned int NodesPerSlab = 0)
 //  Find the slab that owns this block.
 //
 struct SlabHeader *
-BlockOwner (NodePointer p)
+BlockOwner (unsigned int PageSize, NodePointer p)
 {
   //
   // Convert the node pointer into a slab pointer.
@@ -127,7 +131,7 @@ BlockOwner (NodePointer p)
 //  This function finds the slab that owns this data block.
 //
 struct SlabHeader *
-DataOwner (void * p)
+DataOwner (unsigned int PageSize, void * p)
 {
   return reinterpret_cast<struct SlabHeader *>(reinterpret_cast<unsigned int>(p) & ~(PageSize - 1));
 }
@@ -179,7 +183,7 @@ void poolinit(PoolTy *Pool, unsigned int NodeSize)
   //
   // Initialize the page manager.
   //
-  InitializePageManager ();
+  Pool->PageSize = InitializePageManager ();
 
   return;
 }
@@ -237,7 +241,7 @@ poolalloc(PoolTy *Pool, unsigned NodeSize)
   //
   if (Pool->Slabs == NULL)
   {
-    Pool->Slabs = createSlab (Pool->NodeSize);
+    Pool->Slabs = createSlab (Pool);
     (Pool->Slabs->NextFreeData)++;
     return (Pool->Slabs->Data);
   }
@@ -264,7 +268,7 @@ poolalloc(PoolTy *Pool, unsigned NodeSize)
     //
     // Create a new slab and add it to the list.
     //
-    struct SlabHeader * NewSlab = createSlab (Pool->NodeSize);
+    struct SlabHeader * NewSlab = createSlab (Pool);
     NewSlab->Next = Pool->Slabs;
     Pool->Slabs = NewSlab;
 
@@ -286,7 +290,7 @@ poolalloc(PoolTy *Pool, unsigned NodeSize)
   //
   // Determine which slab owns this block.
   //
-  struct SlabHeader * slabp = BlockOwner (Pool->FreeList);
+  struct SlabHeader * slabp = BlockOwner (Pool->PageSize, Pool->FreeList);
 
   //
   // Find the data block that corresponds with this pointer.
@@ -350,7 +354,7 @@ poolallocarray(PoolTy* Pool, unsigned ArraySize)
   //
   // Create a new slab and mark it as an array.
   //
-  struct SlabHeader * NewSlab = createSlab (Pool->NodeSize, ArraySize);
+  struct SlabHeader * NewSlab = createSlab (Pool, ArraySize);
   NewSlab->IsArray = 1;
 
   //
@@ -368,7 +372,7 @@ poolfree (PoolTy * Pool, void * Block)
   //
   // Find the header of the memory block.
   //
-  struct SlabHeader * slabp = DataOwner (Block);
+  struct SlabHeader * slabp = DataOwner (Pool->PageSize, Block);
 
   //
   // If the owning slab is an array, add it back to the free array list.

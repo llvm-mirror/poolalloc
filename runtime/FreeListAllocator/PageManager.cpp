@@ -25,7 +25,7 @@
 // Empirically, this slows down the pool allocator a LOT.
 #define USE_MEMALIGN 0
 
-unsigned PageSize = 0;
+static unsigned PageSize = 0;
 
 // Explicitly use the malloc allocator here, to avoid depending on the C++
 // runtime library.
@@ -39,8 +39,13 @@ static FreePagesListType *FreePages = 0;
 //  This function initializes the Page Manager code.  It must be called before
 //  any other Page Manager functions are called.
 //
-void InitializePageManager() {
-  if (!PageSize) PageSize = sysconf(_SC_PAGESIZE);
+unsigned int InitializePageManager() {
+  if (!PageSize)
+  {
+    PageSize = sysconf(_SC_PAGESIZE);
+    FreePages = 0;
+  }
+  return PageSize;
 }
 
 #if !USE_MEMALIGN

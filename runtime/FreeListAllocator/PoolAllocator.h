@@ -18,6 +18,9 @@
 #include "PoolSlab.h"
 
 typedef struct PoolTy {
+  // The size of a page on this system
+  unsigned int PageSize;
+
   // NodeSize - Keep track of the object size tracked by this pool
   unsigned NodeSize;
 

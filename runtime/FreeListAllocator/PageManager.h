@@ -18,13 +18,13 @@
 /// InitializePageManager - This function must be called before any other page
 /// manager accesses are performed.  It may be called multiple times.
 /// 
-void InitializePageManager();
+unsigned int InitializePageManager();
 
 /// PageSize - Contains the size of the unit of memory allocated by
 /// AllocatePage.  This is a value that is typically several kilobytes in size,
 /// and is guaranteed to be a power of two.
 ///
-extern unsigned PageSize;
+///extern unsigned PageSize;
 
 /// AllocatePage - This function returns a chunk of memory with size and
 /// alignment specified by getPageSize().
