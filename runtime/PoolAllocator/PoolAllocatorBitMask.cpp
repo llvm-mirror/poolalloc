@@ -194,6 +194,7 @@ void PoolSlab::freeElement(unsigned ElementIdx) {
 
   // If this slab is a SingleArray, there is nothing else to do.
   if (isSingleArray) {
+    UsedEnd = 0;               // This slab is now empty
     assert(ElementIdx == 0 &&
            "poolfree: Attempt to free middle of allocated array\n");
     return;
@@ -209,6 +210,9 @@ void PoolSlab::freeElement(unsigned ElementIdx) {
   
   // Free all nodes if this was a small array allocation.
   unsigned ElementEndIdx = ElementIdx + 1;
+
+  // FIXME: This should use manual strength reduction if GCC isn't producing
+  // decent code (which is almost certainly isn't).
   while (ElementEndIdx < UsedEnd && !isStartOfAllocation(ElementEndIdx) && 
          isNodeAllocated(ElementEndIdx)) {
     markNodeFree(ElementEndIdx);
@@ -252,7 +256,7 @@ void poolinit(PoolTy *Pool, unsigned NodeSize) {
 }
 
 void poolmakeunfreeable(PoolTy *Pool) {
-  assert (Pool && "Null pool pointer passed in to poolmakeunfreeable!\n");
+  assert(Pool && "Null pool pointer passed in to poolmakeunfreeable!\n");
   Pool->FreeablePool = 0;
 }
 
@@ -319,39 +323,40 @@ void poolfree(PoolTy *Pool, void *Node) {
   // it to the head of the list, or free it, depending on whether or not there
   // is already an empty slab at the head of the list.
   //
-  if (Pool->FreeablePool) {    // Do this only if the pool is freeable
-    if (PS->isSingleArray) {
-      // If it is a SingleArray, just free it
-      *PPS = PS->Next;
-      PS->destroy();
-    } else if (PS->isEmpty()) {   // Empty slab?
-      PoolSlab *HeadSlab;
-      *PPS = PS->Next;   // Unlink from the list of slabs...
-      
-      HeadSlab = (PoolSlab*)Pool->Slabs;
-      if (HeadSlab && HeadSlab->isEmpty()) { // List already has empty slab?
-	PS->destroy();                       // Free memory for slab
+  if (PS->isEmpty()) {
+    if (PS->isSingleArray)
+      if (Pool->FreeablePool) {
+        // If it is a SingleArray, just free it
+        *PPS = PS->Next;
+        PS->destroy();
+        return;
       } else {
-	PS->Next = HeadSlab;                 // No empty slab yet, add this
-	Pool->Slabs = PS;                    // one to the head of the list
+        // If this is a non-freeable pool, we might as well use the memory
+        // allocated for normal node allocations.
+        PS->isSingleArray = 0;
       }
+
+    // No more singlearray objects exist at this point.
+    assert(!PS->isSingleArray);
+
+    *PPS = PS->Next;   // Unlink from the list of slabs...
+    PoolSlab *FirstSlab = (PoolSlab*)Pool->Slabs;
+    
+    // If we can free this pool, check to see if there are any empty slabs at
+    // the start of this list.  If so, delete the FirstSlab!
+    if (Pool->FreeablePool && FirstSlab->isEmpty()) {
+      // Here we choose to delete FirstSlab instead of the pool we just freed
+      // from because the pool we just freed from is more likely to be in the
+      // processor cache.
+      PoolSlab *NextSlab = FirstSlab->Next;
+      FirstSlab->destroy();
+      FirstSlab = NextSlab;
     }
-  } else {
-    // Pool is not freeable for safety reasons
-    // Leave it in the list of PoolSlabs as an empty PoolSlab
-    if (!PS->isSingleArray)
-      if (PS->isEmpty()) {
-	PS->FirstUnused = 0;
-	
-	// Do not free the pool, but move it to the head of the list if there is
-	// no empty slab there already
-	PoolSlab *HeadSlab;
-	HeadSlab = (PoolSlab*)Pool->Slabs;
-	if (HeadSlab && !HeadSlab->isEmpty()) {
-	  PS->Next = HeadSlab;
-	  Pool->Slabs = PS;
-	}
-      }
+
+    // Link our slab onto the head of the list so that allocations will find it
+    // efficiently.    
+    PS->Next = FirstSlab;
+    Pool->Slabs = PS;
   }
 }
 
