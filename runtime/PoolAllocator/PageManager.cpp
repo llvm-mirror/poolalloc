@@ -15,8 +15,8 @@
 #ifndef _POSIX_MAPPED_FILES
 #define _POSIX_MAPPED_FILES
 #endif
-#include "llvm/Config/unistd.h"
-#include "llvm/Config/sys/mman.h"
+#include <unistd.h>
+#include <sys/mman.h>
 #include "poolalloc/Support/MallocAllocator.h"
 #include <cassert>
 #include <vector>
