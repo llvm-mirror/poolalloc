@@ -395,8 +395,8 @@ bool PoolAllocate::SetupGlobalPools(Module &M) {
   }
   
   // If we don't need to create any global pools, exit now.
-  if (GlobalHeapNodes.empty() ||
-      Heuristic == AllInOneGlobalPool) return false;
+  if (GlobalHeapNodes.empty() &&
+      Heuristic != AllInOneGlobalPool) return false;
 
   // Otherwise get the main function to insert the poolinit calls.
   Function *MainFunc = M.getMainFunction();
