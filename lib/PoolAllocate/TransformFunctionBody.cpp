@@ -405,11 +405,12 @@ void FuncTransform::visitCallSite(CallSite CS) {
 #if 1
     // Map the nodes that are pointed to by globals.
     // For all globals map getDSNodeForGlobal(g)->CG.getDSNodeForGlobal(g)
-    for (DSGraph::ScalarMapTy::iterator SMI = G.getScalarMap().begin(), 
-	   SME = G.getScalarMap().end(); SMI != SME; ++SMI)
-      if (GlobalValue *GV = dyn_cast<GlobalValue>(SMI->first)) 
-	DSGraph::computeNodeMapping(CalleeGraph->getNodeForValue(GV),
-                                    SMI->second, NodeMapping, false);
+    for (DSScalarMap::global_iterator SMI = G.getScalarMap().global_begin(), 
+	   SME = G.getScalarMap().global_end(); SMI != SME; ++SMI) {
+      DSGraph::computeNodeMapping(CalleeGraph->getNodeForValue(*SMI),
+                                  G.getNodeForValue(*SMI),
+                                  NodeMapping, false);
+    }
 #endif
 
 
@@ -417,13 +418,14 @@ void FuncTransform::visitCallSite(CallSite CS) {
   // pool descriptors to pass in...
   std::vector<Value*> Args;
   for (unsigned i = 0, e = ArgNodes.size(); i != e; ++i) {
-    Value *ArgVal = 0;
+    Value *ArgVal = Constant::getNullValue(PoolAllocate::PoolDescPtrTy);
     if (NodeMapping.count(ArgNodes[i]))
       if (DSNode *LocalNode = NodeMapping[ArgNodes[i]].getNode())
         if (FI.PoolDescriptors.count(LocalNode))
           ArgVal = FI.PoolDescriptors.find(LocalNode)->second;
-    Args.push_back(ArgVal ? ArgVal : 
-                   Constant::getNullValue(PoolAllocate::PoolDescPtrTy));
+    if (isa<Constant>(ArgVal) && cast<Constant>(ArgVal)->isNullValue())
+      std::cerr << "WARNING: NULL POOL ARGUMENTS ARE PASSED IN!\n";
+    Args.push_back(ArgVal);
   }
 
   // Add the rest of the arguments...
