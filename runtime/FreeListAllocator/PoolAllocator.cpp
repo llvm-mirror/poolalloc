@@ -230,6 +230,9 @@ poolalloc(PoolTy *Pool, unsigned BytesWanted)
 
   assert(Pool && "Null pool pointer passed in to poolalloc!\n");
 
+  // Make sure we allocate something
+  BytesWanted = (BytesWanted ? BytesWanted : 1);
+
   //
   // Determine if we can satisfy this request normally.  If not, then
   // we need to use the array allocation instead.
