@@ -490,13 +490,6 @@ void PoolAllocate::CreatePools(Function &F,
                                std::map<DSNode*, Value*> &PoolDescriptors,
 			       std::map<const Value *,
                                         const Type *> &PoolDescTypeMap) {
-  // Find all of the return nodes in the CFG...
-  std::vector<BasicBlock*> ReturnNodes;
-  for (Function::iterator I = F.begin(), E = F.end(); I != E; ++I)
-    if (isa<ReturnInst>(I->getTerminator()))
-      ReturnNodes.push_back(I);
-
-  TargetData &TD = getAnalysis<TargetData>();
 
   // Loop over all of the pools, inserting code into the entry block of the
   // function for the initialization and code in the exit blocks for
@@ -508,31 +501,17 @@ void PoolAllocate::CreatePools(Function &F,
     
     // Create a new alloca instruction for the pool...
     Value *AI = new AllocaInst(PoolDescType, 0, "PD", InsertPoint);
-    const Type *Eltype;
-    Value *ElSize;
-    
+
     // Void types in DS graph are never used
-    if (Node->getType() != Type::VoidTy) {
-      ElSize = ConstantUInt::get(Type::UIntTy, TD.getTypeSize(Node->getType()));
-      Eltype = Node->getType();
-    } else {
+    if (Node->getType() == Type::VoidTy)
       std::cerr << "Node collapsing in '" << F.getName() 
 		<< "'. All Data Structures may not be pool allocated\n";
-      ElSize = ConstantUInt::get(Type::UIntTy, 1);
-    }
     
-    // Insert the call to initialize the pool...
-    new CallInst(PoolInit, make_vector(AI, ElSize, 0), "", InsertPoint);
     ++NumPools;
       
     // Update the PoolDescriptors map
     PoolDescriptors.insert(std::make_pair(Node, AI));
-    PoolDescTypeMap[AI] = Eltype;
-    
-    // Insert a call to pool destroy before each return inst in the function
-    for (unsigned r = 0, e = ReturnNodes.size(); r != e; ++r)
-      new CallInst(PoolDestroy, make_vector(AI, 0), "",
-		   ReturnNodes[r]->getTerminator());
+    PoolDescTypeMap[AI] = Node->getType();
   }
 }
 
@@ -561,17 +540,64 @@ void PoolAllocate::ProcessFunctionBody(Function &F, Function &NewF) {
       NodesToPA.push_back(Nodes[i]);
   
   DEBUG(std::cerr << NodesToPA.size() << " nodes to pool allocate\n");
-  if (!NodesToPA.empty()) {
-    // Create pool construction/destruction code
-    std::map<DSNode*, Value*> &PoolDescriptors = FI.PoolDescriptors;
-    std::map<const Value*, const Type*> &PoolDescTypeMap = FI.PoolDescType;
-    CreatePools(NewF, NodesToPA, PoolDescriptors, PoolDescTypeMap);
-  }
+  if (!NodesToPA.empty())    // Insert pool alloca's
+    CreatePools(NewF, NodesToPA, FI.PoolDescriptors, FI.PoolDescType);
   
   // Transform the body of the function now... collecting information about uses
   // of the pools.
   std::set<std::pair<AllocaInst*, Instruction*> > PoolUses;
   std::set<std::pair<AllocaInst*, CallInst*> > PoolFrees;
   TransformBody(G, TDDS->getDSGraph(F), FI, PoolUses, PoolFrees, NewF);
+
+  // Create pool construction/destruction code
+  if (!NodesToPA.empty())
+    InitializeAndDestroyPools(NewF, NodesToPA,
+                              FI.PoolDescriptors, FI.PoolDescType);
 }
 
+/// InitializeAndDestroyPools - This inserts calls to poolinit and pooldestroy
+/// into the function to initialize and destroy the pools in the NodesToPA list.
+///
+void PoolAllocate::InitializeAndDestroyPools(Function &F,
+                               const std::vector<DSNode*> &NodesToPA,
+                               std::map<DSNode*, Value*> &PoolDescriptors,
+			       std::map<const Value *,
+                                        const Type *> &PoolDescTypeMap) {
+
+  TargetData &TD = getAnalysis<TargetData>();
+  
+  // Insert poolinit calls after all of the allocas...
+  Instruction *InsertPoint;
+  for (BasicBlock::iterator I = F.front().begin();
+       isa<AllocaInst>(InsertPoint = I); ++I)
+    /*empty*/;
+
+
+  // Insert all of the poolalloc calls in the start of the function.
+  for (unsigned i = 0, e = NodesToPA.size(); i != e; ++i) {
+    DSNode *Node = NodesToPA[i];
+    
+    // Create a new alloca instruction for the pool...
+    Value *PD = PoolDescriptors[Node];
+    Value *ElSize;
+    
+    // Void types in DS graph are never used
+    if (Node->getType() != Type::VoidTy) {
+      ElSize = ConstantUInt::get(Type::UIntTy, TD.getTypeSize(Node->getType()));
+    } else {
+      ElSize = ConstantUInt::get(Type::UIntTy, 1);
+    }
+    
+    // Insert the call to initialize the pool...
+    new CallInst(PoolInit, make_vector(PD, ElSize, 0), "", InsertPoint);
+  }
+
+  // Loop over all of the return nodes in the CFG...
+  for (Function::iterator BB = F.begin(), E = F.end(); BB != E; ++BB)
+    if (isa<ReturnInst>(BB->getTerminator()))
+      for (unsigned i = 0, e = NodesToPA.size(); i != e; ++i)
+        // Insert the pooldestroy call for this pool.
+        new CallInst(PoolDestroy, make_vector(PoolDescriptors[NodesToPA[i]], 0),
+                     "", BB->getTerminator());
+
+}
