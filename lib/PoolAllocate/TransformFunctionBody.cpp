@@ -290,8 +290,6 @@ void FuncTransform::visitMallocInst(MallocInst &MI) {
   // NB: PH is zero even if the node is collapsed
   if (PH == 0) return;
 
-  AddPoolUse(MI, PH, PoolUses);
-
   std::string Name = MI.getName(); MI.setName("");
 
   // Insert a call to poolalloc
@@ -303,8 +301,11 @@ void FuncTransform::visitMallocInst(MallocInst &MI) {
     AllocSize = BinaryOperator::create(Instruction::Mul, AllocSize,
                                        MI.getOperand(0), "sizetmp", &MI);
 
-  Value *V = new CallInst(PAInfo.PoolAlloc, make_vector(PH, AllocSize, 0),
-                          Name, &MI);
+  Instruction *V = new CallInst(PAInfo.PoolAlloc, make_vector(PH, AllocSize, 0),
+                                Name, &MI);
+
+  AddPoolUse(*V, PH, PoolUses);
+
 
   // Cast to the appropriate type if necessary
   Value *Casted = V;
