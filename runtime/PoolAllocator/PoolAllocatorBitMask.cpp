@@ -14,7 +14,6 @@
 
 #include "PoolAllocator.h"
 #include <assert.h>
-#include <stdio.h>
 #include <stdlib.h>
 
 #undef assert
@@ -150,29 +149,43 @@ void *poolalloc(PoolTy *Pool) {
   assert(Pool && "Null pool pointer passed in to poolalloc!\n");
   
   unsigned NodeSize = Pool->NodeSize;
-  PoolSlab *PS = (PoolSlab*)Pool->Slabs;
+  PoolSlab *CurPoolSlab = (PoolSlab*)Pool->Slabs;
 
-  void *Result;
-  if ((Result = FindSlabEntry(PS, NodeSize)))
+  // Fastpath for allocation in the common case.
+  if (CurPoolSlab && !CurPoolSlab->isSingleArray &&
+      CurPoolSlab->LastUsed < NODES_PER_SLAB-1) {
+    // Mark the returned entry used
+    CurPoolSlab->markNodeAllocated(CurPoolSlab->LastUsed+1);
+    CurPoolSlab->setStartBit(CurPoolSlab->LastUsed+1);
+    
+    // If we are allocating out the first unused field, bump its index also
+    if (CurPoolSlab->FirstUnused == (unsigned)CurPoolSlab->LastUsed+1)
+      CurPoolSlab->FirstUnused++;
+    
+    // Return the entry, increment LastUsed field.
+    return &CurPoolSlab->Data[0] + ++CurPoolSlab->LastUsed * NodeSize;
+  }
+
+  if (void *Result = FindSlabEntry(CurPoolSlab, NodeSize))
     return Result;
 
-  /* Otherwise we must allocate a new slab and add it to the list */
-  PS = (PoolSlab*)malloc(sizeof(PoolSlab)+NodeSize*NODES_PER_SLAB-1);
-
+  // Otherwise we must allocate a new slab and add it to the list
+  PoolSlab *PS = (PoolSlab*)malloc(sizeof(PoolSlab)+NodeSize*NODES_PER_SLAB-1);
   assert(PS && "poolalloc: Could not allocate memory!");
 
-  /* Initialize the slab to indicate that the first element is allocated */
+  // Initialize the slab to indicate that the first element is allocated
   PS->FirstUnused = 1;
   PS->LastUsed = 0;
-  /* This is not a single array */
+
+  // This is not a single array
   PS->isSingleArray = 0;
   PS->ArraySize = 0;
   
   PS->markNodeAllocated(0);
   PS->setStartBit(0);
 
-  /* Add the slab to the list... */
-  PS->Next = (PoolSlab*)Pool->Slabs;
+  // Add the slab to the list...
+  PS->Next = CurPoolSlab;
   Pool->Slabs = PS;
   return &PS->Data[0];
 }
@@ -389,8 +402,7 @@ void* poolallocarray(PoolTy* Pool, unsigned Size) {
 
   PoolSlab *PS = (PoolSlab*)Pool->Slabs;
 
-  void *Result;
-  if ((Result = FindSlabEntryArray(PS, NodeSize,Size)))
+  if (void *Result = FindSlabEntryArray(PS, NodeSize,Size))
     return Result;
 
   /* Otherwise we must allocate a new slab and add it to the list */
