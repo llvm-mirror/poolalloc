@@ -172,6 +172,16 @@ namespace {
     ///
     Value *getPoolDesc() const { return PoolDesc; }
 
+    /// EmitPoolBaseLoad - Emit code to load the pool base value for this pool
+    /// before the specified instruction.
+    Value *EmitPoolBaseLoad(Instruction &I) const {
+      // Get the pool base pointer.
+      Constant *Zero = Constant::getNullValue(Type::UIntTy);
+      Value *BasePtrPtr = new GetElementPtrInst(getPoolDesc(), Zero, Zero,
+                                                "poolbaseptrptr", &I);
+      return new LoadInst(BasePtrPtr, "poolbaseptr", &I);
+    }
+
     // dump - Emit a debugging dump of this pool info.
     void dump() const;
 
@@ -668,12 +678,8 @@ void InstructionRewriter::visitLoadInst(LoadInst &LI) {
   //  1. Loading a normal value from a ptr compressed data structure.
   //  2. Loading a compressed ptr from a ptr compressed data structure.
   bool LoadingCompressedPtr = getNodeIfCompressed(&LI) != 0;
-  
-  // Get the pool base pointer.
-  Constant *Zero = Constant::getNullValue(Type::UIntTy);
-  Value *BasePtrPtr = new GetElementPtrInst(SrcPI->getPoolDesc(), Zero, Zero,
-                                            "poolbaseptrptr", &LI);
-  Value *BasePtr = new LoadInst(BasePtrPtr, "poolbaseptr", &LI);
+
+  Value *BasePtr = SrcPI->EmitPoolBaseLoad(LI);
 
   // Get the pointer to load from.
   std::vector<Value*> Ops;
@@ -739,10 +745,7 @@ void InstructionRewriter::visitStoreInst(StoreInst &SI) {
   }
   
   // Get the pool base pointer.
-  Constant *Zero = Constant::getNullValue(Type::UIntTy);
-  Value *BasePtrPtr = new GetElementPtrInst(DestPI->getPoolDesc(), Zero, Zero,
-                                            "poolbaseptrptr", &SI);
-  Value *BasePtr = new LoadInst(BasePtrPtr, "poolbaseptr", &SI);
+  Value *BasePtr = DestPI->EmitPoolBaseLoad(SI);
 
   // Get the pointer to store to.
   std::vector<Value*> Ops;
