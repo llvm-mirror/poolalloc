@@ -10,9 +10,9 @@ $TrimRepeatedPrefix = 1;
 
 sub Ratio {
   my ($Cols, $Col) = @_;
-  if ($Cols->[$Col-1] ne "*" and $Cols->[$Col-4] ne "*" and
+  if ($Cols->[$Col-1] ne "*" and $Cols->[5] ne "*" and
       $Cols->[$Col-1] != "0") {
-    return sprintf "%1.3f", $Cols->[$Col-4]/$Cols->[$Col-1];
+    return sprintf "%1.3f", $Cols->[5]/$Cols->[$Col-1];
   } else {
     return "n/a";
   }
@@ -42,32 +42,32 @@ my $OLDEN     = 'MultiSource/Benchmarks/Olden';
 my $FREEBENCH = 'MultiSource/Benchmarks/FreeBench';
 my $PTRDIST   = 'MultiSource/Benchmarks/Ptrdist';
 
-@LatexRowMapOrder = (
-                     "$OLDEN/bh/bh"           => 'bh',
-                     "$OLDEN/bisort/bisort"   => 'bisort',
-                     "$OLDEN/em3d/em3d"       => 'em3d',
-                     "$OLDEN/health/health"   => 'health',
-                     "$OLDEN/mst/mst"         => 'mst',
-                     "$OLDEN/perimeter/perimeter" => 'perimeter',
-                     "$OLDEN/power/power"     => 'power',
-                     "$OLDEN/treeadd/treeadd" => 'treeadd',
-                     "$OLDEN/tsp/tsp"         => 'tsp',
-                     "$OLDEN/voronoi/voronoi" => 'voronoi',
-                     '-' => '-',
-                     "$FREEBENCH/analyzer/analyzer"     => 'analyzer',
+#@LatexRowMapOrder = (
+#                     "$OLDEN/bh/bh"           => 'bh',
+#                     "$OLDEN/bisort/bisort"   => 'bisort',
+#                     "$OLDEN/em3d/em3d"       => 'em3d',
+#                     "$OLDEN/health/health"   => 'health',
+#                     "$OLDEN/mst/mst"         => 'mst',
+#                     "$OLDEN/perimeter/perimeter" => 'perimeter',
+#                     "$OLDEN/power/power"     => 'power',
+#                     "$OLDEN/treeadd/treeadd" => 'treeadd',
+#                     "$OLDEN/tsp/tsp"         => 'tsp',
+#                     "$OLDEN/voronoi/voronoi" => 'voronoi',
+#                     '-' => '-',
+#                     "$FREEBENCH/analyzer/analyzer"     => 'analyzer',
 #                     "$FREEBENCH/distray/distray"       => 'distray',
 #                     "$FREEBENCH/fourinarow/fourinarow" => 'fourinarow',
 #                     "$FREEBENCH/mason/mason"           => 'mason',
-                     "$FREEBENCH/neural/neural"         => 'neural',
-                     "$FREEBENCH/pcompress2/pcompress2" => 'pcompress2',
-                     "$FREEBENCH/pifft/pifft"           => 'pifft',
-                     '-' => '-',
-                     "$PTRDIST/anagram/anagram"       => 'anagram',
-                     "$PTRDIST/bc/bc"                 => 'bc',
-                     "$PTRDIST/ft/ft"                 => 'ft',
-                     "$PTRDIST/ks/ks"                 => 'ks',
-                     "$PTRDIST/yacr2/yacr2"           => 'yacr2',
-                  );
+#                     "$FREEBENCH/neural/neural"         => 'neural',
+#                     "$FREEBENCH/pcompress2/pcompress2" => 'pcompress2',
+#                     "$FREEBENCH/pifft/pifft"           => 'pifft',
+#                     '-' => '-',
+#                     "$PTRDIST/anagram/anagram"       => 'anagram',
+#                     "$PTRDIST/bc/bc"                 => 'bc',
+#                     "$PTRDIST/ft/ft"                 => 'ft',
+#                     "$PTRDIST/ks/ks"                 => 'ks',
+#                     "$PTRDIST/yacr2/yacr2"           => 'yacr2',
+#                  );
 
 
 # These are the columns for the report.  The first entry is the header for the
@@ -82,16 +82,18 @@ my $PTRDIST   = 'MultiSource/Benchmarks/Ptrdist';
  ["NormalUser",    'CBE-RUN-TIME-NORMAL-USER: user\s*([.0-9m:]+)',    \&FormatTime],
  ["NormalSys",    'CBE-RUN-TIME-NORMAL-SYS: sys\s*([.0-9m:]+)',    \&FormatTime],
  ["NormalSum",     \&Sum],
+ ["AllNodesUser", 'CBE-RUN-TIME-ALLNODES-USER: user\s*([.0-9m:]+)', \&FormatTime],
+ ["AllNodesSys", 'CBE-RUN-TIME-ALLNODES-SYS: sys\s*([.0-9m:]+)', \&FormatTime],
+ ["AllNodesSum",     \&Sum],
+ ["AN Speedup", \&Ratio],
  ["PoolAllocUser", 'CBE-RUN-TIME-POOLALLOC-USER: user\s*([.0-9m:]+)', \&FormatTime],
  ["PoolAllocSys", 'CBE-RUN-TIME-POOLALLOC-SYS: sys\s*([.0-9m:]+)', \&FormatTime],
  ["PoolAllocSum",     \&Sum],
- ["Speedup", \&Ratio],
- ["NumPools",             '([0-9]+).*Number of pools allocated'],
- ["NumTSPools",           '([0-9]+).*Number of typesafe pools'],
+ ["PA Speedup", \&Ratio],
+ ["AP NumPools",          '([0-9]+).*Number of pools allocated'],
+ ["AP Typesafe",          '([0-9]+).*Number of typesafe pools'],
  ["NumArgs",              '([0-9]+).*Number of function arguments added'],
  ["Nonprofit",            '([0-9]+).*Number of DSNodes not profitable'],
- ["Colocated",            '([0-9]+).*Number of DSNodes colocated'],
- ["NumPFElide",           '([0-9]+).*Number of poolfree.s elided'],
  []
 );
 
