@@ -42,9 +42,8 @@ else
 	$(VERB) cat $(STDIN_FILENAME) | $(STRACE) -o $@ $< $(RUN_OPTIONS)
 endif
 
-
 $(PROGRAMS_TO_TEST:%=Output/%.$(TEST).report.txt): \
-Output/%.$(TEST).report.txt:
+Output/%.$(TEST).report.txt: Output/test.$(TEST).pa.% Output/test.$(TEST).%
 	touch $@
 
 $(PROGRAMS_TO_TEST:%=test.$(TEST).%): \
