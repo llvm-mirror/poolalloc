@@ -13,11 +13,16 @@
 #include "llvm/Pass.h"
 #include "Support/hash_set"
 #include "Support/EquivalenceClasses.h"
+#include "llvm/DerivedTypes.h"
+#include "Support/VectorExtras.h"
+#include "llvm/Function.h"
+
 class BUDataStructures;
 class TDDataStructures;
 class DSNode;
 class DSGraph;
 class CallInst;
+class Type;
 
 namespace PA {
   /// FuncInfo - Represent the pool allocation information for one function in
@@ -57,6 +62,10 @@ namespace PA {
     /// indirect function calls that are not used in the function.
     std::map<DSNode*, Value*> PoolDescriptors;
 
+    // Dinakar :  Added  map from alloca of poolinit or argument to the
+    // corresponding type, the type of Value * is that of pooldescriptor
+    std::map<const Value*, const Type*> PoolDescType;
+  
     /// NewToOldValueMap - When and if a function needs to be cloned, this map
     /// contains a mapping from all of the values in the new function back to
     /// the values they correspond to in the old function.
@@ -64,6 +73,8 @@ namespace PA {
     std::map<Value*, const Value*> NewToOldValueMap;
   };
 }
+
+
 
 /// PoolAllocate - The main pool allocation pass
 ///
@@ -85,6 +96,7 @@ class PoolAllocate : public Pass {
   void printFuncECs();
   
  public:
+
   Function *PoolInit, *PoolDestroy, *PoolAlloc, *PoolAllocArray, *PoolFree;
 
   // Equivalence class where functions that can potentially be called via
@@ -112,6 +124,26 @@ class PoolAllocate : public Pass {
   virtual void getAnalysisUsage(AnalysisUsage &AU) const;
   
   BUDataStructures &getBUDataStructures() const { return *BU; }
+  
+  //Dinakar to get function info for all (cloned functions) 
+  PA::FuncInfo *getFunctionInfo(Function *F) {
+    //If it is cloned or not check it out
+    if (FunctionInfo.count(F) > 0)  
+      return &FunctionInfo[F];
+    else {
+      //Probably cloned
+      std::map<Function *, PA::FuncInfo>::iterator fI = FunctionInfo.begin(), 
+	fE = FunctionInfo.end();
+      for (; fI != fE; ++fI) {
+	if (fI->second.Clone == F) {
+	  return &(fI->second);
+	}
+      }
+      std::cerr << F->getName() << " for the function \n"; 
+      //      assert(1 != 1 && "Still cant find it");
+      return 0;
+    }
+  }
   
   PA::FuncInfo *getFuncInfo(Function &F) {
     std::map<Function*, PA::FuncInfo>::iterator I = FunctionInfo.find(&F);
@@ -144,7 +176,8 @@ class PoolAllocate : public Pass {
   /// the PoolDescriptors map for each DSNode.
   ///
   void CreatePools(Function &F, const std::vector<DSNode*> &NodesToPA,
-                   std::map<DSNode*, Value*> &PoolDescriptors);
+                   std::map<DSNode*, Value*> &PoolDescriptors,
+		   std::map<const Value*, const Type *> &PoolDescTypeMap);
   
   void TransformFunctionBody(Function &F, Function &OldF,
                              DSGraph &G, PA::FuncInfo &FI);
