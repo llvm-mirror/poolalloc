@@ -14,8 +14,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_TRANSFORMS_POOLALLOCATE_H
-#define LLVM_TRANSFORMS_POOLALLOCATE_H
+#ifndef POOLALLOCATE_H
+#define POOLALLOCATE_H
 
 #include "llvm/Pass.h"
 #include "llvm/DerivedTypes.h"
@@ -35,6 +35,7 @@ class AllocaInst;
 namespace PA {
 
   class EquivClassGraphs;
+  class Heuristic;
 
   /// FuncInfo - Represent the pool allocation information for one function in
   /// the program.  Note that many functions must actually be cloned in order
@@ -97,6 +98,8 @@ class PoolAllocate : public ModulePass {
   Function *PoolInit, *PoolDestroy, *PoolAlloc, *PoolRealloc, *PoolFree;
   static const Type *PoolDescPtrTy;
 
+  PA::Heuristic *CurHeuristic;
+
   /// GlobalNodes - For each node (with an H marker) in the globals graph, this
   /// map contains the global variable that holds the pool descriptor for the
   /// node.
@@ -131,6 +134,10 @@ class PoolAllocate : public ModulePass {
   }
 
   Module *getCurModule() { return CurModule; }
+
+  /// CreateGlobalPool - Create a global pool descriptor, initialize it in main,
+  /// and return a pointer to the global for it.
+  GlobalVariable *CreateGlobalPool(unsigned RecSize);
 
  private:
   

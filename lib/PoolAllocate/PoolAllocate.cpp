@@ -13,8 +13,9 @@
 //===----------------------------------------------------------------------===//
 
 #define DEBUG_TYPE "poolalloc"
-#include "EquivClassGraphs.h"
 #include "PoolAllocate.h"
+#include "EquivClassGraphs.h"
+#include "Heuristic.h"
 #include "llvm/Constants.h"
 #include "llvm/DerivedTypes.h"
 #include "llvm/Instructions.h"
@@ -22,7 +23,6 @@
 #include "llvm/Constants.h"
 #include "llvm/Analysis/DataStructure/DataStructure.h"
 #include "llvm/Analysis/DataStructure/DSGraph.h"
-#include "llvm/Analysis/DataStructure/DSGraphTraits.h"
 #include "llvm/Support/CFG.h"
 #include "llvm/Target/TargetData.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
@@ -62,37 +62,12 @@ namespace {
   //                        poolfree?)
   const Type *PoolDescType;
 
-  enum PoolAllocHeuristic {
-    NoNodes,
-    OnlyOverhead,
-    AllInOneGlobalPool,
-    SmartCoallesceNodes,
-    CyclicNodes,
-    AllNodes,
-  };
-  cl::opt<PoolAllocHeuristic>
-  Heuristic("poolalloc-heuristic",
-            cl::desc("Heuristic to choose which nodes to pool allocate"),
-            cl::values(clEnumVal(AllNodes, "  Pool allocate all nodes"),
-                       clEnumVal(CyclicNodes, "  Pool allocate nodes with cycles"),
-                       clEnumVal(SmartCoallesceNodes, "  Use the smart node merging heuristic"),
-                       clEnumVal(AllInOneGlobalPool, "  Use pool library as replacement for malloc/free"),
-                       clEnumVal(OnlyOverhead, "  Do not pool allocate anything, but induce all overhead from it"),
-                       clEnumVal(NoNodes, "  Do not pool allocate anything"),
-                       clEnumValEnd),
-            cl::init(AllNodes));
-  
   cl::opt<bool>
   DisableInitDestroyOpt("poolalloc-force-simple-pool-init",
                         cl::desc("Always insert poolinit/pooldestroy calls at start and exit of functions"), cl::init(true));
   cl::opt<bool>
   DisablePoolFreeOpt("poolalloc-force-all-poolfrees",
                      cl::desc("Do not try to elide poolfree's where possible"));
-
-
-  // TheGlobalPD - This global pool is the one and only one used when running
-  // with Heuristic=AllInOneGlobalPool.
-  GlobalVariable *TheGlobalPD = 0;
 }
 
 void PoolAllocate::getAnalysisUsage(AnalysisUsage &AU) const {
@@ -104,6 +79,9 @@ bool PoolAllocate::runOnModule(Module &M) {
   if (M.begin() == M.end()) return false;
   CurModule = &M;
   ECGraphs = &getAnalysis<EquivClassGraphs>();   // folded inlined CBU graphs
+
+  CurHeuristic = Heuristic::create();
+  CurHeuristic->Initialize(M, ECGraphs->getGlobalsGraph(), *this);
 
   // Add the pool* prototypes to the module
   AddPoolPrototypes();
@@ -147,9 +125,10 @@ bool PoolAllocate::runOnModule(Module &M) {
     F->replaceAllUsesWith(ConstantExpr::getCast(I->second, F->getType()));
   }
 
-  if (Heuristic != NoNodes && Heuristic != OnlyOverhead &&
-      Heuristic != AllInOneGlobalPool)
+  if (CurHeuristic->IsRealHeuristic())
     MicroOptimizePoolCalls();
+
+  delete CurHeuristic;
   return true;
 }
 
@@ -251,15 +230,6 @@ static void GetNodesReachableFromGlobals(DSGraph &G,
   for (DSScalarMap::global_iterator I = G.getScalarMap().global_begin(), 
          E = G.getScalarMap().global_end(); I != E; ++I)
     G.getNodeForValue(*I).getNode()->markReachableNodes(NodesFromGlobals);
-}
-
-static void printNTOMap(std::map<Value*, const Value*> &NTOM) {
-  std::cerr << "NTOM MAP\n";
-  for (std::map<Value*, const Value *>::iterator I = NTOM.begin(), 
-	 E = NTOM.end(); I != E; ++I) {
-    if (!isa<Function>(I->first) && !isa<BasicBlock>(I->first))
-      std::cerr << *I->first << " to " << *I->second << "\n";
-  }
 }
 
 static void MarkNodesWhichMustBePassedIn(hash_set<DSNode*> &MarkedNodes,
@@ -383,51 +353,6 @@ Function *PoolAllocate::MakeFunctionClone(Function &F) {
   return FI.Clone = New;
 }
 
-static bool NodeExistsInCycle(DSNode *N) {
-  for (DSNode::iterator I = N->begin(), E = N->end(); I != E; ++I)
-    if (*I && std::find(df_begin(*I), df_end(*I), N) != df_end(*I))
-      return true;
-  return false;
-}
-
-/// NodeIsSelfRecursive - Return true if this node contains a pointer to itself.
-static bool NodeIsSelfRecursive(DSNode *N) {
-  for (DSNode::iterator I = N->begin(), E = N->end(); I != E; ++I)
-    if (*I == N) return true;
-  return false;
-}
-
-static bool ShouldPoolAllocate(DSNode *N) {
-  // Now that we have a list of all of the nodes that CAN be pool allocated, use
-  // a heuristic to filter out nodes which are not profitable to pool allocate.
-  switch (Heuristic) {
-  default:
-  case AllInOneGlobalPool:
-  case OnlyOverhead:
-  case AllNodes: return true;
-  case NoNodes: return false;
-  case CyclicNodes:  // Pool allocate nodes that are cyclic and not arrays
-    return NodeExistsInCycle(N);
-  }
-}
-
-/// POVisit - This implements functionality found in Support/PostOrderIterator.h
-/// but in a way that allows multiple roots to be used.  If PostOrderIterator
-/// supported an external set like DepthFirstIterator did I could eliminate this
-/// cruft.
-///
-static void POVisit(DSNode *N, std::set<DSNode*> &Visited,
-                    std::vector<DSNode*> &Order) {
-  if (!Visited.insert(N).second) return;  // already visited
-
-  // Visit all children before visiting this node.
-  for (DSNode::iterator I = N->begin(), E = N->end(); I != E; ++I)
-    if (DSNode *C = const_cast<DSNode*>(*I))
-      POVisit(C, Visited, Order);
-  // Now that we visited all of our children, add ourself to the order.
-  Order.push_back(N);
-}
-
 // SetupGlobalPools - Create global pools for all DSNodes in the globals graph
 // which contain heap objects.  If a global variable points to a piece of memory
 // allocated from the heap, this pool gets a global lifetime.  This is
@@ -455,10 +380,6 @@ bool PoolAllocate::SetupGlobalPools(Module &M) {
       GlobalHeapNodes.erase(Last);
   }
   
-  // If we don't need to create any global pools, exit now.
-  if (GlobalHeapNodes.empty() &&
-      Heuristic != AllInOneGlobalPool) return false;
-
   // Otherwise get the main function to insert the poolinit calls.
   Function *MainFunc = M.getMainFunction();
   if (MainFunc == 0 || MainFunc->isExternal()) {
@@ -476,74 +397,51 @@ bool PoolAllocate::SetupGlobalPools(Module &M) {
   std::cerr << "Pool allocating " << GlobalHeapNodes.size()
             << " global nodes!\n";
 
-  // If we are putting everything into a single global pool, create it now and
-  // put all globals pool descriptors into it.
-  if (Heuristic == AllInOneGlobalPool) {
-    // Create the global pool descriptor.
-    TheGlobalPD = 
-      new GlobalVariable(PoolDescType, false, GlobalValue::InternalLinkage, 
-                         Constant::getNullValue(PoolDescType), "GlobalPool",&M);
-      
-    // Initialize it on entry to main.
-    Value *ElSize = ConstantUInt::get(Type::UIntTy, 0);
-    new CallInst(PoolInit, make_vector((Value*)TheGlobalPD, ElSize, 0),
-                 "", InsertPt);
 
-    for (hash_set<DSNode*>::iterator I = GlobalHeapNodes.begin(),
-           E = GlobalHeapNodes.end(); I != E; ++I)
-      GlobalNodes[*I] = TheGlobalPD;
+  std::vector<DSNode*> NodesToPA(GlobalHeapNodes.begin(),GlobalHeapNodes.end());
+  std::vector<Heuristic::OnePool> ResultPools;
+  CurHeuristic->AssignToPools(NodesToPA, 0, GG, ResultPools);
 
-    ++NumPools;  // We have one pool.
-    return false;
+  // Perform all global assignments as specified.
+  for (unsigned i = 0, e = ResultPools.size(); i != e; ++i) {
+    Heuristic::OnePool &Pool = ResultPools[i];
+    Value *PoolDesc = Pool.PoolDesc;
+    if (PoolDesc == 0)
+      PoolDesc = CreateGlobalPool(Pool.PoolSize);
+    for (unsigned N = 0, e = Pool.NodesInPool.size(); N != e; ++N) {
+      GlobalNodes[Pool.NodesInPool[N]] = PoolDesc;
+      GlobalHeapNodes.erase(Pool.NodesInPool[N]);  // Handled!
+    }
   }
 
-
-  // Loop over all of the pools, creating a new global pool descriptor,
-  // inserting a new entry in GlobalNodes, and inserting a call to poolinit in
-  // main.
+  // Any unallocated DSNodes get null pool descriptor pointers.
   for (hash_set<DSNode*>::iterator I = GlobalHeapNodes.begin(),
          E = GlobalHeapNodes.end(); I != E; ++I) {
-    bool ShouldPoolAlloc = true;
-    switch (Heuristic) {
-    case AllInOneGlobalPool: assert(0 && "Case handled above!");
-    case OnlyOverhead:
-    case AllNodes: break;
-    case NoNodes: ShouldPoolAlloc = false; break;
-    case SmartCoallesceNodes:
-#if 1
-      if ((*I)->isArray() && !(*I)->isNodeCompletelyFolded())
-        ShouldPoolAlloc = false;
-#endif
-      // fall through
-    case CyclicNodes:
-      if (!NodeExistsInCycle(*I))
-        ShouldPoolAlloc = false;
-      break;
-    }
-
-    if (ShouldPoolAlloc) {
-      GlobalVariable *GV =
-        new GlobalVariable(PoolDescType, false, GlobalValue::InternalLinkage, 
-                        Constant::getNullValue(PoolDescType), "GlobalPool",&M);
-      GlobalNodes[*I] = GV;
-      
-      Value *ElSize =
-        ConstantUInt::get(Type::UIntTy, (*I)->getType()->isSized() ? 
-                          TD.getTypeSize((*I)->getType()) : 0);
-      new CallInst(PoolInit, make_vector((Value*)GV, ElSize, 0), "", InsertPt);
-      
-      ++NumPools;
-      if (!(*I)->isNodeCompletelyFolded())
-        ++NumTSPools;
-    } else {
-      GlobalNodes[*I] =
-        Constant::getNullValue(PointerType::get(PoolDescType));
-      ++NumNonprofit;
-    }
+    GlobalNodes[*I] = Constant::getNullValue(PointerType::get(PoolDescType));
+    ++NumNonprofit;
   }
-
+  
   return false;
 }
+
+GlobalVariable *PoolAllocate::CreateGlobalPool(unsigned RecSize) {
+  GlobalVariable *GV =
+    new GlobalVariable(PoolDescType, false, GlobalValue::InternalLinkage, 
+                       Constant::getNullValue(PoolDescType), "GlobalPool",
+                       CurModule);
+
+  Function *MainFunc = CurModule->getMainFunction();
+  assert(MainFunc && "No main in program??");
+
+  BasicBlock::iterator InsertPt = MainFunc->getEntryBlock().begin();
+  while (isa<AllocaInst>(InsertPt)) ++InsertPt;
+
+  Value *ElSize = ConstantUInt::get(Type::UIntTy, RecSize);
+  new CallInst(PoolInit, make_vector((Value*)GV, ElSize, 0), "", InsertPt);
+  ++NumPools;
+  return GV;
+}
+
 
 // CreatePools - This creates the pool initialization and destruction code for
 // the DSNodes specified by the NodesToPA list.  This adds an entry to the
@@ -554,178 +452,35 @@ void PoolAllocate::CreatePools(Function &F,
                                std::map<DSNode*, Value*> &PoolDescriptors) {
   if (NodesToPA.empty()) return;
 
-  // Loop over all of the pools, inserting code into the entry block of the
-  // function for the initialization and code in the exit blocks for
-  // destruction.
-  //
+  std::vector<Heuristic::OnePool> ResultPools;
+  CurHeuristic->AssignToPools(NodesToPA, &F, *NodesToPA[0]->getParentGraph(),
+                              ResultPools);
+
+  std::set<DSNode*> UnallocatedNodes(NodesToPA.begin(), NodesToPA.end());
+
   Instruction *InsertPoint = F.front().begin();
 
-  switch (Heuristic) {
-  case AllNodes:
-  case NoNodes:
-  case CyclicNodes:
-  case OnlyOverhead:
-    for (unsigned i = 0, e = NodesToPA.size(); i != e; ++i) {
-      DSNode *Node = NodesToPA[i];
-      if (ShouldPoolAllocate(Node)) {
-        // Create a new alloca instruction for the pool...
-        Value *AI = new AllocaInst(PoolDescType, 0, "PD", InsertPoint);
-        
-        // Void types in DS graph are never used
-        if (Node->getType() == Type::VoidTy)
-          std::cerr << "Node collapsing in '" << F.getName() << "'\n";
-        
-        // Update the PoolDescriptors map
-        PoolDescriptors.insert(std::make_pair(Node, AI));
-      } else {
-        PoolDescriptors[Node] =
-          Constant::getNullValue(PointerType::get(PoolDescType));
-        ++NumNonprofit;
-      }
+  // Perform all global assignments as specified.
+  for (unsigned i = 0, e = ResultPools.size(); i != e; ++i) {
+    Heuristic::OnePool &Pool = ResultPools[i];
+    Value *PoolDesc = Pool.PoolDesc;
+    if (PoolDesc == 0)
+      // Create a new alloca instruction for the pool.  The poolinit will be
+      // inserted later.
+      PoolDesc = new AllocaInst(PoolDescType, 0, "PD", InsertPoint);
+
+    for (unsigned N = 0, e = Pool.NodesInPool.size(); N != e; ++N) {
+      PoolDescriptors[Pool.NodesInPool[N]] = PoolDesc;
+      UnallocatedNodes.erase(Pool.NodesInPool[N]);  // Handled!
     }
-    break;
-  case AllInOneGlobalPool:
-    for (unsigned i = 0, e = NodesToPA.size(); i != e; ++i)
-      PoolDescriptors[NodesToPA[i]] = TheGlobalPD;
-    break;
-
-  case SmartCoallesceNodes: {
-    std::set<DSNode*> NodesToPASet(NodesToPA.begin(), NodesToPA.end());
-
-    // DSGraphs only have unidirectional edges, to traverse or inspect the
-    // predecessors of nodes, we must build a mapping of the inverse graph.
-    std::map<DSNode*, std::vector<DSNode*> > InverseGraph;
-
-    for (unsigned i = 0, e = NodesToPA.size(); i != e; ++i) {
-      DSNode *Node = NodesToPA[i];
-      for (DSNode::iterator CI = Node->begin(), E = Node->end(); CI != E; ++CI)
-        if (DSNode *Child = const_cast<DSNode*>(*CI))
-          if (NodesToPASet.count(Child))
-            InverseGraph[Child].push_back(Node);
-    }
-
-    // Traverse the heap nodes in reverse-post-order so that we are guaranteed
-    // to visit all nodes pointing to another node before we visit that node
-    // itself (except with cycles).
-
-    // FIXME: This really should be using the PostOrderIterator.h file stuff,
-    // but the routines there do not support external storage!
-    std::set<DSNode*> Visited;
-    std::vector<DSNode*> Order;
-    for (unsigned i = 0, e = NodesToPA.size(); i != e; ++i)
-      POVisit(NodesToPA[i], Visited, Order);
-
-    // We want RPO, not PO, so reverse the order.
-    std::reverse(Order.begin(), Order.end());
-
-    // Okay, we have an ordering of the nodes in reverse post order.  Traverse
-    // each node in this ordering, noting that there may be nodes in the order
-    // that are not in our NodesToPA list.
-    for (unsigned i = 0, e = Order.size(); i != e; ++i)
-      if (NodesToPASet.count(Order[i])) {        // Only process pa nodes.
-        DSNode *N = Order[i];
-
-        // If this node has a backedge to itself, pool allocate it in a new
-        // pool.
-        if (NodeIsSelfRecursive(N)) {
-          // Create a new alloca instruction for the pool...
-          Value *AI = new AllocaInst(PoolDescType, 0, "PD", InsertPoint);
-        
-          // Void types in DS graph are never used
-          if (N->isNodeCompletelyFolded())
-            std::cerr << "Node collapsing in '" << F.getName() << "'\n";
-        
-          // Update the PoolDescriptors map
-          PoolDescriptors.insert(std::make_pair(N, AI));
-#if 1
-        } else if (N->isArray() && !N->isNodeCompletelyFolded()) {
-          // We never pool allocate array nodes.
-          PoolDescriptors[N] =
-            Constant::getNullValue(PointerType::get(PoolDescType));
-          ++NumNonprofit;
-#endif
-        } else {
-          // Otherwise the node is not self recursive.  If the node is not an
-          // array, we can co-locate it with the pool of a predecessor node if
-          // any has been pool allocated, and start a new pool if a predecessor
-          // is an array.  If there is a predecessor of this node that has not
-          // been visited yet in this RPO traversal, that means there is a
-          // cycle, so we choose to pool allocate this node right away.
-          //
-          // If there multiple predecessors in multiple different pools, we
-          // don't pool allocate this at all.
-
-          // Check out each of the predecessors of this node.
-          std::vector<DSNode*> &Preds = InverseGraph[N];
-          Value *PredPool = 0;
-          bool HasUnvisitedPred     = false;
-          bool HasArrayPred         = false;
-          bool HasMultiplePredPools = false;
-          for (unsigned p = 0, e = Preds.size(); p != e; ++p) {
-            DSNode *Pred = Preds[p];
-            if (!PoolDescriptors.count(Pred))
-              HasUnvisitedPred = true;  // no pool assigned to predecessor?
-            else if (Pred->isArray() && !Pred->isNodeCompletelyFolded())
-              HasArrayPred = true;
-            else if (PredPool && PoolDescriptors[Pred] != PredPool)
-              HasMultiplePredPools = true;
-            else if (!PredPool &&
-                     !isa<ConstantPointerNull>(PoolDescriptors[Pred]))
-              PredPool = PoolDescriptors[Pred];
-            // Otherwise, this predecessor has the same pool as a previous one.
-          }
-
-          if (HasMultiplePredPools) {
-            // If this node has predecessors that are in different pools, don't
-            // pool allocate this node.
-            PoolDescriptors[N] =
-              Constant::getNullValue(PointerType::get(PoolDescType));
-            ++NumNonprofit;
-          } else if (PredPool) {
-            // If all of the predecessors of this node are already in a pool,
-            // colocate.
-            PoolDescriptors[N] = PredPool;
-            ++NumColocated;
-          } else if (HasArrayPred || HasUnvisitedPred) {
-            // If this node has an array predecessor, or if there is a
-            // predecessor that has not been visited yet, allocate a new pool
-            // for it.
-            Value *AI = new AllocaInst(PoolDescType, 0, "PD", InsertPoint);
-            if (N->isNodeCompletelyFolded())
-              std::cerr << "Node collapsing in '" << F.getName() << "'\n";
-
-            PoolDescriptors[N] = AI;
-          } else {
-            // If this node has no pool allocated predecessors, and there is no
-            // reason to pool allocate it, don't.
-            assert(PredPool == 0);
-             PoolDescriptors[N] =
-              Constant::getNullValue(PointerType::get(PoolDescType));
-            ++NumNonprofit;
-          }
-        }
-      }
-  }  // End switch case
-  }  // end switch
-}
-
-/// getDynamicallyNullPool - Return a PoolDescriptor* that is always dynamically
-/// null.  Insert the code necessary to produce it before the specified
-/// instruction.
-static Value *getDynamicallyNullPool(BasicBlock::iterator I) {
-  // Arrange to dynamically pass null into all of the pool functions if we are
-  // only checking for overhead.
-  static Value *NullGlobal = 0;
-  if (!NullGlobal) {
-    Module *M = I->getParent()->getParent()->getParent();
-    NullGlobal = new GlobalVariable(PoolAllocate::PoolDescPtrTy, false,
-                                    GlobalValue::ExternalLinkage,
-                         Constant::getNullValue(PoolAllocate::PoolDescPtrTy),
-                                    "llvm-poolalloc-null-init", M);
   }
-  while (isa<AllocaInst>(I)) ++I;
 
-  return new LoadInst(NullGlobal, "nullpd", I);
+  // Any unallocated DSNodes get null pool descriptor pointers.
+  for (std::set<DSNode*>::iterator I = UnallocatedNodes.begin(),
+         E = UnallocatedNodes.end(); I != E; ++I) {
+    PoolDescriptors[*I] =Constant::getNullValue(PointerType::get(PoolDescType));
+    ++NumNonprofit;
+  }
 }
 
 // processFunction - Pool allocate any data structures which are contained in
@@ -753,10 +508,6 @@ void PoolAllocate::ProcessFunctionBody(Function &F, Function &NewF) {
                                 GlobalsGraphNodeMapping);
   }
 
-  Value *NullPD = 0;
-  if (Heuristic == OnlyOverhead)
-    NullPD = getDynamicallyNullPool(NewF.front().begin());
-  
   // Loop over all of the nodes which are non-escaping, adding pool-allocatable
   // ones to the NodesToPA vector.
   std::vector<DSNode*> NodesToPA;
@@ -769,8 +520,6 @@ void PoolAllocate::ProcessFunctionBody(Function &F, Function &NewF) {
         DSNode *GGN = GlobalsGraphNodeMapping[N].getNode();
         assert(GGN && GlobalNodes[GGN] && "No global node found??");
         FI.PoolDescriptors[N] = GlobalNodes[GGN];
-        if (Heuristic == OnlyOverhead)
-          FI.PoolDescriptors[N] = NullPD;
       } else if (!MarkedNodes.count(N)) {
         // Otherwise, if it was not passed in from outside the function, it must
         // be a local pool!
@@ -797,6 +546,7 @@ void PoolAllocate::ProcessFunctionBody(Function &F, Function &NewF) {
   if (!NodesToPA.empty())
     InitializeAndDestroyPools(NewF, NodesToPA, FI.PoolDescriptors,
                               PoolUses, PoolFrees);
+  CurHeuristic->HackFunctionBody(NewF, FI.PoolDescriptors);
 }
 
 template<class IteratorTy>
@@ -848,10 +598,6 @@ void PoolAllocate::InitializeAndDestroyPools(Function &F,
                                  std::map<DSNode*, Value*> &PoolDescriptors,
                      std::set<std::pair<AllocaInst*, Instruction*> > &PoolUses,
                      std::set<std::pair<AllocaInst*, CallInst*> > &PoolFrees) {
-  Value *NullPD = 0;
-  if (Heuristic == OnlyOverhead)
-    NullPD = getDynamicallyNullPool(F.front().begin());
-
   TargetData &TD = getAnalysis<TargetData>();
 
   std::vector<Instruction*> PoolInitPoints;
@@ -896,11 +642,6 @@ void PoolAllocate::InitializeAndDestroyPools(Function &F,
     //assert(HasUse && "Pool is not used, but is marked heap?!");
     if (!HasUse && !HasFree) continue;
     if (!AllocasHandled.insert(PD).second) continue;
-
-    // Arrange to dynamically pass null into all of the pool functions if we are
-    // only checking for overhead.
-    if (Heuristic == OnlyOverhead)
-      PD->replaceAllUsesWith(NullPD);
 
     ++NumPools;
     if (!Node->isNodeCompletelyFolded())
@@ -1026,8 +767,9 @@ void PoolAllocate::InitializeAndDestroyPools(Function &F,
 
     // Insert the calls to initialize the pool.
     unsigned ElSizeV = 0;
-    if (Node->getType()->isSized())
+    if (!Node->isArray() && Node->getType()->isSized())
       ElSizeV = TD.getTypeSize(Node->getType());
+    if (ElSizeV == 1) ElSizeV = 0;
     Value *ElSize = ConstantUInt::get(Type::UIntTy, ElSizeV);
 
     for (unsigned i = 0, e = PoolInitPoints.size(); i != e; ++i) {
