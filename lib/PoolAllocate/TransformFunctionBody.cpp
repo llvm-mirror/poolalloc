@@ -255,6 +255,9 @@ void FuncTransform::visitCallSite(CallSite CS) {
     const PA::EquivClassInfo &ECI =
       PAInfo.getECIForIndirectCallSite(CallSite::get(OrigInst));
 
+    if (ECI.ArgNodes.empty())
+      return;   // No arguments to add?  Transformation is a noop!
+
     // Here we fill in CF with one of the possible called functions.  Because we
     // merged together all of the arguments to all of the functions in the
     // equivalence set, it doesn't really matter which one we pick.
