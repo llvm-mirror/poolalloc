@@ -146,6 +146,12 @@ test::
                    GET_STABLE_NUMBERS=1 report report.html)
 	@printf "\a"; sleep 1; printf "\a"; sleep 1; printf "\a"
 
+pacompiletime::
+	(cd $(LLVM_OBJ_ROOT)/projects/llvm-test/$(SUBDIR); \
+               PROJECT_DIR=$(PROJ_OBJ_ROOT) $(MAKE) -j1 TEST=pacompiletime \
+                   report report.html)
+	@printf "\a"; sleep 1; printf "\a"; sleep 1; printf "\a"
+
 ptrcomp::
 	(cd $(LLVM_OBJ_ROOT)/projects/llvm-test/$(SUBDIR); \
                PROJECT_DIR=$(PROJ_OBJ_ROOT) $(MAKE) -j1 TEST=ptrcomp \
