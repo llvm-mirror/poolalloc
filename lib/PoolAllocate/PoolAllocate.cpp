@@ -352,13 +352,7 @@ Function *PoolAllocate::MakeFunctionClone(Function &F) {
   // Populate the value map with all of the globals in the program.
   // FIXME: This should be unnecessary!
   Module &M = *F.getParent();
-{TIME_REGION(X, "ValueMap Construct");
-  for (Module::iterator I = M.begin(), E=M.end(); I!=E; ++I)
-    ValueMap[I] = I;
-  for (Module::global_iterator I = M.global_begin(), E = M.global_end();
-       I != E; ++I)
-    ValueMap[I] = I;
-}
+
   // Perform the cloning.
   std::vector<ReturnInst*> Returns;
 {TIME_REGION(X, "CFI");
