@@ -227,18 +227,30 @@ const Type *CompressedPoolInfo::
 ComputeCompressedType(const Type *OrigTy, unsigned NodeOffset,
                       std::map<const DSNode*, CompressedPoolInfo> &Nodes) {
   if (const PointerType *PTY = dyn_cast<PointerType>(OrigTy)) {
-    // FIXME: check to see if this pointer is actually compressed!
-    return MEMUINTTYPE;
+    // Okay, we have a pointer.  Check to see if the node pointed to is actually
+    // compressed!
+    DSNode *PointeeNode = getNode()->getLink(NodeOffset).getNode();
+    if (PointeeNode && Nodes.count(PointeeNode))
+      return MEMUINTTYPE;
+    // Otherwise, it points to a non-compressed node.
+    return OrigTy;
   } else if (OrigTy->isFirstClassType() || OrigTy == Type::VoidTy)
     return OrigTy;
+
+
+  const TargetData &TD = getNode()->getParentGraph()->getTargetData();
 
   // Okay, we have an aggregate type.
   if (const StructType *STy = dyn_cast<StructType>(OrigTy)) {
     std::vector<const Type*> Elements;
     Elements.reserve(STy->getNumElements());
+
+    const StructLayout *SL = TD.getStructLayout(STy);
+
     for (unsigned i = 0, e = STy->getNumElements(); i != e; ++i)
       Elements.push_back(ComputeCompressedType(STy->getElementType(i),
-                                               NodeOffset, Nodes));
+                                               NodeOffset+SL->MemberOffsets[i],
+                                               Nodes));
     return StructType::get(Elements);
   } else if (const ArrayType *ATy = dyn_cast<ArrayType>(OrigTy)) {
     return ArrayType::get(ComputeCompressedType(ATy->getElementType(),
