@@ -5,6 +5,10 @@
 #
 ##===----------------------------------------------------------------------===##
 
+CFLAGS = -O3
+
+EXTRA_PA_FLAGS := -poolalloc-force-simple-pool-init
+
 CURDIR  := $(shell cd .; pwd)
 PROGDIR := $(shell cd $(LEVEL)/test/Programs; pwd)/
 RELDIR  := $(subst $(PROGDIR),,$(CURDIR))
@@ -13,7 +17,7 @@ RELDIR  := $(subst $(PROGDIR),,$(CURDIR))
 PA_SO    := $(PROJECT_DIR)/lib/Debug/libpoolalloc.so
 
 # Pool allocator runtime library
-PA_RT    := $(PROJECT_DIR)/lib/Bytecode/libpoolalloc_rt.bc
+PA_RT    := $(PROJECT_DIR)/lib/Bytecode/libpoolalloc_fl_rt.bc
 PA_RT_O  := $(PROJECT_DIR)/lib/Release/poolalloc_rt.o
 
 
@@ -28,7 +32,7 @@ OPT_PA_STATS = $(OPT_PA) -info-output-file=$(CURDIR)/$@.info -stats -time-passes
 # file
 $(PROGRAMS_TO_TEST:%=Output/%.$(TEST).transformed.bc): \
 Output/%.$(TEST).transformed.bc: Output/%.llvm.bc $(PA_SO)
-	-$(OPT_PA_STATS) -q -poolalloc -deadargelim  -globaldce $< -o $@ -f 2>&1 > $@.out
+	-$(OPT_PA_STATS) -q -poolalloc $(EXTRA_PA_FLAGS) -globaldce -ipconstprop -deadargelim $< -o $@ -f 2>&1 > $@.out
 
 # This rule compiles the new .bc file into a .c file using CBE
 $(PROGRAMS_TO_TEST:%=Output/%.poolalloc.cbe.c): \
@@ -38,7 +42,7 @@ Output/%.poolalloc.cbe.c: Output/%.$(TEST).transformed.bc $(LDIS)
 # This rule compiles the .c file into an executable using $CC
 $(PROGRAMS_TO_TEST:%=Output/%.poolalloc.cbe): \
 Output/%.poolalloc.cbe: Output/%.poolalloc.cbe.c $(PA_RT_O)
-	-$(CC) $(CFLAGS) $< $(PA_RT_O) $(LLCLIBS) $(LDFLAGS) -o $@
+	-$(CC) $(CFLAGS) $< $(PA_RT_O) $(LLCLIBS) $(LDFLAGS) -lstdc++ -o $@
 
 # This rule runs the generated executable, generating timing information
 $(PROGRAMS_TO_TEST:%=Output/%.poolalloc.out-cbe): \
