@@ -334,10 +334,11 @@ unsigned poolobjsize(PoolTy *Pool, void *Node) {
     abort();
   }
 
-  // Check to see how many elements were allocated to this node...
+  // Check to see how many bytes were allocated to this node.
   FreedNodeHeader *FNH = (FreedNodeHeader*)((char*)Node-sizeof(NodeHeader));
   assert((FNH->Header.Size & 1) && "Node not allocated!");
-  if (Size != ~1U) return FNH->Header.Size & ~1;
+  unsigned Size = FNH->Header.Size & ~1;
+  if (Size != ~1U) return Size;
 
   // Otherwise, we have a large array.
   //LargeArrayHeader *LAH = ((LargeArrayHeader*)Node)-1;
