@@ -1,4 +1,4 @@
-##=== TEST.poolalloc.report - Report description for poolalloc -*- perl -*-===##
+##=== TEST.optzn.report - Report description for optzn ---------*- perl -*-===##
 #
 # This file defines a report to be generated for the pool allocator tests.
 #
@@ -62,29 +62,13 @@ my $PTRDIST   = 'MultiSource/Benchmarks/Ptrdist';
 (
 # Name
  ["Name:" , '\'([^\']+)\' Program'],
- ["LOC"   , 'LOC:\s*([0-9]+)'],
  [],
 # Times
- ["GCC",            'GCC-RUN-TIME: program\s*([.0-9m:]+)', \&FormatTime],
- ["NonPATime",      'CBE-RUN-TIME-NORMAL: program\s*([.0-9m:]+)', \&FormatTime],
+ ["BasePA",         'CBE-RUN-TIME-BASEPA: program\s*([.0-9m:]+)', \&FormatTime],
  [],
- ["OnlyOHTime",     'CBE-RUN-TIME-ONLYOVERHEAD: program\s*([.0-9m:]+)', \&FormatTime],
- ["OO run%",        \&RuntimePercent],
- [],
- ["ReplTime",       'CBE-RUN-TIME-MALLOCREPL: program\s*([.0-9m:]+)', \&FormatTime],
- ["MR run%",        \&RuntimePercent],
- [],
- ["PA Time",        'CBE-RUN-TIME-POOLALLOC: program\s*([.0-9m:]+)', \&FormatTime],
- ["PA run%",        \&RuntimePercent],
- [],
- ["AllNodes",       'CBE-RUN-TIME-ALLNODES: program\s*([.0-9m:]+)', \&FormatTime],
- ["AN run%",        \&RuntimePercent],
- [],
- ["NumPools",       '([0-9]+).*Number of pools allocated'],
- ["Typesafe",       '([0-9]+).*Number of typesafe pools'],
- ["BumpPtr",        '([0-9]+).*Number of bump pointer pools'],
- ["NumArgs",        '([0-9]+).*Number of function arguments added'],
-#["Nonprofit",      '([0-9]+).*Number of DSNodes not profitable'],
+ ["NoSelectivePA",  'CBE-RUN-TIME-SELECTIVEPA: program\s*([.0-9m:]+)', \&FormatTime],
+ ["NoFreeElim",     'CBE-RUN-TIME-FREEELIM: program\s*([.0-9m:]+)', \&FormatTime],
+ ["NoBumpPtr",      'CBE-RUN-TIME-BUMPPTR: program\s*([.0-9m:]+)', \&FormatTime],
  []
 );
 

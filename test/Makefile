@@ -158,6 +158,12 @@ perf::
                    test report report.csv)
 	@printf "\a"; sleep 1; printf "\a"; sleep 1; printf "\a"
 
+optzn::
+	(cd $(LLVM_OBJ_ROOT)/projects/llvm-test/$(SUBDIR); \
+               PROJECT_DIR=$(BUILD_OBJ_ROOT) $(MAKE) -j1 TEST=optzn \
+                   GET_STABLE_NUMBERS=1 test report report.csv)
+	@printf "\a"; sleep 1; printf "\a"; sleep 1; printf "\a"
+
 p4perf::
 	(cd $(LLVM_OBJ_ROOT)/projects/llvm-test/$(SUBDIR); \
                PROJECT_DIR=$(BUILD_OBJ_ROOT) $(MAKE) -j1 TEST=p4perf \

@@ -49,7 +49,7 @@ Output/%.$(TEST).poolalloc.bc: Output/%.llvm.bc $(PA_SO) $(LOPT)
 $(PROGRAMS_TO_TEST:%=Output/%.$(TEST).allnodes.bc): \
 Output/%.$(TEST).allnodes.bc: Output/%.llvm.bc $(PA_SO) $(LOPT)
 	-@rm -f $(CURDIR)/$@.info
-	-$(OPT_PA_STATS) -poolalloc -poolalloc-heuristic=AllNodes -pooloptimize  $(OPTZN_PASSES) $< -o $@ -f 2>&1 > $@.out
+	-$(OPT_PA_STATS) -poolalloc -poolalloc-heuristic=AllNodes $(OPTZN_PASSES) -pooloptimize $< -o $@ -f 2>&1 > $@.out
 
 
 $(PROGRAMS_TO_TEST:%=Output/%.$(TEST).mallocrepl.bc): \
@@ -213,13 +213,18 @@ Output/%.nonpa.diff-cbe: Output/%.out-nat Output/%.nonpa.out-cbe
 # This rule wraps everything together to build the actual output the report is
 # generated from.
 $(PROGRAMS_TO_TEST:%=Output/%.$(TEST).report.txt): \
-Output/%.$(TEST).report.txt: Output/%.nonpa.diff-cbe         \
+Output/%.$(TEST).report.txt: Output/%.out-nat                \
+                             Output/%.nonpa.diff-cbe         \
 			     Output/%.poolalloc.diff-cbe     \
 			     Output/%.allnodes.diff-cbe      \
 			     Output/%.mallocrepl.diff-cbe    \
 			     Output/%.onlyoverhead.diff-cbe  \
                              Output/%.LOC.txt
 	@echo > $@
+	@-if test -f Output/$*.nonpa.diff-cbe; then \
+	  printf "GCC-RUN-TIME: " >> $@;\
+	  grep "^program" Output/$*.out-nat.time >> $@;\
+        fi
 	@-if test -f Output/$*.nonpa.diff-cbe; then \
 	  printf "CBE-RUN-TIME-NORMAL: " >> $@;\
 	  grep "^program" Output/$*.nonpa.out-cbe.time >> $@;\
