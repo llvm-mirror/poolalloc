@@ -44,10 +44,28 @@ $(PROGRAMS_TO_TEST:%=Output/%.poolalloc.cbe): \
 Output/%.poolalloc.cbe: Output/%.poolalloc.cbe.c $(PA_RT_O)
 	-$(CC) $(CFLAGS) $< $(PA_RT_O) $(LLCLIBS) $(LDFLAGS) -lstdc++ -o $@
 
-# This rule runs the generated executable, generating timing information
+
+ifndef PROGRAMS_HAVE_CUSTOM_RUN_RULES
+
+# This rule runs the generated executable, generating timing information, for
+# normal test programs
 $(PROGRAMS_TO_TEST:%=Output/%.poolalloc.out-cbe): \
 Output/%.poolalloc.out-cbe: Output/%.poolalloc.cbe
 	-$(RUNSAFELY) $(STDIN_FILENAME) $@ $< $(RUN_OPTIONS)
+else
+
+# This rule runs the generated executable, generating timing information, for
+# SPEC
+$(PROGRAMS_TO_TEST:%=Output/%.poolalloc.out-cbe): \
+Output/%.poolalloc.out-cbe: Output/%.poolalloc.cbe
+	$(SPEC_SANDBOX) poolalloccbe-$(RUN_TYPE) $@ $(REF_IN_DIR) \
+             $(RUNSAFELY) $(STDIN_FILENAME) $(STDOUT_FILENAME) \
+                  ../../$< $(RUN_OPTIONS)
+	-(cd Output/poolalloccbe-$(RUN_TYPE); cat $(LOCAL_OUTPUTS)) > $@
+	-cp Output/poolalloccbe-$(RUN_TYPE)/$(STDOUT_FILENAME).time $@.time
+
+endif
+
 
 # This rule diffs the post-poolallocated version to make sure we didn't break
 # the program!
