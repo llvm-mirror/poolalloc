@@ -68,7 +68,7 @@ namespace {
                        clEnumVal(CyclicNodes, "  Pool allocate nodes with cycles"),
                        clEnumVal(SmartCoallesceNodes, "  Use the smart node merging heuristic"),
                        clEnumVal(NoNodes, "  Do not pool allocate anything"),
-                       0),
+                       clEnumValEnd),
             cl::init(SmartCoallesceNodes));
   
   cl::opt<bool>
