@@ -8,34 +8,6 @@
 $SortCol = 0;
 $TrimRepeatedPrefix = 1;
 
-sub Ratio {
-  my ($Cols, $Col) = @_;
-  if ($Cols->[$Col-1] ne "*" and $Cols->[$Col-4] ne "*" and
-      $Cols->[$Col-1] != "0") {
-    return sprintf "%1.3f", $Cols->[$Col-4]/$Cols->[$Col-1];
-  } else {
-    return "n/a";
-  }
-}
-
-sub Sum {
-  my ($Cols, $Col) = @_;
-  if ($Cols->[$Col-1] ne "*" and $Cols->[$Col-2] ne "*") {
-    return sprintf "%1.3f", $Cols->[$Col-2]+$Cols->[$Col-1];
-  } else {
-    return "n/a";
-  }
-}
-
-
-sub FormatTime {
-  my $Time = shift;
-  if ($Time =~ m/([0-9]+)[m:]([0-9.]+)/) {
-    $Time = sprintf("%7.3f", $1*60.0+$2);
-  }
-  return $Time;
-}
-
 @LatexColumns = (2, 3, 4, 5, 6, 7);
 
 my $OLDEN     = 'MultiSource/Benchmarks/Olden';

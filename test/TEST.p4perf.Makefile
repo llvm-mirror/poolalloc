@@ -129,10 +129,10 @@ $(PROGRAMS_TO_TEST:%=Output/test.$(TEST).pa.%): \
 Output/test.$(TEST).pa.%: Output/%.poolalloc.cbe
 	-$(SPEC_SANDBOX) poolalloccbe-$(RUN_TYPE) /dev/null $(REF_IN_DIR) \
              $(RUNSAFELY) $(STDIN_FILENAME) $(STDOUT_FILENAME) \
-                  $(PERFEX) -o $@.2 $(P4_L2_READ_MISSES) ../../$< $(RUN_OPTIONS)
+                  $(PERFEX) -o ../../$@.2 $(P4_L2_READ_MISSES) ../../$< $(RUN_OPTIONS)
 	-$(SPEC_SANDBOX) poolalloccbe-$(RUN_TYPE) /dev/null $(REF_IN_DIR) \
              $(RUNSAFELY) $(STDIN_FILENAME) $(STDOUT_FILENAME) \
-                  $(PERFEX) -o $@.1 $(P4_L1_READ_MISSES) ../../$< $(RUN_OPTIONS)
+                  $(PERFEX) -o ../../$@.1 $(P4_L1_READ_MISSES) ../../$< $(RUN_OPTIONS)
 	@cat $@.1 $@.2 > $@
 
 # This rule runs the generated executable, generating timing information, for
@@ -141,10 +141,10 @@ $(PROGRAMS_TO_TEST:%=Output/test.$(TEST).allpa.%): \
 Output/test.$(TEST).allpa.%: Output/%.allnodes.cbe
 	-$(SPEC_SANDBOX) allnodescbe-$(RUN_TYPE) /dev/null $(REF_IN_DIR) \
              $(RUNSAFELY) $(STDIN_FILENAME) $(STDOUT_FILENAME) \
-                  $(PERFEX) -o $@.2 $(P4_L2_READ_MISSES) ../../$< $(RUN_OPTIONS)
+                  $(PERFEX) -o ../../$@.2 $(P4_L2_READ_MISSES) ../../$< $(RUN_OPTIONS)
 	-$(SPEC_SANDBOX) allnodescbe-$(RUN_TYPE) /dev/null $(REF_IN_DIR) \
              $(RUNSAFELY) $(STDIN_FILENAME) $(STDOUT_FILENAME) \
-                  $(PERFEX) -o $@.1 $(P4_L1_READ_MISSES) ../../$< $(RUN_OPTIONS)
+                  $(PERFEX) -o ../../$@.1 $(P4_L1_READ_MISSES) ../../$< $(RUN_OPTIONS)
 	@cat $@.1 $@.2 > $@
 
 
@@ -154,10 +154,10 @@ $(PROGRAMS_TO_TEST:%=Output/test.$(TEST).%): \
 Output/test.$(TEST).%: Output/%.nonpa.cbe
 	-$(SPEC_SANDBOX) nonpacbe-$(RUN_TYPE) /dev/null $(REF_IN_DIR) \
              $(RUNSAFELY) $(STDIN_FILENAME) $(STDOUT_FILENAME) \
-                  $(PERFEX) -o $@.2 $(P4_L2_READ_MISSES) ../../$< $(RUN_OPTIONS)
+                  $(PERFEX) -o ../../$@.2 $(P4_L2_READ_MISSES) ../../$< $(RUN_OPTIONS)
 	-$(SPEC_SANDBOX) nonpacbe-$(RUN_TYPE) /dev/null $(REF_IN_DIR) \
              $(RUNSAFELY) $(STDIN_FILENAME) $(STDOUT_FILENAME) \
-                  $(PERFEX) -o $@.1 $(P4_L1_READ_MISSES) ../../$< $(RUN_OPTIONS)
+                  $(PERFEX) -o ../../$@.1 $(P4_L1_READ_MISSES) ../../$< $(RUN_OPTIONS)
 	@cat $@.1 $@.2 > $@
 endif
 
