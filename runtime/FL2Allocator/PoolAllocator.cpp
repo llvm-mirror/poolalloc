@@ -140,18 +140,16 @@ static void InitPrintNumPools() {
 //  PoolSlab implementation
 //===----------------------------------------------------------------------===//
 
-static inline unsigned getSizeClass(unsigned NumBytes) {
-  if (NumBytes <= FreeListOneSize)
-    return NumBytes > FreeListZeroSize;
-  else
-    return 2 + (NumBytes > FreeListTwoSize);
-}
-
 static void AddNodeToFreeList(PoolTy *Pool, FreedNodeHeader *FreeNode) {
-  unsigned SizeClass = getSizeClass(FreeNode->Header.Size);
-  FreeNode->PrevP = &Pool->FreeNodeLists[SizeClass];
-  FreeNode->Next = Pool->FreeNodeLists[SizeClass];
-  Pool->FreeNodeLists[SizeClass] = FreeNode;
+  FreedNodeHeader **FreeList;
+  if (FreeNode->Header.Size == Pool->DeclaredSize)
+    FreeList = &Pool->ObjFreeList;
+  else
+    FreeList = &Pool->OtherFreeList;
+
+  FreeNode->PrevP = FreeList;
+  FreeNode->Next = *FreeList;
+  *FreeList = FreeNode;
   if (FreeNode->Next)
     FreeNode->Next->PrevP = &FreeNode->Next;
 }
@@ -181,6 +179,9 @@ public:
 
 // create - Create a new (empty) slab and add it to the end of the Pools list.
 void PoolSlab::create(PoolTy *Pool, unsigned SizeHint) {
+  if (Pool->DeclaredSize == 0)
+    Pool->DeclaredSize = SizeHint;
+
   unsigned Size = Pool->AllocSize;
   Pool->AllocSize <<= 1;
   Size = (Size+SizeHint-1) / SizeHint * SizeHint;
@@ -219,9 +220,11 @@ void *PoolSlab::create_for_bp(PoolTy *Pool) {
   Pool->AllocSize <<= 1;
   PoolSlab *PS = (PoolSlab*)malloc(Size+sizeof(PoolSlab));
   char *PoolBody = (char*)(PS+1);
+  if (sizeof(PoolSlab) == 4)
+    PoolBody += 4;            // No reason to start out unaligned.
 
   // Update the end pointer.
-  Pool->FreeNodeLists[1] = (FreedNodeHeader*)(PoolBody+Size);
+  Pool->OtherFreeList = (FreedNodeHeader*)((char*)(PS+1)+Size);
 
   // Add the slab to the list...
   PS->Next = Pool->Slabs;
@@ -247,8 +250,8 @@ void poolinit_bp(PoolTy *Pool, unsigned ObjAlignment) {
   Pool->AllocSize = INITIAL_SLAB_SIZE;
   Pool->Alignment = ObjAlignment;
   Pool->LargeArrays = 0;
-  Pool->FreeNodeLists[0] = 0;   // This is our bump pointer.
-  Pool->FreeNodeLists[1] = 0;   // This is our end pointer.
+  Pool->ObjFreeList = 0;     // This is our bump pointer.
+  Pool->OtherFreeList = 0;   // This is our end pointer.
 
   DO_IF_TRACE(fprintf(stderr, "[%d] poolinit_bp(0x%X, %d)\n",
                       addPoolNumber(Pool), Pool, ObjAlignment));
@@ -273,8 +276,8 @@ void *poolalloc_bp(PoolTy *Pool, unsigned NumBytes) {
   unsigned Alignment;
   char *BumpPtr, *EndPtr;
   Alignment = Pool->Alignment-1;
-  BumpPtr = (char*)Pool->FreeNodeLists[0]; // Get our bump pointer.
-  EndPtr  = (char*)Pool->FreeNodeLists[1]; // Get our end pointer.
+  BumpPtr = (char*)Pool->ObjFreeList; // Get our bump pointer.
+  EndPtr  = (char*)Pool->OtherFreeList; // Get our end pointer.
 
 TryAgain:
   // Align the bump pointer to the required boundary.
@@ -283,13 +286,13 @@ TryAgain:
   if (BumpPtr + NumBytes < EndPtr) {
     void *Result = BumpPtr;
     // Update bump ptr.
-    Pool->FreeNodeLists[0] = (FreedNodeHeader*)(BumpPtr+NumBytes);
+    Pool->ObjFreeList = (FreedNodeHeader*)(BumpPtr+NumBytes);
     DO_IF_TRACE(fprintf(stderr, "0x%X\n", Result));
     return Result;
   }
   
   BumpPtr = (char*)PoolSlab::create_for_bp(Pool);
-  EndPtr  = (char*)Pool->FreeNodeLists[1]; // Get our updated end pointer.  
+  EndPtr  = (char*)Pool->OtherFreeList; // Get our updated end pointer.  
   goto TryAgain;
 
 LargeObject:
@@ -341,9 +344,16 @@ void poolinit(PoolTy *Pool, unsigned DeclaredSize, unsigned ObjAlignment) {
   assert(Pool && "Null pool pointer passed into poolinit!\n");
   memset(Pool, 0, sizeof(PoolTy));
   Pool->AllocSize = INITIAL_SLAB_SIZE;
-  Pool->DeclaredSize = DeclaredSize;
+
   if (ObjAlignment < 4) ObjAlignment = __alignof(double);
   Pool->Alignment = ObjAlignment;
+
+  // Round the declared size up to an alignment boundary-header size, just like
+  // we have to do for objects.
+  DeclaredSize = DeclaredSize+sizeof(FreedNodeHeader)+(ObjAlignment-1);
+  DeclaredSize = (DeclaredSize & ~(ObjAlignment-1))-sizeof(FreedNodeHeader);
+
+  Pool->DeclaredSize = DeclaredSize;
 
   DO_IF_TRACE(fprintf(stderr, "[%d] poolinit(0x%X, %d, %d)\n",
                       addPoolNumber(Pool), Pool, DeclaredSize, ObjAlignment));
@@ -403,81 +413,81 @@ void *poolalloc(PoolTy *Pool, unsigned NumBytes) {
   DO_IF_PNP(++Pool->NumObjects);
   DO_IF_PNP(Pool->BytesAllocated += NumBytes);
 
+  // Fast path - allocate objects off the object list.
+  if (NumBytes == Pool->DeclaredSize && Pool->ObjFreeList != 0) {
+    FreedNodeHeader *Node = Pool->ObjFreeList;
+    UnlinkFreeNode(Node);
+    assert(NumBytes == Node->Header.Size);
+
+    Node->Header.Size = NumBytes|1;   // Mark as allocated
+    DO_IF_TRACE(fprintf(stderr, "0x%X\n", &Node->Header+1));
+    return &Node->Header+1;
+  }
+    
   if (NumBytes >= LARGE_SLAB_SIZE-sizeof(PoolSlab)-sizeof(NodeHeader))
     goto LargeObject;
 
-  // Figure out which size class to start scanning from.
-  unsigned SizeClass;
-  SizeClass = getSizeClass(NumBytes);
-
-  // Scan for a class that has entries!
-  while (SizeClass < 3 && Pool->FreeNodeLists[SizeClass] == 0)
-    ++SizeClass;
-
   // Fast path.  In the common case, we can allocate a portion of the node at
   // the front of the free list.
-  if (FreedNodeHeader *FirstNode = Pool->FreeNodeLists[SizeClass]) {
-    unsigned FirstNodeSize = FirstNode->Header.Size;
-    if (FirstNodeSize > NumBytes) {
-      if (FirstNodeSize >= 2*NumBytes+sizeof(NodeHeader)) {
-        // Put the remainder back on the list...
-        FreedNodeHeader *NextNodes =
-          (FreedNodeHeader*)((char*)FirstNode + sizeof(NodeHeader) + NumBytes);
-
-        // Remove from list
-        UnlinkFreeNode(FirstNode);
-
-        NextNodes->Header.Size = FirstNodeSize-NumBytes-sizeof(NodeHeader);
-        AddNodeToFreeList(Pool, NextNodes);
-
-      } else {
-        UnlinkFreeNode(FirstNode);
-        NumBytes = FirstNodeSize;
-      }
-      FirstNode->Header.Size = NumBytes|1;   // Mark as allocated
-      DO_IF_TRACE(fprintf(stderr, "0x%X\n", &FirstNode->Header+1));
-      return &FirstNode->Header+1;
-    }
-  }
-
-  // Perform a search of the free list, taking the front of the first free chunk
-  // that is big enough.
   do {
-    FreedNodeHeader **FN = &Pool->FreeNodeLists[SizeClass];
-    FreedNodeHeader *FNN = *FN;
-
-    // Search the list for the first-fit
-    while (FNN && FNN->Header.Size < NumBytes)
-      FN = &FNN->Next, FNN = *FN;
-
-    if (FNN) {
-      // We found a slab big enough.  If it's a perfect fit, just unlink from
-      // the free list, otherwise, slice a little bit off and adjust the free
-      // list.
-      if (FNN->Header.Size > 2*NumBytes+sizeof(NodeHeader)) {
-        UnlinkFreeNode(FNN);
-
-        // Put the remainder back on the list...
-        FreedNodeHeader *NextNodes =
-          (FreedNodeHeader*)((char*)FNN + sizeof(NodeHeader) + NumBytes);
-        NextNodes->Header.Size = FNN->Header.Size-NumBytes-sizeof(NodeHeader);
-        AddNodeToFreeList(Pool, NextNodes);
-      } else {
-        UnlinkFreeNode(FNN);
-        NumBytes = FNN->Header.Size;
+    FreedNodeHeader *FirstNode = Pool->OtherFreeList;
+    if (FirstNode) {
+      unsigned FirstNodeSize = FirstNode->Header.Size;
+      if (FirstNodeSize >= NumBytes) {
+        if (FirstNodeSize >= 2*NumBytes+sizeof(NodeHeader)) {
+          // Put the remainder back on the list...
+          FreedNodeHeader *NextNodes =
+            (FreedNodeHeader*)((char*)FirstNode + sizeof(NodeHeader) +NumBytes);
+          
+          // Remove from list
+          UnlinkFreeNode(FirstNode);
+          
+          NextNodes->Header.Size = FirstNodeSize-NumBytes-sizeof(NodeHeader);
+          AddNodeToFreeList(Pool, NextNodes);
+          
+        } else {
+          UnlinkFreeNode(FirstNode);
+          NumBytes = FirstNodeSize;
+        }
+        FirstNode->Header.Size = NumBytes|1;   // Mark as allocated
+        DO_IF_TRACE(fprintf(stderr, "0x%X\n", &FirstNode->Header+1));
+        return &FirstNode->Header+1;
       }
-      FNN->Header.Size = NumBytes|1;   // Mark as allocated
-      DO_IF_TRACE(fprintf(stderr, "0x%X\n", &FNN->Header+1));
-      return &FNN->Header+1;
+
+      // Perform a search of the free list, taking the front of the first free
+      // chunk that is big enough.
+      FreedNodeHeader **FN = &Pool->OtherFreeList;
+      FreedNodeHeader *FNN = FirstNode;
+      
+      // Search the list for the first-fit.
+      while (FNN && FNN->Header.Size < NumBytes)
+        FN = &FNN->Next, FNN = *FN;
+      
+      if (FNN) {
+        // We found a slab big enough.  If it's a perfect fit, just unlink
+        // from the free list, otherwise, slice a little bit off and adjust
+        // the free list.
+        if (FNN->Header.Size > 2*NumBytes+sizeof(NodeHeader)) {
+          UnlinkFreeNode(FNN);
+          
+          // Put the remainder back on the list...
+          FreedNodeHeader *NextNodes =
+            (FreedNodeHeader*)((char*)FNN + sizeof(NodeHeader) + NumBytes);
+          NextNodes->Header.Size = FNN->Header.Size-NumBytes-sizeof(NodeHeader);
+          AddNodeToFreeList(Pool, NextNodes);
+        } else {
+          UnlinkFreeNode(FNN);
+          NumBytes = FNN->Header.Size;
+        }
+        FNN->Header.Size = NumBytes|1;   // Mark as allocated
+        DO_IF_TRACE(fprintf(stderr, "0x%X\n", &FNN->Header+1));
+        return &FNN->Header+1;
+      }
     }
 
-    if (SizeClass < LargeFreeList) {
-      ++SizeClass;
-    } else {
-      // Oops, we didn't find anything on the free list big enough!  Allocate
-      // another slab and try again.
-      PoolSlab::create(Pool, NumBytes);
-    }
+    // Oops, we didn't find anything on the free list big enough!  Allocate
+    // another slab and try again.
+    PoolSlab::create(Pool, NumBytes);
   } while (1);
 
 LargeObject:
@@ -528,15 +538,23 @@ void poolfree(PoolTy *Pool, void *Node) {
   // a simple check that prevents many horrible forms of fragmentation,
   // particularly when freeing objects in allocation order.
   //
-  for (unsigned SizeClass = 0; SizeClass <= LargeFreeList; ++SizeClass)
-    if (FreedNodeHeader *CurFrontNode = Pool->FreeNodeLists[SizeClass])
-      if ((char*)CurFrontNode + sizeof(NodeHeader) + CurFrontNode->Header.Size==
-          (char*)FNH) {
-        // This node immediately follows the node on the front of the free-list.
-        // No list manipulation is required.
-        CurFrontNode->Header.Size += Size+sizeof(NodeHeader);
-        return;
-      }
+  if (FreedNodeHeader *ObjFNH = Pool->ObjFreeList)
+    if ((char*)ObjFNH + sizeof(NodeHeader) + ObjFNH->Header.Size == (char*)FNH){
+      // Merge this with a node that is already on the object size free list.
+      // Because the object is growing, we will never be able to find it if we
+      // leave it on the object freelist.
+      UnlinkFreeNode(ObjFNH);
+      ObjFNH->Header.Size += Size+sizeof(NodeHeader);
+      AddNodeToFreeList(Pool, ObjFNH);
+      return;
+    }
+
+  if (FreedNodeHeader *OFNH = Pool->OtherFreeList)
+    if ((char*)OFNH + sizeof(NodeHeader) + OFNH->Header.Size == (char*)FNH) {
+      // Merge this with a node that is already on the object size free list.
+      OFNH->Header.Size += Size+sizeof(NodeHeader);
+      return;
+    }
 
   FNH->Header.Size = Size;
   AddNodeToFreeList(Pool, FNH);
