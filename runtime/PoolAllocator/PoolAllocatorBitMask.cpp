@@ -1,4 +1,4 @@
-//===- PoolAllocatorChained.cpp - Implementation of poolallocator runtime -===//
+//===- PoolAllocatorBitMask.cpp - Implementation of poolallocator runtime -===//
 // 
 //                       The LLVM Compiler Infrastructure
 //
