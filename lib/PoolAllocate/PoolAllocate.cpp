@@ -13,6 +13,7 @@
 #include "llvm/Module.h"
 #include "llvm/Analysis/DataStructure.h"
 #include "llvm/Analysis/DSGraph.h"
+#include "llvm/Analysis/DSGraphTraits.h"
 #include "llvm/Support/CFG.h"
 #include "llvm/Target/TargetData.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
@@ -32,6 +33,9 @@ using namespace PA;
 const Type *PoolAllocate::PoolDescPtrTy = 0;
 
 namespace {
+  RegisterOpt<PoolAllocate>
+  X("poolalloc", "Pool allocate disjoint data structures");
+
   Statistic<> NumArgsAdded("poolalloc", "Number of function arguments added");
   Statistic<> NumCloned   ("poolalloc", "Number of functions cloned");
   Statistic<> NumPools    ("poolalloc", "Number of pools allocated");
@@ -46,12 +50,24 @@ namespace {
   // unsigned FreeablePool (are slabs in the pool freeable upon calls to 
   //                        poolfree?)
   const Type *PoolDescType;
-  
-  RegisterOpt<PoolAllocate>
-  X("poolalloc", "Pool allocate disjoint data structures");
 
-  cl::opt<bool> DisableInitDestroyOpt("poolalloc-force-simple-pool-init",
-                                      cl::desc("Always insert poolinit/pooldestroy calls at start and exit of functions"), cl::init(true));
+  enum PoolAllocHeuristic {
+    AllPools,
+    CyclicPools,
+    NoPools
+  };
+  cl::opt<PoolAllocHeuristic>
+  Heuristic("poolalloc-heuristic",
+            cl::desc("Heuristic to choose which nodes to pool allocate"),
+            cl::values(clEnumVal(AllPools, "  Pool allocate all nodes"),
+                       clEnumVal(CyclicPools, "  Pool allocate nodes with cycles"),
+                       clEnumVal(NoPools, "  Do not pool allocate anything"),
+                       0),
+            cl::init(AllPools));
+  
+  cl::opt<bool>
+  DisableInitDestroyOpt("poolalloc-force-simple-pool-init",
+                        cl::desc("Always insert poolinit/pooldestroy calls at start and exit of functions"), cl::init(true));
 }
 
 void PoolAllocate::getAnalysisUsage(AnalysisUsage &AU) const {
@@ -207,7 +223,6 @@ const PA::EquivClassInfo &PoolAllocate::getECIForIndirectCallSite(CallSite CS) {
 // unify the N functions together in the FuncECs set.
 //
 void PoolAllocate::BuildIndirectFunctionSets(Module &M) {
-
   const CompleteBUDataStructures::ActualCalleesTy AC = BU->getActualCallees();
 
   // Loop over all of the indirect calls in the program.  If a call site can
@@ -543,7 +558,22 @@ void PoolAllocate::CreatePools(Function &F,
   }
 }
 
-
+/// ProfitableToPoolAllocate - Return true if we think it's useful to ACTUALLY
+/// pool allocate the specified DSNode.  If this returns false, the memory for
+/// the node will be managed by malloc/free.
+static bool ProfitableToPoolAllocate(DSNode *N) {
+  switch (Heuristic) {
+  default:
+  case AllPools: return true;
+  case NoPools: return false;
+  case CyclicPools:
+    // Look for a path back to this node.
+    for (DSNode::iterator I = N->begin(), E = N->end(); I != E; ++I)
+      if (*I && std::find(df_begin(*I), df_end(*I), N) != df_end(*I))
+        return true;
+    return false;  // No cycle found!
+  }
+}
 
 // processFunction - Pool allocate any data structures which are contained in
 // the specified function...
@@ -585,6 +615,17 @@ void PoolAllocate::ProcessFunctionBody(Function &F, Function &NewF) {
         // be a local pool!
         NodesToPA.push_back(*I);
       }
+
+  // Now that we have a list of all of the nodes that CAN be pool allocated, use
+  // a heuristic to filter out nodes which are not profitable to pool allocate.
+  for (unsigned i = 0; i != NodesToPA.size(); ++i)
+    if (!ProfitableToPoolAllocate(NodesToPA[i])) {
+      FI.PoolDescriptors[NodesToPA[i]] =
+        Constant::getNullValue(PointerType::get(PoolDescType));
+      std::swap(NodesToPA[i], NodesToPA.back());
+      NodesToPA.pop_back();
+      --i;
+    }
   
   std::cerr << "[" << F.getName() << "] Pool Allocating "
             << NodesToPA.size() << " nodes\n";

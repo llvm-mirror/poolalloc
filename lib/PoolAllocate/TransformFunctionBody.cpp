@@ -171,7 +171,7 @@ Instruction *FuncTransform::TransformAllocationInstr(Instruction *I,
 void FuncTransform::visitMallocInst(MallocInst &MI) {
   // Get the pool handle for the node that this contributes to...
   Value *PH = getPoolHandle(&MI);
-  if (PH == 0) return;
+  if (PH == 0 || isa<ConstantPointerNull>(PH)) return;
 
   TargetData &TD = PAInfo.getAnalysis<TargetData>();
   Value *AllocSize =
@@ -187,7 +187,7 @@ void FuncTransform::visitMallocInst(MallocInst &MI) {
 
 Instruction *FuncTransform::InsertPoolFreeInstr(Value *Arg, Instruction *Where){
   Value *PH = getPoolHandle(Arg);  // Get the pool handle for this DSNode...
-  if (PH == 0) return 0;
+  if (PH == 0 || isa<ConstantPointerNull>(PH)) return 0;
 
   // Insert a cast and a call to poolfree...
   Value *Casted = Arg;
