@@ -67,6 +67,7 @@ namespace {
     NoNodes,
     CyclicNodes,
     SmartCoallesceNodes,
+    AllInOneGlobalPool,
     OnlyOverhead,
   };
   cl::opt<PoolAllocHeuristic>
@@ -75,6 +76,7 @@ namespace {
             cl::values(clEnumVal(AllNodes, "  Pool allocate all nodes"),
                        clEnumVal(CyclicNodes, "  Pool allocate nodes with cycles"),
                        clEnumVal(SmartCoallesceNodes, "  Use the smart node merging heuristic"),
+                       clEnumVal(AllInOneGlobalPool, "  Use pool library as replacement for malloc/free"),
                        clEnumVal(OnlyOverhead, "  Do not pool allocate anything, but induce all overhead from it"),
                        clEnumVal(NoNodes, "  Do not pool allocate anything"),
                        clEnumValEnd),
@@ -86,6 +88,11 @@ namespace {
   cl::opt<bool>
   DisablePoolFreeOpt("poolalloc-force-all-poolfrees",
                      cl::desc("Do not try to elide poolfree's where possible"));
+
+
+  // TheGlobalPD - This global pool is the one and only one used when running
+  // with Heuristic=AllInOneGlobalPool.
+  GlobalVariable *TheGlobalPD = 0;
 }
 
 void PoolAllocate::getAnalysisUsage(AnalysisUsage &AU) const {
@@ -334,6 +341,7 @@ static bool ShouldPoolAllocate(DSNode *N) {
   // a heuristic to filter out nodes which are not profitable to pool allocate.
   switch (Heuristic) {
   default:
+  case AllInOneGlobalPool:
   case OnlyOverhead:
   case AllNodes: return true;
   case NoNodes: return false;
@@ -358,8 +366,6 @@ static void POVisit(DSNode *N, std::set<DSNode*> &Visited,
   // Now that we visited all of our children, add ourself to the order.
   Order.push_back(N);
 }
-
-
 
 // SetupGlobalPools - Create global pools for all DSNodes in the globals graph
 // which contain heap objects.  If a global variable points to a piece of memory
@@ -389,7 +395,8 @@ bool PoolAllocate::SetupGlobalPools(Module &M) {
   }
   
   // If we don't need to create any global pools, exit now.
-  if (GlobalHeapNodes.empty()) return false;
+  if (GlobalHeapNodes.empty() ||
+      Heuristic == AllInOneGlobalPool) return false;
 
   // Otherwise get the main function to insert the poolinit calls.
   Function *MainFunc = M.getMainFunction();
@@ -408,6 +415,28 @@ bool PoolAllocate::SetupGlobalPools(Module &M) {
   std::cerr << "Pool allocating " << GlobalHeapNodes.size()
             << " global nodes!\n";
 
+  // If we are putting everything into a single global pool, create it now and
+  // put all globals pool descriptors into it.
+  if (Heuristic == AllInOneGlobalPool) {
+    // Create the global pool descriptor.
+    TheGlobalPD = 
+      new GlobalVariable(PoolDescType, false, GlobalValue::InternalLinkage, 
+                         Constant::getNullValue(PoolDescType), "GlobalPool",&M);
+      
+    // Initialize it on entry to main.
+    Value *ElSize = ConstantUInt::get(Type::UIntTy, 0);
+    new CallInst(PoolInit, make_vector((Value*)TheGlobalPD, ElSize, 0),
+                 "", InsertPt);
+
+    for (hash_set<DSNode*>::iterator I = GlobalHeapNodes.begin(),
+           E = GlobalHeapNodes.end(); I != E; ++I)
+      GlobalNodes[*I] = TheGlobalPD;
+
+    ++NumPools;  // We have one pool.
+    return false;
+  }
+
+
   // Loop over all of the pools, creating a new global pool descriptor,
   // inserting a new entry in GlobalNodes, and inserting a call to poolinit in
   // main.
@@ -415,6 +444,7 @@ bool PoolAllocate::SetupGlobalPools(Module &M) {
          E = GlobalHeapNodes.end(); I != E; ++I) {
     bool ShouldPoolAlloc = true;
     switch (Heuristic) {
+    case AllInOneGlobalPool: assert(0 && "Case handled above!");
     case OnlyOverhead:
     case AllNodes: break;
     case NoNodes: ShouldPoolAlloc = false; break;
@@ -492,6 +522,10 @@ void PoolAllocate::CreatePools(Function &F,
         ++NumNonprofit;
       }
     }
+    break;
+  case AllInOneGlobalPool:
+    for (unsigned i = 0, e = NodesToPA.size(); i != e; ++i)
+      PoolDescriptors[NodesToPA[i]] = TheGlobalPD;
     break;
 
   case SmartCoallesceNodes: {
@@ -782,6 +816,10 @@ void PoolAllocate::InitializeAndDestroyPools(Function &F,
   // Insert all of the poolinit/destroy calls into the function.
   for (unsigned i = 0, e = NodesToPA.size(); i != e; ++i) {
     DSNode *Node = NodesToPA[i];
+
+    if (isa<GlobalVariable>(PoolDescriptors[Node]))
+      continue;
+
     assert(isa<AllocaInst>(PoolDescriptors[Node]) && "Why pool allocate this?");
     AllocaInst *PD = cast<AllocaInst>(PoolDescriptors[Node]);
     
