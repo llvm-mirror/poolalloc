@@ -24,3 +24,6 @@ all::
 #
 include $(LEVEL)/Makefile.common
 
+distclean:: clean
+	${RM} -f Makefile.common Makefile.config
+
