@@ -42,6 +42,7 @@ namespace {
   Statistic<> NumTSPools  ("poolalloc", "Number of typesafe pools");
   Statistic<> NumPoolFree ("poolalloc", "Number of poolfree's elided");
   Statistic<> NumNonprofit("poolalloc", "Number of DSNodes not profitable");
+  Statistic<> NumColocated("poolalloc", "Number of DSNodes colocated");
 
   const Type *VoidPtrTy;
 
@@ -361,77 +362,6 @@ void PoolAllocate::BuildIndirectFunctionSets(Module &M) {
 }
 
 
-
-// SetupGlobalPools - Create global pools for all DSNodes in the globals graph
-// which contain heap objects.  If a global variable points to a piece of memory
-// allocated from the heap, this pool gets a global lifetime.  This is
-// implemented by making the pool descriptor be a global variable of it's own,
-// and initializing the pool on entrance to main.  Note that we never destroy
-// the pool, because it has global lifetime.
-//
-// This method returns true if correct pool allocation of the module cannot be
-// performed because there is no main function for the module and there are
-// global pools.
-//
-bool PoolAllocate::SetupGlobalPools(Module &M) {
-  // Get the globals graph for the program.
-  DSGraph &GG = BU->getGlobalsGraph();
-
-  // Get all of the nodes reachable from globals.
-  hash_set<DSNode*> GlobalHeapNodes;
-  GetNodesReachableFromGlobals(GG, GlobalHeapNodes);
-
-  // Filter out all nodes which have no heap allocations merged into them.
-  for (hash_set<DSNode*>::iterator I = GlobalHeapNodes.begin(),
-         E = GlobalHeapNodes.end(); I != E; ) {
-    hash_set<DSNode*>::iterator Last = I++;
-    if (!(*Last)->isHeapNode())
-      GlobalHeapNodes.erase(Last);
-  }
-  
-  // If we don't need to create any global pools, exit now.
-  if (GlobalHeapNodes.empty()) return false;
-
-  // Otherwise get the main function to insert the poolinit calls.
-  Function *MainFunc = M.getMainFunction();
-  if (MainFunc == 0 || MainFunc->isExternal()) {
-    std::cerr << "Cannot pool allocate this program: it has global "
-              << "pools but no 'main' function yet!\n";
-    return true;
-  }
-
-  BasicBlock::iterator InsertPt = MainFunc->getEntryBlock().begin();
-  while (isa<AllocaInst>(InsertPt)) ++InsertPt;
-  
-  TargetData &TD = getAnalysis<TargetData>();
-
-
-  std::cerr << "Pool allocating " << GlobalHeapNodes.size()
-            << " global nodes!\n";
-
-  // Loop over all of the pools, creating a new global pool descriptor,
-  // inserting a new entry in GlobalNodes, and inserting a call to poolinit in
-  // main.
-  for (hash_set<DSNode*>::iterator I = GlobalHeapNodes.begin(),
-         E = GlobalHeapNodes.end(); I != E; ++I) {
-    GlobalVariable *GV =
-      new GlobalVariable(PoolDescType, false, GlobalValue::InternalLinkage, 
-                         Constant::getNullValue(PoolDescType), "GlobalPool",&M);
-    GlobalNodes[*I] = GV;
-
-    Value *ElSize =
-      ConstantUInt::get(Type::UIntTy, (*I)->getType()->isSized() ? 
-                        TD.getTypeSize((*I)->getType()) : 0);
-    new CallInst(PoolInit, make_vector((Value*)GV, ElSize, 0), "", InsertPt);
-
-    ++NumPools;
-    if (!(*I)->isNodeCompletelyFolded())
-      ++NumTSPools;
-  }
-
-  return false;
-}
-
 void PoolAllocate::FindFunctionPoolArgs(Function &F) {
   DSGraph &G = BU->getDSGraph(F);
 
@@ -576,6 +506,98 @@ static void POVisit(DSNode *N, std::set<DSNode*> &Visited,
   Order.push_back(N);
 }
 
+
+
+// SetupGlobalPools - Create global pools for all DSNodes in the globals graph
+// which contain heap objects.  If a global variable points to a piece of memory
+// allocated from the heap, this pool gets a global lifetime.  This is
+// implemented by making the pool descriptor be a global variable of it's own,
+// and initializing the pool on entrance to main.  Note that we never destroy
+// the pool, because it has global lifetime.
+//
+// This method returns true if correct pool allocation of the module cannot be
+// performed because there is no main function for the module and there are
+// global pools.
+//
+bool PoolAllocate::SetupGlobalPools(Module &M) {
+  // Get the globals graph for the program.
+  DSGraph &GG = BU->getGlobalsGraph();
+
+  // Get all of the nodes reachable from globals.
+  hash_set<DSNode*> GlobalHeapNodes;
+  GetNodesReachableFromGlobals(GG, GlobalHeapNodes);
+
+  // Filter out all nodes which have no heap allocations merged into them.
+  for (hash_set<DSNode*>::iterator I = GlobalHeapNodes.begin(),
+         E = GlobalHeapNodes.end(); I != E; ) {
+    hash_set<DSNode*>::iterator Last = I++;
+    if (!(*Last)->isHeapNode())
+      GlobalHeapNodes.erase(Last);
+  }
+  
+  // If we don't need to create any global pools, exit now.
+  if (GlobalHeapNodes.empty()) return false;
+
+  // Otherwise get the main function to insert the poolinit calls.
+  Function *MainFunc = M.getMainFunction();
+  if (MainFunc == 0 || MainFunc->isExternal()) {
+    std::cerr << "Cannot pool allocate this program: it has global "
+              << "pools but no 'main' function yet!\n";
+    return true;
+  }
+
+  BasicBlock::iterator InsertPt = MainFunc->getEntryBlock().begin();
+  while (isa<AllocaInst>(InsertPt)) ++InsertPt;
+  
+  TargetData &TD = getAnalysis<TargetData>();
+
+
+  std::cerr << "Pool allocating " << GlobalHeapNodes.size()
+            << " global nodes!\n";
+
+  // Loop over all of the pools, creating a new global pool descriptor,
+  // inserting a new entry in GlobalNodes, and inserting a call to poolinit in
+  // main.
+  for (hash_set<DSNode*>::iterator I = GlobalHeapNodes.begin(),
+         E = GlobalHeapNodes.end(); I != E; ++I) {
+    bool ShouldPoolAlloc = true;
+    switch (Heuristic) {
+    case AllNodes: break;
+    case NoNodes: ShouldPoolAlloc = false; break;
+    case SmartCoallesceNodes:
+      if ((*I)->isArray())
+        ShouldPoolAlloc = false;
+      // fall through
+    case CyclicNodes:
+      if (!NodeExistsInCycle(*I))
+        ShouldPoolAlloc = false;
+      break;
+    }
+
+    if (ShouldPoolAlloc) {
+      GlobalVariable *GV =
+        new GlobalVariable(PoolDescType, false, GlobalValue::InternalLinkage, 
+                        Constant::getNullValue(PoolDescType), "GlobalPool",&M);
+      GlobalNodes[*I] = GV;
+      
+      Value *ElSize =
+        ConstantUInt::get(Type::UIntTy, (*I)->getType()->isSized() ? 
+                          TD.getTypeSize((*I)->getType()) : 0);
+      new CallInst(PoolInit, make_vector((Value*)GV, ElSize, 0), "", InsertPt);
+      
+      ++NumPools;
+      if (!(*I)->isNodeCompletelyFolded())
+        ++NumTSPools;
+    } else {
+      GlobalNodes[*I] =
+        Constant::getNullValue(PointerType::get(PoolDescType));
+      ++NumNonprofit;
+    }
+  }
+
+  return false;
+}
+
 // CreatePools - This creates the pool initialization and destruction code for
 // the DSNodes specified by the NodesToPA list.  This adds an entry to the
 // PoolDescriptors map for each DSNode.
@@ -715,6 +737,7 @@ void PoolAllocate::CreatePools(Function &F,
             // If all of the predecessors of this node are already in a pool,
             // colocate.
             PoolDescriptors[N] = PredPool;
+            ++NumColocated;
           } else if (HasArrayPred || HasUnvisitedPred) {
             // If this node has an array predecessor, or if there is a
             // predecessor that has not been visited yet, allocate a new pool
