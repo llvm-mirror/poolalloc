@@ -84,6 +84,14 @@ namespace PA {
     /// the values they correspond to in the old function.
     ///
     std::map<Value*, const Value*> NewToOldValueMap;
+
+    /// MapValueToOriginal - Given a value in the cloned version of this
+    /// function, map it back to the original.
+    Value *MapValueToOriginal(Value *V) const {
+      std::map<Value*,const Value*>::const_iterator I =NewToOldValueMap.find(V);
+      assert(I != NewToOldValueMap.end() && "This is not a cloned value!");
+      return const_cast<Value*>(I->second);
+    }
   };
 
 }; // end PA namespace
