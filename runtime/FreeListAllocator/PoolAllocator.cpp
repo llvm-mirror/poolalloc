@@ -115,7 +115,7 @@ createSlab (PoolTy * Pool, unsigned int NodesPerSlab = 0)
 // Description:
 //  Find the slab that owns this block.
 //
-struct SlabHeader *
+inline struct SlabHeader *
 BlockOwner (unsigned int PageSize, NodePointer p)
 {
   //
@@ -130,36 +130,10 @@ BlockOwner (unsigned int PageSize, NodePointer p)
 // Description:
 //  This function finds the slab that owns this data block.
 //
-struct SlabHeader *
+inline struct SlabHeader *
 DataOwner (unsigned int PageSize, void * p)
 {
   return reinterpret_cast<struct SlabHeader *>(reinterpret_cast<unsigned int>(p) & ~(PageSize - 1));
-}
-
-//
-// Function: slabAlloc()
-//
-// Description:
-//  Increase the slab's reference count.
-//
-void
-slabAlloc (SlabHeader * Slab)
-{
-  Slab->LiveNodes++;
-  return;
-}
-
-//
-// Function: slabFree ()
-//
-// Description:
-//  Decrease the slab's reference count.
-//
-void
-slabFree (SlabHeader * Slab)
-{
-  Slab->LiveNodes--;
-  return;
 }
 
 //===----------------------------------------------------------------------===//
@@ -314,13 +288,6 @@ poolalloc(PoolTy *Pool, unsigned BytesWanted)
   }
 
   //
-  // Increase the slab's reference count.
-  //
-#if 0
-  slabAlloc (Pool->FreeList->Slab);
-#endif /* 0 */
-
-  //
   // Determine which slab owns this block.
   //
   struct SlabHeader * slabp = BlockOwner (PageSize, Pool->FreeList);
@@ -422,13 +389,6 @@ poolfree (PoolTy * Pool, void * Block)
   //
   NodePointer Node;
   Node.Next = &(slabp->BlockList[((unsigned char *)Block - slabp->Data)/Pool->NodeSize]);
-
-#if 0
-  //
-  // Decrease the slab's reference count.
-  //
-  slabFree (Node.header->Slab);
-#endif /* 0 */
 
   //
   // Add the node back to the free list.
