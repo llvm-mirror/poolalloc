@@ -131,22 +131,23 @@ PoolSlab *PoolSlab::create(PoolTy *Pool) {
   PS->UsedEnd     = 0;    // Nothing allocated.
 
   // Add the slab to the list...
-  PS->Next = (PoolSlab*)Pool->Slabs;
-  Pool->Slabs = PS;
+  PS->Next = (PoolSlab*)Pool->Ptr1;
+  Pool->Ptr1 = PS;
   return PS;
 }
 
 void *PoolSlab::createSingleArray(PoolTy *Pool, unsigned NumNodes) {
   PoolSlab *PS = (PoolSlab*)malloc(sizeof(PoolSlab) +
                                    Pool->NodeSize*NumNodes-1);
+  assert(NumNodes > NodesPerSlab && "No need to create a single array!");
   assert(PS && "poolalloc: Could not allocate memory!");
 
   PS->isSingleArray = 1;  // Not a single array!
   PS->markNodeAllocated(0);
 
   // Add the slab to the list...
-  PS->Next = (PoolSlab*)Pool->Slabs;
-  Pool->Slabs = PS;
+  PS->Next = (PoolSlab*)Pool->Ptr1;
+  Pool->Ptr1 = PS;
   return &PS->Data[0];
 }
 
@@ -342,7 +343,7 @@ void poolinit(PoolTy *Pool, unsigned NodeSize) {
 
   // We must alway return unique pointers, even if they asked for 0 bytes
   Pool->NodeSize = NodeSize ? NodeSize : 1;
-  Pool->Slabs = 0;
+  Pool->Ptr1 = 0;
   Pool->FreeablePool = 1;
 }
 
@@ -356,7 +357,7 @@ void poolmakeunfreeable(PoolTy *Pool) {
 void pooldestroy(PoolTy *Pool) {
   assert(Pool && "Null pool pointer passed in to pooldestroy!\n");
 
-  PoolSlab *PS = (PoolSlab*)Pool->Slabs;
+  PoolSlab *PS = (PoolSlab*)Pool->Ptr1;
   while (PS) {
     PoolSlab *Next = PS->Next;
     PS->destroy();
@@ -368,7 +369,7 @@ void *poolalloc(PoolTy *Pool) {
   assert(Pool && "Null pool pointer passed in to poolalloc!\n");
 
   unsigned NodeSize = Pool->NodeSize;
-  PoolSlab *PS = (PoolSlab*)Pool->Slabs;
+  PoolSlab *PS = (PoolSlab*)Pool->Ptr1;
 
   // Fastpath for allocation in the common case.
   if (PS) {
@@ -396,8 +397,8 @@ void poolfree(PoolTy *Pool, void *Node) {
   assert(Pool && "Null pool pointer passed in to poolfree!\n");
   unsigned NodeSize = Pool->NodeSize;
 
-  PoolSlab *PS = (PoolSlab*)Pool->Slabs;
-  PoolSlab **PPS = (PoolSlab**)&Pool->Slabs;
+  PoolSlab *PS = (PoolSlab*)Pool->Ptr1;
+  PoolSlab **PPS = (PoolSlab**)&Pool->Ptr1;
 
   // Search for the slab that contains this node...
   int Idx = PS->containsElement(Node, NodeSize);
@@ -431,7 +432,7 @@ void poolfree(PoolTy *Pool, void *Node) {
     assert(!PS->isSingleArray);
 
     *PPS = PS->Next;   // Unlink from the list of slabs...
-    PoolSlab *FirstSlab = (PoolSlab*)Pool->Slabs;
+    PoolSlab *FirstSlab = (PoolSlab*)Pool->Ptr1;
     
     // If we can free this pool, check to see if there are any empty slabs at
     // the start of this list.  If so, delete the FirstSlab!
@@ -447,7 +448,7 @@ void poolfree(PoolTy *Pool, void *Node) {
     // Link our slab onto the head of the list so that allocations will find it
     // efficiently.    
     PS->Next = FirstSlab;
-    Pool->Slabs = PS;
+    Pool->Ptr1 = PS;
   }
 }
 
@@ -458,7 +459,7 @@ void *poolallocarray(PoolTy* Pool, unsigned Size) {
     return PoolSlab::createSingleArray(Pool, Size);    
 
   // Loop through all of the slabs looking for one with an opening
-  PoolSlab *PS = (PoolSlab*)Pool->Slabs;
+  PoolSlab *PS = (PoolSlab*)Pool->Ptr1;
   for (; PS; PS = PS->Next) {
     int Element = PS->allocateMultiple(Size);
     if (Element != -1)

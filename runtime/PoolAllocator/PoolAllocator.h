@@ -16,8 +16,8 @@
 #define POOLALLOCATOR_RUNTIME_H
 
 typedef struct PoolTy {
-  // Slabs - An implementation specified data pointer.
-  void *Slabs;
+  // Ptr1, Ptr2 - Implementation specified data pointers.
+  void *Ptr1, *Ptr2;
 
   // NodeSize - Keep track of the object size tracked by this pool
   unsigned NodeSize;
