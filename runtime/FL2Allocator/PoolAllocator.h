@@ -205,9 +205,9 @@ extern "C" {
   void *poolinit_pc(PoolTy<CompressedPoolTraits> *Pool, unsigned NodeSize,
                     unsigned ObjAlignment);
   void pooldestroy_pc(PoolTy<CompressedPoolTraits> *Pool);
-  unsigned long poolalloc_pc(PoolTy<CompressedPoolTraits> *Pool,
-                             unsigned NumBytes);
-  void poolfree_pc(PoolTy<CompressedPoolTraits> *Pool, unsigned long Node);
+  unsigned long long poolalloc_pc(PoolTy<CompressedPoolTraits> *Pool,
+                                  unsigned NumBytes);
+  void poolfree_pc(PoolTy<CompressedPoolTraits> *Pool, unsigned long long Node);
   //void *poolmemalign_pc(PoolTy *Pool, unsigned Alignment, unsigned NumBytes);
 }
 

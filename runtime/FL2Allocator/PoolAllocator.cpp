@@ -840,11 +840,13 @@ void *poolinit_pc(PoolTy<CompressedPoolTraits> *Pool,
       break;
     }
 
+
+
   if (Pool->Slabs == 0) {
     // Didn't find an existing pool, create one.
     Pool->Slabs = (PoolSlab<CompressedPoolTraits>*)
                      mmap(0, POOLSIZE, PROT_READ|PROT_WRITE,
-                          MAP_PRIVATE|MAP_NORESERVE|MAP_ANONYMOUS, 0, 0);
+                          MAP_PRIVATE|MAP_NORESERVE|MAP_ANONYMOUS, -1, 0);
     DO_IF_TRACE(fprintf(stderr, "RESERVED ADDR SPACE: %p -> %p\n",
                         Pool->Slabs, (char*)Pool->Slabs+POOLSIZE));
   }
@@ -874,13 +876,13 @@ void pooldestroy_pc(PoolTy<CompressedPoolTraits> *Pool) {
   munmap(Pool->Slabs, POOLSIZE);
 }
 
-unsigned long poolalloc_pc(PoolTy<CompressedPoolTraits> *Pool,
-                           unsigned NumBytes) {
+unsigned long long poolalloc_pc(PoolTy<CompressedPoolTraits> *Pool,
+                                unsigned NumBytes) {
   void *Result = poolalloc_internal(Pool, NumBytes);
   return (char*)Result-(char*)Pool->Slabs;
 }
 
-void poolfree_pc(PoolTy<CompressedPoolTraits> *Pool, unsigned long Node) {
+void poolfree_pc(PoolTy<CompressedPoolTraits> *Pool, unsigned long long Node) {
   poolfree_internal(Pool, (char*)Pool->Slabs+Node);
 }
 
