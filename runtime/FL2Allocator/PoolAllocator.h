@@ -86,6 +86,9 @@ struct PoolTy {
   // The free node lists for objects of various sizes.  
   FreedNodeHeader *FreeNodeLists[4];
 
+  // Alignment - The required alignment of allocations the pool in bytes.
+  unsigned Alignment;
+
   // NumObjects - the number of poolallocs for this pool.
   unsigned NumObjects;
 
