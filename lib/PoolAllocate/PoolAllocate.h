@@ -13,9 +13,9 @@
 #include "llvm/Pass.h"
 #include "llvm/DerivedTypes.h"
 #include "llvm/Support/CallSite.h"
-#include "Support/EquivalenceClasses.h"
-#include "Support/VectorExtras.h"
-#include "Support/hash_set"
+#include "llvm/ADT/EquivalenceClasses.h"
+#include "llvm/ADT/VectorExtras.h"
+#include "llvm/ADT/hash_set"
 #include <set>
 
 namespace llvm {
