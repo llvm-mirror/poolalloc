@@ -322,3 +322,29 @@ LargeArrayCase:
     LAH->Next->Prev = LAH->Prev;
   free(LAH);
 }
+
+unsigned poolobjsize(PoolTy *Pool, void *Node) {
+  if (Node == 0) return 0;
+
+  // If a null pool descriptor is passed in, this is not a pool allocated data
+  // structure.  We don't really have any way to service this!!
+  if (Pool == 0) {
+    fprintf(stderr, "ERROR: Cannot call poolobjsize on a pool that is getting"
+            " memory from the heap.  Sorry!\n");
+    abort();
+  }
+
+  // Check to see how many elements were allocated to this node...
+  FreedNodeHeader *FNH = (FreedNodeHeader*)((char*)Node-sizeof(NodeHeader));
+  assert((FNH->Header.Size & 1) && "Node not allocated!");
+  if (Size != ~1U) return FNH->Header.Size & ~1;
+
+  // Otherwise, we have a large array.
+  //LargeArrayHeader *LAH = ((LargeArrayHeader*)Node)-1;
+
+  // Note that we don't have a size for this object either, because we got it
+  // from malloc. :(
+  fprintf(stderr, "ERROR: Cannot call poolobjsize on a large array object.  "
+          "Sorry!\n");
+  abort();
+}

@@ -93,6 +93,13 @@ extern "C" {
   void pooldestroy(PoolTy *Pool);
   void *poolalloc(PoolTy *Pool, unsigned NumBytes);
   void poolfree(PoolTy *Pool, void *Node);
+
+  /// poolobjsize - Reutrn the size of the object at the specified address, in
+  /// the specified pool.  Note that this cannot be used in normal cases, as it
+  /// is completely broken if things land in the system heap.  Perhaps in the
+  /// future.  :(
+  ///
+  unsigned poolobjsize(PoolTy *Pool, void *Node);
 }
 
 #endif
