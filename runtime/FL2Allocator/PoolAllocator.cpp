@@ -26,6 +26,9 @@
 
 #define PageSize (18U*1024U)
 
+#define DEBUG(X)
+//#define DEBUG(X) X
+
 // PoolSlab Structure - Hold multiple objects of the current node type.
 // Invariants: FirstUnused <= UsedEnd
 //
@@ -75,7 +78,7 @@ void poolinit(PoolTy *Pool) {
   Pool->FreeNodeList = 0;
   Pool->LargeArrays = 0;
 
-  //printf("init pool 0x%X\n", Pool);
+  DEBUG(printf("init pool 0x%X\n", Pool));
 }
 
 // pooldestroy - Release all memory allocated for a pool
@@ -83,7 +86,7 @@ void poolinit(PoolTy *Pool) {
 void pooldestroy(PoolTy *Pool) {
   assert(Pool && "Null pool pointer passed in to pooldestroy!\n");
 
-  //printf("destroy pool 0x%X\n", Pool);
+  DEBUG(printf("destroy pool 0x%X\n", Pool));
 
   // Free all allocated slabs.
   PoolSlab *PS = Pool->Slabs;
@@ -112,8 +115,7 @@ void *poolalloc(PoolTy *Pool, unsigned NumBytes) {
 
   // Fast path.  In the common case, we can allocate a portion of the node at
   // the front of the free list.
-  if (Pool->FreeNodeList) {
-    FreedNodeHeader *FirstNode = Pool->FreeNodeList;
+  if (FreedNodeHeader *FirstNode = Pool->FreeNodeList) {
     unsigned FirstNodeSize = FirstNode->Size;
     if (FirstNodeSize > 2*NumBytes+sizeof(NodeHeader)) {
       // Put the remainder back on the list...
@@ -123,12 +125,14 @@ void *poolalloc(PoolTy *Pool, unsigned NumBytes) {
       NextNodes->NormalHeader.Next = FirstNode->NormalHeader.Next;
       Pool->FreeNodeList = NextNodes;
       FirstNode->NormalHeader.ObjectSize = NumBytes;
-      //printf("alloc 0x%X -> 0x%X\n", Pool, &FirstNode->NormalHeader+1);
+      DEBUG(printf("alloc Pool:0x%X Bytes:%d -> 0x%X\n", Pool, NumBytes, 
+                   &FirstNode->NormalHeader+1));
       return &FirstNode->NormalHeader+1;
     } else if (FirstNodeSize > NumBytes) {
       Pool->FreeNodeList = FirstNode->NormalHeader.Next;   // Unlink
       FirstNode->NormalHeader.ObjectSize = FirstNodeSize;
-      //printf("alloc 0x%X -> 0x%X\n", Pool, &FirstNode->NormalHeader+1);
+      DEBUG(printf("alloc Pool:0x%X Bytes:%d -> 0x%X\n", Pool, NumBytes, 
+                   &FirstNode->NormalHeader+1));
       return &FirstNode->NormalHeader+1;
     }
   }
@@ -156,12 +160,14 @@ void *poolalloc(PoolTy *Pool, unsigned NumBytes) {
           NextNodes->NormalHeader.Next = FNN->NormalHeader.Next;
           *FN = NextNodes;
           FNN->NormalHeader.ObjectSize = NumBytes;
-          //printf("alloc 0x%X -> 0x%X\n", Pool, &FNN->NormalHeader+1);
+          DEBUG(printf("alloc Pool:0x%X Bytes:%d -> 0x%X\n", Pool, NumBytes, 
+                       &FNN->NormalHeader+1));
           return &FNN->NormalHeader+1;
         } else {
           *FN = FNN->NormalHeader.Next;   // Unlink
           FNN->NormalHeader.ObjectSize = FNN->Size;
-          //printf("alloc 0x%X -> 0x%X\n", Pool, &FNN->NormalHeader+1);
+          DEBUG(printf("alloc Pool:0x%X Bytes:%d -> 0x%X\n", Pool, NumBytes,
+                       &FNN->NormalHeader+1));
           return &FNN->NormalHeader+1;
         }
       }
@@ -182,7 +188,8 @@ void *poolalloc(PoolTy *Pool, unsigned NumBytes) {
   Pool->LargeArrays = LAH;
   LAH->Prev = &Pool->LargeArrays;
   LAH->Marker = ~0U;
-  //printf("alloc large 0x%X -> 0x%X\n", Pool, LAH+1);
+  DEBUG(printf("alloc large Pool:0x%X NumBytes:%d -> 0x%X\n", Pool,
+               NumBytes, LAH+1));
   return LAH+1;
 }
 
@@ -193,7 +200,7 @@ void poolfree(PoolTy *Pool, void *Node) {
   if (Pool == 0) { free(Node); return; }
   if (Node == 0) return;
 
-  //printf("free 0x%X <- 0x%X\n", Pool, Node);
+  DEBUG(printf("free 0x%X <- 0x%X\n", Pool, Node));
 
   // Check to see how many elements were allocated to this node...
   FreedNodeHeader *FNH = (FreedNodeHeader*)((char*)Node-sizeof(NodeHeader));
