@@ -192,7 +192,9 @@ static void MarkNodesWhichMustBePassedIn(hash_set<DSNode*> &MarkedNodes,
 const PA::EquivClassInfo &PoolAllocate::getECIForIndirectCallSite(CallSite CS) {
   Instruction *I = CS.getInstruction();
   assert(I && "Not a call site?");
-  assert(OneCalledFunction.count(I) && "No targets for indcall?");
+
+  if (!OneCalledFunction.count(I))
+    return ECInfoForLeadersMap[0];    // Special null function for empty graphs
   Function *Called = OneCalledFunction[I];
   Function *Leader = FuncECs.findClass(Called);
   assert(Leader && "Leader not found for indirect call target!");
