@@ -21,6 +21,6 @@ test::
 
 vtl::
 	(cd $(LLVM_OBJ_ROOT)/test/Programs/$(SUBDIR); \
-               PROJECT_DIR=$(BUILD_OBJ_ROOT) $(MAKE) TEST=vtl DOPA=1 \
+               PROJECT_DIR=$(BUILD_OBJ_ROOT) $(MAKE) TEST=pavtl \
                    test)
 	@printf "\a"; sleep 1; printf "\a"; sleep 1; printf "\a"

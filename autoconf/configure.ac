@@ -29,6 +29,7 @@ AC_CONFIG_MAKEFILE(runtime/PoolAllocator/Makefile)
 AC_CONFIG_MAKEFILE(runtime/FreeListAllocator/Makefile)
 AC_CONFIG_MAKEFILE(test/Makefile)
 AC_CONFIG_MAKEFILE(test/TEST.poolalloc.Makefile)
+AC_CONFIG_MAKEFILE(test/TEST.pavtl.Makefile)
 
 dnl **************************************************************************
 dnl * Determine which system we are building on
