@@ -9,6 +9,11 @@ CFLAGS = -O3
 
 EXTRA_PA_FLAGS := -poolalloc-force-simple-pool-init
 
+ifdef DISABLE_PROFITABILITY
+EXTRA_PA_FLAGS += -poolalloc-heuristic=AllPools
+endif
+
+
 CURDIR  := $(shell cd .; pwd)
 PROGDIR := $(shell cd $(LEVEL)/test/Programs; pwd)/
 RELDIR  := $(subst $(PROGDIR),,$(CURDIR))
@@ -83,10 +88,14 @@ Output/%.$(TEST).report.txt: Output/%.$(TEST).transformed.bc Output/%.exe-cbe \
 			     Output/%.poolalloc.diff-cbe
 	@echo > $@
 	@-if test -f Output/$*.poolalloc.diff-cbe; then \
-	  printf "CBE-RUN-TIME-NORMAL: " >> $@;\
-	  grep "^real" Output/$*.out-cbe.time >> $@;\
-	  printf "CBE-RUN-TIME-POOLALLOC: " >> $@;\
-	  grep "^real" Output/$*.poolalloc.out-cbe.time >> $@;\
+	  printf "CBE-RUN-TIME-NORMAL-USER: " >> $@;\
+	  grep "^user" Output/$*.out-cbe.time >> $@;\
+	  printf "CBE-RUN-TIME-NORMAL-SYS: " >> $@;\
+	  grep "^sys" Output/$*.out-cbe.time >> $@;\
+	  printf "CBE-RUN-TIME-POOLALLOC-USER: " >> $@;\
+	  grep "^user" Output/$*.poolalloc.out-cbe.time >> $@;\
+	  printf "CBE-RUN-TIME-POOLALLOC-SYS: " >> $@;\
+	  grep "^sys" Output/$*.poolalloc.out-cbe.time >> $@;\
 	fi
 
 	@cat Output/$*.$(TEST).transformed.bc.info >> $@

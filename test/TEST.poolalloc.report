@@ -10,13 +10,23 @@ $TrimRepeatedPrefix = 1;
 
 sub Ratio {
   my ($Cols, $Col) = @_;
-  if ($Cols->[$Col-1] ne "*" and $Cols->[$Col-2] ne "*" and
+  if ($Cols->[$Col-1] ne "*" and $Cols->[$Col-4] ne "*" and
       $Cols->[$Col-1] != "0") {
-    return sprintf "%1.3f", $Cols->[$Col-2]/$Cols->[$Col-1];
+    return sprintf "%1.3f", $Cols->[$Col-4]/$Cols->[$Col-1];
   } else {
     return "n/a";
   }
 }
+
+sub Sum {
+  my ($Cols, $Col) = @_;
+  if ($Cols->[$Col-1] ne "*" and $Cols->[$Col-2] ne "*") {
+    return sprintf "%1.3f", $Cols->[$Col-2]+$Cols->[$Col-1];
+  } else {
+    return "n/a";
+  }
+}
+
 
 sub FormatTime {
   my $Time = shift;
@@ -68,13 +78,18 @@ my $PTRDIST   = 'MultiSource/Benchmarks/Ptrdist';
  ["Name:" , '\'([^\']+)\' Program'],
  [],
 # Times
- ["Normal<br>ExeTime"  ,  'CBE-RUN-TIME-NORMAL: real\s*([.0-9m:]+)',    \&FormatTime],
- ["PoolAlloc<br>ExeTime", 'CBE-RUN-TIME-POOLALLOC: real\s*([.0-9m:]+)', \&FormatTime],
+ ["NormalUser",    'CBE-RUN-TIME-NORMAL-USER: user\s*([.0-9m:]+)',    \&FormatTime],
+ ["NormalSys",    'CBE-RUN-TIME-NORMAL-SYS: sys\s*([.0-9m:]+)',    \&FormatTime],
+ ["NormalSum",     \&Sum],
+ ["PoolAllocUser", 'CBE-RUN-TIME-POOLALLOC-USER: user\s*([.0-9m:]+)', \&FormatTime],
+ ["PoolAllocSys", 'CBE-RUN-TIME-POOLALLOC-SYS: sys\s*([.0-9m:]+)', \&FormatTime],
+ ["NormalSum",     \&Sum],
  ["Speedup", \&Ratio],
  ["NumPools",             '([0-9]+).*Number of pools allocated'],
  ["NumTSPools",           '([0-9]+).*Number of typesafe pools'],
  ["NumArgs",              '([0-9]+).*Number of function arguments added'],
- ["NumPRElide",           '([0-9]+).*Number of poolfree.s elided'],
+ ["Nonprofit",            '([0-9]+).*Number of DSNodes not profitable'],
+ ["NumPFElide",           '([0-9]+).*Number of poolfree.s elided'],
  []
 );
 
