@@ -17,6 +17,40 @@ sub Ratio {
   }
 }
 
+@LatexColumns = (2, 3, 4, 5, 6, 7);
+
+my $OLDEN     = 'MultiSource/Benchmarks/Olden';
+my $FREEBENCH = 'MultiSource/Benchmarks/FreeBench';
+my $PTRDIST   = 'MultiSource/Benchmarks/Ptrdist';
+
+@LatexRowMapOrder = (
+                     "$OLDEN/bh/bh"           => 'bh',
+                     "$OLDEN/bisort/bisort"   => 'bisort',
+                     "$OLDEN/em3d/em3d"       => 'em3d',
+                     "$OLDEN/health/health"   => 'health',
+                     "$OLDEN/mst/mst"         => 'mst',
+                     "$OLDEN/perimeter/perimeter" => 'perimeter',
+                     "$OLDEN/power/power"     => 'power',
+                     "$OLDEN/treeadd/treeadd" => 'treeadd',
+                     "$OLDEN/tsp/tsp"         => 'tsp',
+                     "$OLDEN/voronoi/voronoi" => 'voronoi',
+                     '-' => '-',
+                     "$FREEBENCH/analyzer/analyzer"     => 'analyzer',
+#                     "$FREEBENCH/distray/distray"       => 'distray',
+#                     "$FREEBENCH/fourinarow/fourinarow" => 'fourinarow',
+#                     "$FREEBENCH/mason/mason"           => 'mason',
+                     "$FREEBENCH/neural/neural"         => 'neural',
+                     "$FREEBENCH/pcompress2/pcompress2" => 'pcompress2',
+                     "$FREEBENCH/pifft/pifft"           => 'pifft',
+                     '-' => '-',
+                     "$PTRDIST/anagram/anagram"       => 'anagram',
+                     "$PTRDIST/bc/bc"                 => 'bc',
+                     "$PTRDIST/ft/ft"                 => 'ft',
+                     "$PTRDIST/ks/ks"                 => 'ks',
+                     "$PTRDIST/yacr2/yacr2"           => 'yacr2',
+                  );
+
+
 # These are the columns for the report.  The first entry is the header for the
 # column, the second is the regex to use to match the value.  Empty list create
 # seperators, and closures may be put in for custom processing.
@@ -29,7 +63,7 @@ sub Ratio {
  ["PoolAlloc<br>ExeTime", 'CBE-RUN-TIME-POOLALLOC: real[\t ]+0m([0-9.]+)'],
  ["Speedup", \&Ratio],
  ["NumPools",             '([0-9]+).*Number of pools allocated'],
- ["NumCloned",            '([0-9]+).*Number of functions cloned'],
+ ["NumTSPools",           '([0-9]+).*Number of typesafe pools'],
  ["NumArgs",              '([0-9]+).*Number of function arguments added'],
  ["NumPRElide",           '([0-9]+).*Number of poolfree.s elided'],
  []
