@@ -40,10 +40,13 @@ struct FreedNodeHeader {
 
 
 // Large Arrays are passed on to directly malloc, and are not necessarily page
-// aligned.  These arrays are marked by setting the object size preheader to ~0.
+// aligned.  These arrays are marked by setting the object size preheader to ~1.
 // LargeArrays are on their own list to allow for efficient deletion.
 struct LargeArrayHeader {
   LargeArrayHeader **Prev, *Next;
+
+  // Size - This contains the size of the object.
+  unsigned long Size;
   
   // Marker: this is the ObjectSize marker which MUST BE THE LAST ELEMENT of
   // this header!

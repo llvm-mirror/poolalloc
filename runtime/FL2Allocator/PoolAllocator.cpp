@@ -265,6 +265,7 @@ void *poolalloc(PoolTy *Pool, unsigned NumBytes) {
     LAH->Next->Prev = &LAH->Next;
   Pool->LargeArrays = LAH;
   LAH->Prev = &Pool->LargeArrays;
+  LAH->Size = NumBytes;
   LAH->Marker = ~0U;
   DEBUG(printf("alloc large Pool:0x%X NumBytes:%d -> 0x%X\n", Pool,
                NumBytes, LAH+1));
@@ -341,11 +342,6 @@ unsigned poolobjsize(PoolTy *Pool, void *Node) {
   if (Size != ~1U) return Size;
 
   // Otherwise, we have a large array.
-  //LargeArrayHeader *LAH = ((LargeArrayHeader*)Node)-1;
-
-  // Note that we don't have a size for this object either, because we got it
-  // from malloc. :(
-  fprintf(stderr, "ERROR: Cannot call poolobjsize on a large array object.  "
-          "Sorry!\n");
-  abort();
+  LargeArrayHeader *LAH = ((LargeArrayHeader*)Node)-1;
+  return LAH->Size;
 }
