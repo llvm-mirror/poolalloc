@@ -250,8 +250,8 @@ void poolinit_bp(PoolTy *Pool, unsigned ObjAlignment) {
   Pool->FreeNodeLists[0] = 0;   // This is our bump pointer.
   Pool->FreeNodeLists[1] = 0;   // This is our end pointer.
 
-  DO_IF_TRACE(fprintf(stderr, "[%d] poolinit_bp(0x%X, %d)\n", addPoolNumber(Pool),
-                      Pool, ObjAlignment));
+  DO_IF_TRACE(fprintf(stderr, "[%d] poolinit_bp(0x%X, %d)\n",
+                      addPoolNumber(Pool), Pool, ObjAlignment));
   DO_IF_PNP(++PoolsInited);  // Track # pools initialized
   DO_IF_PNP(InitPrintNumPools());
 }
@@ -264,6 +264,9 @@ void *poolalloc_bp(PoolTy *Pool, unsigned NumBytes) {
 
   if (NumBytes >= LARGE_SLAB_SIZE)
     goto LargeObject;
+
+  DO_IF_PNP(++Pool->NumObjects);
+  DO_IF_PNP(Pool->BytesAllocated += NumBytes);
 
   if (NumBytes < 1) NumBytes = 1;
 
@@ -397,8 +400,8 @@ void *poolalloc(PoolTy *Pool, unsigned NumBytes) {
   NumBytes = NumBytes+sizeof(FreedNodeHeader)+(Alignment-1);      // Round up
   NumBytes = (NumBytes & ~(Alignment-1))-sizeof(FreedNodeHeader); // Truncate
 
-  ++Pool->NumObjects;
-  Pool->BytesAllocated += NumBytes;
+  DO_IF_PNP(++Pool->NumObjects);
+  DO_IF_PNP(Pool->BytesAllocated += NumBytes);
 
   if (NumBytes >= LARGE_SLAB_SIZE-sizeof(PoolSlab)-sizeof(NodeHeader))
     goto LargeObject;
