@@ -1030,11 +1030,6 @@ static bool PoolIsCompressible(const DSNode *N) {
   }
 #endif
 
-  if (N->isArray()) {
-    DEBUG(std::cerr << "Node is an array (not yet handled!):\n");
-    return false;
-  }
-
   if ((N->getNodeFlags() & DSNode::Composition) != DSNode::HeapNode) {
     DEBUG(std::cerr << "Node contains non-heap values:\n");
     return false;
