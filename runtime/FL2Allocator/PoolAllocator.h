@@ -47,7 +47,7 @@ struct LargeArrayHeader {
   
   // Marker: this is the ObjectSize marker which MUST BE THE LAST ELEMENT of
   // this header!
-  unsigned Marker;
+  unsigned long Marker;
 };
 
 
