@@ -87,7 +87,7 @@ class PoolAllocate : public ModulePass {
 
  public:
 
-  Function *PoolInit, *PoolDestroy, *PoolAlloc, *PoolAllocArray, *PoolFree;
+  Function *PoolInit, *PoolDestroy, *PoolAlloc, *PoolRealloc, *PoolFree;
   static const Type *PoolDescPtrTy;
 
   /// GlobalNodes - For each node (with an H marker) in the globals graph, this

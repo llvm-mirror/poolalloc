@@ -157,20 +157,25 @@ void PoolAllocate::AddPoolPrototypes() {
 
   CurModule->addTypeName("PoolDescriptor", PoolDescType);
   
-  // Get poolinit function...
+  // Get poolinit function.
   PoolInit = CurModule->getOrInsertFunction("poolinit", Type::VoidTy,
                                             PoolDescPtrTy, Type::UIntTy, 0);
 
-  // Get pooldestroy function...
+  // Get pooldestroy function.
   PoolDestroy = CurModule->getOrInsertFunction("pooldestroy", Type::VoidTy,
                                                PoolDescPtrTy, 0);
   
-  // The poolalloc function
+  // The poolalloc function.
   PoolAlloc = CurModule->getOrInsertFunction("poolalloc", 
                                              VoidPtrTy, PoolDescPtrTy,
                                              Type::UIntTy, 0);
   
-  // Get the poolfree function...
+  // The poolrealloc function.
+  PoolRealloc = CurModule->getOrInsertFunction("poolrealloc",
+                                               VoidPtrTy, PoolDescPtrTy,
+                                               VoidPtrTy, Type::UIntTy, 0);
+
+  // Get the poolfree function.
   PoolFree = CurModule->getOrInsertFunction("poolfree", Type::VoidTy,
                                             PoolDescPtrTy, VoidPtrTy, 0);  
 }
