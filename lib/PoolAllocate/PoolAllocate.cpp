@@ -39,7 +39,7 @@ const Type *PoolAllocate::PoolDescPtrTy = 0;
 namespace {
   RegisterOpt<PoolAllocate>
   X("poolalloc", "Pool allocate disjoint data structures");
-  RegisterPass<PoolAllocatePassAllPools>
+  RegisterOpt<PoolAllocatePassAllPools>
   Y("poolalloc-passing-all-pools", "Pool allocate disjoint data structures");
 
   Statistic<> NumArgsAdded("poolalloc", "Number of function arguments added");
