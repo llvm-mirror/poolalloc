@@ -60,8 +60,8 @@ my $PTRDIST   = 'MultiSource/Benchmarks/Ptrdist';
  ["OnlyOHTime", 'CBE-RUN-TIME-ONLYOVERHEAD: program\s*([.0-9m:]+)'],
  ["OO run%", \&RuntimePercent],
 
- ["AllNodesTime", 'CBE-RUN-TIME-ALLNODES: program\s*([.0-9m:]+)'],
- ["AN run%", \&RuntimePercent],
+ ["MallocReplTime", 'CBE-RUN-TIME-MALLOCREPL: program\s*([.0-9m:]+)'],
+ ["MR run%", \&RuntimePercent],
 
  ["PoolAllocTime", 'CBE-RUN-TIME-POOLALLOC: program\s*([.0-9m:]+)'],
  ["PA run%", \&RuntimePercent],
