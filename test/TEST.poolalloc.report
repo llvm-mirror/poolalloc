@@ -6,6 +6,7 @@
 
 # Sort by program name
 $SortCol = 0;
+$TrimRepeatedPrefix = 1;
 
 sub Ratio {
   my ($Cols, $Col) = @_;
