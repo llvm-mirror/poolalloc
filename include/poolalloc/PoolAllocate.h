@@ -13,10 +13,12 @@
 #include "llvm/Pass.h"
 #include "llvm/DerivedTypes.h"
 #include "llvm/Support/CallSite.h"
-#include "Support/hash_set"
-#include "Support/VectorExtras.h"
 #include "Support/EquivalenceClasses.h"
+#include "Support/VectorExtras.h"
+#include "Support/hash_set"
 #include <set>
+
+namespace llvm {
 
 class BUDataStructures;
 class TDDataStructures;
@@ -33,6 +35,8 @@ namespace PA {
   /// maps to the original function...
   ///
   struct FuncInfo {
+    FuncInfo() : Clone(0) {}
+
     /// MarkedNodes - The set of nodes which are not locally pool allocatable in
     /// the current function.
     ///
@@ -45,11 +49,13 @@ namespace PA {
     /// 
     std::vector<DSNode*> ArgNodes;
 
+#if 0
     /// In order to handle indirect functions, the start and end of the 
     /// arguments that are useful to this function. 
     /// The pool arguments useful to this function are PoolArgFirst to 
     /// PoolArgLast not inclusive.
     int PoolArgFirst, PoolArgLast;
+#endif
     
     /// PoolDescriptors - The Value* (either an argument or an alloca) which
     /// defines the pool descriptor for this DSNode.  Pools are mapped one to
@@ -69,6 +75,27 @@ namespace PA {
     ///
     std::map<Value*, const Value*> NewToOldValueMap;
   };
+
+  struct EquivClassInfo {
+    // FuncsInClass - This is a list of all of the functions in this equiv
+    // class.
+    std::vector<Function*> FuncsInClass;
+
+    // G - The DSGraph which contains a union of all of the nodes in this
+    // equivalence class.
+    DSGraph *G;
+
+    // ECGraphToPrivateMap - This map, given a DSNode in the ECI DSGraph and a
+    // function, will tell you which DS node in the function DS graph this node
+    // corresponds to (or null if none).
+    std::map<std::pair<Function*,DSNode*>, DSNode*> ECGraphToPrivateMap;
+
+    // ArgNodes - The list of DSNodes which require arguments to be passed in
+    // for all members of this equivalence class.
+    std::vector<DSNode*> ArgNodes;
+
+    EquivClassInfo() : G(0) {}
+  };
 }
 
 
@@ -78,35 +105,36 @@ namespace PA {
 class PoolAllocate : public Pass {
   Module *CurModule;
   BUDataStructures *BU;
-
   TDDataStructures *TDDS;
 
-  hash_set<Function*> InlinedFuncs;
-  
   std::map<Function*, PA::FuncInfo> FunctionInfo;
 
-  // Debug function to print the FuncECs
-  void printFuncECs();
-  
+  // Equivalence class where functions that can potentially be called via the
+  // same function pointer are in the same class.
+  EquivalenceClasses<Function*> FuncECs;
+
+  // Each equivalence class leader has an EquivClassInfo object.  This map holds
+  // them.
+  typedef std::map<Function*, PA::EquivClassInfo> ECInfoForLeadersMapTy;
+  ECInfoForLeadersMapTy ECInfoForLeadersMap;
+
+  /// OneCalledFunction - For each indirect function call, we keep track of one
+  /// target of the call.  This is used to find the equivalence class called by
+  /// a call site.
+  std::map<Instruction*, Function *> OneCalledFunction;
+
  public:
 
   Function *PoolInit, *PoolDestroy, *PoolAlloc, *PoolAllocArray, *PoolFree;
   static const Type *PoolDescPtrTy;
 
-  // Equivalence class where functions that can potentially be called via
-  // the same function pointer are in the same class.
-  EquivalenceClasses<Function *> FuncECs;
+  const PA::EquivClassInfo &getECIForIndirectCallSite(CallSite CS);
 
+#if 0
   /// Map from an Indirect call site to the set of Functions that it can point
   /// to.
   std::multimap<CallSite, Function *> CallSiteTargets;
-
-  /// This maps an equivalence class to the last pool argument number for that 
-  /// class. This is used because the pool arguments for all functions within
-  /// an equivalence class is passed to all the functions in that class.
-  /// If an equivalence class does not require pool arguments, it is not
-  /// on this map.
-  std::map<Function *, int> EqClass2LastPoolArg;
+#endif
 
   /// GlobalNodes - For each node (with an H marker) in the globals graph, this
   /// map contains the global variable that holds the pool descriptor for the
@@ -183,9 +211,6 @@ class PoolAllocate : public Pass {
   void CreatePools(Function &F, const std::vector<DSNode*> &NodesToPA,
                    std::map<DSNode*, Value*> &PoolDescriptors);
   
-  void InlineIndirectCalls(Function &F, DSGraph &G, 
-			   hash_set<Function*> &visited);
-
   void TransformBody(DSGraph &g, DSGraph &tdg, PA::FuncInfo &fi,
                      std::set<std::pair<AllocaInst*, Instruction*> > &poolUses,
                      std::set<std::pair<AllocaInst*, CallInst*> > &poolFrees,
@@ -202,5 +227,7 @@ class PoolAllocate : public Pass {
 
   void CalculateLivePoolFreeBlocks(std::set<BasicBlock*> &LiveBlocks,Value *PD);
 };
+
+}
 
 #endif
