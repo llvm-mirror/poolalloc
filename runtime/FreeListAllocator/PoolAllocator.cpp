@@ -27,6 +27,9 @@
 //===----------------------------------------------------------------------===//
 struct SlabHeader
 {
+  // Flags whether this is an array
+  unsigned char IsArray;
+
   // Number of nodes per slab
   unsigned int NodesPerSlab;
 
@@ -87,6 +90,7 @@ createSlab (unsigned int NodeSize, unsigned int NodesPerSlab = 0)
   //
   // Initialize the contents of the slab.
   //
+  NewSlab->IsArray = 0;
   NewSlab->NodeSize = NodeSize;
   NewSlab->NodesPerSlab = NodesPerSlab;
   NewSlab->LiveNodes = 0;
@@ -274,33 +278,20 @@ poolalloc(PoolTy *Pool)
 //  This algorithm is not very space efficient.  This needs to be fixed.
 //
 void *
-poolallocarray(PoolTy* Pool, unsigned Size)
+poolallocarray(PoolTy* Pool, unsigned ArraySize)
 {
   assert(Pool && "Null pool pointer passed into poolallocarray!\n");
-  assert (0 && "I don't work yet\n");
 
-#if 0
   //
-  // Create a new slab and add it to the list.
+  // Create a new slab and mark it as an array.
   //
-  struct SlabHeader * NewSlab = createSlab (Pool->NodeSize, Size);
-  if (Pool->Slabs == NULL)
-  {
-    Pool->Slabs = NewSlab;
-  }
-  else
-  {
-    NewSlab->Next = Pool->Slabs;
-    Pool->Slabs = NewSlab;
-  }
+  struct SlabHeader * NewSlab = createSlab (Pool->NodeSize, ArraySize);
+  NewSlab->IsArray = 1;
 
   //
   // Return the list of blocks to the caller.
   //
-  return (&(Pool->Slabs->Data[0]));
-#else /* 0 */
-  return NULL;
-#endif /* 0 */
+  return (&(NewSlab->Data[0]));
 }
 
 void
@@ -313,6 +304,17 @@ poolfree (PoolTy * Pool, void * Block)
   // Find the header of the memory block.
   //
   struct SlabHeader * slabp = DataOwner (Block);
+
+  //
+  // If the owner is an array, just nuke the whole thing for now.
+  // FIXME: Inefficient!  Danger Will Robinson!
+  //
+  if (slabp->IsArray)
+  {
+    FreePage (slabp);
+    return;
+  }
+
   NodePointer Node;
   Node.Next = &(slabp->BlockList[((unsigned char *)Block - slabp->Data)/Pool->NodeSize]);
 
