@@ -69,7 +69,7 @@ namespace {
                        clEnumVal(SmartCoallesceNodes, "  Use the smart node merging heuristic"),
                        clEnumVal(NoNodes, "  Do not pool allocate anything"),
                        clEnumValEnd),
-            cl::init(SmartCoallesceNodes));
+            cl::init(AllNodes));
   
   cl::opt<bool>
   DisableInitDestroyOpt("poolalloc-force-simple-pool-init",
