@@ -120,9 +120,7 @@ static void GetNodesReachableFromGlobals(DSGraph &G,
 void PoolAllocate::AddPoolPrototypes() {
   if (VoidPtrTy == 0) {
     VoidPtrTy = PointerType::get(Type::SByteTy);
-    PoolDescType =
-      StructType::get(make_vector<const Type*>(VoidPtrTy, VoidPtrTy,
-                                               Type::UIntTy, Type::UIntTy, 0));
+    PoolDescType = ArrayType::get(VoidPtrTy, 10);
     PoolDescPtrTy = PointerType::get(PoolDescType);
   }
 
