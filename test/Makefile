@@ -17,7 +17,7 @@ LARGE_PROBLEM_SIZE_DIRS := \
    MultiSource/Benchmarks/llubenchmark
 
 LARGE_PROBLEM_SIZE_DIRS := \
-   $(addprefix $(LLVM_OBJ_ROOT)/test/Programs/,$(LARGE_PROBLEM_SIZE_DIRS))
+   $(addprefix $(LLVM_OBJ_ROOT)/projects/llvm-test/,$(LARGE_PROBLEM_SIZE_DIRS))
 
 NORMAL_PROBLEM_SIZE_DIRS := \
    MultiSource/Benchmarks/Ptrdist \
@@ -25,7 +25,7 @@ NORMAL_PROBLEM_SIZE_DIRS := \
    #MultiSource/Benchmarks/MallocBench/cfrac
 
 NORMAL_PROBLEM_SIZE_DIRS := \
-   $(addprefix $(LLVM_OBJ_ROOT)/test/Programs/,$(NORMAL_PROBLEM_SIZE_DIRS))
+   $(addprefix $(LLVM_OBJ_ROOT)/projects/llvm-test/,$(NORMAL_PROBLEM_SIZE_DIRS))
 
 
 ##############################################################################
@@ -104,34 +104,34 @@ progp4perf::
 # Targets for running tests and gathering statistics for arbitrary tests
 ##############################################################################
 
-# test target - Descend into test/Programs and run the TEST.poolalloc.Makefile
+# test target - Descend into projects/llvm-test and run the TEST.poolalloc.Makefile
 # tests...
 test::
-	(cd $(LLVM_OBJ_ROOT)/test/Programs/$(SUBDIR); \
+	(cd $(LLVM_OBJ_ROOT)/projects/llvm-test/$(SUBDIR); \
                PROJECT_DIR=$(BUILD_OBJ_ROOT) $(MAKE) -j1 TEST=poolalloc \
                    report report.html)
 	@printf "\a"; sleep 1; printf "\a"; sleep 1; printf "\a"
 
 vtl::
-	(cd $(LLVM_OBJ_ROOT)/test/Programs/$(SUBDIR); \
+	(cd $(LLVM_OBJ_ROOT)/projects/llvm-test/$(SUBDIR); \
                PROJECT_DIR=$(BUILD_OBJ_ROOT) $(MAKE) -j1 TEST=pavtl \
                    test report)
 	@printf "\a"; sleep 1; printf "\a"; sleep 1; printf "\a"
 
 perf::
-	(cd $(LLVM_OBJ_ROOT)/test/Programs/$(SUBDIR); \
+	(cd $(LLVM_OBJ_ROOT)/projects/llvm-test/$(SUBDIR); \
                PROJECT_DIR=$(BUILD_OBJ_ROOT) $(MAKE) -j1 TEST=perf \
                    test report)
 	@printf "\a"; sleep 1; printf "\a"; sleep 1; printf "\a"
 
 p4perf::
-	(cd $(LLVM_OBJ_ROOT)/test/Programs/$(SUBDIR); \
+	(cd $(LLVM_OBJ_ROOT)/projects/llvm-test/$(SUBDIR); \
                PROJECT_DIR=$(BUILD_OBJ_ROOT) $(MAKE) -j1 TEST=p4perf \
                    test report)
 	@printf "\a"; sleep 1; printf "\a"; sleep 1; printf "\a"
 
 strace::
-	(cd $(LLVM_OBJ_ROOT)/test/Programs/$(SUBDIR); \
+	(cd $(LLVM_OBJ_ROOT)/projects/llvm-test/$(SUBDIR); \
                PROJECT_DIR=$(BUILD_OBJ_ROOT) $(MAKE) -j1 TEST=strace \
                    test)
 	@printf "\a"; sleep 1; printf "\a"; sleep 1; printf "\a"
