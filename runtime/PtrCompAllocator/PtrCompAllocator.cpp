@@ -228,8 +228,9 @@ AllocNode:
   if (Pool->NumUsed < Pool->NumNodesInBitVector) {
     unsigned long Result = Pool->NumUsed++;
     MarkNodeAllocated(Pool, Result);
-    DO_IF_TRACE(fprintf(stderr, "0x%X\n", (unsigned)Result));
-    return Result;
+    DO_IF_TRACE(fprintf(stderr, "Node %ld: 0x%lX byte from poolbase\n", Result,
+                        Result*Pool->NewSize));
+    return Result*Pool->NewSize;
   }
 
   // Otherwise, we need to grow the bitvector.  Double its size.
@@ -241,7 +242,9 @@ AllocNode:
 
 void poolfree_pc(PoolTy *Pool, unsigned long Node) {
   if (Node == 0) return;
-  assert(Pool && Node < Pool->NumUsed && "Node or pool incorrect!");
+  assert(Pool && (Node % Pool->NewSize == 0) && 
+         (Node/Pool->NewSize < Pool->NumUsed) && "Node or pool incorrect!");
+  Node /= Pool->NewSize;
   DO_IF_TRACE(fprintf(stderr, "[%d] poolfree_pc(0x%X) ",
                       getPoolNumber(Pool), (unsigned)Node));
 
