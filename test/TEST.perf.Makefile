@@ -83,11 +83,11 @@ Output/%.$(TEST).report.txt: $(PROGRAMS_TO_TEST:%=Output/$(TEST).cacheaccesses.%
                      $(PROGRAMS_TO_TEST:%=Output/$(TEST).cacheaccesses.pa.%) \
                      $(PROGRAMS_TO_TEST:%=Output/$(TEST).cachemisses.%) \
                      $(PROGRAMS_TO_TEST:%=Output/$(TEST).cachemisses.pa.%)
-	@echo > $@
-	@printf "CBE-PA-Cache-Accesses: %11lld\n" `cat Output/$(TEST).cacheaccesses.pa.$*`
-	@printf "CBE-Cache-Accesses   : %11lld\n" `cat Output/$(TEST).cacheaccesses.$*`
-	@printf "CBE-PA-Cache-Misses  : %11lld\n" `cat Output/$(TEST).cachemisses.pa.$*`
-	@printf "CBE-Cache-Misses     : %11lld\n" `cat Output/$(TEST).cachemisses.$*`
+	@echo $* > $@
+	@printf "CBE-PA-Cache-Accesses: %11lld\n" `cat Output/$(TEST).cacheaccesses.pa.$*` | tee -a $@
+	@printf "CBE-Cache-Accesses   : %11lld\n" `cat Output/$(TEST).cacheaccesses.$*` | tee -a $@
+	@printf "CBE-PA-Cache-Misses  : %11lld\n" `cat Output/$(TEST).cachemisses.pa.$*` | tee -a $@
+	@printf "CBE-Cache-Misses     : %11lld\n" `cat Output/$(TEST).cachemisses.$*` | tee -a $@
 
 
 $(PROGRAMS_TO_TEST:%=test.$(TEST).%): \
