@@ -557,21 +557,19 @@ void PoolAllocate::ProcessFunctionBody(Function &F, Function &NewF) {
   FuncInfo &FI = FunctionInfo[&F];   // Get FuncInfo for F
   hash_set<DSNode*> &MarkedNodes = FI.MarkedNodes;
   
-  DEBUG(std::cerr << "[" << F.getName() << "] Pool Allocate: ");
-
   // Calculate which DSNodes are reachable from globals.  If a node is reachable
   // from a global, we will create a global pool for it, so no argument passage
   // is required.
   DSGraph &GG = BU->getGlobalsGraph();
   DSGraph::NodeMapTy GlobalsGraphNodeMapping;
-  for (DSGraph::ScalarMapTy::iterator I = G.getScalarMap().begin(), 
-         E = G.getScalarMap().end(); I != E; ++I)
-    if (GlobalValue *GV = dyn_cast<GlobalValue>(I->first)) {
-      // Map all node reachable from this global to the corresponding nodes in
-      // the globals graph.
-      DSGraph::computeNodeMapping(I->second.getNode(), GG.getNodeForValue(GV),
-                                  GlobalsGraphNodeMapping);
-    }
+  for (DSScalarMap::global_iterator I = G.getScalarMap().global_begin(),
+         E = G.getScalarMap().global_end(); I != E; ++I) {
+    // Map all node reachable from this global to the corresponding nodes in
+    // the globals graph.
+    DSGraph::computeNodeMapping(G.getNodeForValue(*I).getNode(),
+                                GG.getNodeForValue(*I),
+                                GlobalsGraphNodeMapping);
+  }
   
   // Loop over all of the nodes which are non-escaping, adding pool-allocatable
   // ones to the NodesToPA vector.
@@ -590,7 +588,8 @@ void PoolAllocate::ProcessFunctionBody(Function &F, Function &NewF) {
         NodesToPA.push_back(*I);
       }
   
-  DEBUG(std::cerr << NodesToPA.size() << " nodes to pool allocate\n");
+  std::cerr << "[" << F.getName() << "] Pool Allocating "
+            << NodesToPA.size() << " nodes\n";
   if (!NodesToPA.empty())    // Insert pool alloca's
     CreatePools(NewF, NodesToPA, FI.PoolDescriptors);
   
