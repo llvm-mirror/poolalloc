@@ -331,16 +331,16 @@ int PoolSlab::allocateMultiple(unsigned Size) {
 // this slab.  If the address is not in slab, return -1.
 int PoolSlab::containsElement(void *Ptr, unsigned ElementSize) const {
   const void *FirstElement = getElementAddress(0, 0);
-  if (FirstElement > Ptr || 
-      (char*)getElementAddress(ElementSize, getSlabSize())-1 < Ptr)
-    return -1;
-
-  unsigned Index = (char*)Ptr-(char*)FirstElement;
-  assert(Index % ElementSize == 0 &&
-         "Freeing pointer into the middle of an element!");
-  Index /= ElementSize;
-  assert(Index < getSlabSize() && "Pool slab searching loop broken!");
-  return Index;
+  if (FirstElement <= Ptr) {
+    unsigned Index = (char*)Ptr-(char*)FirstElement;
+    Index /= ElementSize;
+    if (Index < getSlabSize()) {
+      assert(Index % ElementSize == 0 &&
+             "Freeing pointer into the middle of an element!");
+      return Index;
+    }
+  }
+  return -1;
 }
 
 
