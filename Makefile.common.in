@@ -17,9 +17,9 @@ include $(LLVM_OBJ_ROOT)/Makefile.config
 #
 # Set the source root and source directory pathnames
 #
-BUILD_SRC_DIR := $(subst //,/,@abs_top_srcdir@/$(patsubst $(BUILD_OBJ_ROOT)%,%,$(BUILD_OBJ_DIR)))
+PROJ_SRC_DIR := $(subst //,/,@abs_top_srcdir@/$(patsubst $(PROJ_OBJ_ROOT)%,%,$(PROJ_OBJ_DIR)))
 
-BUILD_SRC_ROOT := $(subst //,/,@abs_top_srcdir@)
+PROJ_SRC_ROOT := $(subst //,/,@abs_top_srcdir@)
 
 #
 # Include LLVM's Master Makefile.
