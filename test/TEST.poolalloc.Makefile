@@ -50,6 +50,21 @@ $(PROGRAMS_TO_TEST:%=Output/%.poolalloc.cbe): \
 Output/%.poolalloc.cbe: Output/%.poolalloc.cbe.c $(PA_RT_O)
 	-$(CC) $(CFLAGS) $< $(PA_RT_O) $(LLCLIBS) $(LDFLAGS) -o $@
 
+$(PROGRAMS_TO_TEST:%=Output/%.nonpa.bc): \
+Output/%.nonpa.bc: Output/%.llvm.bc $(LOPT)
+	-@rm -f $(CURDIR)/$@.info
+	-$(LOPT) -q -globaldce -ipconstprop -deadargelim $< -o $@ -f 2>&1 > $@.out
+
+$(PROGRAMS_TO_TEST:%=Output/%.nonpa.cbe.c): \
+Output/%.nonpa.cbe.c: Output/%.nonpa.bc $(LLC)
+	-$(LLC) -march=c -f $< -o $@
+
+# This rule compiles the .c file into an executable using $CC
+$(PROGRAMS_TO_TEST:%=Output/%.nonpa.cbe): \
+Output/%.nonpa.cbe: Output/%.nonpa.cbe.c $(PA_RT_O)
+	-$(CC) $(CFLAGS) $< $(PA_RT_O) $(LLCLIBS) $(LDFLAGS) -o $@
+
+
 
 ifndef PROGRAMS_HAVE_CUSTOM_RUN_RULES
 
@@ -57,6 +72,13 @@ ifndef PROGRAMS_HAVE_CUSTOM_RUN_RULES
 # normal test programs
 $(PROGRAMS_TO_TEST:%=Output/%.poolalloc.out-cbe): \
 Output/%.poolalloc.out-cbe: Output/%.poolalloc.cbe
+	-$(RUNSAFELY) $(STDIN_FILENAME) $@ $< $(RUN_OPTIONS)
+
+
+# This rule runs the generated executable, generating timing information, for
+# normal test programs
+$(PROGRAMS_TO_TEST:%=Output/%.nonpa.out-cbe): \
+Output/%.nonpa.out-cbe: Output/%.nonpa.cbe
 	-$(RUNSAFELY) $(STDIN_FILENAME) $@ $< $(RUN_OPTIONS)
 else
 
@@ -70,6 +92,16 @@ Output/%.poolalloc.out-cbe: Output/%.poolalloc.cbe
 	-(cd Output/poolalloccbe-$(RUN_TYPE); cat $(LOCAL_OUTPUTS)) > $@
 	-cp Output/poolalloccbe-$(RUN_TYPE)/$(STDOUT_FILENAME).time $@.time
 
+# This rule runs the generated executable, generating timing information, for
+# SPEC
+$(PROGRAMS_TO_TEST:%=Output/%.nonpa.out-cbe): \
+Output/%.nonpa.out-cbe: Output/%.nonpa.cbe
+	-$(SPEC_SANDBOX) nonpacbe-$(RUN_TYPE) $@ $(REF_IN_DIR) \
+             $(RUNSAFELY) $(STDIN_FILENAME) $(STDOUT_FILENAME) \
+                  ../../$< $(RUN_OPTIONS)
+	-(cd Output/nonpacbe-$(RUN_TYPE); cat $(LOCAL_OUTPUTS)) > $@
+	-cp Output/nonpacbe-$(RUN_TYPE)/$(STDOUT_FILENAME).time $@.time
+
 endif
 
 
@@ -80,18 +112,26 @@ Output/%.poolalloc.diff-cbe: Output/%.out-nat Output/%.poolalloc.out-cbe
 	@cp Output/$*.out-nat Output/$*.poolalloc.out-nat
 	-$(DIFFPROG) cbe $*.poolalloc $(HIDEDIFF)
 
+# This rule diffs the post-nonpa version to make sure we didn't break the
+# program!
+$(PROGRAMS_TO_TEST:%=Output/%.nonpa.diff-cbe): \
+Output/%.nonpa.diff-cbe: Output/%.out-nat Output/%.nonpa.out-cbe
+	@cp Output/$*.out-nat Output/$*.nonpa.out-nat
+	-$(DIFFPROG) cbe $*.nonpa $(HIDEDIFF)
+
 
 # This rule wraps everything together to build the actual output the report is
 # generated from.
 $(PROGRAMS_TO_TEST:%=Output/%.$(TEST).report.txt): \
-Output/%.$(TEST).report.txt: Output/%.$(TEST).transformed.bc Output/%.exe-cbe \
+Output/%.$(TEST).report.txt: Output/%.$(TEST).transformed.bc \
+			     Output/%.nonpa.diff-cbe         \
 			     Output/%.poolalloc.diff-cbe
 	@echo > $@
 	@-if test -f Output/$*.poolalloc.diff-cbe; then \
 	  printf "CBE-RUN-TIME-NORMAL-USER: " >> $@;\
-	  grep "^user" Output/$*.out-cbe.time >> $@;\
+	  grep "^user" Output/$*.nonpa.out-cbe.time >> $@;\
 	  printf "CBE-RUN-TIME-NORMAL-SYS: " >> $@;\
-	  grep "^sys" Output/$*.out-cbe.time >> $@;\
+	  grep "^sys" Output/$*.nonpa.out-cbe.time >> $@;\
 	  printf "CBE-RUN-TIME-POOLALLOC-USER: " >> $@;\
 	  grep "^user" Output/$*.poolalloc.out-cbe.time >> $@;\
 	  printf "CBE-RUN-TIME-POOLALLOC-SYS: " >> $@;\
