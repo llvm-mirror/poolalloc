@@ -19,10 +19,9 @@ struct PoolSlab;
 struct FreedNodeHeader;
 
 // NodeHeader - Each block of memory is preceeded in the the pool by one of
-// these headers.  If the node is allocated, the ObjectSize value is used, if
-// the object is free, the 'Next' value is used.
+// these headers.
 struct NodeHeader {
-  unsigned Size;
+  unsigned long Size;
 };
 
 

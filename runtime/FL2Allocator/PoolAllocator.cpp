@@ -165,11 +165,13 @@ void *poolalloc(PoolTy *Pool, unsigned NumBytes) {
   // structure.  Hand off to the system malloc.
   if (Pool == 0) return malloc(NumBytes);
   if (NumBytes == 0) return 0;
-  NumBytes = (NumBytes+3) & ~3;  // Round up to 4 bytes...
+  unsigned PtrSize = sizeof(int*);
+  NumBytes = (NumBytes+(PtrSize-1)) & ~(PtrSize-1);  // Round up to 4/8 bytes...
 
   // Objects must be at least 8 bytes to hold the FreedNodeHeader object when
   // they are freed.
-  if (NumBytes < 8) NumBytes = 8;
+  if (NumBytes < (sizeof(FreedNodeHeader)-sizeof(NodeHeader)))
+    NumBytes = sizeof(FreedNodeHeader)-sizeof(NodeHeader);
 
 #ifdef PRINT_NUM_POOLS
   if (Pool->NumObjects == 0) ++PoolCounter;  // Track # pools.
