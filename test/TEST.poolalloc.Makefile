@@ -36,7 +36,7 @@ OPT_PA := $(LOPT) -load $(PA_SO)
 # output to a file.
 OPT_PA_STATS = $(OPT_PA) -info-output-file=$(CURDIR)/$@.info -stats -time-passes
 
-OPTZN_PASSES := -globaldce -ipconstprop -deadargelim -adce -instcombine -simplifycfg
+OPTZN_PASSES := -globaldce -ipsccp -deadargelim -adce -instcombine -simplifycfg
 
 
 # This rule runs the pool allocator on the .llvm.bc file to produce a new .bc
