@@ -25,8 +25,8 @@ typedef struct PoolTy {
  *   Invariants: FirstUnused <= LastUsed+1
  */
 typedef struct PoolSlab {
-  unsigned FirstUnused;     /* First empty node in slab    */
-  int LastUsed;             /* Last allocated node in slab */
+  unsigned FirstUnused;   /* First empty node in slab    */
+  int LastUsed;           /* Last allocated node in slab. -1 if slab is empty */
   struct PoolSlab *Next;
   unsigned char AllocatedBitVector[NODES_PER_SLAB/8];
   unsigned char StartOfAllocation[NODES_PER_SLAB/8];
@@ -110,7 +110,7 @@ static void *FindSlabEntry(PoolSlab *PS, unsigned NodeSize) {
       SET_START_BIT(PS, PS->LastUsed+1);
 
       /* If we are allocating out the first unused field, bump its index also */
-      if (PS->FirstUnused == PS->LastUsed+1)
+      if (PS->FirstUnused == (unsigned)PS->LastUsed+1)
         PS->FirstUnused++;
 
       /* Return the entry, increment LastUsed field. */
@@ -265,9 +265,8 @@ void poolfree(PoolTy *Pool, char *Node) {
     if (Idx < PS->FirstUnused) PS->FirstUnused = Idx;
     
     /* If we are not freeing the last element in a slab... */
-    if (idxiter - 1 != PS->LastUsed) {
+    if (idxiter - 1 != (unsigned)PS->LastUsed)
       return;
-    }
 
     /* Otherwise we are freeing the last element in a slab... shrink the
      * LastUsed marker down to last used node.
@@ -275,7 +274,7 @@ void poolfree(PoolTy *Pool, char *Node) {
     PS->LastUsed = Idx;
     do {
       --PS->LastUsed;
-      /* Fixme, this should scan the allocated array an entire byte at a time 
+      /* FIXME, this should scan the allocated array an entire byte at a time 
        * for performance!
        */
     } while (PS->LastUsed >= 0 && (!NODE_ALLOCATED(PS, PS->LastUsed)));
@@ -348,14 +347,14 @@ static void *FindSlabEntryArray(PoolSlab *PS, unsigned NodeSize,
 
     /* For small array allocation */
     /* Check to see if there are empty entries at the end of the slab... */
-    if (PS->LastUsed < NODES_PER_SLAB-Size) {
+    if (PS->LastUsed < (int)(NODES_PER_SLAB-Size)) {
       /* Mark the returned entry used and set the start bit*/
       SET_START_BIT(PS, PS->LastUsed + 1);
       for (i = PS->LastUsed + 1; i <= PS->LastUsed + Size; ++i)
 	MARK_NODE_ALLOCATED(PS, i);
 
       /* If we are allocating out the first unused field, bump its index also */
-      if (PS->FirstUnused == PS->LastUsed+1)
+      if (PS->FirstUnused == (unsigned)PS->LastUsed+1)
         PS->FirstUnused += Size;
 
       /* Increment LastUsed */
@@ -369,7 +368,7 @@ static void *FindSlabEntryArray(PoolSlab *PS, unsigned NodeSize,
      * starting which Size nodes can be allocated
      */
     if (PS->FirstUnused < NODES_PER_SLAB - Size + 1 &&
-	(PS->LastUsed < PS->FirstUnused || 
+	(PS->LastUsed < (int)PS->FirstUnused || 
 	 PS->LastUsed - PS->FirstUnused >= Size)) {
       unsigned Idx = PS->FirstUnused, foundArray;
       
