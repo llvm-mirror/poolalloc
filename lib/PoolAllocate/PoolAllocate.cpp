@@ -414,8 +414,6 @@ Function *PoolAllocate::MakeFunctionClone(Function &F) {
   // Set the rest of the new arguments names to be PDa<n> and add entries to the
   // pool descriptors map
   std::map<DSNode*, Value*> &PoolDescriptors = FI.PoolDescriptors;
-  //Dinakar set the type of pooldesctriptors
-  std::map<const Value*, const Type*> &PoolDescTypeMap = FI.PoolDescType;
   Function::aiterator NI = New->abegin();
   
   if (FuncECs.findClass(&F)) {
@@ -429,11 +427,9 @@ Function *PoolAllocate::MakeFunctionClone(Function &F) {
       for (int i = 0; i < FI.PoolArgFirst; ++NI, ++i)
 	;
 
-    for (unsigned i = 0, e = FI.ArgNodes.size(); i != e; ++i, ++NI) {
-      PoolDescTypeMap[NI] = FI.ArgNodes[i]->getType();
-      
+    for (unsigned i = 0, e = FI.ArgNodes.size(); i != e; ++i, ++NI)
       PoolDescriptors.insert(std::make_pair(FI.ArgNodes[i], NI));
-    }
+
     NI = New->abegin();
     if (EqClass2LastPoolArg.count(FuncECs.findClass(&F)))
       for (int i = 0; i <= EqClass2LastPoolArg[FuncECs.findClass(&F)]; ++i,++NI)
@@ -443,7 +439,6 @@ Function *PoolAllocate::MakeFunctionClone(Function &F) {
     if (FI.ArgNodes.size())
       for (unsigned i = 0, e = FI.ArgNodes.size(); i != e; ++i, ++NI) {
 	NI->setName("PDa");  // Add pd entry
-	PoolDescTypeMap[NI] = FI.ArgNodes[i]->getType();
 	PoolDescriptors.insert(std::make_pair(FI.ArgNodes[i], NI));
       }
     NI = New->abegin();
@@ -487,9 +482,7 @@ Function *PoolAllocate::MakeFunctionClone(Function &F) {
 //
 void PoolAllocate::CreatePools(Function &F,
                                const std::vector<DSNode*> &NodesToPA,
-                               std::map<DSNode*, Value*> &PoolDescriptors,
-			       std::map<const Value *,
-                                        const Type *> &PoolDescTypeMap) {
+                               std::map<DSNode*, Value*> &PoolDescriptors) {
 
   // Loop over all of the pools, inserting code into the entry block of the
   // function for the initialization and code in the exit blocks for
@@ -511,7 +504,6 @@ void PoolAllocate::CreatePools(Function &F,
       
     // Update the PoolDescriptors map
     PoolDescriptors.insert(std::make_pair(Node, AI));
-    PoolDescTypeMap[AI] = Node->getType();
   }
 }
 
@@ -541,7 +533,7 @@ void PoolAllocate::ProcessFunctionBody(Function &F, Function &NewF) {
   
   DEBUG(std::cerr << NodesToPA.size() << " nodes to pool allocate\n");
   if (!NodesToPA.empty())    // Insert pool alloca's
-    CreatePools(NewF, NodesToPA, FI.PoolDescriptors, FI.PoolDescType);
+    CreatePools(NewF, NodesToPA, FI.PoolDescriptors);
   
   // Transform the body of the function now... collecting information about uses
   // of the pools.
@@ -551,8 +543,7 @@ void PoolAllocate::ProcessFunctionBody(Function &F, Function &NewF) {
 
   // Create pool construction/destruction code
   if (!NodesToPA.empty())
-    InitializeAndDestroyPools(NewF, NodesToPA,
-                              FI.PoolDescriptors, FI.PoolDescType);
+    InitializeAndDestroyPools(NewF, NodesToPA, FI.PoolDescriptors);
 }
 
 /// InitializeAndDestroyPools - This inserts calls to poolinit and pooldestroy
@@ -560,10 +551,7 @@ void PoolAllocate::ProcessFunctionBody(Function &F, Function &NewF) {
 ///
 void PoolAllocate::InitializeAndDestroyPools(Function &F,
                                const std::vector<DSNode*> &NodesToPA,
-                               std::map<DSNode*, Value*> &PoolDescriptors,
-			       std::map<const Value *,
-                                        const Type *> &PoolDescTypeMap) {
-
+                                 std::map<DSNode*, Value*> &PoolDescriptors) {
   TargetData &TD = getAnalysis<TargetData>();
   
   // Insert poolinit calls after all of the allocas...

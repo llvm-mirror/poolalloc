@@ -306,14 +306,8 @@ void FuncTransform::visitMallocInst(MallocInst &MI) {
   Value *V = new CallInst(PAInfo.PoolAlloc, make_vector(PH, AllocSize, 0),
                           Name, &MI);
 
-  const Type *phtype = MI.getType()->getElementType();
-  std::map<const Value*, const Type*> &PoolDescType = FI.PoolDescType;
-  if (!PoolDescType.count(PH))
-    PoolDescType[PH] = phtype;
-
-  Value *Casted = V;
-
   // Cast to the appropriate type if necessary
+  Value *Casted = V;
   if (V->getType() != MI.getType())
     Casted = new CastInst(V, MI.getType(), V->getName(), &MI);
     
@@ -349,15 +343,6 @@ void FuncTransform::visitFreeInst(FreeInst &FrI) {
   Value *PH = getPoolHandle(Arg);  // Get the pool handle for this DSNode...
   if (PH == 0) return;
 
-  const Type *phtype = 0;
-  if (const PointerType *ptype = dyn_cast<PointerType>(Arg->getType()))
-    phtype = ptype->getElementType();
-
-  assert((phtype != 0) && "Needs to be implemented \n ");
-  std::map<const Value*, const Type*> &PoolDescType = FI.PoolDescType;
-  if (!PoolDescType.count(PH))
-    PoolDescType[PH] = phtype;
-  
   // Insert a cast and a call to poolfree...
   Value *Casted = Arg;
   if (Arg->getType() != PointerType::get(Type::SByteTy))
