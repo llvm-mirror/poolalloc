@@ -55,10 +55,10 @@ typedef struct NodePointer
 struct SlabHeader
 {
   // Flags whether this is an array
-  unsigned char IsArray;
+  unsigned char IsArray : 1;
 
   // Flags whether this is managed by the Page Manager
-  unsigned char IsManaged;
+  unsigned char IsManaged : 1;
 
   // Number of nodes per slab
   unsigned int NodesPerSlab;
