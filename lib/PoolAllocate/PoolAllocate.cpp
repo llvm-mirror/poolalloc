@@ -31,10 +31,18 @@
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
+#include "llvm/Support/Timer.h"
 using namespace llvm;
 using namespace PA;
 
 const Type *PoolAllocate::PoolDescPtrTy = 0;
+
+#if 0
+#define TIME_REGION(VARNAME, DESC) \
+   NamedRegionTimer VARNAME(DESC)
+#else
+#define TIME_REGION(VARNAME, DESC)
+#endif
 
 namespace {
   RegisterOpt<PoolAllocate>
@@ -84,12 +92,13 @@ bool PoolAllocate::runOnModule(Module &M) {
   if (SetupGlobalPools(M))
     return true;
 
+{TIME_REGION(X, "FindFunctionPoolArgs");
   // Loop over the functions in the original program finding the pool desc.
   // arguments necessary for each function that is indirectly callable.
   for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I)
     if (!I->isExternal() && ECGraphs->ContainsDSGraphFor(*I))
       FindFunctionPoolArgs(*I);
-
+}
   std::map<Function*, Function*> FuncMap;
 
   // Now clone a function using the pool arg list obtained in the previous pass
@@ -97,6 +106,7 @@ bool PoolAllocate::runOnModule(Module &M) {
   // don't traverse newly added ones.  If the function needs new arguments, make
   // its clone.
   std::set<Function*> ClonedFunctions;
+{TIME_REGION(X, "MakeFunctionClone");
   for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I)
     if (!I->isExternal() && !ClonedFunctions.count(I) &&
         ECGraphs->ContainsDSGraphFor(*I))
@@ -104,16 +114,18 @@ bool PoolAllocate::runOnModule(Module &M) {
         FuncMap[I] = Clone;
         ClonedFunctions.insert(Clone);
       }
+}
   
   // Now that all call targets are available, rewrite the function bodies of the
   // clones.
+{TIME_REGION(X, "ProcessFunctionBody");
   for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I)
     if (!I->isExternal() && !ClonedFunctions.count(I) &&
         ECGraphs->ContainsDSGraphFor(*I)) {
       std::map<Function*, Function*>::iterator FI = FuncMap.find(I);
       ProcessFunctionBody(*I, FI != FuncMap.end() ? *FI->second : *I);
     }
-
+}
   // Replace all uses of original functions with the transformed function.
   for (std::map<Function *, Function *>::iterator I = FuncMap.begin(),
          E = FuncMap.end(); I != E; ++I) {
@@ -340,22 +352,26 @@ Function *PoolAllocate::MakeFunctionClone(Function &F) {
   // Populate the value map with all of the globals in the program.
   // FIXME: This should be unnecessary!
   Module &M = *F.getParent();
+{TIME_REGION(X, "ValueMap Construct");
   for (Module::iterator I = M.begin(), E=M.end(); I!=E; ++I)
     ValueMap[I] = I;
   for (Module::global_iterator I = M.global_begin(), E = M.global_end();
        I != E; ++I)
     ValueMap[I] = I;
-
+}
   // Perform the cloning.
   std::vector<ReturnInst*> Returns;
+{TIME_REGION(X, "CFI");
   CloneFunctionInto(New, &F, ValueMap, Returns);
-
+}
   // Invert the ValueMap into the NewToOldValueMap
   std::map<Value*, const Value*> &NewToOldValueMap = FI.NewToOldValueMap;
+
+{TIME_REGION(X, "N2O Map Construct");
   for (std::map<const Value*, Value*>::iterator I = ValueMap.begin(),
          E = ValueMap.end(); I != E; ++I)
     NewToOldValueMap.insert(std::make_pair(I->second, I->first));
-  
+}  
   return FI.Clone = New;
 }
 
