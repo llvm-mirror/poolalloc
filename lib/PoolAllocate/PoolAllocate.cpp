@@ -5,7 +5,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#define DEBUG_TYPE "PoolAllocator"
+#define DEBUG_TYPE "poolalloc"
 #include "EquivClassGraphs.h"
 #include "PoolAllocate.h"
 #include "llvm/Constants.h"
@@ -74,6 +74,9 @@ namespace {
   cl::opt<bool>
   DisableInitDestroyOpt("poolalloc-force-simple-pool-init",
                         cl::desc("Always insert poolinit/pooldestroy calls at start and exit of functions"), cl::init(true));
+  cl::opt<bool>
+  DisablePoolFreeOpt("poolalloc-force-all-poolfrees",
+                     cl::desc("Do not try to elide poolfree's where possible"));
 }
 
 void PoolAllocate::getAnalysisUsage(AnalysisUsage &AU) const {
@@ -107,7 +110,7 @@ bool PoolAllocate::runOnModule(Module &M) {
   // its clone.
   std::set<Function*> ClonedFunctions;
   for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I)
-    if (!I->isExternal())
+    if (!I->isExternal() && !ClonedFunctions.count(I))
       if (Function *Clone = MakeFunctionClone(*I)) {
         FuncMap[I] = Clone;
         ClonedFunctions.insert(Clone);
@@ -749,10 +752,6 @@ void PoolAllocate::InitializeAndDestroyPools(Function &F,
     DSNode *Node = NodesToPA[i];
     if (AllocaInst *PD = dyn_cast<AllocaInst>(PoolDescriptors[Node]))
       if (AllocasHandled.insert(PD).second) {
-        Value *ElSize =
-          ConstantUInt::get(Type::UIntTy, Node->getType()->isSized() ? 
-                            TD.getTypeSize(Node->getType()) : 0);
-    
         // Convert the PoolUses/PoolFrees sets into something specific to this
         // pool.
         std::set<BasicBlock*> UsingBlocks;
@@ -871,7 +870,12 @@ void PoolAllocate::InitializeAndDestroyPools(Function &F,
         }
         DEBUG(std::cerr << "\n  Init in blocks: ");
 
-        // Insert the calls to initialize the pool...
+        // Insert the calls to initialize the pool.
+        unsigned ElSizeV = 0;
+        if (Node->getType()->isSized())
+          ElSizeV = TD.getTypeSize(Node->getType());
+        Value *ElSize = ConstantUInt::get(Type::UIntTy, ElSizeV);
+
         for (unsigned i = 0, e = PoolInitPoints.size(); i != e; ++i) {
           new CallInst(PoolInit, make_vector((Value*)PD, ElSize, 0), "",
                        PoolInitPoints[i]);
@@ -895,10 +899,11 @@ void PoolAllocate::InitializeAndDestroyPools(Function &F,
         // call to poolalloc, and the call to pooldestroy.  Figure out which
         // basic blocks have this property for this pool.
         std::set<BasicBlock*> PoolFreeLiveBlocks;
-        if (!DisableInitDestroyOpt)
+        if (!DisablePoolFreeOpt)
           CalculateLivePoolFreeBlocks(PoolFreeLiveBlocks, PD);
         else
           PoolFreeLiveBlocks = LiveBlocks;
+
         if (!DisableInitDestroyOpt)
           PoolDestroyPoints.clear();
 
