@@ -562,6 +562,7 @@ void InstructionRewriter::visitPoolDestroy(CallInst &CI) {
   new CallInst(PtrComp.PoolDestroyPC, Ops, "", &CI);
   CI.eraseFromParent();
 }
+
 void InstructionRewriter::visitPoolAlloc(CallInst &CI) {
   // Transform to poolalloc_pc if necessary.
   const CompressedPoolInfo *PI = getPoolInfo(&CI);
@@ -575,7 +576,15 @@ void InstructionRewriter::visitPoolAlloc(CallInst &CI) {
 }
 
 void InstructionRewriter::visitPoolFree(CallInst &CI) {
-  // Transform to poolfree_pc if necessary.
+  // Transform to poolfree_pc if the pool is compressed.
+  const CompressedPoolInfo *PI = getPoolInfo(CI.getOperand(2));
+  if (PI == 0) return;  // Not a free to a compressed pool.
+
+  std::vector<Value*> Ops;
+  Ops.push_back(CI.getOperand(1));
+  Ops.push_back(getTransformedValue(CI.getOperand(2)));
+  new CallInst(PtrComp.PoolFreePC, Ops, "", &CI);
+  CI.eraseFromParent();
 }
 
 void InstructionRewriter::visitCallInst(CallInst &CI) {
