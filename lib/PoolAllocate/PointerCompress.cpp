@@ -248,7 +248,8 @@ static bool PoolIsCompressible(const DSNode *N, Function &F) {
     return false;
   }
 
-  // If this has no pointer fields, don't compress.
+  // FIXME: If any non-type-safe nodes point to this one, we cannot compress it.
+#if 0
   bool HasFields = false;
   for (DSNode::const_edge_iterator I = N->edge_begin(), E = N->edge_end();
        I != E; ++I)
@@ -265,6 +266,7 @@ static bool PoolIsCompressible(const DSNode *N, Function &F) {
     DEBUG(std::cerr << "Node does not contain any pointers to compress:\n");
     return false;
   }
+#endif
 
   if (N->isArray()) {
     DEBUG(std::cerr << "Node is an array (not yet handled!):\n");
@@ -377,12 +379,11 @@ namespace {
       EV = New;
     }
 
-    /// getNodeIfCompressed - If the specified value is a pointer that will be
-    /// compressed, return the DSNode corresponding to the pool it belongs to.
-    const DSNode *getNodeIfCompressed(Value *V) {
-      if (!isa<PointerType>(V->getType()) || isa<ConstantPointerNull>(V) ||
-          isa<Function>(V))
-        return false;
+    /// getMappedNodeHandle - Given a pointer value that may be cloned multiple
+    /// times (once for PA, once for PC) return the node handle in DSG, or a
+    /// null descriptor if the value didn't exist.
+    DSNodeHandle getMappedNodeHandle(Value *V) {
+      assert(isa<PointerType>(V->getType()) && "Not a pointer value!");
 
       // If this is a function clone, map the value to the original function.
       if (FCR)
@@ -392,9 +393,20 @@ namespace {
       // function.
       if (!PAFuncInfo.NewToOldValueMap.empty())
         if ((V = PAFuncInfo.MapValueToOriginal(V)) == 0)
-          return 0; // Value didn't exist in the orig program (pool desc?)
+          // Value didn't exist in the orig program (pool desc?).
+          return DSNodeHandle();
 
-      DSNode *N = DSG.getNodeForValue(V).getNode();
+      return DSG.getNodeForValue(V);
+    }
+
+    /// getNodeIfCompressed - If the specified value is a pointer that will be
+    /// compressed, return the DSNode corresponding to the pool it belongs to.
+    const DSNode *getNodeIfCompressed(Value *V) {
+      if (!isa<PointerType>(V->getType()) || isa<ConstantPointerNull>(V) ||
+          isa<Function>(V))
+        return false;
+
+      DSNode *N = getMappedNodeHandle(V).getNode();
       return PoolInfo.count(N) ? N : 0;
     }
 
@@ -800,9 +812,15 @@ void InstructionRewriter::visitCallInst(CallInst &CI) {
     if (FI = PtrComp.getPoolAlloc()->getFuncInfoOrClone(*Callee))
       CG = &PtrComp.getGraphForFunc(FI);
 
+  // CalleeCallerMap - Mapping from nodes in the callee to nodes in the caller.
+  DSGraph::NodeMapTy CalleeCallerMap;
+
   // Do we need to compress the return value?
-  if (isa<PointerType>(CI.getType()) && getNodeIfCompressed(&CI))
+  if (isa<PointerType>(CI.getType()) && getNodeIfCompressed(&CI)) {
+    DSGraph::computeNodeMapping(CG->getReturnNodeFor(FI->F),
+                                getMappedNodeHandle(&CI), CalleeCallerMap);
     PoolsToCompress.insert(CG->getReturnNodeFor(FI->F).getNode());
+  }
 
   // Find the arguments we need to compress.
   unsigned NumPoolArgs = FI ? FI->ArgNodes.size() : 0;
@@ -810,6 +828,11 @@ void InstructionRewriter::visitCallInst(CallInst &CI) {
     if (isa<PointerType>(CI.getOperand(i)->getType()) &&
         getNodeIfCompressed(CI.getOperand(i))) {
       Argument *FormalArg = next(FI->F.abegin(), i-1-NumPoolArgs);
+
+      DSGraph::computeNodeMapping(CG->getNodeForValue(FormalArg),
+                                  getMappedNodeHandle(CI.getOperand(i)),
+                                  CalleeCallerMap);
+
       PoolsToCompress.insert(CG->getNodeForValue(FormalArg).getNode());
     }
 
@@ -817,6 +840,17 @@ void InstructionRewriter::visitCallInst(CallInst &CI) {
   if (PoolsToCompress.empty()) return;
   Function *Callee = CI.getCalledFunction();
   assert(Callee && "Indirect calls not implemented yet!");
+
+  // Now that we know the basic pools passed/returned through the
+  // argument/retval of the call, add the compressed pools that are reachable
+  // from them.  The CalleeCallerMap contains a mapping from callee nodes to the
+  // caller nodes they correspond to (a many-to-one mapping).
+  for (DSGraph::NodeMapTy::iterator I = CalleeCallerMap.begin(),
+         E = CalleeCallerMap.end(); I != E; ++I) {
+    // If the destination is compressed, so should the source be.
+    if (PoolInfo.count(I->second.getNode()))
+      PoolsToCompress.insert(I->first);
+  }
 
   // Get the clone of this function that uses compressed pointers instead of
   // normal pointers.
