@@ -5,6 +5,9 @@
 ##===----------------------------------------------------------------------===##
 
 TESTNAME = $*
+CURDIR  := $(shell cd .; pwd)
+PROGDIR := $(shell cd $(LEVEL)/test/Programs; pwd)/
+RELDIR  := $(subst $(PROGDIR),,$(CURDIR))
 
 VTL := /opt/intel/vtune/bin/vtl
 
@@ -15,7 +18,7 @@ VTL := /opt/intel/vtune/bin/vtl
 #
 P4_EVENTS := -ec
 P4_EVENTS += en='2nd Level Cache Read Misses'
-P4_EVENTS += en='2nd-Level Cache Read References'
+#P4_EVENTS += en='2nd-Level Cache Read References'
 #P4_EVENTS += en='1st Level Cache Load Misses Retired'
 P3_EVENTS := -ec en='L2 Cache Request Misses (highly correlated)'
 
@@ -72,7 +75,7 @@ endif
 # Generate events for Pool Allocated CBE
 #
 $(PROGRAMS_TO_TEST:%=Output/test.$(TEST).pa.%): \
-Output/test.$(TEST).pa.%: Output/%.poolalloc.cbe
+Output/test.$(TEST).pa.%: Output/%.poolalloc.cbe Output/test.$(TEST).%
 	@echo "========================================="
 	@echo "Running '$(TEST)' test on '$(TESTNAME)' program"
 ifeq ($(RUN_OPTIONS),)

@@ -5,7 +5,7 @@
 #
 ##===----------------------------------------------------------------------===##
 
-CFLAGS = -O3
+CFLAGS = -O2 -fno-strict-aliasing
 
 EXTRA_PA_FLAGS := -poolalloc-force-simple-pool-init
 
@@ -48,7 +48,7 @@ Output/%.poolalloc.cbe.c: Output/%.$(TEST).transformed.bc $(LLC)
 # This rule compiles the .c file into an executable using $CC
 $(PROGRAMS_TO_TEST:%=Output/%.poolalloc.cbe): \
 Output/%.poolalloc.cbe: Output/%.poolalloc.cbe.c $(PA_RT_O)
-	-$(CC) $(CFLAGS) $< $(PA_RT_O) $(LLCLIBS) $(LDFLAGS) -lstdc++ -o $@
+	-$(CC) $(CFLAGS) $< $(PA_RT_O) $(LLCLIBS) $(LDFLAGS) -o $@
 
 
 ifndef PROGRAMS_HAVE_CUSTOM_RUN_RULES
