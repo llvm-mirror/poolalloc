@@ -451,6 +451,7 @@ namespace {
     void visitReturnInst(ReturnInst &RI);
     void visitCastInst(CastInst &CI);
     void visitPHINode(PHINode &PN);
+    void visitSelectInst(SelectInst &SI);
     void visitSetCondInst(SetCondInst &SCI);
     void visitGetElementPtrInst(GetElementPtrInst &GEPI);
     void visitLoadInst(LoadInst &LI);
@@ -540,6 +541,16 @@ void InstructionRewriter::visitPHINode(PHINode &PN) {
     New->addIncoming(getTransformedValue(PN.getIncomingValue(i)),
                      PN.getIncomingBlock(i));
   setTransformedValue(PN, New);
+}
+
+void InstructionRewriter::visitSelectInst(SelectInst &SI) {
+  const CompressedPoolInfo *DestPI = getPoolInfo(&SI);
+  if (DestPI == 0) return;
+
+  setTransformedValue(SI, new SelectInst(SI.getOperand(0),
+                                         getTransformedValue(SI.getOperand(1)),
+                                         getTransformedValue(SI.getOperand(2)),
+                                         SI.getName(), &SI));
 }
 
 void InstructionRewriter::visitSetCondInst(SetCondInst &SCI) {
