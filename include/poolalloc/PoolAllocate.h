@@ -80,11 +80,12 @@ namespace PA {
     std::map<Value*, const Value*> NewToOldValueMap;
 
     /// MapValueToOriginal - Given a value in the cloned version of this
-    /// function, map it back to the original.
+    /// function, map it back to the original.  If the specified value did not
+    /// exist in the original function (e.g. because it's a pool descriptor),
+    /// return null.
     Value *MapValueToOriginal(Value *V) const {
       std::map<Value*,const Value*>::const_iterator I =NewToOldValueMap.find(V);
-      assert(I != NewToOldValueMap.end() && "This is not a cloned value!");
-      return const_cast<Value*>(I->second);
+      return I != NewToOldValueMap.end() ? const_cast<Value*>(I->second) : 0;
     }
   };
 
