@@ -12,6 +12,9 @@ LEVEL = ..
 include $(LEVEL)/Makefile.common
 
 
+##############################################################################
+# Targets for gathering statistics for programs for papers
+##############################################################################
 progtest::
 	(cd $(LLVM_OBJ_ROOT)/test/Programs/MultiSource/Benchmarks/Olden; \
                PROJECT_DIR=$(BUILD_OBJ_ROOT) $(MAKE) -j1 TEST=poolalloc \
@@ -39,8 +42,36 @@ progtest::
                    report)
 	@printf "\a"; sleep 1; printf "\a"; sleep 1; printf "\a"
 
+progperf::
+	(cd $(LLVM_OBJ_ROOT)/test/Programs/MultiSource/Benchmarks/Olden; \
+               PROJECT_DIR=$(BUILD_OBJ_ROOT) $(MAKE) -j1 TEST=perf \
+                   LARGE_PROBLEM_SIZE=1 report.html)
+	(cd $(LLVM_OBJ_ROOT)/test/Programs/MultiSource/Benchmarks/Ptrdist; \
+               PROJECT_DIR=$(BUILD_OBJ_ROOT) $(MAKE) -j1 TEST=perf \
+                   report.html)
+	(cd $(LLVM_OBJ_ROOT)/test/Programs/MultiSource/Benchmarks/MallocBench/cfrac; \
+               PROJECT_DIR=$(BUILD_OBJ_ROOT) $(MAKE) -j1 TEST=perf \
+                   report.html)
+	(cd $(LLVM_OBJ_ROOT)/test/Programs/External/SPEC/CINT2000; \
+               PROJECT_DIR=$(BUILD_OBJ_ROOT) $(MAKE) -j1 TEST=perf \
+                   report.html)
+	@(cd $(LLVM_OBJ_ROOT)/test/Programs/MultiSource/Benchmarks/Olden; \
+               PROJECT_DIR=$(BUILD_OBJ_ROOT) $(MAKE) -j1 TEST=perf \
+                   LARGE_PROBLEM_SIZE=1 report)
+	@(cd $(LLVM_OBJ_ROOT)/test/Programs/MultiSource/Benchmarks/Ptrdist; \
+               PROJECT_DIR=$(BUILD_OBJ_ROOT) $(MAKE) -j1 TEST=perf \
+                   report)
+	@(cd $(LLVM_OBJ_ROOT)/test/Programs/MultiSource/Benchmarks/MallocBench/cfrac; \
+               PROJECT_DIR=$(BUILD_OBJ_ROOT) $(MAKE) -j1 TEST=perf \
+                   report)
+	@(cd $(LLVM_OBJ_ROOT)/test/Programs/External/SPEC/CINT2000; \
+               PROJECT_DIR=$(BUILD_OBJ_ROOT) $(MAKE) -j1 TEST=perf \
+                   report)
+	@printf "\a"; sleep 1; printf "\a"; sleep 1; printf "\a"
 
-
+##############################################################################
+# Targets for running tests and gathering statistics for arbitrary tests
+##############################################################################
 
 # test target - Descend into test/Programs and run the TEST.poolalloc.Makefile
 # tests...
