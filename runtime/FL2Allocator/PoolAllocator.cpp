@@ -13,7 +13,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "PoolAllocator.h"
-#include <assert.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -149,24 +148,47 @@ static void InitPrintNumPools() {
 template<typename PoolTraits>
 static void AddNodeToFreeList(PoolTy<PoolTraits> *Pool,
                               FreedNodeHeader<PoolTraits> *FreeNode) {
-  FreedNodeHeader<PoolTraits> **FreeList;
+  typename PoolTraits::FreeNodeHeaderPtrTy *FreeList;
   if (FreeNode->Header.Size == Pool->DeclaredSize)
     FreeList = &Pool->ObjFreeList;
   else
     FreeList = &Pool->OtherFreeList;
 
-  FreeNode->PrevP = FreeList;
+  void *PoolBase = Pool->Slabs;
+
+  typename PoolTraits::FreeNodeHeaderPtrTy FreeNodeIdx = 
+    PoolTraits::FNHPtrToIndex(FreeNode, PoolBase);
+
+  FreeNode->Prev = 0;   // First on the list.
   FreeNode->Next = *FreeList;
-  *FreeList = FreeNode;
+  *FreeList = FreeNodeIdx;
   if (FreeNode->Next)
-    FreeNode->Next->PrevP = &FreeNode->Next;
+    PoolTraits::IndexToFNHPtr(FreeNode->Next, PoolBase)->Prev = FreeNodeIdx;
 }
 
 template<typename PoolTraits>
-static void UnlinkFreeNode(FreedNodeHeader<PoolTraits> *FNH) {
-  *FNH->PrevP = FNH->Next;
+static void UnlinkFreeNode(PoolTy<PoolTraits> *Pool,
+                           FreedNodeHeader<PoolTraits> *FNH) {
+  void *PoolBase = Pool->Slabs;
+
+  // Make the predecessor point to our next node.
+  if (FNH->Prev)
+    PoolTraits::IndexToFNHPtr(FNH->Prev, PoolBase)->Next = FNH->Next;
+  else {
+    typename PoolTraits::FreeNodeHeaderPtrTy NodeIdx = 
+      PoolTraits::FNHPtrToIndex(FNH, PoolBase);
+
+    if (Pool->ObjFreeList == NodeIdx)
+      Pool->ObjFreeList = FNH->Next;
+    else {
+      assert(Pool->OtherFreeList == NodeIdx &&
+             "Prev Ptr is null but not at head of free list?");
+      Pool->OtherFreeList = FNH->Next;
+    }
+  }
+
   if (FNH->Next)
-    FNH->Next->PrevP = FNH->PrevP;
+    PoolTraits::IndexToFNHPtr(FNH->Next, PoolBase)->Prev = FNH->Prev;
 }
 
 
@@ -502,8 +524,11 @@ static void *poolalloc_internal(PoolTy<PoolTraits> *Pool, unsigned NumBytes) {
 
   // Fast path - allocate objects off the object list.
   if (NumBytes == Pool->DeclaredSize && Pool->ObjFreeList != 0) {
-    FreedNodeHeader<PoolTraits> *Node = Pool->ObjFreeList;
-    UnlinkFreeNode(Node);
+    typename PoolTraits::FreeNodeHeaderPtrTy NodeIdx = Pool->ObjFreeList;
+    void *PoolBase = Pool->Slabs;
+    FreedNodeHeader<PoolTraits> *Node =
+      PoolTraits::IndexToFNHPtr(NodeIdx, PoolBase);
+    UnlinkFreeNode(Pool, Node);
     assert(NumBytes == Node->Header.Size);
 
     Node->Header.Size = NumBytes|1;   // Mark as allocated
@@ -519,7 +544,9 @@ static void *poolalloc_internal(PoolTy<PoolTraits> *Pool, unsigned NumBytes) {
   // Fast path.  In the common case, we can allocate a portion of the node at
   // the front of the free list.
   do {
-    FreedNodeHeader<PoolTraits> *FirstNode = Pool->OtherFreeList;
+    void *PoolBase = Pool->Slabs;
+    FreedNodeHeader<PoolTraits> *FirstNode =
+      PoolTraits::IndexToFNHPtr(Pool->OtherFreeList, PoolBase);
     if (FirstNode) {
       unsigned FirstNodeSize = FirstNode->Header.Size;
       if (FirstNodeSize >= NumBytes) {
@@ -530,14 +557,14 @@ static void *poolalloc_internal(PoolTy<PoolTraits> *Pool, unsigned NumBytes) {
                                    sizeof(NodeHeader<PoolTraits>) +NumBytes);
           
           // Remove from list
-          UnlinkFreeNode(FirstNode);
+          UnlinkFreeNode(Pool, FirstNode);
           
           NextNodes->Header.Size = FirstNodeSize-NumBytes -
                                    sizeof(NodeHeader<PoolTraits>);
           AddNodeToFreeList(Pool, NextNodes);
           
         } else {
-          UnlinkFreeNode(FirstNode);
+          UnlinkFreeNode(Pool, FirstNode);
           NumBytes = FirstNodeSize;
         }
         FirstNode->Header.Size = NumBytes|1;   // Mark as allocated
@@ -547,19 +574,25 @@ static void *poolalloc_internal(PoolTy<PoolTraits> *Pool, unsigned NumBytes) {
 
       // Perform a search of the free list, taking the front of the first free
       // chunk that is big enough.
-      FreedNodeHeader<PoolTraits> **FN = &Pool->OtherFreeList;
+      typename PoolTraits::FreeNodeHeaderPtrTy *FN = &Pool->OtherFreeList;
       FreedNodeHeader<PoolTraits> *FNN = FirstNode;
       
       // Search the list for the first-fit.
-      while (FNN && FNN->Header.Size < NumBytes)
-        FN = &FNN->Next, FNN = *FN;
+      while (FNN && FNN->Header.Size < NumBytes) {
+        // Advance FN to point to the Next field of FNN.
+        FN = &FNN->Next;
+
+        // Advance FNN to point to whatever the next node points to (null or the
+        // next node in the free list).
+        FNN = PoolTraits::IndexToFNHPtr(*FN, PoolBase);
+      }
       
       if (FNN) {
         // We found a slab big enough.  If it's a perfect fit, just unlink
         // from the free list, otherwise, slice a little bit off and adjust
         // the free list.
         if (FNN->Header.Size > 2*NumBytes+sizeof(NodeHeader<PoolTraits>)) {
-          UnlinkFreeNode(FNN);
+          UnlinkFreeNode(Pool, FNN);
           
           // Put the remainder back on the list...
           FreedNodeHeader<PoolTraits> *NextNodes =
@@ -570,13 +603,19 @@ static void *poolalloc_internal(PoolTy<PoolTraits> *Pool, unsigned NumBytes) {
             sizeof(NodeHeader<PoolTraits>);
           AddNodeToFreeList(Pool, NextNodes);
         } else {
-          UnlinkFreeNode(FNN);
+          UnlinkFreeNode(Pool, FNN);
           NumBytes = FNN->Header.Size;
         }
         FNN->Header.Size = NumBytes|1;   // Mark as allocated
         DO_IF_TRACE(fprintf(stderr, "0x%X\n", &FNN->Header+1));
         return &FNN->Header+1;
       }
+    }
+
+    // If we are not allowed to grow this pool, don't.
+    if (!PoolTraits::CanGrowPool) {
+      abort();
+      return 0;
     }
 
     // Oops, we didn't find anything on the free list big enough!  Allocate
@@ -624,7 +663,7 @@ static void poolfree_internal(PoolTy<PoolTraits> *Pool, void *Node) {
   NextFNH = (FreedNodeHeader<PoolTraits>*)((char*)Node+Size);
   while ((NextFNH->Header.Size & 1) == 0) {
     // Unlink NextFNH from the freelist that it is in.
-    UnlinkFreeNode(NextFNH);
+    UnlinkFreeNode(Pool, NextFNH);
     Size += sizeof(NodeHeader<PoolTraits>)+NextFNH->Header.Size;
     NextFNH = (FreedNodeHeader<PoolTraits>*)((char*)Node+Size);
   }
@@ -634,25 +673,35 @@ static void poolfree_internal(PoolTy<PoolTraits> *Pool, void *Node) {
   // a simple check that prevents many horrible forms of fragmentation,
   // particularly when freeing objects in allocation order.
   //
-  if (FreedNodeHeader<PoolTraits> *ObjFNH = Pool->ObjFreeList)
+  if (Pool->ObjFreeList) {
+    void *PoolBase = Pool->Slabs;
+    FreedNodeHeader<PoolTraits> *ObjFNH = 
+      PoolTraits::IndexToFNHPtr(Pool->ObjFreeList, PoolBase);
+
     if ((char*)ObjFNH + sizeof(NodeHeader<PoolTraits>) +
-        ObjFNH->Header.Size == (char*)FNH){
+        ObjFNH->Header.Size == (char*)FNH) {
       // Merge this with a node that is already on the object size free list.
       // Because the object is growing, we will never be able to find it if we
       // leave it on the object freelist.
-      UnlinkFreeNode(ObjFNH);
+      UnlinkFreeNode(Pool, ObjFNH);
       ObjFNH->Header.Size += Size+sizeof(NodeHeader<PoolTraits>);
       AddNodeToFreeList(Pool, ObjFNH);
       return;
     }
+  }
 
-  if (FreedNodeHeader<PoolTraits> *OFNH = Pool->OtherFreeList)
+  if (Pool->OtherFreeList) {
+    void *PoolBase = Pool->Slabs;
+    FreedNodeHeader<PoolTraits> *OFNH = 
+      PoolTraits::IndexToFNHPtr(Pool->OtherFreeList, PoolBase);
+
     if ((char*)OFNH + sizeof(NodeHeader<PoolTraits>) +
         OFNH->Header.Size == (char*)FNH) {
       // Merge this with a node that is already on the object size free list.
       OFNH->Header.Size += Size+sizeof(NodeHeader<PoolTraits>);
       return;
     }
+  }
 
   FNH->Header.Size = Size;
   AddNodeToFreeList(Pool, FNH);

@@ -22,8 +22,12 @@
 #ifndef POOLALLOCATOR_RUNTIME_H
 #define POOLALLOCATOR_RUNTIME_H
 
+#include <assert.h>
+
 template<typename PoolTraits>
 struct PoolSlab;
+template<typename PoolTraits>
+struct FreedNodeHeader;
 
 // NormalPoolTraits - This describes normal pool allocation pools, which can
 // address the entire heap, and are made out of multiple chunks of memory.  The
@@ -31,7 +35,26 @@ struct PoolSlab;
 // pointers.
 struct NormalPoolTraits {
   typedef unsigned long NodeHeaderType;
-  enum { UseLargeArrayObjects = 1 };
+  enum {
+    UseLargeArrayObjects = 1,
+    CanGrowPool = 1,
+  };
+
+  // Pointers are just pointers.
+  typedef FreedNodeHeader<NormalPoolTraits>* FreeNodeHeaderPtrTy;
+
+
+  /// DerefFNHPtr - Given an index into the pool, return a pointer to the
+  /// FreeNodeHeader object.
+  static FreedNodeHeader<NormalPoolTraits>*
+  IndexToFNHPtr(FreeNodeHeaderPtrTy P, void *PoolBase) {
+    return P;
+  }
+
+  static FreeNodeHeaderPtrTy
+  FNHPtrToIndex(FreedNodeHeader<NormalPoolTraits>* FNHP, void *PoolBase) {
+    return FNHP;
+  }
 };
 
 
@@ -41,10 +64,28 @@ struct NormalPoolTraits {
 // uses 32-bit indexes from the start of the pool instead of full pointers to
 // decrease the minimum object size.
 struct CompressedPoolTraits {
-  typedef unsigned long NodeHeaderType;
+  typedef unsigned NodeHeaderType;
 
-  enum { UseLargeArrayObjects = 0 };
-  
+  enum {
+    UseLargeArrayObjects = 0,
+    CanGrowPool = 0,
+  };
+
+  // Represent pointers with indexes from the pool base.
+  typedef unsigned FreeNodeHeaderPtrTy;
+
+  /// DerefFNHPtr - Given an index into the pool, return a pointer to the
+  /// FreeNodeHeader object.
+  static FreedNodeHeader<CompressedPoolTraits>*
+  IndexToFNHPtr(FreeNodeHeaderPtrTy P, void *PoolBase) {
+    return (FreedNodeHeader<CompressedPoolTraits>*)((char*)PoolBase + P);
+  }
+
+  static FreeNodeHeaderPtrTy
+  FNHPtrToIndex(FreedNodeHeader<CompressedPoolTraits>* FNHP, void *PoolBase) {
+    assert(FNHP && PoolBase && "Can't handle null FHNP!");
+    return (char*)FNHP - (char*)PoolBase;
+  }
 };
 
 
@@ -64,10 +105,11 @@ struct FreedNodeHeader {
   NodeHeader<PoolTraits> Header;
 
   // Next - The next object in the free list.
-  FreedNodeHeader *Next;
+  typename PoolTraits::FreeNodeHeaderPtrTy Next;
 
-  // PrevP - The pointer that points to this node on the free list.
-  FreedNodeHeader **PrevP;
+  // Prev - The node that points to this node on the free list.  This is null
+  // if it is the first node in one of the two free lists.
+  typename PoolTraits::FreeNodeHeaderPtrTy Prev;
 };
 
 
@@ -107,8 +149,8 @@ struct PoolTy {
   PoolSlab<PoolTraits> *Slabs;
 
   // The free node lists for objects of various sizes.  
-  FreedNodeHeader<PoolTraits> *ObjFreeList;
-  FreedNodeHeader<PoolTraits> *OtherFreeList;
+  typename PoolTraits::FreeNodeHeaderPtrTy ObjFreeList;
+  typename PoolTraits::FreeNodeHeaderPtrTy OtherFreeList;
 
   // Alignment - The required alignment of allocations the pool in bytes.
   unsigned Alignment;
