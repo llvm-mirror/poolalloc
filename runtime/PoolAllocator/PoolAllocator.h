@@ -34,6 +34,7 @@ extern "C" {
   void pooldestroy(PoolTy *Pool);
   void *poolalloc(PoolTy *Pool, unsigned NumBytes);
   void poolfree(PoolTy *Pool, void *Node);
+  void poolcheck(PoolTy *Pool, void *Node);
 }
 
 #endif
