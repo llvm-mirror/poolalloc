@@ -54,6 +54,12 @@ namespace {
     Function *PAFn;
     FunctionCloneRecord(Function *pafn) : PAFn(pafn) {}
 
+    /// PoolDescriptors - The Value* which defines the pool descriptor for this
+    /// DSNode.  Note: Does not necessarily include pool arguments that are
+    /// passed in because of indirect function calls that are not used in the
+    /// function.
+    std::map<const DSNode*, Value*> PoolDescriptors;
+
     /// NewToOldValueMap - This is a mapping from the values in the cloned body
     /// to the values in PAFn.
     std::map<Value*, const Value*> NewToOldValueMap;
@@ -741,24 +747,46 @@ CompressPoolsInFunction(Function &F,
   // Get the DSGraph for this function.
   DSGraph &DSG = ECG->getDSGraph(FI->F);
 
+  std::vector<const DSNode*> PoolsToCompressList;
+
   // Compute the set of compressible pools in this function that are hosted
   // here.
-  std::vector<const DSNode*> PoolsToCompressList;
   FindPoolsToCompress(PoolsToCompressList, F, DSG, FI);
 
+  // Handle pools that are passed into the function through arguments or
+  // returned by the function.  If this occurs, we must be dealing with a ptr
+  // compressed clone of the pool allocated clone of the original function.
+  if (FCR) {
+    // Compressed the return value?
+    if (F.getReturnType() != FCR->PAFn->getReturnType())
+      PoolsToCompressList.push_back(DSG.getReturnNodeFor(FI->F).getNode());
+
+    for (Function::aiterator CI = F.abegin(), OI = CloneSource->abegin(),
+           E = F.aend(); CI != E; ++CI, ++OI)
+      if (CI->getType() != OI->getType()) {  // Compressed this argument?
+        Value *OrigVal = FI->MapValueToOriginal(OI);
+        PoolsToCompressList.push_back(DSG.getNodeForValue(OrigVal).getNode());
+      }
+  }
+
   // If there is nothing that we can compress, exit now.
-  if (PoolsToCompressList.empty() && !CloneSource) return false;
+  if (PoolsToCompressList.empty()) return false;
 
   // Compute the initial collection of compressed pointer infos.
   std::map<const DSNode*, CompressedPoolInfo> PoolsToCompress;
 
-  // Handle pools that are local to this function.
-  for (unsigned i = 0, e = PoolsToCompressList.size(); i != e; ++i) {
-    const DSNode *N = PoolsToCompressList[i];
-    Value *PD = FI->PoolDescriptors[N];
-    assert(PD && "No pool descriptor available for this pool???");
-    PoolsToCompress.insert(std::make_pair(N, CompressedPoolInfo(N, PD)));
-  }
+  for (unsigned i = 0, e = PoolsToCompressList.size(); i != e; ++i)
+    if (PoolsToCompress.count(PoolsToCompressList[i]) == 0) {
+      const DSNode *N = PoolsToCompressList[i];
+      Value *PD;
+      if (FCR)
+        PD = FCR->PoolDescriptors.find(N)->second;
+      else
+        PD = FI->PoolDescriptors[N];
+      assert(PD && "No pool descriptor available for this pool???");
+
+      PoolsToCompress.insert(std::make_pair(N, CompressedPoolInfo(N, PD)));
+    }
 
   // Use these to compute the closure of compression information.  In
   // particular, if one pool points to another, we need to know if the outgoing
@@ -861,6 +889,13 @@ GetFunctionClone(Function *F, const std::vector<unsigned> &OpsToCompress) {
   for (std::map<const Value*, Value*>::iterator I = ValueMap.begin(),
          E = ValueMap.end(); I != E; ++I)
     NewToOldValueMap.insert(std::make_pair(I->second, I->first));
+
+  // Compute the PoolDescriptors map for the cloned function.
+  PA::FuncInfo *FI = PoolAlloc->getFuncInfoOrClone(*F);
+  for (std::map<const DSNode*, Value*>::iterator I =FI->PoolDescriptors.begin(),
+         E = FI->PoolDescriptors.end(); I != E; ++I)
+    CFI.PoolDescriptors[I->first] = ValueMap[I->second];
+
   ValueMap.clear();
 
   // Recursively transform the function.
