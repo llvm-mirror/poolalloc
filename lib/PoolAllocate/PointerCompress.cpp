@@ -88,7 +88,7 @@ namespace {
   /// data structures to reduce the size of pointers in the program.
   class PointerCompress : public ModulePass {
     PoolAllocate *PoolAlloc;
-    PA::EquivClassGraphs *ECG;
+    EquivClassGraphs *ECG;
 
     /// ClonedFunctionMap - Every time we clone a function to compress its
     /// arguments, keep track of the clone and which arguments are compressed.
@@ -1039,7 +1039,7 @@ void PointerCompress::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.addRequired<PoolAllocatePassAllPools>();
 
   // Need information from DSA.
-  AU.addRequired<PA::EquivClassGraphs>();
+  AU.addRequired<EquivClassGraphs>();
 }
 
 /// PoolIsCompressible - Return true if we can pointer compress this node.
@@ -1418,7 +1418,7 @@ void PointerCompress::InitializePoolLibraryFunctions(Module &M) {
 
 bool PointerCompress::runOnModule(Module &M) {
   PoolAlloc = &getAnalysis<PoolAllocatePassAllPools>();
-  ECG = &getAnalysis<PA::EquivClassGraphs>();
+  ECG = &getAnalysis<EquivClassGraphs>();
   
   if (SmallIntCompress)
     MEMUINTTYPE = Type::UShortTy;

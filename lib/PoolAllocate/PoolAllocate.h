@@ -31,10 +31,10 @@ class DSNode;
 class DSGraph;
 class Type;
 class AllocaInst;
+class EquivClassGraphs;
 
 namespace PA {
 
-  class EquivClassGraphs;
   class Heuristic;
 
   /// FuncInfo - Represent the pool allocation information for one function in
@@ -104,7 +104,7 @@ class PoolAllocate : public ModulePass {
   bool PassAllArguments;
 
   Module *CurModule;
-  PA::EquivClassGraphs *ECGraphs;
+  EquivClassGraphs *ECGraphs;
 
   std::map<Function*, PA::FuncInfo> FunctionInfo;
   std::map<Function*, Function*> CloneToOrigMap;
@@ -129,7 +129,7 @@ public:
   
   virtual void getAnalysisUsage(AnalysisUsage &AU) const;
   
-  PA::EquivClassGraphs &getECGraphs() const { return *ECGraphs; }
+  EquivClassGraphs &getECGraphs() const { return *ECGraphs; }
   
   /// getOrigFunctionFromClone - Given a pointer to a function that was cloned
   /// from another function, return the original function.  If the argument
