@@ -25,8 +25,11 @@ sub Ratio {
  ["Name:" , '\'([^\']+)\' Program'],
  [],
 # Times
- ["Normal<br>ExeTime"  , 'LLC-RUN-TIME-NORMAL: real[\t ]+0m([0-9.]+)'],
+ ["Normal<br>ExeTime"  ,  'LLC-RUN-TIME-NORMAL: real[\t ]+0m([0-9.]+)'],
  ["PoolAlloc<br>ExeTime", 'LLC-RUN-TIME-POOLALLOC: real[\t ]+0m([0-9.]+)'],
  ["% Speedup", \&Ratio],         # Normal / PA
+ ["NumPools",             '([0-9]+).*Number of poolinit.s inserted'],
+ ["NumCloned",            '([0-9]+).*Number of functions cloned'],
+ ["NumArgs",              '([0-9]+).*Number of function arguments added'],
  []
 );

@@ -17,3 +17,4 @@ test::
 	(cd $(LLVM_SRC_ROOT)/test/Programs/$(SUBDIR); \
                PROJECT_DIR=$(BUILD_OBJ_ROOT) $(MAKE) TEST=poolalloc \
                    report report.html )
+	@printf "\a"; sleep 1; printf "\a"; sleep 1; printf "\a"

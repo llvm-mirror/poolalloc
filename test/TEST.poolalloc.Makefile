@@ -63,7 +63,7 @@ Output/%.$(TEST).report.txt: Output/%.$(TEST).transformed.bc Output/%.exe-llc \
 	  grep "^real" Output/$*.poolalloc.out-llc.time >> $@;\
 	fi
 
-	@#cat Output/$*.$(TEST).transformed.bc.info >> $@
+	@cat Output/$*.$(TEST).transformed.bc.info >> $@
 	@#cat Output/$*.$(TEST).transformed.bc.out  >> $@
 
 
