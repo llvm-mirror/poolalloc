@@ -35,6 +35,7 @@ namespace {
   Statistic<> NumArgsAdded("poolalloc", "Number of function arguments added");
   Statistic<> NumCloned   ("poolalloc", "Number of functions cloned");
   Statistic<> NumPools    ("poolalloc", "Number of pools allocated");
+  Statistic<> NumTSPools  ("poolalloc", "Number of typesafe pools");
   Statistic<> NumPoolFree ("poolalloc", "Number of poolfree's elided");
 
   const Type *VoidPtrTy;
@@ -401,6 +402,10 @@ bool PoolAllocate::SetupGlobalPools(Module &M) {
       ConstantUInt::get(Type::UIntTy, (*I)->getType()->isSized() ? 
                         TD.getTypeSize((*I)->getType()) : 4);
     new CallInst(PoolInit, make_vector((Value*)GV, ElSize, 0), "", InsertPt);
+
+    ++NumPools;
+    if (!(*I)->isNodeCompletelyFolded())
+      ++NumTSPools;
   }
 
   return false;
@@ -534,6 +539,8 @@ void PoolAllocate::CreatePools(Function &F,
     if (Node->getType() == Type::VoidTy)
       std::cerr << "Node collapsing in '" << F.getName() << "'\n";
     ++NumPools;
+    if (!Node->isNodeCompletelyFolded())
+      ++NumTSPools;
       
     // Update the PoolDescriptors map
     PoolDescriptors.insert(std::make_pair(Node, AI));
