@@ -46,17 +46,21 @@ namespace {
   class PointerCompress : public ModulePass {
     PoolAllocate *PoolAlloc;
     PA::EquivClassGraphs *ECG;
-  public:
-    Function *PoolInitPC, *PoolDestroyPC, *PoolAllocPC, *PoolFreePC;
-    typedef std::map<const DSNode*, CompressedPoolInfo> PoolInfoMap;
 
     /// ClonedFunctionMap - Every time we clone a function to compress its
     /// arguments, keep track of the clone and which arguments are compressed.
     std::map<std::pair<Function*, std::vector<unsigned> >,
              Function *> ClonedFunctionMap;
+  public:
+    Function *PoolInitPC, *PoolDestroyPC, *PoolAllocPC, *PoolFreePC;
+    typedef std::map<const DSNode*, CompressedPoolInfo> PoolInfoMap;
 
     bool runOnModule(Module &M);
+
     void getAnalysisUsage(AnalysisUsage &AU) const;
+
+    Function *GetFunctionClone(Function *F, 
+                               const std::vector<unsigned> &OpsToCompress);
 
   private:
     void InitializePoolLibraryFunctions(Module &M);
@@ -215,20 +219,11 @@ static bool PoolIsCompressible(const DSNode *N, Function &F) {
 void PointerCompress::FindPoolsToCompress(std::vector<const DSNode*> &Pools,
                                           Function &F, DSGraph &DSG,
                                           PA::FuncInfo *FI) {
-  hash_set<const DSNode*> ReachableFromCalls;
-
-  // If a data structure is passed into a call, we currently cannot handle it!
-  for (DSGraph::fc_iterator I = DSG.fc_begin(), E = DSG.fc_end(); I != E; ++I) {
-    //DEBUG(std::cerr << " CALLS: " << I->getCalleeFunc()->getName() << "\n");
-    I->markReachableNodes(ReachableFromCalls);
-  }
   DEBUG(std::cerr << "In function '" << F.getName() << "':\n");
   for (unsigned i = 0, e = FI->NodesToPA.size(); i != e; ++i) {
     const DSNode *N = FI->NodesToPA[i];
-    if (ReachableFromCalls.count(N)) {
-      DEBUG(std::cerr << "Passed into call:\nPCF: "; N->dump());
-      ++NumNotCompressed;
-    } else if (PoolIsCompressible(N, F)) {
+
+    if (PoolIsCompressible(N, F)) {
       Pools.push_back(N);
       ++NumCompressed;
     } else {
@@ -600,14 +595,9 @@ void InstructionRewriter::visitCallInst(CallInst &CI) {
   Function *Callee = CI.getCalledFunction();
   assert(Callee && "Indirect calls not implemented yet!");
   
-  // Check to see if we have already compressed this function, if so, there is
-  // no need to make another clone.
-  Function *Clone = PtrComp.ClonedFunctionMap[std::make_pair(Callee,
-                                                             OpsToCompress)];
-  if (Clone == 0) { 
-    visitInstruction(CI);
-    return;
-  }
+  // Get the clone of this function that uses compressed pointers instead of
+  // normal pointers.
+  Function *Clone = PtrComp.GetFunctionClone(Callee, OpsToCompress);
 
   // Okay, we now have our clone: rewrite the call instruction.
   std::vector<Value*> Operands;
@@ -621,8 +611,11 @@ void InstructionRewriter::visitCallInst(CallInst &CI) {
   Value *NC = new CallInst(Clone, Operands, CI.getName(), &CI);
   if (OpsToCompress[0] == 0)      // Compressing return value?
     setTransformedValue(CI, NC);
-  else
+  else {
+    if (!CI.use_empty())
+      CI.replaceAllUsesWith(NC);
     CI.eraseFromParent();
+  }
 }
 
 
@@ -681,6 +674,46 @@ bool PointerCompress::CompressPoolsInFunction(Function &F) {
   // Finally, rewrite the function body to use compressed pointers!
   InstructionRewriter(PoolsToCompress, DSG, *this).visit(F);
   return true;
+}
+
+
+/// GetFunctionClone - Lazily create clones of pool allocated functions that we
+/// need in compressed form.  This memoizes the functions that have been cloned
+/// to allow only one clone of each function in a desired permutation.
+Function *PointerCompress::
+GetFunctionClone(Function *F, const std::vector<unsigned> &OpsToCompress) {
+  assert(!OpsToCompress.empty() && "No clone needed!");
+
+  // Check to see if we have already compressed this function, if so, there is
+  // no need to make another clone.
+  Function *&Clone = ClonedFunctionMap[std::make_pair(F, OpsToCompress)];
+  if (Clone) return Clone;
+
+  // First step, construct the new function prototype.
+  const FunctionType *FTy = F->getFunctionType();
+  const Type *RetTy = FTy->getReturnType();
+  unsigned OTCIdx = 0;
+  if (OpsToCompress[0] == 0) {
+    RetTy = UINTTYPE;
+    OTCIdx++;
+  }
+  std::vector<const Type*> ParamTypes;
+  for (unsigned i = 0, e = FTy->getNumParams(); i != e; ++i)
+    if (OTCIdx != OpsToCompress.size() && OpsToCompress[OTCIdx] == i+1) {
+      assert(isa<PointerType>(FTy->getParamType(i)) && "Not a pointer?");
+      ParamTypes.push_back(UINTTYPE);
+      ++OTCIdx;
+    } else {
+      ParamTypes.push_back(FTy->getParamType(i));
+    }
+  FunctionType *CFTy = FunctionType::get(RetTy, ParamTypes, FTy->isVarArg());
+
+  // Next, create the clone prototype and insert it into the module.
+  Clone = new Function(CFTy, GlobalValue::/*Internal*/ ExternalLinkage,
+                       F->getName()+".pc");
+  F->getParent()->getFunctionList().insert(F, Clone);
+
+  return Clone;
 }
 
 
