@@ -349,10 +349,6 @@ Function *PoolAllocate::MakeFunctionClone(Function &F) {
     NI->setName(I->getName());
   }
 
-  // Populate the value map with all of the globals in the program.
-  // FIXME: This should be unnecessary!
-  Module &M = *F.getParent();
-
   // Perform the cloning.
   std::vector<ReturnInst*> Returns;
 {TIME_REGION(X, "CFI");
