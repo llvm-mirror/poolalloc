@@ -261,7 +261,7 @@ poolalloc(PoolTy *Pool, unsigned BytesWanted)
   //
   if (Pool->NodeSize < BytesWanted)
   {
-    return (poolallocarray (Pool, (BytesWanted / Pool->NodeSize) + 1));
+    return (poolallocarray (Pool, (BytesWanted+Pool->NodeSize-1)/Pool->NodeSize));
   }
 
   //
