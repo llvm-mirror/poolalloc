@@ -231,6 +231,9 @@ poolalloc(PoolTy *Pool, unsigned BytesWanted)
   // Pointer to the data block to return
   void * Data;
 
+  // Slab Pointer
+  struct SlabHeader * Slabp;
+
   assert(Pool && "Null pool pointer passed in to poolalloc!\n");
 
   //
@@ -246,23 +249,24 @@ poolalloc(PoolTy *Pool, unsigned BytesWanted)
   // If we don't have a slab, this is our first initialization.  Do some
   // quick stuff.
   //
-  if (Pool->Slabs == NULL)
+  Slabp = Pool->Slabs;
+  if (Slabp == NULL)
   {
-    Pool->Slabs = createSlab (Pool);
-    (Pool->Slabs->NextFreeData)++;
-    return (Pool->Slabs->Data);
+    Pool->Slabs = Slabp = createSlab (Pool);
+    (Slabp->NextFreeData)++;
+    return (Slabp->Data);
   }
 
   //
   // Determine whether we can allocate from the current slab.
   //
-  if (Pool->Slabs->NextFreeData < Pool->Slabs->NodesPerSlab)
+  if (Slabp->NextFreeData < Slabp->NodesPerSlab)
   {
     //
     // Return the block and increment the index of the next free data block.
     //
-    Data = (Pool->Slabs->Data + (Pool->NodeSize * Pool->Slabs->NextFreeData));
-    (Pool->Slabs->NextFreeData)++;
+    Data = (Slabp->Data + (Pool->NodeSize * Slabp->NextFreeData));
+    (Slabp->NextFreeData)++;
     return (Data);
   }
 
@@ -275,27 +279,27 @@ poolalloc(PoolTy *Pool, unsigned BytesWanted)
     //
     // Create a new slab and add it to the list.
     //
-    struct SlabHeader * NewSlab = createSlab (Pool);
-    NewSlab->Next = Pool->Slabs;
-    Pool->Slabs = NewSlab;
+    Slabp = createSlab (Pool);
+    Slabp->Next = Pool->Slabs;
+    Pool->Slabs = Slabp;
 
-    (NewSlab->NextFreeData)++;
+    (Slabp->NextFreeData)++;
 
     //
     // Return the block and increment the index of the next free data block.
     //
-    return (Pool->Slabs->Data);
+    return (Slabp->Data);
   }
 
   //
   // Determine which slab owns this block.
   //
-  struct SlabHeader * slabp = BlockOwner (PageSize, Pool->FreeList);
+  Slabp = BlockOwner (PageSize, Pool->FreeList);
 
   //
   // Find the data block that corresponds with this pointer.
   //
-  Data = (slabp->Data + (Pool->NodeSize * (Pool->FreeList.Next - &(slabp->BlockList[0]))));
+  Data = (Slabp->Data + (Pool->NodeSize * (Pool->FreeList.Next - &(Slabp->BlockList[0]))));
 
   //
   // Unlink the first block.
