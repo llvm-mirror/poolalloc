@@ -56,13 +56,10 @@ struct SlabHeader
 //  Allocate memory for a new slab and initialize the slab.
 //
 struct SlabHeader *
-createSlab (unsigned int NodeSize)
+createSlab (unsigned int NodeSize, unsigned int NodesPerSlab = 128)
 {
   // Pointer to the new Slab
   struct SlabHeader * NewSlab;
-
-  // The number of elements in the slab
-  const unsigned int NodesPerSlab = 128;
 
   // Pointers and index for initializing memory
   NodePointer p;
@@ -230,12 +227,43 @@ poolalloc(PoolTy *Pool)
   return (MemoryBlock.header += sizeof (unsigned char *));
 }
 
+//
+// Function: poolallocarray ()
+//
+// Description:
+//  Allocate an array of contiguous nodes.
+//
+// FIXME:
+//  This algorithm is not very space efficient.  This needs to be fixed.
+//
 void *
 poolallocarray(PoolTy* Pool, unsigned Size)
 {
   assert(Pool && "Null pool pointer passed into poolallocarray!\n");
-  assert (0 && "Not implemented yet")
+  assert (0 && "I don't work yet\n");
+
+#if 0
+  //
+  // Create a new slab and add it to the list.
+  //
+  struct SlabHeader * NewSlab = createSlab (Pool->NodeSize, Size);
+  if (Pool->Slabs == NULL)
+  {
+    Pool->Slabs = NewSlab;
+  }
+  else
+  {
+    NewSlab->Next = Pool->Slabs;
+    Pool->Slabs = NewSlab;
+  }
+
+  //
+  // Return the list of blocks to the caller.
+  //
+  return (&(Pool->Slabs->Data[0]));
+#else /* 0 */
   return NULL;
+#endif /* 0 */
 }
 
 void
