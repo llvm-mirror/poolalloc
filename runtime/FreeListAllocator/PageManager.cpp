@@ -16,9 +16,8 @@
 #define _POSIX_MAPPED_FILES
 #endif
 #include <unistd.h>
-#include <sys/mman.h>
+#include "poolalloc/MMAPSupport.h"
 #include "poolalloc/Support/MallocAllocator.h"
-#include <cassert>
 #include <vector>
 #include <iostream>
 
@@ -41,41 +40,12 @@ static FreePagesListType *FreePages = 0;
 //  any other Page Manager functions are called.
 //
 unsigned int InitializePageManager() {
-  if (!PageSize)
-  {
+  if (!PageSize) {
     PageSize = sysconf(_SC_PAGESIZE);
     FreePages = 0;
   }
   return PageSize;
 }
-
-#if !USE_MEMALIGN
-void *GetPages(unsigned NumPages) {
-#if defined(i386) || defined(__i386__) || defined(__x86__)
-  /* Linux and *BSD tend to have these flags named differently. */
-#if defined(MAP_ANON) && !defined(MAP_ANONYMOUS)
-# define MAP_ANONYMOUS MAP_ANON
-#endif /* defined(MAP_ANON) && !defined(MAP_ANONYMOUS) */
-#elif defined(sparc) || defined(__sparc__) || defined(__sparcv9)
-  /* nothing */
-#else
-  std::cerr << "This architecture is not supported by the pool allocator!\n";
-  abort();
-#endif
-
-#if defined(__linux__)
-#define fd 0
-#else
-#define fd -1
-#endif
-
-  void *pa = mmap(0, NumPages*PageSize, PROT_READ|PROT_WRITE,
-                  MAP_PRIVATE|MAP_ANONYMOUS, fd, 0);
-  assert(pa != MAP_FAILED && "MMAP FAILED!");
-  return pa;
-}
-#endif
-
 
 ///
 /// Function: AllocatePage ()
@@ -100,7 +70,7 @@ void *AllocatePage() {
 
   // Allocate several pages, and put the extras on the freelist...
   unsigned NumToAllocate = 8;
-  char *Ptr = (char*)GetPages(NumToAllocate);
+  char *Ptr = (char*)AllocateSpaceWithMMAP(PageSize*NumToAllocate);
 
   if (!FreePages) {
     // Avoid using operator new!
@@ -123,6 +93,5 @@ void FreePage(void *Page) {
 #else
   assert(FreePages && "No pages allocated!");
   FreePages->push_back(Page);
-  //munmap(Page, 1);
 #endif
 }
