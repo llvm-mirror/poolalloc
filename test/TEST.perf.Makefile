@@ -17,12 +17,15 @@ PERFSCRIPT := $(BUILD_SRC_DIR)/perf.awk
 #
 # Events for the AMD K7 (Athlon) processors
 #
-K7_REFILL_SYSTEM  := 0x00411F43
-K7_REFILL_L2      := 0x00411F42
-K7_CACHE_MISSES   := 0x00410041
-K7_CACHE_ACCESSES := 0x00410040
+K7_REFILL_SYSTEM   := 0x00411F43
+K7_REFILL_L2       := 0x00411F42
+#K7_CACHE_MISSES   := 0x00410041
+#K7_CACHE_ACCESSES := 0x00410040
+K7_TLB_MISSES      := 0x00410046
+K7_MISALIGNED_DATA := 0x00410047
 
-K7_EVENTS := -e $(K7_REFILL_SYSTEM) -e $(K7_REFILL_L2) -e $(K7_CACHE_MISSES) -e $(K7_CACHE_ACCESSES)
+K7_EVENTS := -e $(K7_REFILL_SYSTEM) -e $(K7_REFILL_L2) \
+             -e $(K7_MISALIGNED_DATA) -e $(K7_TLB_MISSES)
 
 #
 # Events for the Pentium 4/Xeon processors
@@ -49,6 +52,14 @@ $(PROGRAMS_TO_TEST:%=Output/$(TEST).cacheaccesses.pa.%): \
 Output/$(TEST).cacheaccesses.pa.%: Output/test.$(TEST).pa.%
 	$(VERB) grep $(K7_CACHE_ACCESSES) $< | awk '{print $$(NF)}' > $@
 
+$(PROGRAMS_TO_TEST:%=Output/$(TEST).tlbmisses.%): \
+Output/$(TEST).tlbmisses.%: Output/test.$(TEST).%
+	$(VERB) grep $(K7_TLB_MISSES) $< | awk '{print $$(NF)}' > $@
+
+$(PROGRAMS_TO_TEST:%=Output/$(TEST).tlbmisses.pa.%): \
+Output/$(TEST).tlbmisses.pa.%: Output/test.$(TEST).pa.%
+	$(VERB) grep $(K7_TLB_MISSES) $< | awk '{print $$(NF)}' > $@
+
 $(PROGRAMS_TO_TEST:%=Output/$(TEST).cachemisses.%): \
 Output/$(TEST).cachemisses.%: Output/test.$(TEST).%
 	$(VERB) grep $(K7_CACHE_MISSES) $< | awk '{print $$(NF)}' > $@
@@ -56,6 +67,14 @@ Output/$(TEST).cachemisses.%: Output/test.$(TEST).%
 $(PROGRAMS_TO_TEST:%=Output/$(TEST).cachemisses.pa.%): \
 Output/$(TEST).cachemisses.pa.%: Output/test.$(TEST).pa.%
 	$(VERB) grep $(K7_CACHE_MISSES) $< | awk '{print $$(NF)}' > $@
+
+$(PROGRAMS_TO_TEST:%=Output/$(TEST).misaligned.%): \
+Output/$(TEST).misaligned.%: Output/test.$(TEST).%
+	$(VERB) grep $(K7_MISALIGNED_DATA) $< | awk '{print $$(NF)}' > $@
+
+$(PROGRAMS_TO_TEST:%=Output/$(TEST).misaligned.pa.%): \
+Output/$(TEST).misaligned.pa.%: Output/test.$(TEST).pa.%
+	$(VERB) grep $(K7_MISALIGNED_DATA) $< | awk '{print $$(NF)}' > $@
 
 $(PROGRAMS_TO_TEST:%=Output/$(TEST).L1Misses.%): \
 Output/$(TEST).L1Misses.%: Output/test.$(TEST).%
@@ -106,11 +125,7 @@ $(PROGRAMS_TO_TEST:%=Output/test.$(TEST).pa.%): \
 Output/test.$(TEST).pa.%: Output/%.poolalloc.cbe Output/test.$(TEST).%
 	@echo "========================================="
 	@echo "Running '$(TEST)' test on '$(TESTNAME)' program"
-ifeq ($(RUN_OPTIONS),)
-	$(VERB) cat $(STDIN_FILENAME) | $(PERFEX) -o $@ $(EVENTS) $< > /dev/null
-else
-	$(VERB) cat $(STDIN_FILENAME) | $(PERFEX) -o $@ $(EVENTS) $< $(RUN_OPTIONS) > /dev/null
-endif
+	-$(PERFEX) -o $@ $(EVENTS) $< $(RUN_OPTIONS) > /dev/null < $(STDIN_FILENAME)
 
 #
 # Generate events for CBE
@@ -119,11 +134,7 @@ $(PROGRAMS_TO_TEST:%=Output/test.$(TEST).%): \
 Output/test.$(TEST).%: Output/%.nonpa.cbe
 	@echo "========================================="
 	@echo "Running '$(TEST)' test on '$(TESTNAME)' program"
-ifeq ($(RUN_OPTIONS),)
-	$(VERB) cat $(STDIN_FILENAME) | $(PERFEX) -o $@ $(EVENTS) $< > /dev/null
-else
-	$(VERB) cat $(STDIN_FILENAME) | $(PERFEX) -o $@ $(EVENTS) $< $(RUN_OPTIONS) > /dev/null
-endif
+	-$(PERFEX) -o $@ $(EVENTS) $< $(RUN_OPTIONS) > /dev/null < $(STDIN_FILENAME)
 
 else
 
@@ -149,20 +160,20 @@ endif
 ############################################################################
 ifeq ($(EVENTS),$(K7_EVENTS))
 $(PROGRAMS_TO_TEST:%=Output/%.$(TEST).report.txt): \
-Output/%.$(TEST).report.txt: $(PROGRAMS_TO_TEST:%=Output/$(TEST).cacheaccesses.%)     \
-                     $(PROGRAMS_TO_TEST:%=Output/$(TEST).cacheaccesses.pa.%) \
-                     $(PROGRAMS_TO_TEST:%=Output/$(TEST).cachemisses.%) \
-                     $(PROGRAMS_TO_TEST:%=Output/$(TEST).cachemisses.pa.%) \
+Output/%.$(TEST).report.txt: $(PROGRAMS_TO_TEST:%=Output/$(TEST).tlbmisses.%)     \
+                     $(PROGRAMS_TO_TEST:%=Output/$(TEST).tlbmisses.pa.%) \
+                     $(PROGRAMS_TO_TEST:%=Output/$(TEST).misaligned.%) \
+                     $(PROGRAMS_TO_TEST:%=Output/$(TEST).misaligned.pa.%) \
                      $(PROGRAMS_TO_TEST:%=Output/$(TEST).L1Misses.%) \
                      $(PROGRAMS_TO_TEST:%=Output/$(TEST).L1Misses.pa.%) \
                      $(PROGRAMS_TO_TEST:%=Output/$(TEST).L2Misses.%) \
                      $(PROGRAMS_TO_TEST:%=Output/$(TEST).L2Misses.pa.%)
 	@echo "Program:" $* > $@
 	@echo "-------------------------------------------------------------" >> $@
-	@printf "CBE-PA-Cache-Accesses: %lld\n" `cat Output/$(TEST).cacheaccesses.pa.$*` >> $@
-	@printf "CBE-Cache-Accesses: %lld\n" `cat Output/$(TEST).cacheaccesses.$*` >> $@
-	@printf "CBE-PA-Cache-Misses: %lld\n" `cat Output/$(TEST).cachemisses.pa.$*` >> $@
-	@printf "CBE-Cache-Misses: %lld\n" `cat Output/$(TEST).cachemisses.$*` >> $@
+	@printf "CBE-PA-TLB-Misses: %lld\n" `cat Output/$(TEST).tlbmisses.pa.$*` >> $@
+	@printf "CBE-TLB-Misses: %lld\n" `cat Output/$(TEST).tlbmisses.$*` >> $@
+	@printf "CBE-PA-Misaligned: %lld\n" `cat Output/$(TEST).misaligned.pa.$*` >> $@
+	@printf "CBE-Misaligned: %lld\n" `cat Output/$(TEST).misaligned.$*` >> $@
 	@printf "CBE-PA-L1-Cache-Misses: %lld\n" `cat Output/$(TEST).L1Misses.pa.$*` >> $@
 	@printf "CBE-L1-Cache-Misses: %lld\n" `cat Output/$(TEST).L1Misses.$*` >> $@
 	@printf "CBE-PA-L2-Cache-Misses: %lld\n" `cat Output/$(TEST).L2Misses.pa.$*` >> $@
