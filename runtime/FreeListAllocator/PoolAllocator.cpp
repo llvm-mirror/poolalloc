@@ -36,54 +36,38 @@
 struct SlabHeader *
 createSlab (unsigned int NodeSize, unsigned int NodesPerSlab = 0)
 {
-  // Maximum number of nodes per slab
-  unsigned int MaxNodesPerSlab;
+  // Maximum number of nodes per page
+  unsigned int MaxNodesPerPage;
 
   // Pointer to the new Slab
   struct SlabHeader * NewSlab;
 
-  // Pointers and index for initializing memory
-  NodePointer p;
-  unsigned int index;
+  //
+  // Determine how many nodes can exist within a regular slab.
+  //
+  MaxNodesPerPage = (PageSize - sizeof (struct SlabHeader)) / (sizeof (NodePointer) + NodeSize);
 
   //
-  // Determine how many nodes should exist within a slab.
+  // Allocate the memory for the slab and initialize its contents.
   //
-  MaxNodesPerSlab = (PageSize - sizeof (struct SlabHeader)) / (sizeof (unsigned char *) + NodeSize);
-  assert ((MaxNodesPerSlab >= NodesPerSlab) && "Too many nodes requested");
+  if (NodesPerSlab > MaxNodesPerPage)
+  {
+    NewSlab = (struct SlabHeader *) GetPages ((NodeSize * NodesPerSlab / PageSize) + 1);
+    assert (NewSlab != NULL);
+    NewSlab->IsArray = 1;
+  }
+  else
+  {
+    NewSlab = (struct SlabHeader *) AllocatePage ();
+    assert (NewSlab != NULL);
+    NewSlab->IsArray = 0;
 
-  //
-  // Regardless of what the caller asked for, allocate the maximum number of
-  // nodes available in a page.
-  //
-  // This is the default behavior for regular nodes, and for arrays, we want to
-  // round up to the nearest slab so that we don't waste space when we use the
-  // array memory.
-  //
-  // FIXME:
-  //  Specifying the number of nodes that you want will come into play once
-  //  we allow pool allocations to span multiple memory pages.
-  //
-  NodesPerSlab = MaxNodesPerSlab;
+    //
+    // Bump the number of nodes in the slab up to the maximum.
+    //
+    NodesPerSlab = MaxNodesPerPage;
+  }
 
-  //
-  // Determine the size of the slab.
-  //
-  int slab_size = ((sizeof (unsigned char *) + NodeSize) * NodesPerSlab) +
-                   sizeof (struct SlabHeader);
-
-  assert (slab_size <= PageSize);
-
-  //
-  // Allocate a piece of memory for the new slab.
-  //
-  NewSlab = (struct SlabHeader *) AllocatePage ();
-  assert (NewSlab != NULL);
-
-  //
-  // Initialize the contents of the slab.
-  //
-  NewSlab->IsArray = 0;
   NewSlab->NodesPerSlab = NodesPerSlab;
   NewSlab->NextFreeData = NewSlab->LiveNodes = 0;
   NewSlab->Next = NULL;
@@ -272,9 +256,6 @@ poolalloc(PoolTy *Pool)
 // Inputs:
 //  Pool - The pool from which to allocate memory.
 //  ArraySize - The size of the array in number of elements (not bytes).
-//
-// FIXME:
-//  This algorithm is not very space efficient.  This needs to be fixed.
 //
 void *
 poolallocarray(PoolTy* Pool, unsigned ArraySize)

@@ -34,4 +34,8 @@ void *AllocatePage();
 /// future allocation.
 void FreePage(void *Page);
 
+/// GetPages - Just allocate the specified pages on a page boundary.  This is
+///            a hack for large arrays.
+void * GetPages (unsigned NumPages);
+
 #endif

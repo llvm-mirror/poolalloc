@@ -32,12 +32,19 @@ unsigned PageSize = 0;
 typedef std::vector<void*, MallocAllocator<void*> > FreePagesListType;
 static FreePagesListType *FreePages = 0;
 
+//
+// Function: InitializePageManager ()
+//
+// Description:
+//  This function initializes the Page Manager code.  It must be called before
+//  any other Page Manager functions are called.
+//
 void InitializePageManager() {
   if (!PageSize) PageSize = sysconf(_SC_PAGESIZE);
 }
 
 #if !USE_MEMALIGN
-static void *GetPages(unsigned NumPages) {
+void *GetPages(unsigned NumPages) {
 #if defined(i386) || defined(__i386__) || defined(__x86__)
   /* Linux and *BSD tend to have these flags named differently. */
 #if defined(MAP_ANON) && !defined(MAP_ANONYMOUS)
@@ -64,14 +71,21 @@ static void *GetPages(unsigned NumPages) {
 #endif
 
 
-/// AllocatePage - This function returns a chunk of memory with size and
-/// alignment specified by PageSize.
+///
+/// Function: AllocatePage ()
+///
+/// Description:
+/// This function returns a chunk of memory with size and alignment specified
+/// by PageSize.
 void *AllocatePage() {
 #if USE_MEMALIGN
   void *Addr;
   posix_memalign(&Addr, PageSize, PageSize);
   return Addr;
 #else
+  //
+  // Try to allocate a page that has already been created.
+  //
   if (FreePages && !FreePages->empty()) {
     void *Result = FreePages->back();
     FreePages->pop_back();
