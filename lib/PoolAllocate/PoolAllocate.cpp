@@ -52,11 +52,7 @@ namespace {
 
   const Type *VoidPtrTy;
 
-  // The type to allocate for a pool descriptor: { sbyte*, uint, uint }
-  // void *Data (the data)
-  // unsigned NodeSize  (size of an allocated node)
-  // unsigned FreeablePool (are slabs in the pool freeable upon calls to 
-  //                        poolfree?)
+  // The type to allocate for a pool descriptor.
   const Type *PoolDescType;
 
   cl::opt<bool>
