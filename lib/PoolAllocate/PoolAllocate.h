@@ -49,14 +49,6 @@ namespace PA {
     /// 
     std::vector<DSNode*> ArgNodes;
 
-#if 0
-    /// In order to handle indirect functions, the start and end of the 
-    /// arguments that are useful to this function. 
-    /// The pool arguments useful to this function are PoolArgFirst to 
-    /// PoolArgLast not inclusive.
-    int PoolArgFirst, PoolArgLast;
-#endif
-    
     /// PoolDescriptors - The Value* (either an argument or an alloca) which
     /// defines the pool descriptor for this DSNode.  Pools are mapped one to
     /// one with nodes in the DSGraph, so this contains a pointer to the node it
@@ -129,12 +121,6 @@ class PoolAllocate : public Pass {
   static const Type *PoolDescPtrTy;
 
   const PA::EquivClassInfo &getECIForIndirectCallSite(CallSite CS);
-
-#if 0
-  /// Map from an Indirect call site to the set of Functions that it can point
-  /// to.
-  std::multimap<CallSite, Function *> CallSiteTargets;
-#endif
 
   /// GlobalNodes - For each node (with an H marker) in the globals graph, this
   /// map contains the global variable that holds the pool descriptor for the
