@@ -167,7 +167,9 @@ Output/%.$(TEST).report.txt: $(PROGRAMS_TO_TEST:%=Output/$(TEST).tlbmisses.%)   
                      $(PROGRAMS_TO_TEST:%=Output/$(TEST).L1Misses.%) \
                      $(PROGRAMS_TO_TEST:%=Output/$(TEST).L1Misses.pa.%) \
                      $(PROGRAMS_TO_TEST:%=Output/$(TEST).L2Misses.%) \
-                     $(PROGRAMS_TO_TEST:%=Output/$(TEST).L2Misses.pa.%)
+                     $(PROGRAMS_TO_TEST:%=Output/$(TEST).L2Misses.pa.%) \
+	             $(PROGRAMS_TO_TEST:%=Output/%.poolalloc.out-cbe.time) \
+                     $(PROGRAMS_TO_TEST:%=Output/%.nonpa.out-cbe.time)
 	@echo "Program:" $* > $@
 	@echo "-------------------------------------------------------------" >> $@
 	@printf "CBE-PA-TLB-Misses: %lld\n" `cat Output/$(TEST).tlbmisses.pa.$*` >> $@
