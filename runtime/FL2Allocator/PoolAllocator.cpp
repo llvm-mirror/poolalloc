@@ -26,7 +26,7 @@
 // Configuration macros.  Define up to one of these.
 //#define PRINT_NUM_POOLS          // Print use dynamic # pools info
 //#define PRINT_POOLDESTROY_STATS  // When pools are destroyed, print stats
-#define PRINT_POOL_TRACE         // Print a full trace
+//#define PRINT_POOL_TRACE         // Print a full trace
 
 
 //===----------------------------------------------------------------------===//
