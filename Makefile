@@ -10,7 +10,7 @@ LEVEL = .
 #
 # Directories that needs to be built.
 #
-DIRS = lib bytecode
+DIRS = lib runtime
 
 #
 # This is needed since the tags generation code expects a tools directory
