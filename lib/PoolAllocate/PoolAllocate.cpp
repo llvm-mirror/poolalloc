@@ -541,14 +541,10 @@ void PoolAllocate::ProcessFunctionBody(Function &F, Function &NewF) {
   // is required.
   DSGraph &GG = ECGraphs->getGlobalsGraph();
 
+  // Map all node reachable from this global to the corresponding nodes in
+  // the globals graph.
   DSGraph::NodeMapTy GlobalsGraphNodeMapping;
-  for (DSScalarMap::global_iterator I = G.getScalarMap().global_begin(),
-         E = G.getScalarMap().global_end(); I != E; ++I) {
-    // Map all node reachable from this global to the corresponding nodes in
-    // the globals graph.
-    DSGraph::computeNodeMapping(G.getNodeForValue(*I), GG.getNodeForValue(*I),
-                                GlobalsGraphNodeMapping);
-  }
+  G.computeGlobalGraphMapping(GlobalsGraphNodeMapping);
 
   // Loop over all of the nodes which are non-escaping, adding pool-allocatable
   // ones to the NodesToPA vector.
