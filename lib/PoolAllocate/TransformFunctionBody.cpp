@@ -60,6 +60,16 @@ namespace {
     void visitStoreInst (StoreInst &I);
 
   private:
+    void UpdateNewToOldValueMap(Value *OldVal, Value *NewV1, Value *NewV2) {
+      std::map<Value*, const Value*>::iterator I =
+        FI.NewToOldValueMap.find(OldVal);
+      assert(I != FI.NewToOldValueMap.end() && "OldVal not found in clone?");
+      FI.NewToOldValueMap.insert(std::make_pair(NewV1, I->second));
+      if (NewV2)
+        FI.NewToOldValueMap.insert(std::make_pair(NewV2, I->second));
+      FI.NewToOldValueMap.erase(I);
+    }
+
     DSNodeHandle& getDSNodeHFor(Value *V) {
       if (!FI.NewToOldValueMap.empty()) {
         // If the NewToOldValueMap is in effect, use it.
@@ -138,7 +148,6 @@ void FuncTransform::visitMallocInst(MallocInst &MI) {
 
   AddPoolUse(*V, PH, PoolUses);
 
-
   // Cast to the appropriate type if necessary
   Value *Casted = V;
   if (V->getType() != MI.getType())
@@ -147,28 +156,17 @@ void FuncTransform::visitMallocInst(MallocInst &MI) {
   // Update def-use info
   MI.replaceAllUsesWith(Casted);
 
+  // If we are modifying the original function, update the DSGraph... 
+  if (!FI.Clone) {
+    G.getScalarMap().replaceScalar(&MI, V);
+    if (V != Casted)
+      G.getScalarMap()[Casted] = G.getScalarMap()[V];
+  } else {             // Otherwise, update the NewToOldValueMap
+    UpdateNewToOldValueMap(&MI, V, V != Casted ? Casted : 0);
+  }
+
   // Remove old malloc instruction
   MI.getParent()->getInstList().erase(&MI);
-  
-  DSGraph::ScalarMapTy &SM = G.getScalarMap();
-  DSGraph::ScalarMapTy::iterator MII = SM.find(&MI);
-  
-  // If we are modifying the original function, update the DSGraph... 
-  if (MII != SM.end()) {
-    // V and Casted now point to whatever the original malloc did...
-    SM[V] = MII->second;
-    if (V != Casted)
-      SM[Casted] = MII->second;
-    SM.erase(MII);                     // The malloc is now destroyed
-  } else {             // Otherwise, update the NewToOldValueMap
-    std::map<Value*,const Value*>::iterator MII =
-      FI.NewToOldValueMap.find(&MI);
-    assert(MII != FI.NewToOldValueMap.end() && "MI not found in clone?");
-    FI.NewToOldValueMap.insert(std::make_pair(V, MII->second));
-    if (V != Casted)
-      FI.NewToOldValueMap.insert(std::make_pair(Casted, MII->second));
-    FI.NewToOldValueMap.erase(MII);
-  }
 }
 
 void FuncTransform::visitFreeInst(FreeInst &FrI) {
