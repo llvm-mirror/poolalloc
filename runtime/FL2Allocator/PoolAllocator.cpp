@@ -18,6 +18,22 @@
 #include <stdio.h>
 #include <string.h>
 
+//#define DEBUG(X) X
+
+#ifndef DEBUG
+#define DEBUG(X)
+#endif
+
+//#define PRINT_NUM_POOLS
+
+#ifdef PRINT_NUM_POOLS
+static unsigned PoolCounter = 0;
+static void PoolCountPrinter() {
+  fprintf(stderr, "\n\n*** %d DYNAMIC POOLS ***\n\n", PoolCounter);
+}
+
+#endif
+
 //===----------------------------------------------------------------------===//
 //
 //  PoolSlab implementation
@@ -25,12 +41,6 @@
 //===----------------------------------------------------------------------===//
 
 #define PageSize (4*1024U)
-
-//#define DEBUG(X) X
-
-#ifndef DEBUG
-#define DEBUG(X)
-#endif
 
 static inline unsigned getSizeClass(unsigned NumBytes) {
   if (NumBytes <= FreeListOneSize)
@@ -112,6 +122,16 @@ void poolinit(PoolTy *Pool, unsigned DeclaredSize) {
   Pool->AllocSize = PageSize;
   Pool->DeclaredSize = DeclaredSize;
   DEBUG(printf("init pool 0x%X\n", Pool));
+
+  static bool Initialized = 0;
+  if (!Initialized) {
+    Initialized = 1;
+
+#ifdef PRINT_NUM_POOLS
+    atexit(PoolCountPrinter);
+#endif
+  }
+
 }
 
 // pooldestroy - Release all memory allocated for a pool
@@ -151,6 +171,9 @@ void *poolalloc(PoolTy *Pool, unsigned NumBytes) {
   // they are freed.
   if (NumBytes < 8) NumBytes = 8;
 
+#ifdef PRINT_NUM_POOLS
+  if (Pool->NumObjects == 0) ++PoolCounter;  // Track # pools.
+#endif
   ++Pool->NumObjects;
   Pool->BytesAllocated += NumBytes;
 
