@@ -1257,6 +1257,15 @@ ac_configure="$SHELL $ac_aux_dir/configure" # This should be Cygnus configure.
           ac_config_commands="$ac_config_commands test/TEST.pavtl.Makefile"
 
 
+          ac_config_commands="$ac_config_commands test/TEST.perf.Makefile"
+
+
+          ac_config_commands="$ac_config_commands test/TEST.p4perf.Makefile"
+
+
+          ac_config_commands="$ac_config_commands test/TEST.strace.Makefile"
+
+
 
 
 
@@ -1848,6 +1857,9 @@ ${srcdir}/autoconf/mkinstalldirs `dirname runtime/FreeListAllocator/Makefile`
 ${srcdir}/autoconf/mkinstalldirs `dirname test/Makefile`
 ${srcdir}/autoconf/mkinstalldirs `dirname test/TEST.poolalloc.Makefile`
 ${srcdir}/autoconf/mkinstalldirs `dirname test/TEST.pavtl.Makefile`
+${srcdir}/autoconf/mkinstalldirs `dirname test/TEST.perf.Makefile`
+${srcdir}/autoconf/mkinstalldirs `dirname test/TEST.p4perf.Makefile`
+${srcdir}/autoconf/mkinstalldirs `dirname test/TEST.strace.Makefile`
 
 _ACEOF
 
@@ -1868,6 +1880,9 @@ do
   "test/Makefile" ) CONFIG_COMMANDS="$CONFIG_COMMANDS test/Makefile" ;;
   "test/TEST.poolalloc.Makefile" ) CONFIG_COMMANDS="$CONFIG_COMMANDS test/TEST.poolalloc.Makefile" ;;
   "test/TEST.pavtl.Makefile" ) CONFIG_COMMANDS="$CONFIG_COMMANDS test/TEST.pavtl.Makefile" ;;
+  "test/TEST.perf.Makefile" ) CONFIG_COMMANDS="$CONFIG_COMMANDS test/TEST.perf.Makefile" ;;
+  "test/TEST.p4perf.Makefile" ) CONFIG_COMMANDS="$CONFIG_COMMANDS test/TEST.p4perf.Makefile" ;;
+  "test/TEST.strace.Makefile" ) CONFIG_COMMANDS="$CONFIG_COMMANDS test/TEST.strace.Makefile" ;;
   *) { { echo "$as_me:$LINENO: error: invalid argument: $ac_config_target" >&5
 echo "$as_me: error: invalid argument: $ac_config_target" >&2;}
    { (exit 1); exit 1; }; };;
@@ -2221,6 +2236,9 @@ echo "$as_me: executing $ac_dest commands" >&6;}
     test/Makefile ) ${SHELL} ${srcdir}/autoconf/install-sh -c ${srcdir}/test/Makefile test/Makefile ;;
     test/TEST.poolalloc.Makefile ) ${SHELL} ${srcdir}/autoconf/install-sh -c ${srcdir}/test/TEST.poolalloc.Makefile test/TEST.poolalloc.Makefile ;;
     test/TEST.pavtl.Makefile ) ${SHELL} ${srcdir}/autoconf/install-sh -c ${srcdir}/test/TEST.pavtl.Makefile test/TEST.pavtl.Makefile ;;
+    test/TEST.perf.Makefile ) ${SHELL} ${srcdir}/autoconf/install-sh -c ${srcdir}/test/TEST.perf.Makefile test/TEST.perf.Makefile ;;
+    test/TEST.p4perf.Makefile ) ${SHELL} ${srcdir}/autoconf/install-sh -c ${srcdir}/test/TEST.p4perf.Makefile test/TEST.p4perf.Makefile ;;
+    test/TEST.strace.Makefile ) ${SHELL} ${srcdir}/autoconf/install-sh -c ${srcdir}/test/TEST.strace.Makefile test/TEST.strace.Makefile ;;
   esac
 done
 _ACEOF
