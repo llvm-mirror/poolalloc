@@ -565,6 +565,16 @@ static void AllOrNoneInSet(IteratorTy S, IteratorTy E,
       AllIn = false;
 }
 
+static void DeleteIfIsPoolFree(Instruction *I, AllocaInst *PD,
+                    std::set<std::pair<AllocaInst*, CallInst*> > &PoolFrees) {
+  if (CallInst *CI = dyn_cast<CallInst>(I))
+    if (PoolFrees.count(std::make_pair(PD, CI))) {
+      PoolFrees.erase(std::make_pair(PD, CI));
+      I->getParent()->getInstList().erase(I);
+      ++NumPoolFree;
+    }
+}
+
 /// InitializeAndDestroyPools - This inserts calls to poolinit and pooldestroy
 /// into the function to initialize and destroy the pools in the NodesToPA list.
 ///
@@ -603,20 +613,13 @@ void PoolAllocate::InitializeAndDestroyPools(Function &F,
 
     // Convert the PoolUses/PoolFrees sets into something specific to this pool.
     std::set<BasicBlock*> UsingBlocks;
-    std::set<BasicBlock*> FreeingBlocks;
-    
+
     std::set<std::pair<AllocaInst*, Instruction*> >::iterator PUI =
       PoolUses.lower_bound(std::make_pair(PD, (Instruction*)0));
     if (PUI != PoolUses.end() && PUI->first < PD) ++PUI;
     for (; PUI != PoolUses.end() && PUI->first == PD; ++PUI)
       UsingBlocks.insert(PUI->second->getParent());
 
-    std::set<std::pair<AllocaInst*, CallInst*> >::iterator PFI =
-      PoolFrees.lower_bound(std::make_pair(PD, (CallInst*)0));
-    if (PFI != PoolFrees.end() && PFI->first < PD) ++PFI;
-    for (; PFI != PoolFrees.end() && PFI->first == PD; ++PFI)
-      FreeingBlocks.insert(PUI->second->getParent());
-    
     // To calculate all of the basic blocks which require the pool to be
     // initialized before, do a depth first search on the CFG from the using
     // blocks.
@@ -664,7 +667,8 @@ void PoolAllocate::InitializeAndDestroyPools(Function &F,
           BasicBlock::iterator It = BB->begin();
           // Move through all of the instructions not in the pool
           while (!PoolUses.count(std::make_pair(PD, It)))
-            ++It;        // Advance past non-users
+            // Advance past non-users deleting any pool frees that we run across
+            DeleteIfIsPoolFree(It++, PD, PoolFrees);
           PoolInitPoints.push_back(It);
           PoolInitInsertedBlocks.insert(BB);
         }
@@ -694,7 +698,7 @@ void PoolAllocate::InitializeAndDestroyPools(Function &F,
           
           // Rewind to the first using insruction
           while (!PoolUses.count(std::make_pair(PD, It)))
-            --It;
+            DeleteIfIsPoolFree(It--, PD, PoolFrees);
 
           // Insert after the first using instruction
           PoolDestroyPoints.push_back(++It);
@@ -735,5 +739,12 @@ void PoolAllocate::InitializeAndDestroyPools(Function &F,
     }
     PoolDestroyPoints.clear();
     std::cerr << "\n\n";
+
+    // Delete any pool frees which are not in live blocks.
+    std::set<std::pair<AllocaInst*, CallInst*> >::iterator PFI =
+      PoolFrees.lower_bound(std::make_pair(PD, (CallInst*)0));
+    if (PFI != PoolFrees.end() && PFI->first < PD) ++PFI;
+    for (; PFI != PoolFrees.end() && PFI->first == PD; )
+      DeleteIfIsPoolFree((PFI++)->second, PD, PoolFrees);
   }
 }
