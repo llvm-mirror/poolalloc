@@ -140,7 +140,7 @@ static void GetNodesReachableFromGlobals(DSGraph &G,
 void PoolAllocate::AddPoolPrototypes() {
   if (VoidPtrTy == 0) {
     VoidPtrTy = PointerType::get(Type::SByteTy);
-    PoolDescType = ArrayType::get(VoidPtrTy, 10);
+    PoolDescType = ArrayType::get(VoidPtrTy, 16);
     PoolDescPtrTy = PointerType::get(PoolDescType);
   }
 
@@ -565,7 +565,7 @@ bool PoolAllocate::SetupGlobalPools(Module &M) {
     case AllNodes: break;
     case NoNodes: ShouldPoolAlloc = false; break;
     case SmartCoallesceNodes:
-      if ((*I)->isArray())
+      if ((*I)->isArray() && !(*I)->isNodeCompletelyFolded())
         ShouldPoolAlloc = false;
       // fall through
     case CyclicNodes:
@@ -691,7 +691,7 @@ void PoolAllocate::CreatePools(Function &F,
         
           // Update the PoolDescriptors map
           PoolDescriptors.insert(std::make_pair(N, AI));
-        } else if (N->isArray()) {
+        } else if (N->isArray() && !N->isNodeCompletelyFolded()) {
           // We never pool allocate array nodes.
           PoolDescriptors[N] =
             Constant::getNullValue(PointerType::get(PoolDescType));
@@ -717,7 +717,7 @@ void PoolAllocate::CreatePools(Function &F,
             DSNode *Pred = Preds[p];
             if (!PoolDescriptors.count(Pred))
               HasUnvisitedPred = true;  // no pool assigned to predecessor?
-            else if (Pred->isArray())
+            else if (Pred->isArray() && !Pred->isNodeCompletelyFolded())
               HasArrayPred = true;
             else if (PredPool && PoolDescriptors[Pred] != PredPool)
               HasMultiplePredPools = true;
@@ -774,7 +774,7 @@ void PoolAllocate::ProcessFunctionBody(Function &F, Function &NewF) {
   
   FuncInfo &FI = FunctionInfo[&F];   // Get FuncInfo for F
   hash_set<DSNode*> &MarkedNodes = FI.MarkedNodes;
-  
+
   // Calculate which DSNodes are reachable from globals.  If a node is reachable
   // from a global, we will create a global pool for it, so no argument passage
   // is required.
@@ -791,19 +791,22 @@ void PoolAllocate::ProcessFunctionBody(Function &F, Function &NewF) {
   // Loop over all of the nodes which are non-escaping, adding pool-allocatable
   // ones to the NodesToPA vector.
   std::vector<DSNode*> NodesToPA;
-  for (DSGraph::node_iterator I = G.node_begin(), E = G.node_end(); I != E; ++I)
+  for (DSGraph::node_iterator I = G.node_begin(), E = G.node_end(); I != E;++I){
     // We only need to make a pool if there is a heap object in it...
-    if ((*I)->isHeapNode())
-      if (GlobalsGraphNodeMapping.count(*I)) {
+    DSNode *N = *I;
+    if (N->isHeapNode())
+      if (GlobalsGraphNodeMapping.count(N)) {
         // If it is a global pool, set up the pool descriptor appropriately.
-        DSNode *GGN = GlobalsGraphNodeMapping[*I].getNode();
+        DSNode *GGN = GlobalsGraphNodeMapping[N].getNode();
         assert(GGN && GlobalNodes[GGN] && "No global node found??");
-        FI.PoolDescriptors[*I] = GlobalNodes[GGN];
-      } else if (!MarkedNodes.count(*I)) {
+        FI.PoolDescriptors[N] = GlobalNodes[GGN];
+      } else if (!MarkedNodes.count(N)) {
         // Otherwise, if it was not passed in from outside the function, it must
         // be a local pool!
-        NodesToPA.push_back(*I);
+        assert(!N->isGlobalNode() && "Should be in global mapping!");
+        NodesToPA.push_back(N);
       }
+  }
 
   std::cerr << "[" << F.getName() << "] " << NodesToPA.size()
             << " nodes pool allocatable\n";
