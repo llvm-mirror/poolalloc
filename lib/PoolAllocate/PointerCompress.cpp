@@ -132,7 +132,16 @@ ComputeCompressedType(const Type *OrigTy, unsigned NodeOffset,
     return OrigTy;
 
   // Okay, we have an aggregate type.
-  assert(0 && "FIXME: Unhandled aggregate type!");
+  if (const StructType *STy = dyn_cast<StructType>(OrigTy)) {
+    std::vector<const Type*> Elements;
+    Elements.reserve(STy->getNumElements());
+    for (unsigned i = 0, e = STy->getNumElements(); i != e; ++i)
+      Elements.push_back(ComputeCompressedType(STy->getElementType(i),
+                                               NodeOffset, Nodes));
+    return StructType::get(Elements);
+  } else {
+    assert(0 && "FIXME: Unhandled aggregate type!");
+  }
 }
 
 /// dump - Emit a debugging dump for this pool info.
