@@ -1,0 +1,32 @@
+##=== TEST.poolalloc.report - Report description for poolalloc -*- perl -*-===##
+#
+# This file defines a report to be generated for the pool allocator tests.
+#
+##===----------------------------------------------------------------------===##
+
+# Sort by program name
+$SortCol = 0;
+
+sub Ratio {
+  my ($Cols, $Col) = @_;
+  if ($Cols->[$Col-1] ne "*" and $Cols->[$Col-2] ne "*" and
+      $Cols->[$Col-1] != "0") {
+    return 100.0*$Cols->[$Col-2]/$Cols->[$Col-1] . "%";
+  } else {
+    return "n/a";
+  }
+}
+
+# These are the columns for the report.  The first entry is the header for the
+# column, the second is the regex to use to match the value.  Empty list create
+# seperators, and closures may be put in for custom processing.
+(
+# Name
+ ["Name:" , '\'([^\']+)\' Program'],
+ [],
+# Times
+ ["Normal<br>ExeTime"  , 'LLC-RUN-TIME-NORMAL: real[\t ]+0m([0-9.]+)'],
+ ["PoolAlloc<br>ExeTime", 'LLC-RUN-TIME-POOLALLOC: real[\t ]+0m([0-9.]+)'],
+ ["% Speedup", \&Ratio],         # Normal / PA
+ []
+);
