@@ -43,6 +43,7 @@ struct NormalPoolTraits {
   // Pointers are just pointers.
   typedef FreedNodeHeader<NormalPoolTraits>* FreeNodeHeaderPtrTy;
 
+  static const char *getSuffix() { return ""; }
 
   /// DerefFNHPtr - Given an index into the pool, return a pointer to the
   /// FreeNodeHeader object.
@@ -73,6 +74,8 @@ struct CompressedPoolTraits {
 
   // Represent pointers with indexes from the pool base.
   typedef unsigned FreeNodeHeaderPtrTy;
+
+  static const char *getSuffix() { return "_pc"; }
 
   /// DerefFNHPtr - Given an index into the pool, return a pointer to the
   /// FreeNodeHeader object.

@@ -454,8 +454,9 @@ static void poolinit_internal(PoolTy<PoolTraits> *Pool,
 
   Pool->DeclaredSize = DeclaredSize;
 
-  DO_IF_TRACE(fprintf(stderr, "[%d] poolinit(0x%X, %d, %d)\n",
-                      addPoolNumber(Pool), Pool, DeclaredSize, ObjAlignment));
+  DO_IF_TRACE(fprintf(stderr, "[%d] poolinit%s(0x%X, %d, %d)\n",
+                      addPoolNumber(Pool), PoolTraits::getSuffix(),
+                      Pool, DeclaredSize, ObjAlignment));
   DO_IF_PNP(++PoolsInited);  // Track # pools initialized
   DO_IF_PNP(InitPrintNumPools<PoolTraits>());
 }
@@ -492,8 +493,8 @@ void pooldestroy(PoolTy<NormalPoolTraits> *Pool) {
 
 template<typename PoolTraits>
 static void *poolalloc_internal(PoolTy<PoolTraits> *Pool, unsigned NumBytes) {
-  DO_IF_TRACE(fprintf(stderr, "[%d] poolalloc(%d) -> ",
-                      getPoolNumber(Pool), NumBytes));
+  DO_IF_TRACE(fprintf(stderr, "[%d] poolalloc%s(%d) -> ",
+                      getPoolNumber(Pool), PoolTraits::getSuffix(), NumBytes));
 
   // If a null pool descriptor is passed in, this is not a pool allocated data
   // structure.  Hand off to the system malloc.
@@ -638,8 +639,8 @@ LargeObject:
 template<typename PoolTraits>
 static void poolfree_internal(PoolTy<PoolTraits> *Pool, void *Node) {
   if (Node == 0) return;
-  DO_IF_TRACE(fprintf(stderr, "[%d] poolfree(0x%X) ",
-                      getPoolNumber(Pool), Node));
+  DO_IF_TRACE(fprintf(stderr, "[%d] poolfree%s(0x%X) ",
+                      getPoolNumber(Pool), PoolTraits::getSuffix(), Node));
 
   // If a null pool descriptor is passed in, this is not a pool allocated data
   // structure.  Hand off to the system free.
@@ -719,8 +720,9 @@ LargeArrayCase:
 template<typename PoolTraits>
 static void *poolrealloc_internal(PoolTy<PoolTraits> *Pool, void *Node,
                                   unsigned NumBytes) {
-  DO_IF_TRACE(fprintf(stderr, "[%d] poolrealloc(0x%X, %d) -> ",
-                      getPoolNumber(Pool), Node, NumBytes));
+  DO_IF_TRACE(fprintf(stderr, "[%d] poolrealloc%s(0x%X, %d) -> ",
+                      getPoolNumber(Pool), PoolTraits::getSuffix(),
+                      Node, NumBytes));
 
   // If a null pool descriptor is passed in, this is not a pool allocated data
   // structure.  Hand off to the system realloc.
@@ -860,7 +862,7 @@ void pooldestroy_pc(PoolTy<CompressedPoolTraits> *Pool) {
   if (Pool->Slabs == 0)
     return;   // no memory allocated from this pool.
 
-  DO_IF_TRACE(fprintf(stderr, "[%d] pooldestroy", removePoolNumber(Pool)));
+  DO_IF_TRACE(fprintf(stderr, "[%d] pooldestroy_pc", removePoolNumber(Pool)));
   DO_IF_POOLDESTROY_STATS(PrintPoolStats(Pool));
 
   // If there is space to remember this pool, do so.
