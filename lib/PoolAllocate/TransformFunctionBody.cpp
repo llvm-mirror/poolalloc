@@ -51,34 +51,14 @@ namespace {
         Set.insert(std::make_pair(AI, &I));
     }
 
+    void visitInstruction(Instruction &I);
     void visitMallocInst(MallocInst &MI);
     void visitFreeInst(FreeInst &FI);
     void visitCallSite(CallSite CS);
     void visitCallInst(CallInst &CI) { visitCallSite(&CI); }
     void visitInvokeInst(InvokeInst &II) { visitCallSite(&II); }
-    
-    // The following instructions are never modified by pool allocation
-    void visitBranchInst(BranchInst &I) { }
-    void visitUnwindInst(UnwindInst &I) { }
-    void visitBinaryOperator(Instruction &I) { }
-    void visitShiftInst (ShiftInst &I) { }
-    void visitSwitchInst (SwitchInst &I) { }
-    void visitCastInst (CastInst &I) { }
-    void visitAllocaInst(AllocaInst &I) { }
-    void visitGetElementPtrInst (GetElementPtrInst &I) { }
-
-    void visitReturnInst(ReturnInst &I);
     void visitLoadInst(LoadInst &I);
     void visitStoreInst (StoreInst &I);
-    void visitPHINode(PHINode &I);
-
-    void visitVAArgInst(VAArgInst &I) { }
-    void visitVANextInst(VANextInst &I) { }
-
-    void visitInstruction(Instruction &I) {
-      std::cerr << "PoolAllocate does not recognize this instruction:\n" << I;
-      abort();
-    }
 
   private:
     DSNodeHandle& getDSNodeHFor(Value *V) {
@@ -117,72 +97,23 @@ Function* FuncTransform::retCloneIfFunc(Value *V) {
   if (ConstantPointerRef *CPR = dyn_cast<ConstantPointerRef>(V))
     V = CPR->getValue();
   
-  if (Function *F = dyn_cast<Function>(V)) {
-    return PAInfo.getFuncInfo(*F)->Clone;
-  }
+  if (Function *F = dyn_cast<Function>(V))
+    if (FuncInfo *FI = PAInfo.getFuncInfo(*F))
+      return FI->Clone;
 
   return 0;
-}
-
-void FuncTransform::visitReturnInst (ReturnInst &RI) {
-  if (RI.getNumOperands())
-    if (Value *clonedFunc = retCloneIfFunc(RI.getOperand(0))) {
-      // Cast the clone of RI.getOperand(0) to the non-pool-allocated type
-      CastInst *CastI = new CastInst(clonedFunc, RI.getOperand(0)->getType(), 
-				     "tmp", &RI);
-      // Insert return instruction that returns the casted value
-      ReturnInst *RetI = new ReturnInst(CastI, &RI);
-
-      // Remove original return instruction
-      RI.getParent()->getInstList().erase(&RI);
-
-      if (!FI.NewToOldValueMap.empty()) {
-	std::map<Value*,const Value*>::iterator II =
-	  FI.NewToOldValueMap.find(&RI);
-	assert(II != FI.NewToOldValueMap.end() && 
-	       "RI not found in clone?");
-	FI.NewToOldValueMap.insert(std::make_pair(RetI, II->second));
-	FI.NewToOldValueMap.erase(II);
-      }
-    }
 }
 
 void FuncTransform::visitLoadInst(LoadInst &LI) {
   if (Value *PH = getPoolHandle(LI.getOperand(0)))
     AddPoolUse(LI, PH, PoolUses);
+  visitInstruction(LI);
 }
 
-void FuncTransform::visitStoreInst (StoreInst &SI) {
-  // Check if a constant function is being stored
-  if (Value *clonedFunc = retCloneIfFunc(SI.getOperand(0))) {
-    CastInst *CastI = new CastInst(clonedFunc, SI.getOperand(0)->getType(), 
-				   "tmp", &SI);
-    StoreInst *StoreI = new StoreInst(CastI, SI.getOperand(1), &SI);
-    SI.getParent()->getInstList().erase(&SI);
-    
-    // Update the NewToOldValueMap if this is a clone
-    if (!FI.NewToOldValueMap.empty()) {
-      std::map<Value*,const Value*>::iterator II =
-	FI.NewToOldValueMap.find(&SI);
-      assert(II != FI.NewToOldValueMap.end() && 
-	     "SI not found in clone?");
-      FI.NewToOldValueMap.insert(std::make_pair(StoreI, II->second));
-      FI.NewToOldValueMap.erase(II);
-    }
-  }
-
+void FuncTransform::visitStoreInst(StoreInst &SI) {
   if (Value *PH = getPoolHandle(SI.getOperand(1)))
     AddPoolUse(SI, PH, PoolUses);
-}
-
-void FuncTransform::visitPHINode(PHINode &PI) {
-  // If any of the operands of the PHI node is a constant function pointer
-  // that is cloned, the cast instruction has to be inserted at the end of the
-  // previous basic block
-  
-  for (unsigned i = 0; i != PI.getNumIncomingValues(); ++i)
-    if (Function *clonedFunc = retCloneIfFunc(PI.getIncomingValue(i)))
-      PI.setIncomingValue(i, ConstantExpr::getCast(ConstantPointerRef::get(clonedFunc), PI.getType()));
+  visitInstruction(SI);
 }
 
 void FuncTransform::visitMallocInst(MallocInst &MI) {
@@ -304,7 +235,10 @@ void FuncTransform::visitCallSite(CallSite CS) {
 
   if (CF) {   // Direct calls are nice and simple.
     FuncInfo *CFI = PAInfo.getFuncInfo(*CF);
-    if (CFI == 0 || CFI->Clone == 0) return;  // Nothing to transform...
+    if (CFI == 0 || CFI->Clone == 0) {   // Nothing to transform...
+      visitInstruction(*TheCall);
+      return;
+    }
     NewCallee = CFI->Clone;
     ArgNodes = CFI->ArgNodes;
     
@@ -371,18 +305,15 @@ void FuncTransform::visitCallSite(CallSite CS) {
 
   // Okay, now that we have established our mapping, we can figure out which
   // pool descriptors to pass in...
-  std::vector<Value*> Args;  
+  std::vector<Value*> Args;
   for (unsigned i = 0, e = ArgNodes.size(); i != e; ++i) {
-    if (NodeMapping.count(ArgNodes[i])) {
-      if (DSNode *LocalNode = NodeMapping[ArgNodes[i]].getNode()) {
-        assert(FI.PoolDescriptors.count(LocalNode) &&
-               "Node not pool allocated?");
-        Args.push_back(FI.PoolDescriptors.find(LocalNode)->second);
-      } else
-        Args.push_back(Constant::getNullValue(PoolAllocate::PoolDescPtrTy));
-    } else {
-      Args.push_back(Constant::getNullValue(PoolAllocate::PoolDescPtrTy));
-    }
+    Value *ArgVal = 0;
+    if (NodeMapping.count(ArgNodes[i]))
+      if (DSNode *LocalNode = NodeMapping[ArgNodes[i]].getNode())
+        if (FI.PoolDescriptors.count(LocalNode))
+          ArgVal = FI.PoolDescriptors.find(LocalNode)->second;
+    Args.push_back(ArgVal ? ArgVal : 
+                   Constant::getNullValue(PoolAllocate::PoolDescPtrTy));
   }
 
   // Add the rest of the arguments...
@@ -429,4 +360,19 @@ void FuncTransform::visitCallSite(CallSite CS) {
   }
 
   TheCall->getParent()->getInstList().erase(TheCall);
+  visitInstruction(*NewCall);
+}
+
+
+// visitInstruction - For all instructions in the transformed function bodies,
+// replace any references to the original calls with references to the
+// transformed calls.  Many instructions can "take the address of" a function,
+// and we must make sure to catch each of these uses, and transform it into a
+// reference to the new, transformed, function.
+void FuncTransform::visitInstruction(Instruction &I) {
+  for (unsigned i = 0, e = I.getNumOperands(); i != e; ++i)
+    if (Function *clonedFunc = retCloneIfFunc(I.getOperand(i))) {
+      Constant *CF = ConstantPointerRef::get(clonedFunc);
+      I.setOperand(i, ConstantExpr::getCast(CF, I.getOperand(i)->getType()));
+    }
 }
