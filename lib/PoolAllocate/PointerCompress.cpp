@@ -145,8 +145,9 @@ namespace {
                 std::vector<std::pair<Value*, Value*> > *PremappedVals = 0,
                 std::set<const DSNode*> *ExternalPoolsToCompress = 0);
 
-    void FindPoolsToCompress(std::set<const DSNode*> &Pools, Function &F,
-                             DSGraph &DSG, PA::FuncInfo *FI);
+    void FindPoolsToCompress(std::set<const DSNode*> &Pools,
+                             std::map<const DSNode*, Value*> &PreassignedPools,
+                             Function &F, DSGraph &DSG, PA::FuncInfo *FI);
   };
 
   RegisterOpt<PointerCompress>
@@ -1040,6 +1041,8 @@ static bool PoolIsCompressible(const DSNode *N) {
 /// compressible that are homed in that function.  Return those pools in the
 /// Pools set.
 void PointerCompress::FindPoolsToCompress(std::set<const DSNode*> &Pools,
+                                          std::map<const DSNode*,
+                                          Value*> &PreassignedPools,
                                           Function &F, DSGraph &DSG,
                                           PA::FuncInfo *FI) {
   DEBUG(std::cerr << "In function '" << F.getName() << "':\n");
@@ -1081,8 +1084,10 @@ void PointerCompress::FindPoolsToCompress(std::set<const DSNode*> &Pools,
     if (GlobalsGraphNodeMapping.count(*I)) {
       // If it is a global pool, set up the pool descriptor appropriately.
       DSNode *GGN = GlobalsGraphNodeMapping[*I].getNode();
-      if (CompressedGlobalPools.count(GGN))
+      if (CompressedGlobalPools.count(GGN)) {
         Pools.insert(*I);
+        PreassignedPools[*I] = CompressedGlobalPools[GGN];
+      }
     }
 }
 
@@ -1126,7 +1131,8 @@ CompressPoolsInFunction(Function &F,
 
   // Compute the set of compressible pools in this function that are hosted
   // here.
-  FindPoolsToCompress(PoolsToCompressSet, F, DSG, FI);
+  std::map<const DSNode*, Value*> PreassignedPools;
+  FindPoolsToCompress(PoolsToCompressSet, PreassignedPools, F, DSG, FI);
 
   // Handle pools that are passed into the function through arguments or
   // returned by the function.  If this occurs, we must be dealing with a ptr
@@ -1144,12 +1150,14 @@ CompressPoolsInFunction(Function &F,
   for (std::set<const DSNode*>::iterator I = PoolsToCompressSet.begin(),
          E = PoolsToCompressSet.end(); I != E; ++I) {
     Value *PD;
-    if (FCR)
+    if (Value *PAPD = PreassignedPools[*I])
+      PD = PAPD;                             // Must be a global pool.
+    else if (FCR)
       PD = FCR->PoolDescriptors.find(*I)->second;
     else
       PD = FI->PoolDescriptors[*I];
     assert(PD && "No pool descriptor available for this pool???");
-
+    
     PoolsToCompress.insert(std::make_pair(*I, CompressedPoolInfo(*I, PD)));
   }
 
