@@ -1259,7 +1259,7 @@ if test "${with_llvmobj+set}" = set; then
   LLVM_OBJ=$withval
 
 else
-  LLVM_OBJ=/home/vadve/${USER}/llvm
+  LLVM_OBJ=${LLVM_SRC}
 
 fi;
 
