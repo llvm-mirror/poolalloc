@@ -255,8 +255,8 @@ Value *CompressedPoolInfo::EmitPoolBaseLoad(Instruction &I) const {
       while (isa<AllocaInst>(IP)) ++IP;
       Constant *Zero = Constant::getNullValue(Type::UIntTy);
       Value *BasePtrPtr = new GetElementPtrInst(getPoolDesc(), Zero, Zero,
-                                                "poolbaseptrptr", &I);
-      PoolBase = new LoadInst(BasePtrPtr, "poolbaseptr", &I);
+                                                "poolbaseptrptr", IP);
+      PoolBase = new LoadInst(BasePtrPtr, "poolbaseptr", IP);
     }
     
     assert(PoolBase && "Mixing and matching optimized vs not!");
