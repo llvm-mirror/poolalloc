@@ -351,7 +351,7 @@ poolallocarray(PoolTy* Pool, unsigned ArraySize)
         //
         Prevp->Next = Slabp->Next;
       }
-      return (&(Slabp->Data[0]));
+      return (Slabp->Data);
     }
   }
 
@@ -364,7 +364,7 @@ poolallocarray(PoolTy* Pool, unsigned ArraySize)
   //
   // Return the list of blocks to the caller.
   //
-  return (&(NewSlab->Data[0]));
+  return (NewSlab->Data);
 }
 
 void
