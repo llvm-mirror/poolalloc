@@ -26,6 +26,7 @@ AC_CONFIG_MAKEFILE(lib/Makefile)
 AC_CONFIG_MAKEFILE(lib/PoolAllocate/Makefile)
 AC_CONFIG_MAKEFILE(runtime/Makefile)
 AC_CONFIG_MAKEFILE(runtime/PoolAllocator/Makefile)
+AC_CONFIG_MAKEFILE(runtime/FreeListAllocator/Makefile)
 AC_CONFIG_MAKEFILE(test/Makefile)
 AC_CONFIG_MAKEFILE(test/TEST.poolalloc.Makefile)
 

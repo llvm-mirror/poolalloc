@@ -1245,6 +1245,9 @@ ac_configure="$SHELL $ac_aux_dir/configure" # This should be Cygnus configure.
           ac_config_commands="$ac_config_commands runtime/PoolAllocator/Makefile"
 
 
+          ac_config_commands="$ac_config_commands runtime/FreeListAllocator/Makefile"
+
+
           ac_config_commands="$ac_config_commands test/Makefile"
 
 
@@ -1838,6 +1841,7 @@ ${srcdir}/autoconf/mkinstalldirs `dirname lib/Makefile`
 ${srcdir}/autoconf/mkinstalldirs `dirname lib/PoolAllocate/Makefile`
 ${srcdir}/autoconf/mkinstalldirs `dirname runtime/Makefile`
 ${srcdir}/autoconf/mkinstalldirs `dirname runtime/PoolAllocator/Makefile`
+${srcdir}/autoconf/mkinstalldirs `dirname runtime/FreeListAllocator/Makefile`
 ${srcdir}/autoconf/mkinstalldirs `dirname test/Makefile`
 ${srcdir}/autoconf/mkinstalldirs `dirname test/TEST.poolalloc.Makefile`
 
@@ -1856,6 +1860,7 @@ do
   "lib/PoolAllocate/Makefile" ) CONFIG_COMMANDS="$CONFIG_COMMANDS lib/PoolAllocate/Makefile" ;;
   "runtime/Makefile" ) CONFIG_COMMANDS="$CONFIG_COMMANDS runtime/Makefile" ;;
   "runtime/PoolAllocator/Makefile" ) CONFIG_COMMANDS="$CONFIG_COMMANDS runtime/PoolAllocator/Makefile" ;;
+  "runtime/FreeListAllocator/Makefile" ) CONFIG_COMMANDS="$CONFIG_COMMANDS runtime/FreeListAllocator/Makefile" ;;
   "test/Makefile" ) CONFIG_COMMANDS="$CONFIG_COMMANDS test/Makefile" ;;
   "test/TEST.poolalloc.Makefile" ) CONFIG_COMMANDS="$CONFIG_COMMANDS test/TEST.poolalloc.Makefile" ;;
   *) { { echo "$as_me:$LINENO: error: invalid argument: $ac_config_target" >&5
@@ -2207,6 +2212,7 @@ echo "$as_me: executing $ac_dest commands" >&6;}
     lib/PoolAllocate/Makefile ) ${SHELL} ${srcdir}/autoconf/install-sh -c ${srcdir}/lib/PoolAllocate/Makefile lib/PoolAllocate/Makefile ;;
     runtime/Makefile ) ${SHELL} ${srcdir}/autoconf/install-sh -c ${srcdir}/runtime/Makefile runtime/Makefile ;;
     runtime/PoolAllocator/Makefile ) ${SHELL} ${srcdir}/autoconf/install-sh -c ${srcdir}/runtime/PoolAllocator/Makefile runtime/PoolAllocator/Makefile ;;
+    runtime/FreeListAllocator/Makefile ) ${SHELL} ${srcdir}/autoconf/install-sh -c ${srcdir}/runtime/FreeListAllocator/Makefile runtime/FreeListAllocator/Makefile ;;
     test/Makefile ) ${SHELL} ${srcdir}/autoconf/install-sh -c ${srcdir}/test/Makefile test/Makefile ;;
     test/TEST.poolalloc.Makefile ) ${SHELL} ${srcdir}/autoconf/install-sh -c ${srcdir}/test/TEST.poolalloc.Makefile test/TEST.poolalloc.Makefile ;;
   esac
