@@ -44,14 +44,18 @@ namespace PA {
   /// maps to the original function...
   ///
   struct FuncInfo {
-    FuncInfo() : Clone(0) {}
+    FuncInfo(Function &f) : F(f), Clone(0) {}
 
     /// MarkedNodes - The set of nodes which are not locally pool allocatable in
     /// the current function.
     ///
     hash_set<const DSNode*> MarkedNodes;
 
+    /// F - The function this FuncInfo corresponds to.
+    Function &F;
+
     /// Clone - The cloned version of the function, if applicable.
+    ///
     Function *Clone;
 
     /// ArgNodes - The list of DSNodes which have pools passed in as arguments.
@@ -70,15 +74,15 @@ namespace PA {
     /// indirect function calls that are not used in the function.
     std::map<const DSNode*, Value*> PoolDescriptors;
 
-    //This is a map from Old to New Value Map reverse of the one above
-    //Useful in SAFECode for check insertion
-    std::map<const Value*, Value*> ValueMap;
-
     /// NewToOldValueMap - When and if a function needs to be cloned, this map
     /// contains a mapping from all of the values in the new function back to
     /// the values they correspond to in the old function.
     ///
     std::map<Value*, const Value*> NewToOldValueMap;
+
+    /// ValueMap - This is a map from Old to New Value Map reverse of the one
+    /// above.  Useful in SAFECode for check insertion.
+    std::map<const Value*, Value*> ValueMap;
   };
 
 }; // end PA namespace
@@ -92,8 +96,8 @@ class PoolAllocate : public ModulePass {
   PA::EquivClassGraphs *ECGraphs;
 
   std::map<Function*, PA::FuncInfo> FunctionInfo;
-
- public:
+  std::map<Function*, Function*> CloneToOrigMap;
+public:
 
   Function *PoolInit, *PoolDestroy, *PoolAlloc, *PoolRealloc, *PoolMemAlign;
   Function *PoolFree;
@@ -113,7 +117,16 @@ class PoolAllocate : public ModulePass {
   
   PA::EquivClassGraphs &getECGraphs() const { return *ECGraphs; }
   
+  /// getOrigFunctionFromClone - Given a pointer to a function that was cloned
+  /// from another function, return the original function.  If the argument
+  /// function is not a clone, return null.
+  Function *getOrigFunctionFromClone(Function *F) const {
+    std::map<Function*, Function*>::const_iterator I = CloneToOrigMap.find(F);
+    return I != CloneToOrigMap.end() ? I->second : 0;
+  }
+
   /// getFuncInfo - Return the FuncInfo object for the specified function.
+  ///
   PA::FuncInfo *getFuncInfo(Function &F) {
     std::map<Function*, PA::FuncInfo>::iterator I = FunctionInfo.find(&F);
     return I != FunctionInfo.end() ? &I->second : 0;
@@ -127,10 +140,8 @@ class PoolAllocate : public ModulePass {
     if (PA::FuncInfo *FI = getFuncInfo(F))
       return FI;
     // Maybe this is a function clone?
-    for (std::map<Function*, PA::FuncInfo>::iterator I = FunctionInfo.begin(),
-           E = FunctionInfo.end(); I != E; ++I)
-      if (I->second.Clone == &F)
-        return &I->second;
+    if (Function *FC = getOrigFunctionFromClone(&F))
+      return getFuncInfo(F);
     return 0;
   }
   
@@ -140,6 +151,7 @@ class PoolAllocate : public ModulePass {
   virtual void releaseMemory() {
     FunctionInfo.clear();
     GlobalNodes.clear();
+    CloneToOrigMap.clear();
   }
 
 
@@ -175,6 +187,9 @@ class PoolAllocate : public ModulePass {
   /// are global pools.
   bool SetupGlobalPools(Module &M);
 
+  /// FindFunctionPoolArgs - In the first pass over the program, we decide which
+  /// arguments will have to be added for each function, build the FunctionInfo
+  /// map and recording this info in the ArgNodes set.
   void FindFunctionPoolArgs(Function &F);   
   
   /// MakeFunctionClone - If the specified function needs to be modified for

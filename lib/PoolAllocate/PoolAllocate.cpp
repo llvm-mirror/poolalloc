@@ -267,10 +267,15 @@ static void MarkNodesWhichMustBePassedIn(hash_set<const DSNode*> &MarkedNodes,
 }
 
 
+/// FindFunctionPoolArgs - In the first pass over the program, we decide which
+/// arguments will have to be added for each function, build the FunctionInfo
+/// map and recording this info in the ArgNodes set.
 void PoolAllocate::FindFunctionPoolArgs(Function &F) {
   DSGraph &G = ECGraphs->getDSGraph(F);
 
-  FuncInfo &FI = FunctionInfo[&F];   // Create a new entry for F
+  // Create a new entry for F.
+  FuncInfo &FI =
+    FunctionInfo.insert(std::make_pair(&F, FuncInfo(F))).first->second;
   hash_set<const DSNode*> &MarkedNodes = FI.MarkedNodes;
 
   if (G.node_begin() == G.node_end())
@@ -292,7 +297,7 @@ Function *PoolAllocate::MakeFunctionClone(Function &F) {
   DSGraph &G = ECGraphs->getDSGraph(F);
   if (G.node_begin() == G.node_end()) return 0;
     
-  FuncInfo &FI = FunctionInfo[&F];
+  FuncInfo &FI = *getFuncInfo(F);
   if (FI.ArgNodes.empty())
     return 0;           // No need to clone if no pools need to be passed in!
 
@@ -314,6 +319,7 @@ Function *PoolAllocate::MakeFunctionClone(Function &F) {
   // Create the new function...
   Function *New = new Function(FuncTy, Function::InternalLinkage, F.getName());
   F.getParent()->getFunctionList().insert(&F, New);
+  CloneToOrigMap[New] = &F;   // Remember original function.
 
   // Set the rest of the new arguments names to be PDa<n> and add entries to the
   // pool descriptors map
@@ -515,7 +521,7 @@ void PoolAllocate::ProcessFunctionBody(Function &F, Function &NewF) {
 
   if (G.node_begin() == G.node_end()) return;  // Quick exit if nothing to do.
   
-  FuncInfo &FI = FunctionInfo[&F];   // Get FuncInfo for F
+  FuncInfo &FI = *getFuncInfo(F);
   hash_set<const DSNode*> &MarkedNodes = FI.MarkedNodes;
 
   // Calculate which DSNodes are reachable from globals.  If a node is reachable
