@@ -25,6 +25,9 @@ namespace llvm {
   class DSGraph;
   class DSNode;
   class PoolAllocate;
+  class TargetData;
+  class Type;
+
 namespace PA {
   class Heuristic {
   protected:
@@ -91,6 +94,8 @@ namespace PA {
     /// this DSNode.
     ///
     static unsigned getRecommendedAlignment(const DSNode *N);
+    static unsigned getRecommendedAlignment(const Type *Ty,
+                                            const TargetData &TD);
     
     /// create - This static ctor creates the heuristic, based on the command
     /// line argument to choose the heuristic.

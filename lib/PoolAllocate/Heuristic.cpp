@@ -61,8 +61,16 @@ unsigned Heuristic::getRecommendedSize(const DSNode *N) {
 /// Wants8ByteAlignment - FIXME: this is a complete hack for X86 right now.
 static bool Wants8ByteAlignment(const Type *Ty, unsigned Offs,
                                 const TargetData &TD) {
-  if (Ty == Type::DoubleTy && (Offs & 7) == 0)
-    return true;
+  if ((Offs & 7) == 0) {
+    // Doubles always want to be 8-byte aligned.
+    if (Ty == Type::DoubleTy) return true;
+    
+    // If we are on a 64-bit system, we want to align 8-byte integers and
+    // pointers.
+    if (TD.getTypeAlignment(Ty) == 8)
+      return true;
+  }
+
   if (Ty->isPrimitiveType() || isa<PointerType>(Ty))
     return false;
 
@@ -82,7 +90,10 @@ static bool Wants8ByteAlignment(const Type *Ty, unsigned Offs,
   return false;
 }
 
-
+unsigned Heuristic::getRecommendedAlignment(const Type *Ty,
+                                            const TargetData &TD) {
+  return Wants8ByteAlignment(Ty, 0, TD);
+}
 
 /// getRecommendedAlignment - Return the recommended object alignment for this
 /// DSNode.
