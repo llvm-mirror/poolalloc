@@ -11,75 +11,72 @@ test::
 LEVEL = ..
 include $(LEVEL)/Makefile.common
 
+LARGE_PROBLEM_SIZE_DIRS := \
+   MultiSource/Benchmarks/Olden \
+   MultiSource/Benchmarks/FreeBench/analyzer \
+   MultiSource/Benchmarks/llubenchmark
+
+LARGE_PROBLEM_SIZE_DIRS := \
+   $(addprefix $(LLVM_OBJ_ROOT)/test/Programs/,$(LARGE_PROBLEM_SIZE_DIRS))
+
+NORMAL_PROBLEM_SIZE_DIRS := \
+   MultiSource/Benchmarks/Ptrdist \
+   External/SPEC/CINT2000
+   #MultiSource/Benchmarks/MallocBench/cfrac
+
+NORMAL_PROBLEM_SIZE_DIRS := \
+   $(addprefix $(LLVM_OBJ_ROOT)/test/Programs/,$(NORMAL_PROBLEM_SIZE_DIRS))
+
 
 ##############################################################################
 # Targets for gathering statistics for programs for papers
 ##############################################################################
 progtest::
-	(cd $(LLVM_OBJ_ROOT)/test/Programs/MultiSource/Benchmarks/Olden; \
+	for dir in $(LARGE_PROBLEM_SIZE_DIRS); do \
+            (cd $$dir; \
                PROJECT_DIR=$(BUILD_OBJ_ROOT) $(MAKE) -j1 TEST=poolalloc \
-                   LARGE_PROBLEM_SIZE=1 report.html)
-	(cd $(LLVM_OBJ_ROOT)/test/Programs/MultiSource/Benchmarks/Ptrdist; \
+                   LARGE_PROBLEM_SIZE=1 report.html) \
+        done
+	for dir in $(NORMAL_PROBLEM_SIZE_DIRS); do \
+	    (cd $$dir; \
                PROJECT_DIR=$(BUILD_OBJ_ROOT) $(MAKE) -j1 TEST=poolalloc \
-                   report.html)
-	(cd $(LLVM_OBJ_ROOT)/test/Programs/MultiSource/Benchmarks/FreeBench/analyzer; \
-               PROJECT_DIR=$(BUILD_OBJ_ROOT) $(MAKE) -j1 TEST=poolalloc \
-                   LARGE_PROBLEM_SIZE=1 report.html)
-	(cd $(LLVM_OBJ_ROOT)/test/Programs/MultiSource/Benchmarks/MallocBench/cfrac; \
-               PROJECT_DIR=$(BUILD_OBJ_ROOT) $(MAKE) -j1 TEST=poolalloc \
-                   report.html)
-	(cd $(LLVM_OBJ_ROOT)/test/Programs/External/SPEC/CINT2000; \
-               PROJECT_DIR=$(BUILD_OBJ_ROOT) $(MAKE) -j1 TEST=poolalloc \
-                   report.html)
-	@(cd $(LLVM_OBJ_ROOT)/test/Programs/MultiSource/Benchmarks/Olden; \
-               PROJECT_DIR=$(BUILD_OBJ_ROOT) $(MAKE) -j1 TEST=poolalloc \
-                   LARGE_PROBLEM_SIZE=1 report)
-	@(cd $(LLVM_OBJ_ROOT)/test/Programs/MultiSource/Benchmarks/Ptrdist; \
-               PROJECT_DIR=$(BUILD_OBJ_ROOT) $(MAKE) -j1 TEST=poolalloc \
-                   report)
-	(cd $(LLVM_OBJ_ROOT)/test/Programs/MultiSource/Benchmarks/FreeBench/analyzer; \
-               PROJECT_DIR=$(BUILD_OBJ_ROOT) $(MAKE) -j1 TEST=poolalloc \
-                   LARGE_PROBLEM_SIZE=1 report)
-	@(cd $(LLVM_OBJ_ROOT)/test/Programs/MultiSource/Benchmarks/MallocBench/cfrac; \
-               PROJECT_DIR=$(BUILD_OBJ_ROOT) $(MAKE) -j1 TEST=poolalloc \
-                   report)
-	@(cd $(LLVM_OBJ_ROOT)/test/Programs/External/SPEC/CINT2000; \
-               PROJECT_DIR=$(BUILD_OBJ_ROOT) $(MAKE) -j1 TEST=poolalloc \
-                   report)
+                   report.html) \
+        done
+	@for dir in $(LARGE_PROBLEM_SIZE_DIRS); do \
+            (cd $$dir; \
+               PROJECT_DIR=$(BUILD_OBJ_ROOT) $(MAKE) -s -j1 TEST=poolalloc \
+                   LARGE_PROBLEM_SIZE=1 report) \
+        done
+	@for dir in $(NORMAL_PROBLEM_SIZE_DIRS); do \
+	    (cd $$dir; \
+               PROJECT_DIR=$(BUILD_OBJ_ROOT) $(MAKE) -s -j1 TEST=poolalloc \
+                   report) \
+        done
 	@printf "\a"; sleep 1; printf "\a"; sleep 1; printf "\a"
 
 progperf::
-	(cd $(LLVM_OBJ_ROOT)/test/Programs/MultiSource/Benchmarks/Olden; \
+	for dir in $(LARGE_PROBLEM_SIZE_DIRS); do \
+            (cd $$dir; \
                PROJECT_DIR=$(BUILD_OBJ_ROOT) $(MAKE) -j1 TEST=perf \
-                   LARGE_PROBLEM_SIZE=1 report.html)
-	(cd $(LLVM_OBJ_ROOT)/test/Programs/MultiSource/Benchmarks/Ptrdist; \
+                   LARGE_PROBLEM_SIZE=1 report.html) \
+        done
+	for dir in $(NORMAL_PROBLEM_SIZE_DIRS); do \
+	    (cd $$dir; \
                PROJECT_DIR=$(BUILD_OBJ_ROOT) $(MAKE) -j1 TEST=perf \
-                   report.html)
-	(cd $(LLVM_OBJ_ROOT)/test/Programs/MultiSource/Benchmarks/FreeBench/analyzer; \
-               PROJECT_DIR=$(BUILD_OBJ_ROOT) $(MAKE) -j1 TEST=perf \
-                   LARGE_PROBLEM_SIZE=1 report.html)
-	(cd $(LLVM_OBJ_ROOT)/test/Programs/MultiSource/Benchmarks/MallocBench/cfrac; \
-               PROJECT_DIR=$(BUILD_OBJ_ROOT) $(MAKE) -j1 TEST=perf \
-                   report.html)
-	(cd $(LLVM_OBJ_ROOT)/test/Programs/External/SPEC/CINT2000; \
-               PROJECT_DIR=$(BUILD_OBJ_ROOT) $(MAKE) -j1 TEST=perf \
-                   report.html)
-	@(cd $(LLVM_OBJ_ROOT)/test/Programs/MultiSource/Benchmarks/Olden; \
-               PROJECT_DIR=$(BUILD_OBJ_ROOT) $(MAKE) -j1 TEST=perf \
-                   LARGE_PROBLEM_SIZE=1 report)
-	@(cd $(LLVM_OBJ_ROOT)/test/Programs/MultiSource/Benchmarks/Ptrdist; \
-               PROJECT_DIR=$(BUILD_OBJ_ROOT) $(MAKE) -j1 TEST=perf \
-                   report)
-	(cd $(LLVM_OBJ_ROOT)/test/Programs/MultiSource/Benchmarks/FreeBench/analyzer; \
-               PROJECT_DIR=$(BUILD_OBJ_ROOT) $(MAKE) -j1 TEST=perf \
-                   LARGE_PROBLEM_SIZE=1 report)
-	@(cd $(LLVM_OBJ_ROOT)/test/Programs/MultiSource/Benchmarks/MallocBench/cfrac; \
-               PROJECT_DIR=$(BUILD_OBJ_ROOT) $(MAKE) -j1 TEST=perf \
-                   report)
-	@(cd $(LLVM_OBJ_ROOT)/test/Programs/External/SPEC/CINT2000; \
-               PROJECT_DIR=$(BUILD_OBJ_ROOT) $(MAKE) -j1 TEST=perf \
-                   report)
+                   report.html) \
+        done
+	@for dir in $(LARGE_PROBLEM_SIZE_DIRS); do \
+            (cd $$dir; \
+               PROJECT_DIR=$(BUILD_OBJ_ROOT) $(MAKE) -s -j1 TEST=perf \
+                   LARGE_PROBLEM_SIZE=1 report) \
+        done
+	@for dir in $(NORMAL_PROBLEM_SIZE_DIRS); do \
+	    (cd $$dir; \
+               PROJECT_DIR=$(BUILD_OBJ_ROOT) $(MAKE) -s -j1 TEST=perf \
+                   report) \
+        done
 	@printf "\a"; sleep 1; printf "\a"; sleep 1; printf "\a"
+
 
 ##############################################################################
 # Targets for running tests and gathering statistics for arbitrary tests
