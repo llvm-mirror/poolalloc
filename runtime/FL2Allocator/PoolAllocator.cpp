@@ -101,10 +101,8 @@ void pooldestroy(PoolTy *Pool) {
 
 void *poolalloc(PoolTy *Pool, unsigned NumBytes) {
   assert(Pool && "Null pool pointer passed in to poolalloc!\n");
-  if (NumBytes == 0)
-    NumBytes = 4;
-  else
-    NumBytes = (NumBytes+3) & ~3;  // Round up to 4 bytes...
+  if (NumBytes == 0) return 0;
+  NumBytes = (NumBytes+3) & ~3;  // Round up to 4 bytes...
 
   // Fast path.  In the common case, we can allocate a portion of the node at
   // the front of the free list.
@@ -178,6 +176,7 @@ void *poolalloc(PoolTy *Pool, unsigned NumBytes) {
 
 void poolfree(PoolTy *Pool, void *Node) {
   assert(Pool && "Null pool pointer passed in to poolfree!\n");
+  if (Node == 0) return;
 
   // Check to see how many elements were allocated to this node...
   FreedNodeHeader *FNH = (FreedNodeHeader*)((char*)Node-sizeof(NodeHeader));
