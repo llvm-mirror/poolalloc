@@ -463,7 +463,7 @@ GlobalVariable *PoolAllocate::CreateGlobalPool(unsigned RecSize, unsigned Align,
 // the DSNodes specified by the NodesToPA list.  This adds an entry to the
 // PoolDescriptors map for each DSNode.
 //
-void PoolAllocate::CreatePools(Function &F,
+void PoolAllocate::CreatePools(Function &F, DSGraph &DSG,
                                const std::vector<const DSNode*> &NodesToPA,
                                std::map<const DSNode*,
                                         Value*> &PoolDescriptors) {
@@ -489,9 +489,15 @@ void PoolAllocate::CreatePools(Function &F,
     if (PoolDesc == 0) {
       // Create a pool descriptor for the pool.  The poolinit will be inserted
       // later.
-      if (!IsMain)
+      if (!IsMain) {
         PoolDesc = new AllocaInst(PoolDescType, 0, "PD", InsertPoint);
-      else {
+
+        // Create a node in DSG to represent the new alloca.
+        DSNode *NewNode = new DSNode(PoolDescType, &DSG);
+        NewNode->setAllocaNodeMarker();  // This is a stack object.
+        NewNode->setModifiedMarker()->setReadMarker();  // This is M/R
+        DSG.getNodeForValue(PoolDesc) = NewNode;
+      } else {
         PoolDesc = CreateGlobalPool(Pool.PoolSize, Pool.PoolAlignment,
                                     InsertPoint);
         if (Pool.NodesInPool.size() == 1 &&
@@ -560,7 +566,7 @@ void PoolAllocate::ProcessFunctionBody(Function &F, Function &NewF) {
   if (!FI.NodesToPA.empty()) {
     std::cerr << "[" << F.getName() << "] " << FI.NodesToPA.size()
               << " nodes pool allocatable\n";
-    CreatePools(NewF, FI.NodesToPA, FI.PoolDescriptors);
+    CreatePools(NewF, G, FI.NodesToPA, FI.PoolDescriptors);
   } else {
     DEBUG(std::cerr << "[" << F.getName() << "] transforming body.\n");
   }

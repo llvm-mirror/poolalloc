@@ -208,7 +208,8 @@ public:
   /// pools specified in the NodesToPA list.  This adds an entry to the
   /// PoolDescriptors map for each DSNode.
   ///
-  void CreatePools(Function &F, const std::vector<const DSNode*> &NodesToPA,
+  void CreatePools(Function &F, DSGraph &G, 
+                   const std::vector<const DSNode*> &NodesToPA,
                    std::map<const DSNode*, Value*> &PoolDescriptors);
   
   void TransformBody(DSGraph &g, PA::FuncInfo &fi,
