@@ -40,7 +40,9 @@ struct PoolSlab {
   PoolSlab *Next;
   unsigned isSingleArray;   // If this slab is used for exactly one array
 
-  unsigned short FirstUnused;     // First empty node in slab
+private:
+  // FirstUnused - First empty node in slab
+  unsigned short FirstUnused;
 
   // UsedEnd - 1 past the last allocated node in slab. 0 if slab is empty
   unsigned short UsedEnd;
@@ -67,7 +69,6 @@ struct PoolSlab {
     StartOfAllocation[NodeNum >> 3] |= 1 << (NodeNum & 7);
   }
 
-private:
   bool isStartOfAllocation(unsigned NodeNum) {
     return StartOfAllocation[NodeNum >> 3] & (1 << (NodeNum & 7));
   }
@@ -84,6 +85,10 @@ public:
   // create - Create a new (empty) slab and add it to the end of the Pools list.
   static PoolSlab *create(PoolTy *Pool);
 
+  // createSingleArray - Create a slab for a large singlearray with NumNodes
+  // entries in it, returning the pointer into the pool directly.
+  static void *createSingleArray(PoolTy *Pool, unsigned NumNodes);
+
   // destroy - Release the memory for the current object.
   void destroy() {
     free(this);
@@ -96,6 +101,10 @@ public:
   // allocateSingle - Allocate a single element from this pool, returning -1 if
   // there is no space.
   int allocateSingle();
+
+  // allocateMultiple - Allocate multiple contiguous elements from this pool,
+  // returning -1 if there is no space.
+  int allocateMultiple(unsigned Num);
 
   // getElementAddress - Return the address of the specified element.
   void *getElementAddress(unsigned ElementNum, unsigned ElementSize) {
@@ -126,6 +135,21 @@ PoolSlab *PoolSlab::create(PoolTy *Pool) {
   Pool->Slabs = PS;
   return PS;
 }
+
+void *PoolSlab::createSingleArray(PoolTy *Pool, unsigned NumNodes) {
+  PoolSlab *PS = (PoolSlab*)malloc(sizeof(PoolSlab) +
+                                   Pool->NodeSize*NumNodes-1);
+  assert(PS && "poolalloc: Could not allocate memory!");
+
+  PS->isSingleArray = 1;  // Not a single array!
+  PS->markNodeAllocated(0);
+
+  // Add the slab to the list...
+  PS->Next = (PoolSlab*)Pool->Slabs;
+  Pool->Slabs = PS;
+  return &PS->Data[0];
+}
+
 
 // allocateSingle - Allocate a single element from this pool, returning -1 if
 // there is no space.
@@ -159,15 +183,82 @@ int PoolSlab::allocateSingle() {
     setStartBit(Idx);
     
     // Increment FirstUnused to point to the new first unused value...
+    // FIXME: this should be optimized
     do {
       ++FirstUnused;
-    } while (FirstUnused < NodesPerSlab && isNodeAllocated(FirstUnused));
+    } while (FirstUnused != NodesPerSlab && isNodeAllocated(FirstUnused));
     
     return Idx;
   }
   
   return -1;
 }
+
+// allocateMultiple - Allocate multiple contiguous elements from this pool,
+// returning -1 if there is no space.
+int PoolSlab::allocateMultiple(unsigned Size) {
+  // Do not allocate small arrays in SingleArray slabs
+  if (isSingleArray) return -1;
+
+  // For small array allocation, check to see if there are empty entries at the
+  // end of the slab...
+  if (UsedEnd+Size <= NodesPerSlab) {
+    // Mark the returned entry used and set the start bit
+    setStartBit(UsedEnd);
+    for (unsigned i = UsedEnd; i != UsedEnd + Size; ++i)
+      markNodeAllocated(i);
+    
+    // If we are allocating out the first unused field, bump its index also
+    if (FirstUnused == UsedEnd)
+      FirstUnused += Size;
+
+    // Increment UsedEnd
+    UsedEnd += Size;
+
+    // Return the entry
+    return UsedEnd - Size;
+  }
+
+  // If not, check to see if this node has a declared "FirstUnused" value
+  // starting which Size nodes can be allocated
+  //
+  unsigned Idx = FirstUnused;
+  while (Idx+Size <= NodesPerSlab) {
+    assert(!isNodeAllocated(Idx) && "FirstUsed is not accurate!");
+
+    // Check if there is a continuous array of Size nodes starting FirstUnused
+    unsigned LastUnused = Idx+1;
+    for (; LastUnused != Idx+Size && !isNodeAllocated(LastUnused); ++LastUnused)
+      /*empty*/;
+
+    // If we found an unused section of this pool which is large enough, USE IT!
+    if (LastUnused == Idx+Size) {
+      setStartBit(Idx);
+      // FIXME: this loop can be made more efficient!
+      for (unsigned i = Idx; i != Idx + Size; ++i)
+        markNodeAllocated(i);
+
+      // This should not be allocating on the end of the pool, so we don't need
+      // to bump the UsedEnd pointer.
+      assert(Idx != UsedEnd && "Shouldn't allocate at end of pool!");
+
+      // If we are allocating out the first unused field, bump its index also.
+      if (Idx == FirstUnused)
+        FirstUnused += Size;
+      
+      // Return the entry
+      return Idx;
+    }
+
+    // Otherwise, try later in the pool.  Find the next unused entry.
+    Idx = LastUnused;
+    while (Idx+Size <= NodesPerSlab && isNodeAllocated(Idx))
+      ++Idx;
+  }
+
+  return -1;
+}
+
 
 // containsElement - Return the element number of the specified address in
 // this slab.  If the address is not in slab, return -1.
@@ -194,7 +285,7 @@ void PoolSlab::freeElement(unsigned ElementIdx) {
 
   // If this slab is a SingleArray, there is nothing else to do.
   if (isSingleArray) {
-    UsedEnd = 0;               // This slab is now empty
+    FirstUnused = UsedEnd = 0;               // This slab is now empty
     assert(ElementIdx == 0 &&
            "poolfree: Attempt to free middle of allocated array\n");
     return;
@@ -213,7 +304,7 @@ void PoolSlab::freeElement(unsigned ElementIdx) {
 
   // FIXME: This should use manual strength reduction if GCC isn't producing
   // decent code (which is almost certainly isn't).
-  while (ElementEndIdx < UsedEnd && !isStartOfAllocation(ElementEndIdx) && 
+  while (ElementEndIdx != UsedEnd && !isStartOfAllocation(ElementEndIdx) && 
          isNodeAllocated(ElementEndIdx)) {
     markNodeFree(ElementEndIdx);
     ++ElementEndIdx;
@@ -360,106 +451,23 @@ void poolfree(PoolTy *Pool, void *Node) {
   }
 }
 
-// The poolallocarray version of FindSlabEntry
-static void *FindSlabEntryArray(PoolSlab *PS, unsigned NodeSize, unsigned Size){
-  if (Size > PoolSlab::NodesPerSlab) return 0;
-
-  // Loop through all of the slabs looking for one with an opening
-  for (; PS; PS = PS->Next) {
-    if (PS->isSingleArray)
-      continue; // Do not allocate small arrays in SingleArray slabs
-
-    // For small array allocation, check to see if there are empty entries at
-    // the end of the slab...
-    if (PS->UsedEnd-1 < PoolSlab::NodesPerSlab-Size) {
-      // Mark the returned entry used and set the start bit
-      PS->setStartBit(PS->UsedEnd);
-      for (unsigned i = PS->UsedEnd; i < PS->UsedEnd + Size; ++i)
-	PS->markNodeAllocated(i);
-
-      // If we are allocating out the first unused field, bump its index also
-      if (PS->FirstUnused == PS->UsedEnd)
-        PS->FirstUnused += Size;
-
-      // Increment UsedEnd
-      PS->UsedEnd += Size;
-
-      // Return the entry
-      return &PS->Data[0] + (PS->UsedEnd - Size) * NodeSize;
-    }
-
-    // If not, check to see if this node has a declared "FirstUnused" value
-    // starting which Size nodes can be allocated
-    //
-    if (PS->FirstUnused < PoolSlab::NodesPerSlab - Size + 1 &&
-	(PS->UsedEnd < PS->FirstUnused+1 || 
-	 PS->UsedEnd - PS->FirstUnused >= Size+1)) {
-      unsigned Idx = PS->FirstUnused, foundArray;
-      
-      // Check if there is a continuous array of Size nodes starting FirstUnused
-      foundArray = 1;
-      for (unsigned i = Idx; (i < Idx + Size) && foundArray; ++i)
-	if (PS->isNodeAllocated(i))
-	  foundArray = 0;
-
-      if (foundArray) {
-	// Successfully allocate starting from the first unused node
-	PS->setStartBit(Idx);
-	for (unsigned i = Idx; i < Idx + Size; ++i)
-	  PS->markNodeAllocated(i);
-	
-	PS->FirstUnused += Size;
-	while (PS->FirstUnused < PoolSlab::NodesPerSlab &&
-               PS->isNodeAllocated(PS->FirstUnused)) {
-	  ++PS->FirstUnused;
-	}
-	return &PS->Data[0] + Idx*NodeSize;
-      }
-      
-    }
-  }
-
-  // No empty nodes available, must grow # slabs!
-  return 0;
-}
-
-void* poolallocarray(PoolTy* Pool, unsigned Size) {
+void *poolallocarray(PoolTy* Pool, unsigned Size) {
   assert(Pool && "Null pool pointer passed into poolallocarray!\n");
 
-  unsigned NodeSize = Pool->NodeSize;
+  if (Size > PoolSlab::NodesPerSlab)
+    return PoolSlab::createSingleArray(Pool, Size);    
 
-  // Return if this pool has size 0
-  if (NodeSize == 0)
-    return 0;
-
+  // Loop through all of the slabs looking for one with an opening
   PoolSlab *PS = (PoolSlab*)Pool->Slabs;
-  if (void *Result = FindSlabEntryArray(PS, NodeSize,Size))
-    return Result;
-
-  // Otherwise we must allocate a new slab and add it to the list
-  if (Size > PoolSlab::NodesPerSlab) {
-    // Allocate a new slab of size Size
-    PS = (PoolSlab*)malloc(sizeof(PoolSlab)+NodeSize*Size-1);
-    assert(PS && "poolallocarray: Could not allocate memory!\n");
-    PS->isSingleArray = 1;
-    PS->markNodeAllocated(0);
-  } else {
-    PS = (PoolSlab*)malloc(sizeof(PoolSlab)+NodeSize*PoolSlab::NodesPerSlab-1);
-    assert(PS && "poolallocarray: Could not allocate memory!\n");
-
-    // Initialize the slab to indicate that the first element is allocated
-    PS->FirstUnused = Size;
-    PS->UsedEnd = Size;
-    
-    PS->isSingleArray = 0;
-
-    PS->setStartBit(0);
-    for (unsigned i = 0; i != Size; ++i)
-      PS->markNodeAllocated(i);
+  for (; PS; PS = PS->Next) {
+    int Element = PS->allocateMultiple(Size);
+    if (Element != -1)
+      return PS->getElementAddress(Element, Pool->NodeSize);
+    PS = PS->Next;
   }
-
-  // Add the slab to the list...
-  PS->Next = (PoolSlab*)Pool->Slabs;
-  Pool->Slabs = PS;
-  return &PS->Data[0];
+  
+  PoolSlab *New = PoolSlab::create(Pool);
+  int Idx = New->allocateMultiple(Size);
+  assert(Idx == 0 && "New allocation didn't return zero'th node?");
+  return New->getElementAddress(0, 0);
 }

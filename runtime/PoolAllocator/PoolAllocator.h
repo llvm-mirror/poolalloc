@@ -33,7 +33,7 @@ extern "C" {
   void poolmakeunfreeable(PoolTy *Pool);
   void pooldestroy(PoolTy *Pool);
   void *poolalloc(PoolTy *Pool);
-  void poolfree(PoolTy *Pool, char *Node);
+  void poolfree(PoolTy *Pool, void *Node);
   void* poolallocarray(PoolTy* Pool, unsigned Size);
 }
 
