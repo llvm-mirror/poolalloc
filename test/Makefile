@@ -53,7 +53,7 @@ test::
 vtl::
 	(cd $(LLVM_OBJ_ROOT)/test/Programs/$(SUBDIR); \
                PROJECT_DIR=$(BUILD_OBJ_ROOT) $(MAKE) -j1 TEST=pavtl \
-                   test)
+                   test report)
 	@printf "\a"; sleep 1; printf "\a"; sleep 1; printf "\a"
 
 perf::
