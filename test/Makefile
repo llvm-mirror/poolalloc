@@ -11,6 +11,37 @@ test::
 LEVEL = ..
 include $(LEVEL)/Makefile.common
 
+
+progtest::
+	(cd $(LLVM_OBJ_ROOT)/test/Programs/MultiSource/Benchmarks/Olden; \
+               PROJECT_DIR=$(BUILD_OBJ_ROOT) $(MAKE) -j1 TEST=poolalloc \
+                   LARGE_PROBLEM_SIZE=1 report.html)
+	(cd $(LLVM_OBJ_ROOT)/test/Programs/MultiSource/Benchmarks/Ptrdist; \
+               PROJECT_DIR=$(BUILD_OBJ_ROOT) $(MAKE) -j1 TEST=poolalloc \
+                   report.html)
+	(cd $(LLVM_OBJ_ROOT)/test/Programs/MultiSource/Benchmarks/MallocBench/cfrac; \
+               PROJECT_DIR=$(BUILD_OBJ_ROOT) $(MAKE) -j1 TEST=poolalloc \
+                   report.html)
+	(cd $(LLVM_OBJ_ROOT)/test/Programs/External/SPEC/CINT2000; \
+               PROJECT_DIR=$(BUILD_OBJ_ROOT) $(MAKE) -j1 TEST=poolalloc \
+                   report.html)
+	@(cd $(LLVM_OBJ_ROOT)/test/Programs/MultiSource/Benchmarks/Olden; \
+               PROJECT_DIR=$(BUILD_OBJ_ROOT) $(MAKE) -j1 TEST=poolalloc \
+                   LARGE_PROBLEM_SIZE=1 report)
+	@(cd $(LLVM_OBJ_ROOT)/test/Programs/MultiSource/Benchmarks/Ptrdist; \
+               PROJECT_DIR=$(BUILD_OBJ_ROOT) $(MAKE) -j1 TEST=poolalloc \
+                   report)
+	@(cd $(LLVM_OBJ_ROOT)/test/Programs/MultiSource/Benchmarks/MallocBench/cfrac; \
+               PROJECT_DIR=$(BUILD_OBJ_ROOT) $(MAKE) -j1 TEST=poolalloc \
+                   report)
+	@(cd $(LLVM_OBJ_ROOT)/test/Programs/External/SPEC/CINT2000; \
+               PROJECT_DIR=$(BUILD_OBJ_ROOT) $(MAKE) -j1 TEST=poolalloc \
+                   report)
+	@printf "\a"; sleep 1; printf "\a"; sleep 1; printf "\a"
+
+
+
+
 # test target - Descend into test/Programs and run the TEST.poolalloc.Makefile
 # tests...
 test::
