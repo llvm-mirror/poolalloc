@@ -708,6 +708,27 @@ static PoolSlab *Pools[4] = { 0, 0, 0, 0 };
 void poolinit_pc(PoolTy *Pool, unsigned NodeSize, unsigned ObjAlignment) {
   poolinit(Pool, NodeSize, ObjAlignment);
   Pool->isPtrCompPool = true;
+
+  // Create the pool.  We have to do this eagerly (instead of on the first
+  // allocation), because code may want to eagerly copy the pool base into a
+  // register.
+
+  // If we already have a pool mmap'd, reuse it.
+  for (unsigned i = 0; i != 4; ++i)
+    if (Pools[i]) {
+      Pool->Slabs = Pools[i];
+      Pools[i] = 0;
+      break;
+    }
+
+  if (Pool->Slabs == 0) {
+    // Didn't find an existing pool, create one.
+    Pool->Slabs = (PoolSlab*)mmap(0, POOLSIZE, PROT_READ|PROT_WRITE,
+                                 MAP_PRIVATE|MAP_NORESERVE|MAP_ANONYMOUS, 0, 0);
+    DO_IF_TRACE(fprintf(stderr, "RESERVED ADDR SPACE: %p -> %p\n",
+                        Pool->Slabs, (char*)Pool->Slabs+POOLSIZE));
+  }
+  PoolSlab::create_for_ptrcomp(Pool, Pool->Slabs, POOLSIZE);
 }
 
 void pooldestroy_pc(PoolTy *Pool) {
@@ -732,32 +753,8 @@ void pooldestroy_pc(PoolTy *Pool) {
 }
 
 unsigned long poolalloc_pc(PoolTy *Pool, unsigned NumBytes) {
-  if (Pool->Slabs == 0)
-    goto AllocPool;
-Continue:
-  {
-    void *Result = poolalloc(Pool, NumBytes);
-    return (char*)Result-(char*)Pool->Slabs;
-  }
-
-AllocPool:
-  // This is the first allocation out of this pool.  If we already have a pool
-  // mmapp'd, reuse it.
-  for (unsigned i = 0; i != 4; ++i)
-    if (Pools[i]) {
-      Pool->Slabs = Pools[i];
-      Pools[i] = 0;
-      break;
-    }
-  if (Pool->Slabs == 0) {
-    // Didn't find an existing pool, create one.
-    Pool->Slabs = (PoolSlab*)mmap(0, POOLSIZE, PROT_READ|PROT_WRITE,
-                                 MAP_PRIVATE|MAP_NORESERVE|MAP_ANONYMOUS, 0, 0);
-    DO_IF_TRACE(fprintf(stderr, "RESERVED ADDR SPACE: %p -> %p\n",
-                        Pool->Slabs, (char*)Pool->Slabs+POOLSIZE));
-  }
-  PoolSlab::create_for_ptrcomp(Pool, Pool->Slabs, POOLSIZE);
-  goto Continue;
+  void *Result = poolalloc(Pool, NumBytes);
+  return (char*)Result-(char*)Pool->Slabs;
 }
 
 void poolfree_pc(PoolTy *Pool, unsigned long Node) {
