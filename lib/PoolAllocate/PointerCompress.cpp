@@ -14,6 +14,7 @@
 #define DEBUG_TYPE "pointercompress"
 #include "EquivClassGraphs.h"
 #include "PoolAllocate.h"
+#include "Heuristic.h"
 #include "llvm/Constants.h"
 #include "llvm/Instructions.h"
 #include "llvm/Module.h"
@@ -97,7 +98,7 @@ namespace {
     std::map<Function*, FunctionCloneRecord> ClonedFunctionInfoMap;
     
   public:
-    Function *PoolInitPC, *PoolDestroyPC;
+    Function *PoolInitPC, *PoolDestroyPC, *PoolAllocPC;
     typedef std::map<const DSNode*, CompressedPoolInfo> PoolInfoMap;
 
     bool runOnModule(Module &M);
@@ -507,6 +508,7 @@ namespace {
 
     void visitCallInst(CallInst &CI);
     void visitPoolInit(CallInst &CI);
+    void visitPoolAlloc(CallInst &CI);
     void visitPoolDestroy(CallInst &CI);
 
     void visitInstruction(Instruction &I) {
@@ -769,8 +771,7 @@ void InstructionRewriter::visitPoolInit(CallInst &CI) {
 
   std::vector<Value*> Ops;
   Ops.push_back(CI.getOperand(1));
-  // Transform to pass in the orig and compressed sizes.
-  Ops.push_back(CI.getOperand(2));
+  // Transform to pass in the compressed size.
   Ops.push_back(ConstantUInt::get(Type::UIntTy, PI->getNewSize()));
   Ops.push_back(CI.getOperand(3));
   // TODO: Compression could reduce the alignment restriction for the pool!
@@ -790,6 +791,36 @@ void InstructionRewriter::visitPoolDestroy(CallInst &CI) {
   CI.eraseFromParent();
 }
 
+void InstructionRewriter::visitPoolAlloc(CallInst &CI) {
+  const CompressedPoolInfo *PI = getPoolInfo(&CI);
+  if (PI == 0) return;  // Pool isn't compressed.
+
+  std::vector<Value*> Ops;
+  Ops.push_back(CI.getOperand(1));  // PD
+
+  Value *Size = CI.getOperand(2);
+
+  // If there was a recommended size, shrink it down now.
+  if (unsigned OldSizeV = PA::Heuristic::getRecommendedSize(PI->getNode()))
+    if (OldSizeV != PI->getNewSize()) {
+      // Emit code to scale the allocated size down by the old size then up by
+      // the new size.  We actually compute (N+OS-1)/OS * NS.
+      Value *OldSize = ConstantUInt::get(Type::UIntTy, OldSizeV);
+      Value *NewSize = ConstantUInt::get(Type::UIntTy, PI->getNewSize());
+
+      Size = BinaryOperator::createAdd(Size,
+                                  ConstantUInt::get(Type::UIntTy, OldSizeV-1),
+                                       "roundup", &CI);
+      Size = BinaryOperator::createDiv(Size, OldSize, "numnodes", &CI);
+      Size = BinaryOperator::createMul(Size, NewSize, "newbytes", &CI);
+    }
+
+  Ops.push_back(Size);
+  Value *NC = new CallInst(PtrComp.PoolAllocPC, Ops, CI.getName(), &CI);
+  setTransformedValue(CI, NC);
+}
+
+
 void InstructionRewriter::visitCallInst(CallInst &CI) {
   if (Function *F = CI.getCalledFunction())
     // These functions are handled specially.
@@ -798,6 +829,9 @@ void InstructionRewriter::visitCallInst(CallInst &CI) {
       return;
     } else if (F->getName() == "pooldestroy") {
       visitPoolDestroy(CI);
+      return;
+    } else if (F->getName() == "poolalloc") {
+      visitPoolAlloc(CI);
       return;
     }
   
@@ -1170,10 +1204,12 @@ void PointerCompress::InitializePoolLibraryFunctions(Module &M) {
   const Type *PoolDescPtrTy = PointerType::get(ArrayType::get(VoidPtrTy, 16));
 
   PoolInitPC = M.getOrInsertFunction("poolinit_pc", Type::VoidTy,
-                                     PoolDescPtrTy, Type::UIntTy,
+                                     PoolDescPtrTy, 
                                      Type::UIntTy, Type::UIntTy, 0);
   PoolDestroyPC = M.getOrInsertFunction("pooldestroy_pc", Type::VoidTy,
                                         PoolDescPtrTy, 0);
+  PoolAllocPC = M.getOrInsertFunction("poolalloc_pc", SCALARUINTTYPE,
+                                      PoolDescPtrTy, Type::UIntTy, 0);
   // FIXME: Need bumppointer versions as well as realloc??/memalign??
 }
 
