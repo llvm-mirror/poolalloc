@@ -36,38 +36,43 @@ sub FormatTime {
   return $Time;
 }
 
-@LatexColumns = (2, 3, 4, 5, 6, 7);
+@LatexColumns = (1, 5, 8, 12, 9, 13, 14, 15, 2, 16);
 
 my $OLDEN     = 'MultiSource/Benchmarks/Olden';
 my $FREEBENCH = 'MultiSource/Benchmarks/FreeBench';
 my $PTRDIST   = 'MultiSource/Benchmarks/Ptrdist';
 
-#@LatexRowMapOrder = (
-#                     "$OLDEN/bh/bh"           => 'bh',
-#                     "$OLDEN/bisort/bisort"   => 'bisort',
-#                     "$OLDEN/em3d/em3d"       => 'em3d',
-#                     "$OLDEN/health/health"   => 'health',
-#                     "$OLDEN/mst/mst"         => 'mst',
-#                     "$OLDEN/perimeter/perimeter" => 'perimeter',
-#                     "$OLDEN/power/power"     => 'power',
-#                     "$OLDEN/treeadd/treeadd" => 'treeadd',
-#                     "$OLDEN/tsp/tsp"         => 'tsp',
-#                     "$OLDEN/voronoi/voronoi" => 'voronoi',
-#                     '-' => '-',
-#                     "$FREEBENCH/analyzer/analyzer"     => 'analyzer',
-#                     "$FREEBENCH/distray/distray"       => 'distray',
-#                     "$FREEBENCH/fourinarow/fourinarow" => 'fourinarow',
-#                     "$FREEBENCH/mason/mason"           => 'mason',
-#                     "$FREEBENCH/neural/neural"         => 'neural',
-#                     "$FREEBENCH/pcompress2/pcompress2" => 'pcompress2',
-#                     "$FREEBENCH/pifft/pifft"           => 'pifft',
-#                     '-' => '-',
-#                     "$PTRDIST/anagram/anagram"       => 'anagram',
-#                     "$PTRDIST/bc/bc"                 => 'bc',
-#                     "$PTRDIST/ft/ft"                 => 'ft',
-#                     "$PTRDIST/ks/ks"                 => 'ks',
-#                     "$PTRDIST/yacr2/yacr2"           => 'yacr2',
-#                  );
+@LatexRowMapOrder = (
+                     "bh/bh"           => 'bh',
+                     "bisort/bisort"   => 'bisort',
+                     "em3d/em3d"       => 'em3d',
+                     "health/health"   => 'health',
+                     "mst/mst"         => 'mst',
+                     "perimeter/perimeter" => 'perimeter',
+                     "power/power"     => 'power',
+                     "treeadd/treeadd" => 'treeadd',
+                     "tsp/tsp"         => 'tsp',
+                     "voronoi/voronoi" => 'voronoi',
+                     '-' => '-',
+                     "anagram/anagram"       => 'anagram',
+                     "bc/bc"                 => 'bc',
+                     "ft/ft"                 => 'ft',
+                     "ks/ks"                 => 'ks',
+                     "yacr2/yacr2"           => 'yacr2',
+                     '-' => '-',
+                     '164.gzip/164.gzip' => '164.gzip',
+                     '175.vpr/175.vpr' => '175.vpr',
+                     '181.mcf/181.mcf' => '181.mcf',
+                     '186.crafty/186.crafty' => '186.crafty',
+                     '197.parser/197.parser' => '197.parser',
+                     '197.parser.hacked/197.parser.hacked' => '197.parser(b)',
+                     '255.vortex/255.vortex' => '255.vortex',
+                     '256.bzip2/256.bzip2' => '256.bzip2',
+                     '300.twolf/300.twolf' => '300.twolf',
+                     '-' => '-',
+                     "analyzer"     => 'analyzer',
+                     "llu"          => 'llu-bench',
+                  );
 
 
 # These are the columns for the report.  The first entry is the header for the
@@ -82,10 +87,12 @@ my $PTRDIST   = 'MultiSource/Benchmarks/Ptrdist';
  ["NormalUser",    'CBE-RUN-TIME-NORMAL-USER: user\s*([.0-9m:]+)',    \&FormatTime],
  ["NormalSys",    'CBE-RUN-TIME-NORMAL-SYS: sys\s*([.0-9m:]+)',    \&FormatTime],
  ["NormalSum",     \&Sum],
+
  ["AllNodesUser", 'CBE-RUN-TIME-ALLNODES-USER: user\s*([.0-9m:]+)', \&FormatTime],
  ["AllNodesSys", 'CBE-RUN-TIME-ALLNODES-SYS: sys\s*([.0-9m:]+)', \&FormatTime],
  ["AllNodesSum",     \&Sum],
  ["AN Speedup", \&Ratio],
+
  ["PoolAllocUser", 'CBE-RUN-TIME-POOLALLOC-USER: user\s*([.0-9m:]+)', \&FormatTime],
  ["PoolAllocSys", 'CBE-RUN-TIME-POOLALLOC-SYS: sys\s*([.0-9m:]+)', \&FormatTime],
  ["PoolAllocSum",     \&Sum],
@@ -93,7 +100,7 @@ my $PTRDIST   = 'MultiSource/Benchmarks/Ptrdist';
  ["AP NumPools",          '([0-9]+).*Number of pools allocated'],
  ["AP Typesafe",          '([0-9]+).*Number of typesafe pools'],
  ["NumArgs",              '([0-9]+).*Number of function arguments added'],
- ["Nonprofit",            '([0-9]+).*Number of DSNodes not profitable'],
+# ["Nonprofit",            '([0-9]+).*Number of DSNodes not profitable'],
  []
 );
 
