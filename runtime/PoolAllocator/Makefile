@@ -1,9 +1,6 @@
 LEVEL = ../..
-
-#
-# Name of bytecode library to build.
-#
-BCNAME=poolalloc
+BYTECODE_LIBRARY=1
+DONT_BUILD_RELINKED=1
+LIBRARYNAME=poolalloc
 
 include $(LEVEL)/Makefile.common
-
