@@ -529,7 +529,7 @@ static void *poolalloc_internal(PoolTy<PoolTraits> *Pool, unsigned NumBytes) {
   NumBytes = (NumBytes & ~(Alignment-1)) - 
              sizeof(FreedNodeHeader<PoolTraits>); // Truncate
 
-  DO_IF_PNP(CurHeapSize += NumBytes);
+  DO_IF_PNP(CurHeapSize += (NumBytes + sizeof(NodeHeader<PoolTraits>)));
   DO_IF_PNP(if (CurHeapSize > MaxHeapSize) MaxHeapSize = CurHeapSize);
 
   DO_IF_PNP(++Pool->NumObjects);
@@ -671,7 +671,7 @@ static void poolfree_internal(PoolTy<PoolTraits> *Pool, void *Node) {
   if (Size == ~1U) goto LargeArrayCase;
   DO_IF_TRACE(fprintf(stderr, "%d bytes\n", Size));
 
-  DO_IF_PNP(CurHeapSize -= Size);
+  DO_IF_PNP(CurHeapSize -= (Size + sizeof(NodeHeader<PoolTraits>)));
   
   // If the node immediately after this one is also free, merge it into node.
   FreedNodeHeader<PoolTraits> *NextFNH;
