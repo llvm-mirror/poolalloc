@@ -18,8 +18,10 @@
 #include "PoolSlab.h"
 
 typedef struct PoolTy {
+#if 0
   // The size of a page on this system
   unsigned int PageSize;
+#endif
 
   // NodeSize - Keep track of the object size tracked by this pool
   unsigned NodeSize;
@@ -33,10 +35,12 @@ typedef struct PoolTy {
   // Pointer to the free list of nodes
   struct NodePointer FreeList;
 
+#if 0
   // FreeablePool - Set to false if the memory from this pool cannot be freed
   // before destroy.
   //
   unsigned FreeablePool;
+#endif /* 0 */
 } PoolTy;
 
 extern "C" {

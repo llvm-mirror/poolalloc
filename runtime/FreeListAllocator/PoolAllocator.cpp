@@ -19,8 +19,9 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-#undef assert
-#define assert(X)
+//#undef assert
+//#define assert(X)
+
 
 //===----------------------------------------------------------------------===//
 //
@@ -45,7 +46,6 @@ createSlab (PoolTy * Pool, unsigned int NodesPerSlab = 0)
 
   // Save locally the node size
   unsigned int NodeSize = Pool->NodeSize;
-  unsigned int PageSize = Pool->PageSize;
 
   //
   // Determine how many nodes can exist within a regular slab.
@@ -189,12 +189,14 @@ poolinit (PoolTy *Pool, unsigned int NodeSize)
   Pool->NodeSize = NodeSize ? NodeSize : 1;
   Pool->Slabs = Pool->ArraySlabs = NULL;
   Pool->FreeList.Next = NULL;
+#if 0
   Pool->FreeablePool = 1;
+#endif /* 0 */
 
   //
   // Initialize the page manager.
   //
-  Pool->PageSize = InitializePageManager ();
+  InitializePageManager ();
 
   return;
 }
@@ -203,7 +205,9 @@ void
 poolmakeunfreeable(PoolTy *Pool)
 {
   assert(Pool && "Null pool pointer passed in to poolmakeunfreeable!\n");
+#if 0
   Pool->FreeablePool = 0;
+#endif
 }
 
 // pooldestroy - Release all memory allocated for a pool
@@ -319,7 +323,7 @@ poolalloc(PoolTy *Pool, unsigned BytesWanted)
   //
   // Determine which slab owns this block.
   //
-  struct SlabHeader * slabp = BlockOwner (Pool->PageSize, Pool->FreeList);
+  struct SlabHeader * slabp = BlockOwner (PageSize, Pool->FreeList);
 
   //
   // Find the data block that corresponds with this pointer.
@@ -401,7 +405,7 @@ poolfree (PoolTy * Pool, void * Block)
   //
   // Find the header of the memory block.
   //
-  struct SlabHeader * slabp = DataOwner (Pool->PageSize, Block);
+  struct SlabHeader * slabp = DataOwner (PageSize, Block);
 
   //
   // If the owning slab is an array, add it back to the free array list.

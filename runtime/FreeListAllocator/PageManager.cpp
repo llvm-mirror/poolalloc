@@ -25,7 +25,7 @@
 // Empirically, this slows down the pool allocator a LOT.
 #define USE_MEMALIGN 0
 
-static unsigned PageSize = 0;
+unsigned PageSize = 4096;
 
 // Explicitly use the malloc allocator here, to avoid depending on the C++
 // runtime library.
