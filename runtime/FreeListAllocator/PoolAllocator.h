@@ -32,8 +32,11 @@ typedef struct PoolTy {
   // Pointer to the list of slabs allocated for this pool
   struct SlabHeader * Slabs;
 
-  // List of slabs used to hold arrays
+  // Linked list of slabs used to hold arrays
   struct SlabHeader * ArraySlabs;
+
+  // Pointer to the fast alloc array
+  struct SlabHeader * FastArray;
 
   // Pointer to the free list of nodes
   struct NodePointer FreeList;

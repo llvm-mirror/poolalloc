@@ -152,7 +152,7 @@ poolinit (PoolTy *Pool, unsigned int NodeSize)
 
   // We must alway return unique pointers, even if they asked for 0 bytes
   Pool->NodeSize = NodeSize ? NodeSize : 1;
-  Pool->Slabs = Pool->ArraySlabs = NULL;
+  Pool->Slabs = Pool->ArraySlabs = Pool->FastArray = NULL;
   Pool->FreeList.Next = NULL;
 #if 0
   Pool->FreeablePool = 1;
@@ -324,14 +324,13 @@ poolallocarray(PoolTy* Pool, unsigned ArraySize)
   //
   // Scan the list of array slabs to see if there is one that fits.
   //
-  struct SlabHeader * Slabp = Pool->ArraySlabs;
+  struct SlabHeader * Slabp = Pool->FastArray;
   struct SlabHeader ** Prevp = &(Pool->ArraySlabs);
 
   //
   // Check to see if we have an array slab that has extra space that we
   // can use.
   //
-#if 0
   if ((Slabp != NULL) &&
       ((Pool->MaxNodesPerPage - Slabp->NextFreeData) >= ArraySize))
   {
@@ -341,24 +340,31 @@ poolallocarray(PoolTy* Pool, unsigned ArraySize)
     Slabp->LiveNodes++;
 
     //
-    // Return the data to the caller.
+    // Find the data for the caller.
     //
     void * Data = (Slabp->Data + (Pool->NodeSize * Slabp->NextFreeData));
-    (Slabp->NextFreeData) += ArraySize;
+
+    //
+    // Disconnect the array slab if it is full.
+    //
+    if (((Slabp->NextFreeData) += ArraySize) >= Pool->MaxNodesPerPage)
+    {
+      Pool->FastArray = NULL;
+    }
+
     return (Data);
   }
-#endif /* 0 */
 
   //
   // Scan through all the free array slabs to see if they are large
   // enough.
   //
-  for (; Slabp != NULL; Slabp=Slabp->Next)
+  for (Slabp = Pool->ArraySlabs; Slabp != NULL; Slabp=Slabp->Next)
   {
     //
     // Check to see if this slab has enough room.
     //
-    if ((Slabp->NodesPerSlab >= ArraySize) && (Slabp->LiveNodes == 0))
+    if (Slabp->NodesPerSlab >= ArraySize)
     {
       //
       // Make the previous node point to the next node.
@@ -398,13 +404,10 @@ poolallocarray(PoolTy* Pool, unsigned ArraySize)
   //
   // If the array has some space, link it into the array "free" list.
   //
-#if 0
   if ((Slabp->IsManaged == 1) && (Slabp->NextFreeData != Pool->MaxNodesPerPage))
   {
-    Slabp->Next = Pool->ArraySlabs;
-    Pool->ArraySlabs = Slabp;
+    Pool->FastArray = Slabp;
   }
-#endif /* 0 */
 
   //
   // Return the list of blocks to the caller.
