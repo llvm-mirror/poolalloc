@@ -345,16 +345,12 @@ void PoolAllocate::FindFunctionPoolArgs(Function &F) {
 
   FI.PoolArgLast += MarkedNodes.size();
 
-
-  if (FuncECs.findClass(&F)) {
-    // Update the equivalence class last pool argument information
-    // only if there actually were pool arguments to the function.
-    // Also, there is no entry for the Eq. class in EqClass2LastPoolArg
-    // if there are no functions in the equivalence class with pool arguments.
-    if (FI.PoolArgLast != FI.PoolArgFirst)
-      EqClass2LastPoolArg[FuncECs.findClass(&F)] = FI.PoolArgLast - 1;
-  }
-  
+  // Update the equivalence class last pool argument information
+  // only if there actually were pool arguments to the function.
+  // Also, there is no entry for the Eq. class in EqClass2LastPoolArg
+  // if there are no functions in the equivalence class with pool arguments.
+  if (FuncECs.findClass(&F) && FI.PoolArgLast != FI.PoolArgFirst)
+    EqClass2LastPoolArg[FuncECs.findClass(&F)] = FI.PoolArgLast - 1;
 }
 
 // MakeFunctionClone - If the specified function needs to be modified for pool
@@ -626,6 +622,9 @@ namespace {
     void visitReturnInst(ReturnInst &I);
     void visitStoreInst (StoreInst &I);
     void visitPHINode(PHINode &I);
+
+    void visitVAArgInst(VAArgInst &I) { }
+    void visitVANextInst(VANextInst &I) { }
 
     void visitInstruction(Instruction &I) {
       std::cerr << "PoolAllocate does not recognize this instruction:\n" << I;
