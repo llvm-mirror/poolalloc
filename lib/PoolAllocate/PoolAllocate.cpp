@@ -612,6 +612,7 @@ namespace {
     
     // The following instructions are never modified by pool allocation
     void visitBranchInst(BranchInst &I) { }
+    void visitUnwindInst(UnwindInst &I) { }
     void visitBinaryOperator(Instruction &I) { }
     void visitShiftInst (ShiftInst &I) { }
     void visitSwitchInst (SwitchInst &I) { }
@@ -625,7 +626,7 @@ namespace {
     void visitPHINode(PHINode &I);
 
     void visitInstruction(Instruction &I) {
-      std::cerr << "PoolAllocate does not recognize this instruction\n";
+      std::cerr << "PoolAllocate does not recognize this instruction:\n" << I;
       abort();
     }
 
