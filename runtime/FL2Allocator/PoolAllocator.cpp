@@ -297,13 +297,13 @@ void PoolSlab<PoolTraits>::create_for_ptrcomp(PoolTy<PoolTraits> *Pool,
   PoolSlab *PS = (PoolSlab*)SMem;
   char *PoolBody = (char*)(PS+1);
 
-  // If the Alignment is greater than the size of the FreedNodeHeader, skip over
-  // some space so that the a "free pointer + sizeof(FreedNodeHeader)" is always
-  // aligned.
+  // If the Alignment is greater than the size of the NodeHeader, skip over some
+  // space so that the a "free pointer + sizeof(NodeHeader)" is always aligned
+  // for user data.
   unsigned Alignment = Pool->Alignment;
-  if (Alignment > sizeof(FreedNodeHeader<PoolTraits>)) {
-    PoolBody += Alignment-sizeof(FreedNodeHeader<PoolTraits>);
-    Size -= Alignment-sizeof(FreedNodeHeader<PoolTraits>);
+  if (Alignment > sizeof(NodeHeader<PoolTraits>)) {
+    PoolBody += Alignment-sizeof(NodeHeader<PoolTraits>);
+    Size -= Alignment-sizeof(NodeHeader<PoolTraits>);
   }
 
   // Add the body of the slab to the free list.
