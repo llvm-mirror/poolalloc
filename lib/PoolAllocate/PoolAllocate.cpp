@@ -84,12 +84,12 @@ void PoolAllocate::buildIndirectFunctionSets(Module &M) {
 
     DSGraph &TDG = TDDS->getDSGraph(*MI);
 
-    std::vector<DSCallSite> callSites = TDG.getFunctionCalls();
+    const std::vector<DSCallSite> &callSites = TDG.getFunctionCalls();
 
     // For each call site in the function
     // All the functions that can be called at the call site are put in the
     // same equivalence class.
-    for (std::vector<DSCallSite>::iterator CSI = callSites.begin(), 
+    for (std::vector<DSCallSite>::const_iterator CSI = callSites.begin(), 
 	   CSE = callSites.end(); CSI != CSE ; ++CSI) {
       if (CSI->isIndirectCall()) {
 	DSNode *DSN = CSI->getCalleeNode();
@@ -98,25 +98,21 @@ void PoolAllocate::buildIndirectFunctionSets(Module &M) {
                     << *CSI->getCallSite().getInstruction();
 	// assert(DSN->isGlobalNode());
 	const std::vector<GlobalValue*> &Callees = DSN->getGlobals();
-	if (Callees.size() > 0) {
-	  Function *firstCalledF = dyn_cast<Function>(*Callees.begin());
-	  FuncECs.addElement(firstCalledF);
-	  CallInstTargets.insert(std::pair<CallInst*,Function*>
-				 (cast<CallInst>(CSI->getCallSite().getInstruction()),
-				  firstCalledF));
-	  if (Callees.size() > 1) {
-	    for (std::vector<GlobalValue*>::const_iterator CalleesI = 
-		   Callees.begin()+1, CalleesE = Callees.end(); 
-		 CalleesI != CalleesE; ++CalleesI) {
-	      Function *calledF = dyn_cast<Function>(*CalleesI);
-	      FuncECs.unionSetsWith(firstCalledF, calledF);
-	      CallInstTargets.insert(std::pair<CallInst*,Function*>
-				     (cast<CallInst>(CSI->getCallSite().getInstruction()), calledF));
-	    }
-	  }
-	} else {
+	if (Callees.empty())
 	  std::cerr << "No targets: " << *CSI->getCallSite().getInstruction();
-	}
+        Function *RunningClass = 0;
+        for (std::vector<GlobalValue*>::const_iterator CalleesI = 
+               Callees.begin(), CalleesE = Callees.end(); 
+             CalleesI != CalleesE; ++CalleesI)
+          if (Function *calledF = dyn_cast<Function>(*CalleesI)) {
+            CallSiteTargets.insert(std::make_pair(CSI->getCallSite(), calledF));
+            if (RunningClass == 0) {
+              RunningClass = calledF;
+              FuncECs.addElement(RunningClass);
+            } else {
+              FuncECs.unionSetsWith(RunningClass, calledF);
+            }
+          }
       }
     }
   }
@@ -227,34 +223,35 @@ void PoolAllocate::AddPoolPrototypes() {
 //
 void PoolAllocate::InlineIndirectCalls(Function &F, DSGraph &G, 
                                        hash_set<Function*> &visited) {
-  std::vector<DSCallSite> callSites = G.getFunctionCalls();
+  const std::vector<DSCallSite> &callSites = G.getFunctionCalls();
   
   visited.insert(&F);
 
   // For each indirect call site in the function, inline all the potential
   // targets
-  for (std::vector<DSCallSite>::iterator CSI = callSites.begin(),
+  for (std::vector<DSCallSite>::const_iterator CSI = callSites.begin(),
          CSE = callSites.end(); CSI != CSE; ++CSI) {
     if (CSI->isIndirectCall()) {
-      CallInst &CI = *cast<CallInst>(CSI->getCallSite().getInstruction());
-      std::pair<std::multimap<CallInst*, Function*>::iterator,
-        std::multimap<CallInst*, Function*>::iterator> Targets =
-        CallInstTargets.equal_range(&CI);
-      for (std::multimap<CallInst*, Function*>::iterator TFI = Targets.first,
-             TFE = Targets.second; TFI != TFE; ++TFI) {
-	DSGraph &TargetG = BU->getDSGraph(*TFI->second);
-        // Call the function recursively if the callee is not yet inlined
-        // and if it hasn't been visited in this sequence of calls
-        // The latter is dependent on the fact that the graphs of all functions
-        // in an SCC are actually the same
-        if (InlinedFuncs.find(TFI->second) == InlinedFuncs.end() && 
-            visited.find(TFI->second) == visited.end()) {
-          InlineIndirectCalls(*TFI->second, TargetG, visited);
+      CallSite CS = CSI->getCallSite();
+      std::pair<std::multimap<CallSite, Function*>::iterator,
+        std::multimap<CallSite, Function*>::iterator> Targets =
+        CallSiteTargets.equal_range(CS);
+      for (std::multimap<CallSite, Function*>::iterator TFI = Targets.first,
+             TFE = Targets.second; TFI != TFE; ++TFI)
+        if (!TFI->second->isExternal()) {
+          DSGraph &TargetG = BU->getDSGraph(*TFI->second);
+          // Call the function recursively if the callee is not yet inlined and
+          // if it hasn't been visited in this sequence of calls The latter is
+          // dependent on the fact that the graphs of all functions in an SCC
+          // are actually the same
+          if (InlinedFuncs.find(TFI->second) == InlinedFuncs.end() && 
+              visited.find(TFI->second) == visited.end()) {
+            InlineIndirectCalls(*TFI->second, TargetG, visited);
+          }
+          G.mergeInGraph(*CSI, *TFI->second, TargetG, DSGraph::KeepModRefBits | 
+                         DSGraph::KeepAllocaBit | DSGraph::DontCloneCallNodes |
+                         DSGraph::DontCloneAuxCallNodes); 
         }
-        G.mergeInGraph(*CSI, *TFI->second, TargetG, DSGraph::KeepModRefBits | 
-                       DSGraph::KeepAllocaBit | DSGraph::DontCloneCallNodes |
-                       DSGraph::DontCloneAuxCallNodes); 
-      }
     }
   }
   
@@ -1009,10 +1006,10 @@ void FuncTransform::visitCallInst(CallInst &CI) {
     std::map<unsigned, Value*> PoolArgs;
     Function *FuncClass;
     
-    std::pair<std::multimap<CallInst*, Function*>::iterator,
-              std::multimap<CallInst*, Function*>::iterator> Targets =
-      PAInfo.CallInstTargets.equal_range(&CI);
-    for (std::multimap<CallInst*, Function*>::iterator TFI = Targets.first,
+    std::pair<std::multimap<CallSite, Function*>::iterator,
+              std::multimap<CallSite, Function*>::iterator> Targets =
+      PAInfo.CallSiteTargets.equal_range(&CI);
+    for (std::multimap<CallSite, Function*>::iterator TFI = Targets.first,
 	   TFE = Targets.second; TFI != TFE; ++TFI) {
       if (TFI == Targets.first) {
 	FuncClass = PAInfo.FuncECs.findClass(TFI->second);
