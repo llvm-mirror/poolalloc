@@ -912,16 +912,12 @@ void InstructionRewriter::visitCallInst(CallInst &CI) {
 
   for (unsigned i = NumPoolArgs+1, e = CI.getNumOperands(); i != e; ++i, ++AI)
     if (isa<PointerType>(CI.getOperand(i)->getType()) &&
-        PoolsToCompress.count(CG->getNodeForValue(AI).getNode())) {
+        PoolsToCompress.count(CG->getNodeForValue(AI).getNode()))
       Operands.push_back(getTransformedValue(CI.getOperand(i)));
-    } else {
+    else
       Operands.push_back(CI.getOperand(i));
-    }
-
-  std::cerr << "REPL: " << CI;
 
   Value *NC = new CallInst(Clone, Operands, CI.getName(), &CI);
-  std::cerr << "WITH: " << *NC;
   if (NC->getType() != CI.getType())      // Compressing return value?
     setTransformedValue(CI, NC);
   else {
