@@ -15,12 +15,12 @@ include $(LEVEL)/Makefile.common
 # tests...
 test::
 	(cd $(LLVM_OBJ_ROOT)/test/Programs/$(SUBDIR); \
-               PROJECT_DIR=$(BUILD_OBJ_ROOT) $(MAKE) TEST=poolalloc \
+               PROJECT_DIR=$(BUILD_OBJ_ROOT) $(MAKE) -j1 TEST=poolalloc \
                    report report.html)
 	@printf "\a"; sleep 1; printf "\a"; sleep 1; printf "\a"
 
 vtl::
 	(cd $(LLVM_OBJ_ROOT)/test/Programs/$(SUBDIR); \
-               PROJECT_DIR=$(BUILD_OBJ_ROOT) $(MAKE) TEST=pavtl \
+               PROJECT_DIR=$(BUILD_OBJ_ROOT) $(MAKE) -j1 TEST=pavtl \
                    test)
 	@printf "\a"; sleep 1; printf "\a"; sleep 1; printf "\a"
