@@ -95,7 +95,15 @@ public:
 
   // getSlabSize - Return the number of nodes that each slab should contain.
   static unsigned getSlabSize(PoolTy *Pool) {
-    return 325;
+    // We need space for the header...
+    unsigned NumNodes = PageSize-sizeof(PoolSlab);
+    
+    // We need space for the NodeFlags...
+    unsigned NodeFlagsBytes = NumNodes/Pool->NodeSize * 2 / 8;
+    NumNodes -= (NodeFlagsBytes+3) & ~3;  // Round up to int boundaries.
+
+    // Divide the remainder among the nodes!
+    return NumNodes / Pool->NodeSize;
   }
 
   void addToList(PoolSlab **PrevPtrPtr) {
