@@ -21,9 +21,8 @@ struct FreedNodeHeader;
 // NodeHeader - Each block of memory is preceeded in the the pool by one of
 // these headers.  If the node is allocated, the ObjectSize value is used, if
 // the object is free, the 'Next' value is used.
-union NodeHeader {
-  FreedNodeHeader *Next;
-  unsigned ObjectSize;
+struct NodeHeader {
+  unsigned Size;
 };
 
 
@@ -31,11 +30,10 @@ union NodeHeader {
 struct FreedNodeHeader {
   // NormalHeader - This is the normal node header that is on allocated or free
   // blocks.
-  NodeHeader NormalHeader;
+  NodeHeader Header;
 
-  // Size - This is stored in the actual data area, indicating how many bytes
-  // there are in the region.
-  unsigned Size;
+  // Next - The next object in the free list.
+  FreedNodeHeader *Next;
 };
 
 
@@ -54,9 +52,9 @@ struct LargeArrayHeader {
 // FreeList*Size - These are size classes for each of the freelists in a pool.
 // An object in a particular free list is guaranteed to be <= this size.
 enum {
-  FreeListZeroSize = 16,
-  FreeListOneSize  = 64,
-  FreeListTwoSize  = 256,
+  FreeListZeroSize = 8,
+  FreeListOneSize  = 12,
+  FreeListTwoSize  = 16,
 
   // There are four free lists.
   LargeFreeList = 3
