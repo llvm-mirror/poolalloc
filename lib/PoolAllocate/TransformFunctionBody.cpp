@@ -31,17 +31,23 @@ namespace {
     // of which blocks require the memory in the pool to not be freed.  This
     // does not include poolfree's.  Note that this is only tracked for pools
     // which this is the home of, ie, they are Alloca instructions.
-    std::set<std::pair<AllocaInst*, BasicBlock*> > &PoolUses;
+    std::set<std::pair<AllocaInst*, Instruction*> > &PoolUses;
 
     // PoolDestroys - For each pool, keep track of the actual poolfree calls
     // inserted into the code.  This is seperated out from PoolUses.
     std::set<std::pair<AllocaInst*, CallInst*> > &PoolFrees;
 
     FuncTransform(PoolAllocate &P, DSGraph &g, DSGraph &tdg, FuncInfo &fi,
-                  std::set<std::pair<AllocaInst*, BasicBlock*> > &poolUses,
+                  std::set<std::pair<AllocaInst*, Instruction*> > &poolUses,
                   std::set<std::pair<AllocaInst*, CallInst*> > &poolFrees)
       : PAInfo(P), G(g), TDG(tdg), FI(fi),
         PoolUses(poolUses), PoolFrees(poolFrees) {
+    }
+
+    template <typename InstType, typename SetType>
+    void AddPoolUse(InstType &I, Value *PoolHandle, SetType &Set) {
+      if (AllocaInst *AI = dyn_cast<AllocaInst>(PoolHandle))
+        Set.insert(std::make_pair(AI, &I));
     }
 
     void visitMallocInst(MallocInst &MI);
@@ -58,10 +64,10 @@ namespace {
     void visitSwitchInst (SwitchInst &I) { }
     void visitCastInst (CastInst &I) { }
     void visitAllocaInst(AllocaInst &I) { }
-    void visitLoadInst(LoadInst &I) { }
     void visitGetElementPtrInst (GetElementPtrInst &I) { }
 
     void visitReturnInst(ReturnInst &I);
+    void visitLoadInst(LoadInst &I);
     void visitStoreInst (StoreInst &I);
     void visitPHINode(PHINode &I);
 
@@ -126,7 +132,7 @@ namespace {
 }
 
 void PoolAllocate::TransformBody(DSGraph &g, DSGraph &tdg, PA::FuncInfo &fi,
-                       std::set<std::pair<AllocaInst*, BasicBlock*> > &poolUses,
+                       std::set<std::pair<AllocaInst*,Instruction*> > &poolUses,
                        std::set<std::pair<AllocaInst*, CallInst*> > &poolFrees,
                                  Function &F) {
   FuncTransform(*this, g, tdg, fi, poolUses, poolFrees).visit(F);
@@ -209,6 +215,11 @@ void FuncTransform::visitReturnInst (ReturnInst &RI) {
     }
 }
 
+void FuncTransform::visitLoadInst(LoadInst &LI) {
+  if (Value *PH = getPoolHandle(LI.getOperand(0)))
+    AddPoolUse(LI, PH, PoolUses);
+}
+
 void FuncTransform::visitStoreInst (StoreInst &SI) {
   // Check if a constant function is being stored
   if (Value *clonedFunc = retCloneIfFunc(SI.getOperand(0))) {
@@ -227,6 +238,9 @@ void FuncTransform::visitStoreInst (StoreInst &SI) {
       FI.NewToOldValueMap.erase(II);
     }
   }
+
+  if (Value *PH = getPoolHandle(SI.getOperand(1)))
+    AddPoolUse(SI, PH, PoolUses);
 }
 
 void FuncTransform::visitPHINode(PHINode &PI) {
@@ -276,6 +290,8 @@ void FuncTransform::visitMallocInst(MallocInst &MI) {
   
   // NB: PH is zero even if the node is collapsed
   if (PH == 0) return;
+
+  AddPoolUse(MI, PH, PoolUses);
 
   std::string Name = MI.getName(); MI.setName("");
 
@@ -335,9 +351,9 @@ void FuncTransform::visitFreeInst(FreeInst &FrI) {
   if (PH == 0) return;
 
   const Type *phtype = 0;
-  if (const PointerType * ptype = dyn_cast<PointerType>(Arg->getType())) {
+  if (const PointerType *ptype = dyn_cast<PointerType>(Arg->getType()))
     phtype = ptype->getElementType();
-  }
+
   assert((phtype != 0) && "Needs to be implemented \n ");
   std::map<const Value*, const Type*> &PoolDescType = FI.PoolDescType;
   if (!PoolDescType.count(PH))
@@ -353,6 +369,8 @@ void FuncTransform::visitFreeInst(FreeInst &FrI) {
 				 "", &FrI);
   // Delete the now obsolete free instruction...
   FrI.getParent()->getInstList().erase(&FrI);
+
+  AddPoolUse(*FreeI, PH, PoolFrees);
   
   // Update the NewToOldValueMap if this is a clone
   if (!FI.NewToOldValueMap.empty()) {
@@ -540,7 +558,6 @@ void FuncTransform::visitCallSite(CallSite CS) {
     
     std::string Name = TheCall->getName(); TheCall->setName("");
     
-    Value *NewCall;
     Value *CalledValuePtr = CS.getCalledValue();
     if (Args.size() > (unsigned)CS.arg_size()) {
       // If there are any pool arguments
@@ -549,12 +566,16 @@ void FuncTransform::visitCallSite(CallSite CS) {
                                     TheCall);
     }
 
+    Instruction *NewCall;
     if (InvokeInst *II = dyn_cast<InvokeInst>(TheCall)) {
       NewCall = new InvokeInst(CalledValuePtr, II->getNormalDest(),
                                II->getExceptionalDest(), Args, Name, TheCall);
     } else {
       NewCall = new CallInst(CalledValuePtr, Args, Name, TheCall);
     }
+    // Add all of the uses of the pool descriptor
+    for (unsigned i = 0, e = Args.size()-CS.arg_size(); i != e; ++i)
+      AddPoolUse(*NewCall, Args[i], PoolUses);
 
     TheCall->replaceAllUsesWith(NewCall);
     DEBUG(std::cerr << "  Result Call: " << *NewCall);
@@ -650,13 +671,17 @@ void FuncTransform::visitCallSite(CallSite CS) {
     
     std::string Name = TheCall->getName(); TheCall->setName("");
 
-    Value *NewCall;
+    Instruction *NewCall;
     if (InvokeInst *II = dyn_cast<InvokeInst>(TheCall)) {
       NewCall = new InvokeInst(CFI->Clone, II->getNormalDest(),
                                II->getExceptionalDest(), Args, Name, TheCall);
     } else {
       NewCall = new CallInst(CFI->Clone, Args, Name, TheCall);
     }
+
+    // Add all of the uses of the pool descriptor
+    for (unsigned i = 0, e = Args.size()-CS.arg_size(); i != e; ++i)
+      AddPoolUse(*NewCall, Args[i], PoolUses);
 
     TheCall->replaceAllUsesWith(NewCall);
     DEBUG(std::cerr << "  Result Call: " << *NewCall);

@@ -570,7 +570,7 @@ void PoolAllocate::ProcessFunctionBody(Function &F, Function &NewF) {
   
   // Transform the body of the function now... collecting information about uses
   // of the pools.
-  std::set<std::pair<AllocaInst*, BasicBlock*> > PoolUses;
+  std::set<std::pair<AllocaInst*, Instruction*> > PoolUses;
   std::set<std::pair<AllocaInst*, CallInst*> > PoolFrees;
   TransformBody(G, TDDS->getDSGraph(F), FI, PoolUses, PoolFrees, NewF);
 }
