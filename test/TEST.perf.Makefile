@@ -209,3 +209,5 @@ test.$(TEST).%: Output/%.$(TEST).report.txt
 	@echo "---------------------------------------------------------------"
 	@cat $<
 
+REPORT_DEPENDENCIES := $(PROGRAMS_TO_TEST:%=Output/%.poolalloc.out-cbe.time) \
+                       $(PROGRAMS_TO_TEST:%=Output/%.nonpa.out-cbe.time)
