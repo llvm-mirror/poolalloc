@@ -36,6 +36,9 @@
 struct SlabHeader *
 createSlab (unsigned int NodeSize, unsigned int NodesPerSlab = 0)
 {
+  // Maximum number of nodes per slab
+  unsigned int MaxNodesPerSlab;
+
   // Pointer to the new Slab
   struct SlabHeader * NewSlab;
 
@@ -46,10 +49,22 @@ createSlab (unsigned int NodeSize, unsigned int NodesPerSlab = 0)
   //
   // Determine how many nodes should exist within a slab.
   //
-  if (NodesPerSlab == 0)
-  {
-    NodesPerSlab = (PageSize - sizeof (struct SlabHeader)) / (sizeof (unsigned char *) + NodeSize);
-  }
+  MaxNodesPerSlab = (PageSize - sizeof (struct SlabHeader)) / (sizeof (unsigned char *) + NodeSize);
+  assert ((MaxNodesPerSlab >= NodesPerSlab) && "Too many nodes requested");
+
+  //
+  // Regardless of what the caller asked for, allocate the maximum number of
+  // nodes available in a page.
+  //
+  // This is the default behavior for regular nodes, and for arrays, we want to
+  // round up to the nearest slab so that we don't waste space when we use the
+  // array memory.
+  //
+  // FIXME:
+  //  Specifying the number of nodes that you want will come into play once
+  //  we allow pool allocations to span multiple memory pages.
+  //
+  NodesPerSlab = MaxNodesPerSlab;
 
   //
   // Determine the size of the slab.
