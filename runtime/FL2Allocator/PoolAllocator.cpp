@@ -705,7 +705,7 @@ unsigned poolobjsize(PoolTy *Pool, void *Node) {
 static PoolSlab *Pools[4] = { 0, 0, 0, 0 };
 
 
-void poolinit_pc(PoolTy *Pool, unsigned NodeSize, unsigned ObjAlignment) {
+void *poolinit_pc(PoolTy *Pool, unsigned NodeSize, unsigned ObjAlignment) {
   poolinit(Pool, NodeSize, ObjAlignment);
   Pool->isPtrCompPool = true;
 
@@ -729,6 +729,7 @@ void poolinit_pc(PoolTy *Pool, unsigned NodeSize, unsigned ObjAlignment) {
                         Pool->Slabs, (char*)Pool->Slabs+POOLSIZE));
   }
   PoolSlab::create_for_ptrcomp(Pool, Pool->Slabs, POOLSIZE);
+  return Pool->Slabs;
 }
 
 void pooldestroy_pc(PoolTy *Pool) {

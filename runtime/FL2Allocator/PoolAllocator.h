@@ -128,8 +128,8 @@ extern "C" {
 
   // Pointer Compression runtime library.  Most of these are just wrappers
   // around the normal pool routines.
-  void poolinit_pc(PoolTy *Pool, unsigned NodeSize,
-                   unsigned ObjAlignment);
+  void *poolinit_pc(PoolTy *Pool, unsigned NodeSize,
+                    unsigned ObjAlignment);
   void pooldestroy_pc(PoolTy *Pool);
   unsigned long poolalloc_pc(PoolTy *Pool, unsigned NumBytes);
   void poolfree_pc(PoolTy *Pool, unsigned long Node);
