@@ -23,6 +23,10 @@
 //#define PRINT_NUM_POOLS
 
 
+#define INITIAL_SLAB_SIZE 4096
+#define LARGE_SLAB_SIZE   4096
+
+
 //===----------------------------------------------------------------------===//
 // Pool Debugging stuff.
 //===----------------------------------------------------------------------===//
@@ -97,8 +101,6 @@ static void PoolCountPrinter() {
 //  PoolSlab implementation
 //===----------------------------------------------------------------------===//
 
-#define PageSize (4*1024U)
-
 static inline unsigned getSizeClass(unsigned NumBytes) {
   if (NumBytes <= FreeListOneSize)
     return NumBytes > FreeListZeroSize;
@@ -141,8 +143,9 @@ public:
 void PoolSlab::create(PoolTy *Pool, unsigned SizeHint) {
   unsigned Size = Pool->AllocSize;
   Pool->AllocSize <<= 1;
-  Size = Size / SizeHint * SizeHint;
-  PoolSlab *PS = (PoolSlab*)malloc(Size+sizeof(PoolSlab)+ 2*sizeof(NodeHeader));
+  Size = (Size+SizeHint-1) / SizeHint * SizeHint;
+  PoolSlab *PS = (PoolSlab*)malloc(Size+sizeof(PoolSlab) + sizeof(NodeHeader) +
+                                   sizeof(FreedNodeHeader));
 
   // Add the body of the slab to the free list...
   FreedNodeHeader *SlabBody = (FreedNodeHeader*)(PS+1);
@@ -176,7 +179,7 @@ void PoolSlab::destroy() {
 void poolinit(PoolTy *Pool, unsigned DeclaredSize) {
   assert(Pool && "Null pool pointer passed into poolinit!\n");
   memset(Pool, 0, sizeof(PoolTy));
-  Pool->AllocSize = PageSize;
+  Pool->AllocSize = INITIAL_SLAB_SIZE;
   Pool->DeclaredSize = DeclaredSize;
 
   DO_IF_TRACE(fprintf(stderr, "[%d] poolinit(0x%X, %d)\n", addPoolNumber(Pool),
@@ -277,7 +280,7 @@ void *poolalloc(PoolTy *Pool, unsigned NumBytes) {
 
   // Perform a search of the free list, taking the front of the first free chunk
   // that is big enough.
-  if (NumBytes <= PageSize-sizeof(PoolSlab)-sizeof(NodeHeader)) {
+  if (NumBytes <= LARGE_SLAB_SIZE-sizeof(PoolSlab)-sizeof(NodeHeader)) {
     do {
       FreedNodeHeader **FN = &Pool->FreeNodeLists[SizeClass];
       FreedNodeHeader *FNN = *FN;
