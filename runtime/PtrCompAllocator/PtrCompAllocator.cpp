@@ -175,15 +175,6 @@ void pooldestroy_pc(PoolTy *Pool) {
   free(Pool->BitVector);
 }
 
-static void CreatePool(PoolTy *Pool) __attribute__((noinline));
-static void CreatePool(PoolTy *Pool) {
-  Pool->PoolBase = (char*)mmap(0, POOLSIZE, PROT_READ|PROT_WRITE,
-                               MAP_PRIVATE|MAP_NORESERVE|MAP_ANONYMOUS, 0, 0);
-  Pool->NumNodesInBitVector = 1024;
-  Pool->BitVector = (unsigned long*)malloc(Pool->NumNodesInBitVector*2/8);
-  Pool->NumUsed = 0;
-}
-
 static inline void MarkNodeAllocated(PoolTy *Pool, unsigned long NodeNum) {
   Pool->BitVector[NodeNum*2/(sizeof(long)*8)] |=
     3 << (2*(NodeNum & (sizeof(long)*8/2-1)));
@@ -194,6 +185,17 @@ static inline void MarkNodeFree(PoolTy *Pool, unsigned long NodeNum) {
     ~(3 << (2*(NodeNum & (sizeof(long)*8/2-1))));
 }
 
+static void CreatePool(PoolTy *Pool) __attribute__((noinline));
+static void CreatePool(PoolTy *Pool) {
+  Pool->PoolBase = (char*)mmap(0, POOLSIZE, PROT_READ|PROT_WRITE,
+                               MAP_PRIVATE|MAP_NORESERVE|MAP_ANONYMOUS, 0, 0);
+  Pool->NumNodesInBitVector = 1024;
+  Pool->BitVector = (unsigned long*)malloc(Pool->NumNodesInBitVector*2/8);
+
+  // Mark the null pointer allocated.
+  Pool->NumUsed = 1;
+  MarkNodeAllocated(Pool, 0);
+}
 
 unsigned long poolalloc_pc(PoolTy *Pool, unsigned NumBytes) {
   assert(Pool && "Null pool pointer passed in to poolalloc!\n");
