@@ -324,6 +324,30 @@ poolallocarray(PoolTy* Pool, unsigned ArraySize)
   struct SlabHeader * Slabp = Pool->ArraySlabs;
   struct SlabHeader * Prevp = NULL;
 
+  //
+  // Check to see if we have an array slab that has extra space that we
+  // can use.
+  //
+  if ((Slabp != NULL) &&
+      ((Pool->MaxNodesPerPage - Slabp->NextFreeData) >= ArraySize))
+  {
+    //
+    // Increase the reference count for this slab.
+    //
+    Slabp->LiveNodes++;
+
+    //
+    // Return the data to the caller.
+    //
+    void * Data = (Slabp->Data + (Pool->NodeSize * Slabp->NextFreeData));
+    (Slabp->NextFreeData)++;
+    return (Data);
+  }
+
+  //
+  // Scan through all the free array slabs to see if they are large
+  // enough.
+  //
   for (; Slabp != NULL; Prevp = Slabp, Slabp=Slabp->Next)
   {
     //
@@ -345,6 +369,7 @@ poolallocarray(PoolTy* Pool, unsigned ArraySize)
         //
         Prevp->Next = Slabp->Next;
       }
+      ++(Slabp->LiveNodes);
       return (Slabp->Data);
     }
   }
@@ -352,13 +377,24 @@ poolallocarray(PoolTy* Pool, unsigned ArraySize)
   //
   // Create a new slab and mark it as an array.
   //
-  struct SlabHeader * NewSlab = createSlab (Pool, ArraySize);
-  NewSlab->IsArray = 1;
+  Slabp = createSlab (Pool, ArraySize);
+  Slabp->IsArray = 1;
+  Slabp->LiveNodes = 1;
+  Slabp->NextFreeData = ArraySize;
+
+  //
+  // If the array has some space, link it into the array "free" list.
+  //
+  if ((Slabp->IsManaged == 0) && (Slabp->NextFreeData != Pool->MaxNodesPerPage))
+  {
+    Slabp->Next = Pool->ArraySlabs;
+    Pool->ArraySlabs = Slabp;
+  }
 
   //
   // Return the list of blocks to the caller.
   //
-  return (NewSlab->Data);
+  return (Slabp->Data);
 }
 
 void
@@ -377,8 +413,11 @@ poolfree (PoolTy * Pool, void * Block)
   //
   if (slabp->IsArray)
   {
-    slabp->Next = Pool->ArraySlabs;
-    Pool->ArraySlabs = slabp;
+    if ((--slabp->LiveNodes) == 0)
+    {
+      slabp->Next = Pool->ArraySlabs;
+      Pool->ArraySlabs = slabp;
+    }
     return;
   }
 
