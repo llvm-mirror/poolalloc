@@ -435,7 +435,6 @@ void *poolallocarray(PoolTy* Pool, unsigned Size) {
       }
       return PS->getElementAddress(Element, Pool->NodeSize);
     }
-    PS = PS->Next;
   }
   
   PoolSlab *New = PoolSlab::create(Pool);
