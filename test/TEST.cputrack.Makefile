@@ -1,6 +1,6 @@
 ##===- poolalloc/TEST.cputrack.Makefile --------------------*- Makefile -*-===##
 #
-# Makefile for measuring system call activity with strace
+# Makefile for measuring cache miss rates with the Solaris cputrack utility
 #
 ##===----------------------------------------------------------------------===##
 
