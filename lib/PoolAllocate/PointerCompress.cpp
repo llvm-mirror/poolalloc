@@ -22,7 +22,9 @@
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
+#include "llvm/Support/GetElementPtrTypeIterator.h"
 #include "llvm/Support/InstVisitor.h"
+
 #include "llvm/Transforms/Utils/Cloning.h"
 using namespace llvm;
 
@@ -669,22 +671,40 @@ void InstructionRewriter::visitGetElementPtrInst(GetElementPtrInst &GEPI) {
   const CompressedPoolInfo *PI = getPoolInfo(&GEPI);
   if (PI == 0) return;
 
-  // For now, we only support very very simple getelementptr instructions, with
-  // two indices, where the first is zero.
-  assert(GEPI.getNumOperands() == 3 && isa<Constant>(GEPI.getOperand(1)) &&
-         cast<Constant>(GEPI.getOperand(1))->isNullValue());
-  const Type *IdxTy = 
-    cast<PointerType>(GEPI.getOperand(0)->getType())->getElementType();
-  assert(isa<StructType>(IdxTy) && "Can only handle structs right now!");
-
+  // Get the base index.
   Value *Val = getTransformedValue(GEPI.getOperand(0));
 
-  unsigned Field = (unsigned)cast<ConstantUInt>(GEPI.getOperand(2))->getValue();
-  if (Field) {
-    const StructType *NTy = cast<StructType>(PI->getNewType());
-    uint64_t FieldOffs = TD.getStructLayout(NTy)->MemberOffsets[Field];
-    Constant *FieldOffsCst = ConstantUInt::get(SCALARUINTTYPE, FieldOffs);
-    Val = BinaryOperator::createAdd(Val, FieldOffsCst, GEPI.getName(), &GEPI);
+  // The compressed type for the pool.  FIXME: NOTE: This only works if 'Val'
+  // pointed to the start of a node!
+  const Type *NTy = PointerType::get(PI->getNewType());
+
+  gep_type_iterator GTI = gep_type_begin(GEPI), E = gep_type_end(GEPI);
+  for (unsigned i = 1, e = GEPI.getNumOperands(); i != e; ++i, ++GTI) {
+    Value *Idx = GEPI.getOperand(i);
+    if (const StructType *STy = dyn_cast<StructType>(*GTI)) {
+      unsigned Field = (unsigned)cast<ConstantUInt>(Idx)->getValue();
+
+      uint64_t FieldOffs = TD.getStructLayout(cast<StructType>(NTy))
+                                  ->MemberOffsets[Field];
+      Constant *FieldOffsCst = ConstantUInt::get(SCALARUINTTYPE, FieldOffs);
+      Val = BinaryOperator::createAdd(Val, FieldOffsCst, GEPI.getName(), &GEPI);
+
+      NTy = cast<StructType>(NTy)->getElementType(Field);
+    } else {
+      assert(isa<SequentialType>(*GTI) && "Not struct or sequential?");
+      if (!isa<Constant>(Idx) || !cast<Constant>(Idx)->isNullValue()) {
+        // Add Idx*sizeof(NewElementType) to the index.
+        const Type *ElTy = cast<SequentialType>(NTy)->getElementType();
+        if (Idx->getType() != SCALARUINTTYPE)
+          Idx = new CastInst(Idx, SCALARUINTTYPE, Idx->getName(), &GEPI);
+
+        Constant *Scale = ConstantUInt::get(SCALARUINTTYPE,
+                                            TD.getTypeSize(ElTy));
+        Idx = BinaryOperator::createMul(Idx, Scale, "fieldidx", &GEPI);
+        Val = BinaryOperator::createAdd(Val, Idx, GEPI.getName(), &GEPI);
+      }
+      NTy = cast<SequentialType>(NTy)->getElementType();
+    }
   }
 
   setTransformedValue(GEPI, Val);
