@@ -111,11 +111,6 @@ class PoolAllocate : public Pass {
   // on this map.
   std::map<Function *, int> EqClass2LastPoolArg;
 
-  // Exception flags
-  // CollapseFlag set if all data structures are not pool allocated, due to
-  // collapsing of nodes in the DS graph
-  unsigned CollapseFlag;
-  
  public:
   bool run(Module &M);
   
