@@ -9,6 +9,8 @@ CFLAGS = -O2 -fno-strict-aliasing
 
 EXTRA_PA_FLAGS := -poolalloc-force-simple-pool-init
 
+# HEURISTIC can be set to:
+#   AllPools
 ifdef HEURISTIC
 EXTRA_PA_FLAGS += -poolalloc-heuristic=$(HEURISTIC)
 endif
