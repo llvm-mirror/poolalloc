@@ -805,7 +805,11 @@ void InstructionRewriter::visitPoolInit(CallInst &CI) {
   Ops.push_back(CI.getOperand(1));
   // Transform to pass in the compressed size.
   Ops.push_back(ConstantUInt::get(Type::UIntTy, PI->getNewSize()));
-  Ops.push_back(CI.getOperand(3));
+
+  // Pointer compression can reduce the alignment restriction to 4 bytes from 8.
+  // Reevaluate the desired alignment.
+  Ops.push_back(ConstantUInt::get(Type::UIntTy,
+             PA::Heuristic::getRecommendedAlignment(PI->getNewType(), TD)));
   // TODO: Compression could reduce the alignment restriction for the pool!
   Value *PB = new CallInst(PtrComp.PoolInitPC, Ops, "", &CI);
 
