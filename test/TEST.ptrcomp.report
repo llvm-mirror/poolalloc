@@ -67,7 +67,7 @@ my $PTRDIST   = 'MultiSource/Benchmarks/Ptrdist';
 # Times
  ["PA Time",        'CBE-RUN-TIME-POOLALLOC: program\s*([.0-9m:]+)', \&FormatTime],
  ["PC Time",        'CBE-RUN-TIME-PTRCOMP64: program\s*([.0-9m:]+)', \&FormatTime],
- ["AN run%",        \&RuntimePercent],
+ ["PC run%",        \&RuntimePercent],
  [],
  ["NumPools",       '([0-9]+).*Number of pools allocated'],
  ["Typesafe",       '([0-9]+).*Number of typesafe pools'],
