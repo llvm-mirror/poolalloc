@@ -398,24 +398,22 @@ void FuncTransform::visitCallSite(CallSite CS) {
     if (!isa<Constant>(*AI))
       DSGraph::computeNodeMapping(CalleeGraph->getNodeForValue(FAI),
                                   getDSNodeHFor(*AI), NodeMapping, false);
+
   //assert(AI == AE && "Varargs calls not handled yet!");
 
   // Map the return value as well...
-  if (TheCall->getType() != Type::VoidTy)
+  if (DS::isPointerType(TheCall->getType()))
     DSGraph::computeNodeMapping(CalleeGraph->getReturnNodeFor(*CF),
                                 getDSNodeHFor(TheCall), NodeMapping, false);
 
-#if 1
     // Map the nodes that are pointed to by globals.
-    // For all globals map getDSNodeForGlobal(g)->CG.getDSNodeForGlobal(g)
-    for (DSScalarMap::global_iterator SMI = G.getScalarMap().global_begin(), 
-	   SME = G.getScalarMap().global_end(); SMI != SME; ++SMI) {
-      DSGraph::computeNodeMapping(CalleeGraph->getNodeForValue(*SMI),
-                                  G.getNodeForValue(*SMI),
+  DSScalarMap &CalleeSM = CalleeGraph->getScalarMap();
+  for (DSScalarMap::global_iterator GI = G.getScalarMap().global_begin(), 
+         E = G.getScalarMap().global_end(); GI != E; ++GI)
+    if (CalleeSM.count(*GI))
+      DSGraph::computeNodeMapping(CalleeGraph->getNodeForValue(*GI),
+                                  getDSNodeHFor(*GI),
                                   NodeMapping, false);
-    }
-#endif
-
 
   // Okay, now that we have established our mapping, we can figure out which
   // pool descriptors to pass in...
@@ -459,11 +457,13 @@ void FuncTransform::visitCallSite(CallSite CS) {
       SM.erase(CII);                     // Destroy the CallInst
     } else { 
       // Otherwise update the NewToOldValueMap with the new CI return value
-      std::map<Value*,const Value*>::iterator CII = 
-        FI.NewToOldValueMap.find(TheCall);
-      assert(CII != FI.NewToOldValueMap.end() && "CI not found in clone?");
-      FI.NewToOldValueMap.insert(std::make_pair(NewCall, CII->second));
-      FI.NewToOldValueMap.erase(CII);
+      if (DS::isPointerType(TheCall->getType())) {
+        std::map<Value*,const Value*>::iterator CII = 
+          FI.NewToOldValueMap.find(TheCall);
+        assert(CII != FI.NewToOldValueMap.end() && "CI not found in clone?");
+        FI.NewToOldValueMap.insert(std::make_pair(NewCall, CII->second));
+        FI.NewToOldValueMap.erase(CII);
+      }
     }
   } else if (!FI.NewToOldValueMap.empty()) {
     std::map<Value*,const Value*>::iterator II =
