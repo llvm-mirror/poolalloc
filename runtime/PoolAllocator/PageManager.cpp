@@ -16,9 +16,8 @@
 #define _POSIX_MAPPED_FILES
 #endif
 #include <unistd.h>
-#include <sys/mman.h>
+#include "poolalloc/MMAPSupport.h"
 #include "poolalloc/Support/MallocAllocator.h"
-#include <cassert>
 #include <vector>
 #include <iostream>
 
@@ -31,33 +30,6 @@ unsigned PageSize = 0;
 void InitializePageManager() {
   if (!PageSize) PageSize = sysconf(_SC_PAGESIZE);
 }
-
-#if !USE_MEMALIGN
-static void *GetPages(unsigned NumPages) {
-#if defined(i386) || defined(__i386__) || defined(__x86__)
-  /* Linux and *BSD tend to have these flags named differently. */
-#if defined(MAP_ANON) && !defined(MAP_ANONYMOUS)
-# define MAP_ANONYMOUS MAP_ANON
-#endif /* defined(MAP_ANON) && !defined(MAP_ANONYMOUS) */
-#elif defined(sparc) || defined(__sparc__) || defined(__sparcv9)
-  /* nothing */
-#else
-  std::cerr << "This architecture is not supported by the pool allocator!\n";
-  abort();
-#endif
-
-#if defined(__linux__)
-#define fd 0
-#else
-#define fd -1
-#endif
-
-  void *pa = mmap(0, NumPages*PageSize, PROT_READ|PROT_WRITE,
-                  MAP_PRIVATE|MAP_ANONYMOUS, fd, 0);
-  assert(pa != MAP_FAILED && "MMAP FAILED!");
-  return pa;
-}
-#endif
 
 // Explicitly use the malloc allocator here, to avoid depending on the C++
 // runtime library.
@@ -94,8 +66,7 @@ void *AllocatePage() {
 
   // Allocate several pages, and put the extras on the freelist...
   unsigned NumToAllocate = 8;
-  char *Ptr = (char*)GetPages(NumToAllocate);
-
+  char *Ptr = (char*)AllocateSpaceWithMMAP(NumToAllocate*PageSize);
   for (unsigned i = 1; i != NumToAllocate; ++i)
     FPL.push_back(Ptr+i*PageSize);
   return Ptr;
@@ -104,7 +75,7 @@ void *AllocatePage() {
 
 void *AllocateNPages(unsigned Num) {
   if (Num <= 1) return AllocatePage();
-  return GetPages(Num);
+  return AllocateSpaceWithMMAP(Num*PageSize);
 }
 
 /// FreePage - This function returns the specified page to the pagemanager for
@@ -115,6 +86,5 @@ void FreePage(void *Page) {
 #else
   FreePagesListType &FPL = getFreePageList();
   FPL.push_back(Page);
-  //munmap(Page, 1);
 #endif
 }
