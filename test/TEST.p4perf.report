@@ -69,6 +69,15 @@ my $PTRDIST   = 'MultiSource/Benchmarks/Ptrdist';
                      "$PTRDIST/yacr2/yacr2"           => 'yacr2',
                   );
 
+sub Ratio {
+  my ($Cols, $Col) = @_;
+  if ($Cols->[$Col-2] ne "*" and $Cols->[$Col-1] ne "*" and
+      $Cols->[$Col-2] != "0") {
+    return sprintf "%1.3f", $Cols->[$Col-1]/$Cols->[$Col-2];
+  } else {
+    return "n/a";
+  }
+}
 
 # These are the columns for the report.  The first entry is the header for the
 # column, the second is the regex to use to match the value.  Empty list create
@@ -78,11 +87,13 @@ my $PTRDIST   = 'MultiSource/Benchmarks/Ptrdist';
  ["Name:" , '\'([^\']+)\' Program'],
  [],
 # Times
- ["L1Misses",   'CBE-L1-Cache-Misses: ([0-9]+)'],
- ["L2Misses",   'CBE-L2-Cache-Misses: ([.0-9]+)'],
+ ["L1Miss",   'CBE-L1-Cache-Misses: ([0-9]+)'],
+ ["PAL1Miss",   'CBE-PA-L1-Cache-Misses: ([0-9]+)'],
+ ["PAL1Ratio", \&Ratio],
 
- ["PoolAllocL1Misses",   'CBE-PA-L1-Cache-Misses: ([0-9]+)'],
- ["PoolAllocL2Misses",   'CBE-PA-L2-Cache-Misses: ([.0-9]+)'],
+ ["L2Miss",   'CBE-L2-Cache-Misses: ([.0-9]+)'],
+ ["PAL2Miss",   'CBE-PA-L2-Cache-Misses: ([.0-9]+)'],
+ ["PAL2Ratio", \&Ratio],
  []
 );
 
