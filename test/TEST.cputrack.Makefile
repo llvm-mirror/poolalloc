@@ -51,10 +51,12 @@ Output/test.$(TEST).pa.%: Output/%.poolalloc.cbe Output/test.$(TEST).%
 	@echo "========================================="
 	@echo "Running '$(TEST)' test on '$(TESTNAME)' program"
 ifeq ($(RUN_OPTIONS),)
-	$(VERB) cat $(STDIN_FILENAME) | $(CPUTRACK) $(EVENTS_DC_RD) -o $@ $<
+	$(VERB) cat $(STDIN_FILENAME) | $(CPUTRACK) $(EVENTS_DC_RD) -o $@.dcrd $<
 else
-	$(VERB) cat $(STDIN_FILENAME) | $(CPUTRACK) $(EVENTS_DC_RD) -o $@ $< $(RUN_OPTIONS)
+	$(VERB) cat $(STDIN_FILENAME) | $(CPUTRACK) $(EVENTS_DC_RD) -o $@.dcrd $< $(RUN_OPTIONS)
 endif
+	$(VERB) cat $@.dcrd | tail -1 | awk '{print $$4}' > $@.dcrd.total
+	$(VERB) cat $@.dcrd | tail -1 | awk '{print $$5}' > $@.dcrd.misses
 
 #
 # Generate events for CBE
@@ -64,14 +66,20 @@ Output/test.$(TEST).%: Output/%.cbe
 	@echo "========================================="
 	@echo "Running '$(TEST)' test on '$(TESTNAME)' program"
 ifeq ($(RUN_OPTIONS),)
-	$(VERB) cat $(STDIN_FILENAME) | $(CPUTRACK) $(EVENTS_DC_RD) -o $@ $<
+	$(VERB) cat $(STDIN_FILENAME) | $(CPUTRACK) $(EVENTS_DC_RD) -o $@.dcrd $<
 else
-	$(VERB) cat $(STDIN_FILENAME) | $(CPUTRACK) $(EVENTS_DC_RD) -o $@ $< $(RUN_OPTIONS)
+	$(VERB) cat $(STDIN_FILENAME) | $(CPUTRACK) $(EVENTS_DC_RD) -o $@.dcrd $< $(RUN_OPTIONS)
 endif
+	$(VERB) cat $@.dcrd | tail -1 | awk '{print $$4}' > $@.dcrd.total
+	$(VERB) cat $@.dcrd | tail -1 | awk '{print $$5}' > $@.dcrd.misses
 
 $(PROGRAMS_TO_TEST:%=Output/%.$(TEST).report.txt): \
 Output/%.$(TEST).report.txt: Output/test.$(TEST).pa.% Output/test.$(TEST).%
-	touch $@
+	@printf "CBE-PA-L1-Data-Reads: %d\n" `cat Output/test.$(TEST).pa.$*.dcrd.total` > $@
+	@printf "CBE-PA-L1-Data-Misses: %d\n" `cat Output/test.$(TEST).pa.$*.dcrd.misses` >> $@
+	@printf "CBE-L1-Data-Reads: %d\n" `cat Output/test.$(TEST).$*.dcrd.total` >> $@
+	@printf "CBE-L1-Data-Misses: %d\n" `cat Output/test.$(TEST).$*.dcrd.misses` >> $@
+	@touch $@
 
 $(PROGRAMS_TO_TEST:%=test.$(TEST).%): \
 test.$(TEST).%: Output/%.$(TEST).report.txt

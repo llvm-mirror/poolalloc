@@ -163,6 +163,6 @@ strace::
 cputrack::
 	(cd $(LLVM_OBJ_ROOT)/projects/llvm-test/$(SUBDIR); \
                PROJECT_DIR=$(BUILD_OBJ_ROOT) $(MAKE) -j1 TEST=cputrack \
-                   test)
+                   report)
 	@printf "\a"; sleep 1; printf "\a"; sleep 1; printf "\a"
 
