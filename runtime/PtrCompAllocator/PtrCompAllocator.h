@@ -33,6 +33,10 @@ struct PoolTy {
   // NumUsed - The number of nodes that are currently initialized out of
   // NumNodesInBitVector.  Invariant: NumUsed <= NumNodesInBitVector.
   unsigned long NumUsed;
+
+
+  // These fields are only used in debug mode.
+  unsigned BytesAllocated, NumObjects;
 };
 
 extern "C" {
