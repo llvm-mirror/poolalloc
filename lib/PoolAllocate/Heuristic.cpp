@@ -74,7 +74,6 @@ struct AllNodesHeuristic : public Heuristic {
 
 
 //===-- AllButUnreachableFromMemoryHeuristic Heuristic --------------------===//
-// 
 //
 // This heuristic pool allocates everything possible into separate pools, unless
 // the pool is not reachable by other memory objects.  This filters out objects
@@ -86,9 +85,24 @@ struct AllButUnreachableFromMemoryHeuristic : public Heuristic {
   void AssignToPools(const std::vector<DSNode*> &NodesToPA,
                      Function *F, DSGraph &G,
                      std::vector<OnePool> &ResultPools) {
-    // FIXME: implement
+    // Build a set of all nodes that are reachable from another node in the
+    // graph.
+    std::set<const DSNode*> ReachableFromMemory;
+    for (DSGraph::node_iterator I = G.node_begin(), E = G.node_end();
+         I != E; ++I) {
+      DSNode *N = *I;
+      for (DSNode::iterator NI = N->begin(), E = N->end(); NI != E; ++NI)
+        for (df_ext_iterator<const DSNode*>
+               DI = df_ext_begin(*NI, ReachableFromMemory),
+               E = df_ext_end(*NI, ReachableFromMemory); DI != E; ++DI)
+          /*empty*/;
+    }
+
+    // Only pool allocate a node if it is reachable from a memory object (itself
+    // included).
     for (unsigned i = 0, e = NodesToPA.size(); i != e; ++i)
-      ResultPools.push_back(OnePool(NodesToPA[i]));
+      if (ReachableFromMemory.count(NodesToPA[i]))
+        ResultPools.push_back(OnePool(NodesToPA[i]));
   }
 };
 
@@ -145,6 +159,32 @@ struct SmartCoallesceNodesHeuristic : public Heuristic {
 };
 
 #if 0
+/// NodeIsSelfRecursive - Return true if this node contains a pointer to itself.
+static bool NodeIsSelfRecursive(DSNode *N) {
+  for (DSNode::iterator I = N->begin(), E = N->end(); I != E; ++I)
+    if (*I == N) return true;
+  return false;
+}
+
+/// POVisit - This implements functionality found in Support/PostOrderIterator.h
+/// but in a way that allows multiple roots to be used.  If PostOrderIterator
+/// supported an external set like DepthFirstIterator did I could eliminate this
+/// cruft.
+///
+static void POVisit(DSNode *N, std::set<DSNode*> &Visited,
+                    std::vector<DSNode*> &Order) {
+  if (!Visited.insert(N).second) return;  // already visited
+
+  // Visit all children before visiting this node.
+  for (DSNode::iterator I = N->begin(), E = N->end(); I != E; ++I)
+    if (DSNode *C = const_cast<DSNode*>(*I))
+      POVisit(C, Visited, Order);
+  // Now that we visited all of our children, add ourself to the order.
+  Order.push_back(N);
+}
+
+
+
   // Heuristic for building per-function pools
 
   switch (Heuristic) {
