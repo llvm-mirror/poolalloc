@@ -20,20 +20,11 @@
 #undef assert
 #define assert(X)
 
-typedef union 
+typedef union
 {
-  unsigned char * memory;
-  struct NodeHeader * header;
+  unsigned char * header;
+  unsigned char ** next;
 } NodePointer;
-
-struct NodeHeader
-{
-  // Pointer to the slab which owns me
-  struct SlabHeader * Slab;
-
-  // Pointer to the next node on the free list
-  NodePointer Next;
-};
 
 //===----------------------------------------------------------------------===//
 //
@@ -55,7 +46,7 @@ struct SlabHeader
   struct SlabHeader * Next;
 
   // Pointer to the list of nodes
-  NodePointer Nodes;
+  unsigned char Data [];
 };
 
 //
@@ -70,20 +61,22 @@ createSlab (unsigned int NodeSize)
   // Pointer to the new Slab
   struct SlabHeader * NewSlab;
 
-  // Pointer to the new node
-  struct NodeHeader NewNode;
-
   // The number of elements in the slab
   const unsigned int NodesPerSlab = 128;
 
   // Pointers and index for initializing memory
   NodePointer p;
-  unsigned int index;
+
+  //
+  // Determine the size of the slab.
+  //
+  int slab_size = ((sizeof (unsigned char *) + NodeSize) * NodesPerSlab) +
+                   sizeof (struct SlabHeader);
 
   //
   // Allocate a piece of memory for the new slab.
   //
-  NewSlab = (struct SlabHeader *) malloc (sizeof (struct SlabHeader));
+  NewSlab = (struct SlabHeader *) malloc (slab_size);
   assert (NewSlab != NULL);
 
   //
@@ -95,26 +88,27 @@ createSlab (unsigned int NodeSize)
   NewSlab->Next = NULL;
 
   //
-  // Allocate enough memory for all the nodes.
-  //
-  NewSlab->Nodes.memory = (unsigned char *) malloc ((sizeof (struct NodeHeader) + NodeSize) * NodesPerSlab);
-  assert (NewSlab->Nodes.memory != NULL);
-
-  //
   // Initialize each node in the list.
   //
-  for (p = NewSlab->Nodes, index = 0; index < NodesPerSlab; index++)
+  p.header = &(NewSlab->Data[0]);
+  while (p.header < (&(NewSlab->Data[0]) + slab_size - sizeof (struct SlabHeader)))
   {
-    p.header->Slab = NewSlab;
-    if (index == (NodesPerSlab - 1))
-    {
-      p.header->Next.memory = NULL;
-    }
-    else
-    {
-      p.header->Next.memory = (p.memory += (sizeof (struct NodeHeader) + NodeSize));
-    }
+    //
+    // Calculate the position of the next header and put its address in
+    // this current header.
+    //
+    *(p.next) = p.header + (sizeof (unsigned char *) + NodeSize);
+
+    //
+    // Move on to the next header.
+    //
+    p.header = *(p.next);
   }
+
+  p.header = (&(NewSlab->Data[0]) + slab_size - sizeof (struct SlabHeader)
+                                     - sizeof (unsigned char *)
+                                     - NodeSize);
+  *(p.next) = NULL;
 
   return NewSlab;
 }
@@ -216,13 +210,15 @@ poolalloc(PoolTy *Pool)
     // Take the linked list of nodes inside the slab and add them to the
     // free list.
     //
-    Pool->FreeList = Pool->Slabs->Nodes.header;
+    Pool->FreeList = &(Pool->Slabs->Data[0]);
   }
 
   //
   // Increase the slab's reference count.
   //
+#if 0
   slabAlloc (Pool->FreeList->Slab);
+#endif /* 0 */
 
   //
   // Grab the first element from the free list and return it.
@@ -230,8 +226,8 @@ poolalloc(PoolTy *Pool)
   NodePointer MemoryBlock;
 
   MemoryBlock.header = Pool->FreeList;
-  Pool->FreeList=Pool->FreeList->Next.header;
-  return (MemoryBlock.memory += sizeof (struct NodeHeader));
+  Pool->FreeList=*(MemoryBlock.next);
+  return (MemoryBlock.header += sizeof (unsigned char *));
 }
 
 void *
@@ -254,17 +250,19 @@ poolfree (PoolTy * Pool, void * Block)
   //
   // Find the header of the memory block.
   //
-  Node.memory = (unsigned char *)(Block) - (sizeof (struct NodeHeader));
+  Node.header = (unsigned char *)(Block) - (sizeof (unsigned char *));
 
+#if 0
   //
   // Decrease the slab's reference count.
   //
   slabFree (Node.header->Slab);
+#endif /* 0 */
 
   //
   // Add the node back to the free list.
   //
-  Node.header->Next.header = Pool->FreeList;
+  *(Node.next) = Pool->FreeList;
   Pool->FreeList = Node.header;
 
   return;

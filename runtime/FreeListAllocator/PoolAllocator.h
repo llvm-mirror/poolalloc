@@ -16,7 +16,6 @@
 #define POOLALLOCATOR_RUNTIME_H
 
 struct SlabHeader;
-struct NodeHeader;
 
 typedef struct PoolTy {
   // NodeSize - Keep track of the object size tracked by this pool
@@ -26,7 +25,7 @@ typedef struct PoolTy {
   struct SlabHeader * Slabs;
 
   // Pointer to the free list of nodes
-  struct NodeHeader * FreeList;
+  unsigned char * FreeList;
 
   // FreeablePool - Set to false if the memory from this pool cannot be freed
   // before destroy.
