@@ -5,6 +5,7 @@
 //===----------------------------------------------------------------------===//
 
 #define DEBUG_TYPE "PoolAllocator"
+#include "EquivClassGraphs.h"
 #include "poolalloc/PoolAllocate.h"
 #include "llvm/Analysis/DataStructure.h"
 #include "llvm/Analysis/DSGraph.h"
@@ -75,15 +76,18 @@ namespace {
       FI.NewToOldValueMap.erase(I);
     }
 
-    DSNodeHandle& getDSNodeHFor(Value *V) {
+    Value* getOldValueIfAvailable(Value* V) {
       if (!FI.NewToOldValueMap.empty()) {
         // If the NewToOldValueMap is in effect, use it.
         std::map<Value*,const Value*>::iterator I = FI.NewToOldValueMap.find(V);
         if (I != FI.NewToOldValueMap.end())
           V = (Value*)I->second;
       }
+      return V;
+    }
 
-      return G.getScalarMap()[V];
+    DSNodeHandle& getDSNodeHFor(Value *V) {
+      return G.getScalarMap()[getOldValueIfAvailable(V)];
     }
 
     Value *getPoolHandle(Value *V) {
@@ -337,13 +341,16 @@ void FuncTransform::visitCallSite(CallSite CS) {
   // between the graphs to figure out which pool descriptors need to be passed
   // in.  The roots of this mapping is found from arguments and return values.
   //
+  EquivClassGraphs& ECGraphs = PAInfo.getECGraphs();
   DSGraph::NodeMapTy NodeMapping;
   Instruction *NewCall;
   Value *NewCallee;
   std::vector<DSNode*> ArgNodes;
   DSGraph *CalleeGraph;  // The callee graph
 
+  // For indirect callees find any callee since all DS graphs have been merged.
   if (CF) {   // Direct calls are nice and simple.
+    DEBUG(std::cerr << "  Handling direct call: " << *TheCall);
     FuncInfo *CFI = PAInfo.getFuncInfo(*CF);
     if (CFI == 0 || CFI->Clone == 0) {   // Nothing to transform...
       visitInstruction(*TheCall);
@@ -352,30 +359,50 @@ void FuncTransform::visitCallSite(CallSite CS) {
     NewCallee = CFI->Clone;
     ArgNodes = CFI->ArgNodes;
     
-    DEBUG(std::cerr << "  Handling direct call: " << *TheCall);
-    CalleeGraph = &PAInfo.getBUDataStructures().getDSGraph(*CF);
+    CalleeGraph = &ECGraphs.getDSGraph(*CF);
   } else {
     DEBUG(std::cerr << "  Handling indirect call: " << *TheCall);
     
-    // Figure out which set of functions this call may invoke
-    Instruction *OrigInst = CS.getInstruction();
-
-    // If this call site is in a clone function, map it back to the original
-    if (!FI.NewToOldValueMap.empty())
-      OrigInst = cast<Instruction>((Value*)FI.NewToOldValueMap[OrigInst]);
-    const PA::EquivClassInfo &ECI =
-      PAInfo.getECIForIndirectCallSite(CallSite::get(OrigInst));
-
-    if (ECI.ArgNodes.empty())
-      return;   // No arguments to add?  Transformation is a noop!
-
     // Here we fill in CF with one of the possible called functions.  Because we
     // merged together all of the arguments to all of the functions in the
     // equivalence set, it doesn't really matter which one we pick.
-    CalleeGraph = ECI.G;
-    CF = ECI.FuncsInClass.back();
-    NewCallee = CS.getCalledValue();
-    ArgNodes = ECI.ArgNodes;
+    // (If the function was cloned, we have to map the cloned call instruction
+    // in CS back to the original call instruction.)
+    Instruction *OrigInst =
+      cast<Instruction>(getOldValueIfAvailable(CS.getInstruction()));
+    CF = isa<CallInst>(OrigInst)?
+      ECGraphs.getSomeCalleeForCallSite(cast<CallInst>(OrigInst)) :
+      ECGraphs.getSomeCalleeForCallSite(cast<InvokeInst>(OrigInst));
+
+    if (!CF) {
+      // FIXME: Unknown callees for a call-site. Warn and ignore.
+      std::cerr << "\n***\n*** WARNING (FuncTransform::visitCallSite): "
+                << "Unknown callees for call-site in function "
+                << CS.getCaller()->getName() << "\n***\n";
+      return;
+    }
+
+    // Get the common graph for the set of functions this call may invoke.
+    CalleeGraph = &ECGraphs.getDSGraph(*CF);
+    
+#ifndef NDEBUG
+    // Verify that all potential callees at call site have the same DS graph.
+    const BUDataStructures::ActualCalleesTy& ActualCallees =
+      ECGraphs.getCBUDataStructures()->getActualCallees();
+    BUDataStructures::ActualCalleesTy::const_iterator I, E;
+    for (tie(I, E) = ActualCallees.equal_range(OrigInst); I != E; ++I)
+      if (!I->second->isExternal())
+        assert(CalleeGraph == &ECGraphs.getDSGraph(*I->second) &&
+               "Callees at call site do not have a common graph!");
+#endif    
+
+    // Find the DS nodes for the arguments that need to be added, if any.
+    FuncInfo *CFI = PAInfo.getFuncInfo(*CF);
+    assert(CFI && "No function info for callee at indirect call?");
+    ArgNodes = CFI->ArgNodes;
+
+    if (ArgNodes.empty())
+      return;           // No arguments to add?  Transformation is a noop!
 
     // Cast the function pointer to an appropriate type!
     std::vector<const Type*> ArgTys(ArgNodes.size(),
@@ -383,13 +410,12 @@ void FuncTransform::visitCallSite(CallSite CS) {
     for (CallSite::arg_iterator I = CS.arg_begin(), E = CS.arg_end();
          I != E; ++I)
       ArgTys.push_back((*I)->getType());
-      
+    
     FunctionType *FTy = FunctionType::get(TheCall->getType(), ArgTys, false);
     PointerType *PFTy = PointerType::get(FTy);
     
-    // If there are any pool arguments cast the function pointer to the right
-    // type.
-    NewCallee = new CastInst(NewCallee, PFTy, "tmp", TheCall);
+    // If there are any pool arguments cast the func ptr to the right type.
+    NewCallee = new CastInst(CS.getCalledValue(), PFTy, "tmp", TheCall);
   }
 
   Function::aiterator FAI = CF->abegin(), E = CF->aend();
