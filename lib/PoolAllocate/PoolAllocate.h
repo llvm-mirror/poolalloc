@@ -63,6 +63,10 @@ namespace PA {
     /// 
     std::vector<const DSNode*> ArgNodes;
 
+    /// NodesToPA - The list of nodes which are to be pool allocated locally in
+    /// this function.  This only includes heap nodes.
+    std::vector<const DSNode*> NodesToPA;
+
     /// PoolDescriptors - The Value* (either an argument or an alloca) which
     /// defines the pool descriptor for this DSNode.  Pools are mapped one to
     /// one with nodes in the DSGraph, so this contains a pointer to the node it
@@ -138,7 +142,7 @@ public:
       return FI;
     // Maybe this is a function clone?
     if (Function *FC = getOrigFunctionFromClone(&F))
-      return getFuncInfo(F);
+      return getFuncInfo(*FC);
     return 0;
   }
   

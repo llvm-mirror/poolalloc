@@ -540,7 +540,6 @@ void PoolAllocate::ProcessFunctionBody(Function &F, Function &NewF) {
 
   // Loop over all of the nodes which are non-escaping, adding pool-allocatable
   // ones to the NodesToPA vector.
-  std::vector<const DSNode*> NodesToPA;
   for (DSGraph::node_iterator I = G.node_begin(), E = G.node_end(); I != E;++I){
     // We only need to make a pool if there is a heap object in it...
     DSNode *N = *I;
@@ -554,14 +553,14 @@ void PoolAllocate::ProcessFunctionBody(Function &F, Function &NewF) {
         // Otherwise, if it was not passed in from outside the function, it must
         // be a local pool!
         assert(!N->isGlobalNode() && "Should be in global mapping!");
-        NodesToPA.push_back(N);
+        FI.NodesToPA.push_back(N);
       }
   }
 
-  if (!NodesToPA.empty()) {
-    std::cerr << "[" << F.getName() << "] " << NodesToPA.size()
+  if (!FI.NodesToPA.empty()) {
+    std::cerr << "[" << F.getName() << "] " << FI.NodesToPA.size()
               << " nodes pool allocatable\n";
-    CreatePools(NewF, NodesToPA, FI.PoolDescriptors);
+    CreatePools(NewF, FI.NodesToPA, FI.PoolDescriptors);
   } else {
     DEBUG(std::cerr << "[" << F.getName() << "] transforming body.\n");
   }
@@ -573,8 +572,8 @@ void PoolAllocate::ProcessFunctionBody(Function &F, Function &NewF) {
   TransformBody(G, FI, PoolUses, PoolFrees, NewF);
 
   // Create pool construction/destruction code
-  if (!NodesToPA.empty())
-    InitializeAndDestroyPools(NewF, NodesToPA, FI.PoolDescriptors,
+  if (!FI.NodesToPA.empty())
+    InitializeAndDestroyPools(NewF, FI.NodesToPA, FI.PoolDescriptors,
                               PoolUses, PoolFrees);
   CurHeuristic->HackFunctionBody(NewF, FI.PoolDescriptors);
 }
