@@ -31,7 +31,7 @@ OPT_PA_STATS = $(OPT_PA) -info-output-file=$(CURDIR)/$@.info -stats -time-passes
 # This rule runs the pool allocator on the .llvm.bc file to produce a new .bc
 # file
 $(PROGRAMS_TO_TEST:%=Output/%.$(TEST).transformed.bc): \
-Output/%.$(TEST).transformed.bc: Output/%.llvm.bc $(PA_SO)
+Output/%.$(TEST).transformed.bc: Output/%.llvm.bc $(PA_SO) $(LOPT)
 	-@rm -f $(CURDIR)/$@.info
 	-$(OPT_PA_STATS) -q -poolalloc $(EXTRA_PA_FLAGS) -globaldce -ipconstprop -deadargelim $< -o $@ -f 2>&1 > $@.out
 
@@ -100,4 +100,4 @@ test.$(TEST).%: Output/%.$(TEST).report.txt
 	@echo "---------------------------------------------------------------"
 	@cat $<
 
-REPORT_DEPENDENCIES := $(PA_RT_O) $(PA_SO) $(PROGRAMS_TO_TEST:%=Output/%.llvm.bc) $(LLC)
+REPORT_DEPENDENCIES := $(PA_RT_O) $(PA_SO) $(PROGRAMS_TO_TEST:%=Output/%.llvm.bc) $(LLC) $(LOPT)
