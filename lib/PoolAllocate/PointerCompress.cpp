@@ -111,6 +111,11 @@ namespace {
     Function *PoolInitPC, *PoolDestroyPC, *PoolAllocPC;
     typedef std::map<const DSNode*, CompressedPoolInfo> PoolInfoMap;
 
+    /// NoArgFunctionsCalled - When we are walking the call graph, keep track of
+    /// which functions are called that don't need their prototype to be
+    /// changed.
+    std::vector<Function*> NoArgFunctionsCalled;
+
     bool runOnModule(Module &M);
 
     void HandleGlobalPools(Module &M);
@@ -904,8 +909,10 @@ void InstructionRewriter::visitCallInst(CallInst &CI) {
         Operands.push_back(CI.getOperand(i));
       }
 
-    if (CompressedArgs.empty())
+    if (CompressedArgs.empty()) {
+      PtrComp.NoArgFunctionsCalled.push_back(Callee);
       return;  // Nothing to compress!
+    }
 
     Function *Clone = PtrComp.GetExtFunctionClone(Callee, CompressedArgs);
     Value *NC = new CallInst(Clone, Operands, CI.getName(), &CI);
@@ -1394,16 +1401,26 @@ bool PointerCompress::runOnModule(Module &M) {
   // Handle all pools pointed to by global variables.
   HandleGlobalPools(M);
 
+  std::set<Function*> TransformedFns;
+
   // Iterate over all functions in the module, looking for compressible data
   // structures.
   bool Changed = false;
-  for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I) {
-    // If this function is not a pointer-compressed clone, compress any pools in
-    // it now.
-    if (!ClonedFunctionInfoMap.count(I))
+  for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I)
+    // If this function is not a pointer-compressed or pool allocated clone,
+    // compress any pools in it now.
+    if (I->hasExternalLinkage()) {
       Changed |= CompressPoolsInFunction(*I);
-  }
+      TransformedFns.insert(I);
+    }
 
+  // If compressing external functions (e.g. main), required other function
+  // bodies to be compressed that do not take pool arguments, handle them now.
+  for (unsigned i = 0; i != NoArgFunctionsCalled.size(); ++i)
+    if (TransformedFns.insert(NoArgFunctionsCalled[i]).second)
+      Changed |= CompressPoolsInFunction(*NoArgFunctionsCalled[i]);
+
+  NoArgFunctionsCalled.clear();
   ClonedFunctionMap.clear();
   return Changed;
 }
