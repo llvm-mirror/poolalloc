@@ -430,12 +430,19 @@ bool PoolAllocate::SetupGlobalPools(Module &M) {
   return false;
 }
 
+/// CreateGlobalPool - Create a global pool descriptor object, and insert a
+/// poolinit for it into main.  IPHint is an instruction that we should insert
+/// the poolinit before if not null.
 GlobalVariable *PoolAllocate::CreateGlobalPool(unsigned RecSize, unsigned Align,
                                                Instruction *IPHint) {
   GlobalVariable *GV =
     new GlobalVariable(PoolDescType, false, GlobalValue::InternalLinkage, 
                        Constant::getNullValue(PoolDescType), "GlobalPool",
                        CurModule);
+
+  // Update the global DSGraph to include this.
+  DSNode *GNode = ECGraphs->getGlobalsGraph().addObjectToGraph(GV);
+  GNode->setModifiedMarker()->setReadMarker();
 
   Function *MainFunc = CurModule->getMainFunction();
   assert(MainFunc && "No main in program??");
@@ -491,13 +498,16 @@ void PoolAllocate::CreatePools(Function &F, DSGraph &DSG,
         PoolDesc = new AllocaInst(PoolDescType, 0, "PD", InsertPoint);
 
         // Create a node in DSG to represent the new alloca.
-        DSNode *NewNode = new DSNode(PoolDescType, &DSG);
-        NewNode->setAllocaNodeMarker();  // This is a stack object.
+        DSNode *NewNode = DSG.addObjectToGraph(PoolDesc);
         NewNode->setModifiedMarker()->setReadMarker();  // This is M/R
-        DSG.getNodeForValue(PoolDesc) = NewNode;
       } else {
         PoolDesc = CreateGlobalPool(Pool.PoolSize, Pool.PoolAlignment,
                                     InsertPoint);
+
+        // Add the global node to main's graph.
+        DSNode *NewNode = DSG.addObjectToGraph(PoolDesc);
+        NewNode->setModifiedMarker()->setReadMarker();  // This is M/R
+
         if (Pool.NodesInPool.size() == 1 &&
             !Pool.NodesInPool[0]->isNodeCompletelyFolded())
           ++NumTSPools;
