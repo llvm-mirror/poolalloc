@@ -182,11 +182,7 @@ void poolfree(PoolTy *Pool, void *Node) {
   // Check to see how many elements were allocated to this node...
   FreedNodeHeader *FNH = (FreedNodeHeader*)((char*)Node-sizeof(NodeHeader));
   unsigned Size = FNH->NormalHeader.ObjectSize;
-  if (Size == ~0U) {
-    // Must unlink from list.
-    fprintf(stderr, "CANNOT FREE LARGE ARRAY YET!\n");
-    return;
-  }
+  if (Size == ~0U) goto LargeArrayCase;
   
   // If there are already nodes on the freelist, see if this blocks should be
   // coallesced into one of the early blocks on the front of the list.  This is
@@ -215,4 +211,14 @@ void poolfree(PoolTy *Pool, void *Node) {
   FNH->Size = Size;
   FNH->NormalHeader.Next = Pool->FreeNodeList;
   Pool->FreeNodeList = FNH;
+  return;
+
+LargeArrayCase:
+  LargeArrayHeader *LAH = ((LargeArrayHeader*)Node)-1;
+
+  // Unlink it from the list of large arrays...
+  *LAH->Prev = LAH->Next;
+  if (LAH->Next)
+    LAH->Next->Prev = LAH->Prev;
+  free(LAH);
 }
