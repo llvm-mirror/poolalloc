@@ -15,23 +15,23 @@
 #ifndef _POSIX_MAPPED_FILES
 #define _POSIX_MAPPED_FILES
 #endif
+#include "Support/MallocAllocator.h"
 #include "Config/unistd.h"
 #include "Config/sys/mman.h"
 #include <cassert>
+#include <vector>
 
-static unsigned PageSize;
+unsigned PageSize = 0;
 
+// Explicitly use the malloc allocator here, to avoid depending on the C++
+// runtime library.
+static std::vector<void*, MallocAllocator<void*> > *FreePages = 0;
 
-/// getPageSize - Return the size of the unit of memory allocated by
-/// AllocatePage.  This is a value that is typically several kilobytes in size.
-unsigned getPageSize() {
+void InitializePageManager() {
   if (!PageSize) PageSize = sysconf(_SC_PAGESIZE);
-  return PageSize;
 }
 
-/// AllocatePage - This function returns a chunk of memory with size and
-/// alignment specified by getPageSize().
-void *AllocatePage() {
+static void *GetPages(unsigned NumPages) {
 #if defined(i386) || defined(__i386__) || defined(__x86__)
   /* Linux and *BSD tend to have these flags named differently. */
 #if defined(MAP_ANON) && !defined(MAP_ANONYMOUS)
@@ -50,15 +50,37 @@ void *AllocatePage() {
 #define fd -1
 #endif
 
-  void *pa = mmap(0, getPageSize(), PROT_READ|PROT_WRITE|PROT_EXEC,
+  void *pa = mmap(0, NumPages*PageSize, PROT_READ|PROT_WRITE|PROT_EXEC,
                   MAP_PRIVATE|MAP_ANONYMOUS, fd, 0);
   assert(pa != MAP_FAILED && "MMAP FAILED!");
   return pa;
 }
 
 
+/// AllocatePage - This function returns a chunk of memory with size and
+/// alignment specified by PageSize.
+void *AllocatePage() {
+  if (FreePages && !FreePages->empty()) {
+    void *Result = FreePages->back();
+    FreePages->pop_back();
+    return Result;
+  }
+
+  // Allocate several pages, and put the extras on the freelist...
+  unsigned NumToAllocate = 10;
+  char *Ptr = (char*)GetPages(NumToAllocate);
+
+  if (!FreePages) FreePages = new std::vector<void*, MallocAllocator<void*> >();
+  for (unsigned i = 1; i != NumToAllocate; ++i)
+    FreePages->push_back(Ptr+i*PageSize);
+  return Ptr;
+}
+
+
 /// FreePage - This function returns the specified page to the pagemanager for
 /// future allocation.
 void FreePage(void *Page) {
-  munmap(Page, 1);
+  assert(FreePages && "No pages allocated!");
+  FreePages->push_back(Page);
+  //munmap(Page, 1);
 }
