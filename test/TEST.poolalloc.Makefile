@@ -26,7 +26,7 @@ PA_SO    := $(PROJECT_DIR)/Debug/lib/libpoolalloc$(SHLIBEXT)
 # Pool allocator runtime library
 #PA_RT    := $(PROJECT_DIR)/lib/Bytecode/libpoolalloc_fl_rt.bc
 #PA_RT_O  := $(PROJECT_DIR)/lib/$(CONFIGURATION)/poolalloc_rt.o
-PA_RT_O  := $(PROJECT_DIR)/lib/Release/poolalloc_rt.o
+PA_RT_O  := $(PROJECT_DIR)/Release/lib/poolalloc_rt.o
 #PA_RT_O  := $(PROJECT_DIR)/lib/Release/poolalloc_fl_rt.o
 
 # Command to run opt with the pool allocator pass loaded
