@@ -464,11 +464,9 @@ Function *PoolAllocate::MakeFunctionClone(Function &F) {
   // Figure out what the arguments are to be for the new version of the function
   const FunctionType *OldFuncTy = F.getFunctionType();
   std::vector<const Type*> ArgTys(FI.ArgNodes.size(), PoolDescPtrTy);
-  ArgTys.reserve(OldFuncTy->getParamTypes().size() + FI.ArgNodes.size());
+  ArgTys.reserve(OldFuncTy->getNumParams() + FI.ArgNodes.size());
 
-  ArgTys.insert(ArgTys.end(), OldFuncTy->getParamTypes().begin(),
-                OldFuncTy->getParamTypes().end());
-
+  ArgTys.insert(ArgTys.end(), OldFuncTy->param_begin(), OldFuncTy->param_end());
 
   // Create the new function prototype
   FunctionType *FuncTy = FunctionType::get(OldFuncTy->getReturnType(), ArgTys,
