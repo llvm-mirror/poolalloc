@@ -185,7 +185,9 @@ class PoolAllocate : public Pass {
   /// list.
   void InitializeAndDestroyPools(Function &F,
                                  const std::vector<DSNode*> &NodesToPA,
-                                 std::map<DSNode*, Value*> &PoolDescriptors);
+                                 std::map<DSNode*, Value*> &PoolDescriptors,
+                      std::set<std::pair<AllocaInst*, Instruction*> > &PoolUses,
+                      std::set<std::pair<AllocaInst*, CallInst*> > &PoolFrees);
 };
 
 #endif
