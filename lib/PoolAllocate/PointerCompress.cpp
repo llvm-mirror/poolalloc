@@ -231,6 +231,7 @@ ComputeCompressedType(const Type *OrigTy, unsigned NodeOffset,
   } else {
     std::cerr << "TYPE: " << *OrigTy << "\n";
     assert(0 && "FIXME: Unhandled aggregate type!");
+    abort();
   }
 }
 
