@@ -622,18 +622,16 @@ void InstructionRewriter::visitGetElementPtrInst(GetElementPtrInst &GEPI) {
 }
 
 void InstructionRewriter::visitLoadInst(LoadInst &LI) {
-  if (isa<ConstantPointerNull>(LI.getOperand(0))) { // load null ??
-    // Load null doesn't make any sense, but if the result is a pointer into a
-    // compressed pool, we have to transform it.
-    if (isa<PointerType>(LI.getType()) && getPoolInfo(&LI))
-      setTransformedValue(LI, UndefValue::get(SCALARUINTTYPE));
-    return;
-  }
-
   const CompressedPoolInfo *SrcPI = getPoolInfo(LI.getOperand(0));
   if (SrcPI == 0) {
-    assert(getPoolInfo(&LI) == 0 &&
-           "Cannot load a compressed pointer from non-compressed memory!");
+    // If we are loading a compressed pointer from a non-compressessed memory
+    // object, retain the load, but cast from the pointer type to our scalar
+    // type.
+    if (getPoolInfo(&LI)) {
+      Value *NLI = new LoadInst(LI.getOperand(0), LI.getName()+".cp", &LI);
+      Value *NC = new CastInst(NLI, SCALARUINTTYPE, NLI->getName(), &LI);
+      setTransformedValue(LI, NC);
+    }
     return;
   }
 
@@ -679,11 +677,14 @@ void InstructionRewriter::visitLoadInst(LoadInst &LI) {
 void InstructionRewriter::visitStoreInst(StoreInst &SI) {
   const CompressedPoolInfo *DestPI = getPoolInfo(SI.getOperand(1));
   if (DestPI == 0) {
-    if (isa<ConstantPointerNull>(SI.getOperand(1)))
-      SI.eraseFromParent();
-    else
-      assert(getPoolInfo(SI.getOperand(0)) == 0 &&
-             "Cannot store a compressed pointer into non-compressed memory!");
+    // If we are storing a compressed pointer into uncompressed memory, just
+    // cast the index to a pointer type and store that.
+    if (getPoolInfo(SI.getOperand(0))) {
+      Value *SrcVal = getTransformedValue(SI.getOperand(0));
+      SrcVal = new CastInst(SrcVal, SI.getOperand(0)->getType(),
+                            SrcVal->getName(), &SI);
+      SI.setOperand(0, SrcVal);
+    }
     return;
   }
 
