@@ -8,6 +8,17 @@
 $SortCol = 0;
 $TrimRepeatedPrefix = 1;
 
+# FormatTime - Convert a time from 1m23.45 into 83.45
+sub FormatTime {
+  my $Time = shift;
+  if ($Time =~ m/([0-9]+)[m:]([0-9.]+)/) {
+    return sprintf("%7.3f", $1*60.0+$2);
+  }
+
+  return sprintf("%7.2f", $Time);
+}
+
+
 sub RuntimePercent {
   my ($Cols, $Col) = @_;
   if ($Cols->[$Col-1] ne "*" and $Cols->[3] ne "*" and
@@ -55,21 +66,21 @@ my $PTRDIST   = 'MultiSource/Benchmarks/Ptrdist';
  ["LOC"   , 'LOC:\s*([0-9]+)'],
  [],
 # Times
- ["NormalTime",   'CBE-RUN-TIME-NORMAL: program\s*([.0-9m:]+)'],
-
- ["OnlyOHTime", 'CBE-RUN-TIME-ONLYOVERHEAD: program\s*([.0-9m:]+)'],
- ["OO run%", \&RuntimePercent],
-
- ["MallocReplTime", 'CBE-RUN-TIME-MALLOCREPL: program\s*([.0-9m:]+)'],
- ["MR run%", \&RuntimePercent],
-
- ["PoolAllocTime", 'CBE-RUN-TIME-POOLALLOC: program\s*([.0-9m:]+)'],
- ["PA run%", \&RuntimePercent],
-
- ["AP NumPools",          '([0-9]+).*Number of pools allocated'],
- ["AP Typesafe",          '([0-9]+).*Number of typesafe pools'],
- ["NumArgs",              '([0-9]+).*Number of function arguments added'],
-# ["Nonprofit",            '([0-9]+).*Number of DSNodes not profitable'],
+ ["NormalTime",     'CBE-RUN-TIME-NORMAL: program\s*([.0-9m:]+)', \&FormatTime],
+ [],
+ ["OnlyOHTime",     'CBE-RUN-TIME-ONLYOVERHEAD: program\s*([.0-9m:]+)', \&FormatTime],
+ ["OO run%",        \&RuntimePercent],
+ [],
+ ["ReplTime",       'CBE-RUN-TIME-MALLOCREPL: program\s*([.0-9m:]+)', \&FormatTime],
+ ["MR run%",        \&RuntimePercent],
+ [],
+ ["PA Time",        'CBE-RUN-TIME-POOLALLOC: program\s*([.0-9m:]+)', \&FormatTime],
+ ["PA run%",        \&RuntimePercent],
+ [],
+ ["NumPools",       '([0-9]+).*Number of pools allocated'],
+ ["Typesafe",       '([0-9]+).*Number of typesafe pools'],
+ ["NumArgs",        '([0-9]+).*Number of function arguments added'],
+#["Nonprofit",      '([0-9]+).*Number of DSNodes not profitable'],
  []
 );
 
