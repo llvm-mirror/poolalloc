@@ -896,13 +896,8 @@ void FuncTransform::visitFreeInst(FreeInst &FrI) {
   }
   assert((phtype != 0) && "Needs to be implemented \n ");
   std::map<const Value*, const Type*> &PoolDescType = FI.PoolDescType;
-  if (PoolDescType.count(PH)) {
-    //There is already an entry, so this is just sanity check 
-    assert((phtype == PoolDescType[PH]) && "pool allocate type info wrong");
-  } else {
+  if (!PoolDescType.count(PH))
     PoolDescType[PH] = phtype;
-  }
-
   
   // Insert a cast and a call to poolfree...
   Value *Casted = Arg;
@@ -1100,17 +1095,19 @@ void FuncTransform::visitCallSite(CallSite CS) {
     std::string Name = TheCall->getName(); TheCall->setName("");
     
     Value *NewCall;
-    if (Args.size() > (unsigned)std::distance(CS.arg_begin(), CS.arg_end())) {
+    Value *CalledValuePtr = CS.getCalledValue();
+    if (Args.size() > (unsigned)CS.arg_size()) {
       // If there are any pool arguments
-      CastInst *CastI = 
-	new CastInst(CS.getCalledValue(), 
-		     PAInfo.getFuncInfo(*FuncClass)->Clone->getType(), "tmp", 
-		     TheCall);
-      // FIXME: Should create invoke instructions as needed!
-      NewCall = new CallInst(CastI, Args, Name, TheCall);
+      CalledValuePtr = new CastInst(CS.getCalledValue(), 
+                       PAInfo.getFuncInfo(*FuncClass)->Clone->getType(), "tmp", 
+                                    TheCall);
+    }
+
+    if (InvokeInst *II = dyn_cast<InvokeInst>(TheCall)) {
+      NewCall = new InvokeInst(CalledValuePtr, II->getNormalDest(),
+                               II->getExceptionalDest(), Args, Name, TheCall);
     } else {
-      // FIXME: Should create invoke instructions as needed!
-      NewCall = new CallInst(CS.getCalledValue(), Args, Name, TheCall);
+      NewCall = new CallInst(CalledValuePtr, Args, Name, TheCall);
     }
 
     TheCall->replaceAllUsesWith(NewCall);
@@ -1207,8 +1204,13 @@ void FuncTransform::visitCallSite(CallSite CS) {
     
     std::string Name = TheCall->getName(); TheCall->setName("");
 
-    // FIXME: Insert an invoke if necessary...
-    Value *NewCall = new CallInst(CFI->Clone, Args, Name, TheCall);
+    Value *NewCall;
+    if (InvokeInst *II = dyn_cast<InvokeInst>(TheCall)) {
+      NewCall = new InvokeInst(CFI->Clone, II->getNormalDest(),
+                               II->getExceptionalDest(), Args, Name, TheCall);
+    } else {
+      NewCall = new CallInst(CFI->Clone, Args, Name, TheCall);
+    }
 
     TheCall->replaceAllUsesWith(NewCall);
     DEBUG(std::cerr << "  Result Call: " << *NewCall);
