@@ -1,6 +1,6 @@
 //===- PoolAllocatorChained.cpp - Implementation of poolallocator runtime -===//
 // 
-//                     The LLVM Compiler Infrastructure
+//                       The LLVM Compiler Infrastructure
 //
 // This file was developed by the LLVM research group and is distributed under
 // the University of Illinois Open Source License. See LICENSE.TXT for details.
@@ -9,6 +9,11 @@
 //
 // This file is one possible implementation of the LLVM pool allocator runtime
 // library.
+//
+// This uses the 'Ptr1' field to maintain a linked list of slabs that are either
+// empty or are partially allocated from.  The 'Ptr2' field of the PoolTy is
+// used to track a linked list of slabs which are full, ie, all elements have
+// been allocated from them.
 //
 //===----------------------------------------------------------------------===//
 
@@ -98,6 +103,10 @@ public:
   // not.
   bool isEmpty() const { return UsedEnd == 0; }
 
+  // isFull - This is a quick check to see if the slab is completely allocated.
+  //
+  bool isFull() const { return isSingleArray || FirstUnused == NodesPerSlab; }
+
   // allocateSingle - Allocate a single element from this pool, returning -1 if
   // there is no space.
   int allocateSingle();
@@ -145,9 +154,9 @@ void *PoolSlab::createSingleArray(PoolTy *Pool, unsigned NumNodes) {
   PS->isSingleArray = 1;  // Not a single array!
   PS->markNodeAllocated(0);
 
-  // Add the slab to the list...
-  PS->Next = (PoolSlab*)Pool->Ptr1;
-  Pool->Ptr1 = PS;
+  // Add the slab to the list of completely allocated slabs...
+  PS->Next = (PoolSlab*)Pool->Ptr2;
+  Pool->Ptr2 = PS;
   return &PS->Data[0];
 }
 
@@ -343,7 +352,7 @@ void poolinit(PoolTy *Pool, unsigned NodeSize) {
 
   // We must alway return unique pointers, even if they asked for 0 bytes
   Pool->NodeSize = NodeSize ? NodeSize : 1;
-  Pool->Ptr1 = 0;
+  Pool->Ptr1 = Pool->Ptr2 = 0;
   Pool->FreeablePool = 1;
 }
 
@@ -357,7 +366,16 @@ void poolmakeunfreeable(PoolTy *Pool) {
 void pooldestroy(PoolTy *Pool) {
   assert(Pool && "Null pool pointer passed in to pooldestroy!\n");
 
+  // Free any partially allocated slabs
   PoolSlab *PS = (PoolSlab*)Pool->Ptr1;
+  while (PS) {
+    PoolSlab *Next = PS->Next;
+    PS->destroy();
+    PS = Next;
+  }
+
+  // Free the completely allocated slabs
+  PS = (PoolSlab*)Pool->Ptr2;
   while (PS) {
     PoolSlab *Next = PS->Next;
     PS->destroy();
@@ -370,20 +388,22 @@ void *poolalloc(PoolTy *Pool) {
 
   unsigned NodeSize = Pool->NodeSize;
   PoolSlab *PS = (PoolSlab*)Pool->Ptr1;
-
-  // Fastpath for allocation in the common case.
-  if (PS) {
-    int Element = PS->allocateSingle();
-    if (Element != -1)
-      return PS->getElementAddress(Element, NodeSize);
-    PS = PS->Next;
-  }
+  PoolSlab **PPS = (PoolSlab**)&Pool->Ptr1;
 
   // Loop through all of the slabs looking for one with an opening
-  for (; PS; PS = PS->Next) {
+  for (; PS; PPS = &PS->Next, PS = PS->Next) {
     int Element = PS->allocateSingle();
-    if (Element != -1)
+    if (Element != -1) {
+      // We allocated an element.  Check to see if this slab has been completely
+      // filled up.  If so, move it to the Ptr2 list.
+      if (PS->isFull()) {
+        *PPS = PS->Next;                    // Unlink it from the current list
+        PS->Next = (PoolSlab*)Pool->Ptr2;   // Link it into the filled list
+        Pool->Ptr2 = PS;
+      }
+
       return PS->getElementAddress(Element, NodeSize);
+    }
   }
 
   // Otherwise we must allocate a new slab and add it to the list
@@ -393,19 +413,82 @@ void *poolalloc(PoolTy *Pool) {
   return New->getElementAddress(0, 0);
 }
 
+void *poolallocarray(PoolTy* Pool, unsigned Size) {
+  assert(Pool && "Null pool pointer passed into poolallocarray!\n");
+
+  if (Size > PoolSlab::NodesPerSlab)
+    return PoolSlab::createSingleArray(Pool, Size);    
+
+  PoolSlab *PS = (PoolSlab*)Pool->Ptr1;
+  PoolSlab **PPS = (PoolSlab**)&Pool->Ptr1;
+
+  // Loop through all of the slabs looking for one with an opening
+  for (; PS; PPS = &PS->Next, PS = PS->Next) {
+    int Element = PS->allocateMultiple(Size);
+    if (Element != -1) {
+      // We allocated an element.  Check to see if this slab has been completely
+      // filled up.  If so, move it to the Ptr2 list.
+      if (PS->isFull()) {
+        *PPS = PS->Next;                    // Unlink it from the current list
+        PS->Next = (PoolSlab*)Pool->Ptr2;   // Link it into the filled list
+        Pool->Ptr2 = PS;
+      }
+      return PS->getElementAddress(Element, Pool->NodeSize);
+    }
+    PS = PS->Next;
+  }
+  
+  PoolSlab *New = PoolSlab::create(Pool);
+  int Idx = New->allocateMultiple(Size);
+  assert(Idx == 0 && "New allocation didn't return zero'th node?");
+  return New->getElementAddress(0, 0);
+}
+
 void poolfree(PoolTy *Pool, void *Node) {
   assert(Pool && "Null pool pointer passed in to poolfree!\n");
   unsigned NodeSize = Pool->NodeSize;
 
   PoolSlab *PS = (PoolSlab*)Pool->Ptr1;
-  PoolSlab **PPS = (PoolSlab**)&Pool->Ptr1;
+  PoolSlab **PPS;
 
-  // Search for the slab that contains this node...
-  int Idx = PS->containsElement(Node, NodeSize);
-  for (; Idx == -1; PPS = &PS->Next, PS = PS->Next) {
-    assert(PS && "poolfree: node being free'd not found in allocation "
-           " pool specified!\n");
+  // Search the partially allocated slab list for the slab that contains this
+  // node.
+  int Idx = -1;
+  if (PS) {               // Pool->Ptr1 could be null if Ptr2 isn't
+    PPS = (PoolSlab**)&Pool->Ptr1;
+    PS->containsElement(Node, NodeSize);
+    for (; Idx == -1 && PS; PPS = &PS->Next, PS = PS->Next)
+      Idx = PS->containsElement(Node, NodeSize);
+  }
+
+  // If the partially allocated slab list doesn't contain it, maybe the
+  // completely allocated list does.
+  if (PS == 0) {
+    PS = (PoolSlab*)Pool->Ptr2;
+    PPS = (PoolSlab**)&Pool->Ptr2;
+    
     Idx = PS->containsElement(Node, NodeSize);
+    for (; Idx == -1; PPS = &PS->Next, PS = PS->Next) {
+      assert(PS && "poolfree: node being free'd not found in allocation "
+             " pool specified!\n");
+      Idx = PS->containsElement(Node, NodeSize);
+    }
+
+    // Now that we found the node, we are about to free an element from it.
+    // This will make the slab no longer completely full, so we must move it to
+    // the other list!
+    *PPS = PS->Next;      // Remove it from the Ptr2 list.
+
+    PoolSlab **InsertPosPtr = (PoolSlab**)&Pool->Ptr1;
+
+    // If the partially full list has an empty node sitting at the front of the
+    // list, insert right after it.
+    if ((*InsertPosPtr)->isEmpty())
+      InsertPosPtr = &(*InsertPosPtr)->Next;
+    
+    // Insert it now in the Ptr1 list.
+    PS->Next = *InsertPosPtr;
+    *InsertPosPtr = PS;
   }
 
   // Free the actual element now!
@@ -450,25 +533,4 @@ void poolfree(PoolTy *Pool, void *Node) {
     PS->Next = FirstSlab;
     Pool->Ptr1 = PS;
   }
-}
-
-void *poolallocarray(PoolTy* Pool, unsigned Size) {
-  assert(Pool && "Null pool pointer passed into poolallocarray!\n");
-
-  if (Size > PoolSlab::NodesPerSlab)
-    return PoolSlab::createSingleArray(Pool, Size);    
-
-  // Loop through all of the slabs looking for one with an opening
-  PoolSlab *PS = (PoolSlab*)Pool->Ptr1;
-  for (; PS; PS = PS->Next) {
-    int Element = PS->allocateMultiple(Size);
-    if (Element != -1)
-      return PS->getElementAddress(Element, Pool->NodeSize);
-    PS = PS->Next;
-  }
-  
-  PoolSlab *New = PoolSlab::create(Pool);
-  int Idx = New->allocateMultiple(Size);
-  assert(Idx == 0 && "New allocation didn't return zero'th node?");
-  return New->getElementAddress(0, 0);
 }
