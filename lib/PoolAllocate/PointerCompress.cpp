@@ -295,6 +295,7 @@ namespace {
     // cases we have to handle.
 
     void visitCastInst(CastInst &CI);
+    void visitPHINode(PHINode &PN);
     void visitStoreInst(StoreInst &SI);
 
     void visitCallInst(CallInst &CI);
@@ -346,6 +347,19 @@ void InstructionRewriter::visitCastInst(CastInst &CI) {
   // A cast from one pointer to another turns into a cast from uint -> uint,
   // which is a noop.
   setTransformedValue(CI, getTransformedValue(CI.getOperand(0)));
+}
+
+void InstructionRewriter::visitPHINode(PHINode &PN) {
+  const CompressedPoolInfo *DestPI = getPoolInfo(&PN);
+  if (DestPI == 0) return;
+
+  PHINode *New = new PHINode(Type::UIntTy, PN.getName(), &PN);
+  New->reserveOperandSpace(PN.getNumIncomingValues());
+
+  for (unsigned i = 0, e = PN.getNumIncomingValues(); i != e; ++i)
+    New->addIncoming(getTransformedValue(PN.getIncomingValue(i)),
+                     PN.getIncomingBlock(i));
+  setTransformedValue(PN, New);
 }
 
 void InstructionRewriter::visitStoreInst(StoreInst &SI) {
