@@ -19,6 +19,7 @@
 #include <string.h>
 
 typedef long intptr_t;
+typedef unsigned long uintptr_t;
 
 // Performance tweaking macros.
 #define INITIAL_SLAB_SIZE 4096
@@ -65,7 +66,7 @@ static unsigned getPoolNumber(PoolTy *PD) {
   for (unsigned i = 0; i != NumLivePools; ++i)
     if (PoolIDs[i].PD == PD)
       return PoolIDs[i].ID;
-  fprintf(stderr, "INVALID/UNKNOWN POOL DESCRIPTOR: 0x%X\n", (unsigned)PD);
+  fprintf(stderr, "INVALID/UNKNOWN POOL DESCRIPTOR: 0x%lX\n", (unsigned long)PD);
   return 0;
 }
 
@@ -77,7 +78,7 @@ static unsigned removePoolNumber(PoolTy *PD) {
       --NumLivePools;
       return PN;
     }
-  fprintf(stderr, "INVALID/UNKNOWN POOL DESCRIPTOR: 0x%X\n", (unsigned)PD);
+  fprintf(stderr, "INVALID/UNKNOWN POOL DESCRIPTOR: 0x%lX\n", (unsigned long)PD);
   return 0;
 }
 
@@ -279,7 +280,7 @@ void *poolalloc_bp(PoolTy *Pool, unsigned NumBytes) {
 
   if (NumBytes < 1) NumBytes = 1;
 
-  unsigned Alignment;
+  uintptr_t Alignment;
   char *BumpPtr, *EndPtr;
   Alignment = Pool->Alignment-1;
   BumpPtr = (char*)Pool->ObjFreeList; // Get our bump pointer.
