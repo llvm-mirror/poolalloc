@@ -453,10 +453,9 @@ void FuncTransform::visitCallSite(CallSite CS) {
     
 #ifndef NDEBUG
     // Verify that all potential callees at call site have the same DS graph.
-    const EquivClassGraphs::ActualCalleesTy& ActualCallees =
-      ECGraphs.getActualCallees();
-    EquivClassGraphs::ActualCalleesTy::const_iterator I, E;
-    for (tie(I, E) = ActualCallees.equal_range(OrigInst); I != E; ++I)
+    EquivClassGraphs::ActualCalleesTy::const_iterator I =
+      ECGraphs.callee_begin(OrigInst), E = ECGraphs.callee_end(OrigInst);
+    for (; I != E; ++I)
       if (!I->second->isExternal())
         assert(CalleeGraph == &ECGraphs.getDSGraph(*I->second) &&
                "Callees at call site do not have a common graph!");
