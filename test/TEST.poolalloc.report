@@ -11,7 +11,7 @@ $TrimRepeatedPrefix = 1;
 sub RuntimePercent {
   my ($Cols, $Col) = @_;
   if ($Cols->[$Col-1] ne "*" and $Cols->[3] ne "*" and
-      $Cols->[$Col-1] != "0") {
+      $Cols->[3] != "0") {
     return sprintf "%7.2f", 100*$Cols->[$Col-1]/$Cols->[3];
   } else {
     return "n/a";
