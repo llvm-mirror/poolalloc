@@ -187,26 +187,26 @@ PoolSlab *PoolSlab::create(PoolTy *Pool) {
 }
 
 void *PoolSlab::createSingleArray(PoolTy *Pool, unsigned NumNodes) {
-  if (0) {
-    printf("PoolSlab::createSingleArray has not been tested and is probably broken!");
-    abort();
-  }
+  // FIXME: This wastes memory by allocating space for the NodeFlagsVector
   unsigned NodesPerSlab = getSlabSize(Pool);
   assert(NumNodes > NodesPerSlab && "No need to create a single array!");
-  PoolSlab *PS = (PoolSlab*)malloc(sizeof(PoolSlab) + 4*((NodesPerSlab+15)/16) +
-                                   Pool->NodeSize*NumNodes);
+
+  unsigned NumPages = (NumNodes+NodesPerSlab-1)/NodesPerSlab;
+  PoolSlab *PS = (PoolSlab*)AllocateNPages(NumPages);
   assert(PS && "poolalloc: Could not allocate memory!");
 
-  PS->NumNodesInSlab = NodesPerSlab;  // FIXME: Calculate right.
-  PS->isSingleArray = 1;  // Not a single array!
-  PS->markNodeAllocated(0);
+  PS->addToList((PoolSlab**)&Pool->Ptr2);
 
-  // Add the slab to the list...
-  PS->addToList((PoolSlab**)&Pool->Ptr1);
+  PS->isSingleArray = 1;  // Not a single array!
+  *(unsigned*)&PS->FirstUnused = NumPages;
   return PS->getElementAddress(0, 0);
 }
 
 void PoolSlab::destroy() {
+  if (isSingleArray)
+    for (unsigned NumPages = *(unsigned*)&FirstUnused; NumPages != 1;--NumPages)
+      FreePage((char*)this + (NumPages-1)*PageSize);
+
   FreePage(this);
 }
 
@@ -345,17 +345,10 @@ int PoolSlab::containsElement(void *Ptr, unsigned ElementSize) const {
 void PoolSlab::freeElement(unsigned short ElementIdx) {
   assert(isNodeAllocated(ElementIdx) &&
          "poolfree: Attempt to free node that is already freed\n");
+  assert(!isSingleArray && "Cannot free an element from a single array!");
 
   // Mark this element as being free!
   markNodeFree(ElementIdx);
-
-  // If this slab is a SingleArray, there is nothing else to do.
-  if (isSingleArray) {
-    FirstUnused = UsedEnd = 0;               // This slab is now empty
-    assert(ElementIdx == 0 &&
-           "poolfree: Attempt to free middle of allocated array\n");
-    return;
-  }
 
   // If this slab is not a SingleArray
   assert(isStartOfAllocation(ElementIdx) &&
@@ -675,6 +668,13 @@ void poolfree(PoolTy *Pool, void *Node) {
     // of the pool.
     assert((PageSize & PageSize-1) == 0 && "Page size is not a power of 2??");
     PS = (PoolSlab*)((long)Node & ~(PageSize-1));
+
+    if (PS->isSingleArray) {
+      PS->unlinkFromList();
+      PS->destroy();
+      return;
+    }
+
     Idx = PS->containsElement(Node, Pool->NodeSize);
     assert((int)Idx != -1 && "Node not contained in slab??");
   }
@@ -705,21 +705,6 @@ void poolfree(PoolTy *Pool, void *Node) {
   // is already an empty slab at the head of the list.
   //
   if (PS->isEmpty()) {
-    if (PS->isSingleArray)
-      if (Pool->FreeablePool) {
-        // If it is a SingleArray, just free it
-        PS->unlinkFromList();
-        PS->destroy();
-        return;
-      } else {
-        // If this is a non-freeable pool, we might as well use the memory
-        // allocated for normal node allocations.
-        PS->isSingleArray = 0;
-      }
-
-    // No more singlearray objects exist at this point.
-    assert(!PS->isSingleArray);
-
     PS->unlinkFromList();   // Unlink from the list of slabs...
     
     // If we can free this pool, check to see if there are any empty slabs at

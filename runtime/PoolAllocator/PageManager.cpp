@@ -27,11 +27,6 @@
 
 unsigned PageSize = 0;
 
-// Explicitly use the malloc allocator here, to avoid depending on the C++
-// runtime library.
-typedef std::vector<void*, llvm::MallocAllocator<void*> > FreePagesListType;
-static FreePagesListType *FreePages = 0;
-
 void InitializePageManager() {
   if (!PageSize) PageSize = sysconf(_SC_PAGESIZE);
 }
@@ -63,6 +58,21 @@ static void *GetPages(unsigned NumPages) {
 }
 #endif
 
+// Explicitly use the malloc allocator here, to avoid depending on the C++
+// runtime library.
+typedef std::vector<void*, llvm::MallocAllocator<void*> > FreePagesListType;
+
+static FreePagesListType &getFreePageList() {
+  static FreePagesListType *FreePages = 0;
+
+  if (!FreePages) {
+    // Avoid using operator new!
+    FreePages = (FreePagesListType*)malloc(sizeof(FreePagesListType));
+    // Use placement new now.
+    new (FreePages) std::vector<void*, llvm::MallocAllocator<void*> >();
+  }
+  return *FreePages;
+}
 
 /// AllocatePage - This function returns a chunk of memory with size and
 /// alignment specified by PageSize.
@@ -72,9 +82,12 @@ void *AllocatePage() {
   posix_memalign(&Addr, PageSize, PageSize);
   return Addr;
 #else
-  if (FreePages && !FreePages->empty()) {
-    void *Result = FreePages->back();
-    FreePages->pop_back();
+
+  FreePagesListType &FPL = getFreePageList();
+
+  if (!FPL.empty()) {
+    void *Result = FPL.back();
+    FPL.pop_back();
     return Result;
   }
 
@@ -82,18 +95,16 @@ void *AllocatePage() {
   unsigned NumToAllocate = 8;
   char *Ptr = (char*)GetPages(NumToAllocate);
 
-  if (!FreePages) {
-    // Avoid using operator new!
-    FreePages = (FreePagesListType*)malloc(sizeof(FreePagesListType));
-    // Use placement new now.
-    new (FreePages) std::vector<void*, llvm::MallocAllocator<void*> >();
-  }
   for (unsigned i = 1; i != NumToAllocate; ++i)
-    FreePages->push_back(Ptr+i*PageSize);
+    FPL.push_back(Ptr+i*PageSize);
   return Ptr;
 #endif
 }
 
+void *AllocateNPages(unsigned Num) {
+  if (Num <= 1) return AllocatePage();
+  return GetPages(Num);
+}
 
 /// FreePage - This function returns the specified page to the pagemanager for
 /// future allocation.
@@ -101,8 +112,8 @@ void FreePage(void *Page) {
 #if USE_MEMALIGN
   free(Page);
 #else
-  assert(FreePages && "No pages allocated!");
-  FreePages->push_back(Page);
+  FreePagesListType &FPL = getFreePageList();
+  FPL.push_back(Page);
   //munmap(Page, 1);
 #endif
 }

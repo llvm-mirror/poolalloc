@@ -30,6 +30,9 @@ extern unsigned PageSize;
 /// alignment specified by getPageSize().
 void *AllocatePage();
 
+/// AllocateNPages - 
+void *AllocateNPages(unsigned Num);
+
 /// FreePage - This function returns the specified page to the pagemanager for
 /// future allocation.
 void FreePage(void *Page);
