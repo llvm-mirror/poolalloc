@@ -18,6 +18,14 @@ sub Ratio {
   }
 }
 
+sub FormatTime {
+  my $Time = shift;
+  if ($Time =~ m/([0-9]+)[m:]([0-9.]+)/) {
+    $Time = sprintf("%7.3f", $1*60.0+$2);
+  }
+  return $Time;
+}
+
 @LatexColumns = (2, 3, 4, 5, 6, 7);
 
 my $OLDEN     = 'MultiSource/Benchmarks/Olden';
@@ -60,8 +68,8 @@ my $PTRDIST   = 'MultiSource/Benchmarks/Ptrdist';
  ["Name:" , '\'([^\']+)\' Program'],
  [],
 # Times
- ["Normal<br>ExeTime"  ,  'CBE-RUN-TIME-NORMAL: real[\t ]+0m([0-9.]+)'],
- ["PoolAlloc<br>ExeTime", 'CBE-RUN-TIME-POOLALLOC: real[\t ]+0m([0-9.]+)'],
+ ["Normal<br>ExeTime"  ,  'CBE-RUN-TIME-NORMAL: real\s*([.0-9m:]+)',    \&FormatTime],
+ ["PoolAlloc<br>ExeTime", 'CBE-RUN-TIME-POOLALLOC: real\s*([.0-9m:]+)', \&FormatTime],
  ["Speedup", \&Ratio],
  ["NumPools",             '([0-9]+).*Number of pools allocated'],
  ["NumTSPools",           '([0-9]+).*Number of typesafe pools'],
