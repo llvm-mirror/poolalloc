@@ -455,9 +455,10 @@ void poolfree(PoolTy *Pool, void *Node) {
   int Idx = -1;
   if (PS) {               // Pool->Ptr1 could be null if Ptr2 isn't
     PPS = (PoolSlab**)&Pool->Ptr1;
-    PS->containsElement(Node, NodeSize);
-    for (; Idx == -1 && PS; PPS = &PS->Next, PS = PS->Next)
+    for (; PS; PPS = &PS->Next, PS = PS->Next) {
       Idx = PS->containsElement(Node, NodeSize);
+      if (Idx != -1) break;
+    }
   }
 
   // If the partially allocated slab list doesn't contain it, maybe the
@@ -465,12 +466,15 @@ void poolfree(PoolTy *Pool, void *Node) {
   if (PS == 0) {
     PS = (PoolSlab*)Pool->Ptr2;
     PPS = (PoolSlab**)&Pool->Ptr2;
+    assert(Idx == -1 && "Found node but don't have PS?");
     
-    Idx = PS->containsElement(Node, NodeSize);
-    for (; Idx == -1; PPS = &PS->Next, PS = PS->Next) {
+    while (1) {
       assert(PS && "poolfree: node being free'd not found in allocation "
              " pool specified!\n");
       Idx = PS->containsElement(Node, NodeSize);
+      if (Idx != -1) break;
+      PPS = &PS->Next;
+      PS = PS->Next;
     }
 
     // Now that we found the node, we are about to free an element from it.
