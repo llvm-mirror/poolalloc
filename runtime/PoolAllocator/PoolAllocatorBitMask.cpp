@@ -5,6 +5,23 @@
 #undef assert
 #define assert(X)
 
+typedef struct PoolTy {
+  void    *Data;
+  unsigned NodeSize;
+  unsigned FreeablePool; /* Set to false if the memory from this pool cannot be
+			    freed before destroy*/
+} PoolTy;
+
+extern "C" {
+  void poolinit(PoolTy *Pool, unsigned NodeSize);
+  void poolmakeunfreeable(PoolTy *Pool);
+  void pooldestroy(PoolTy *Pool);
+  void *poolalloc(PoolTy *Pool);
+  void poolfree(PoolTy *Pool, char *Node);
+  void* poolallocarray(PoolTy* Pool, unsigned Size);
+}
+
+
 
 /* In the current implementation, each slab in the pool has NODES_PER_SLAB
  * nodes unless the isSingleArray flag is set in which case it contains a
@@ -13,25 +30,18 @@
  */
 #define NODES_PER_SLAB 512 
 
-typedef struct PoolTy {
-  void    *Data;
-  unsigned NodeSize;
-  unsigned FreeablePool; /* Set to false if the memory from this pool cannot be
-			    freed before destroy*/
-  
-} PoolTy;
-
 /* PoolSlab Structure - Hold NODES_PER_SLAB objects of the current node type.
  *   Invariants: FirstUnused <= LastUsed+1
  */
 typedef struct PoolSlab {
+  struct PoolSlab *Next;
+  unsigned isSingleArray;   /* If this slab is used for exactly one array */
+
   unsigned FirstUnused;   /* First empty node in slab    */
   int LastUsed;           /* Last allocated node in slab. -1 if slab is empty */
-  struct PoolSlab *Next;
   unsigned char AllocatedBitVector[NODES_PER_SLAB/8];
   unsigned char StartOfAllocation[NODES_PER_SLAB/8];
 
-  unsigned isSingleArray;   /* If this slab is used for exactly one array */
   /* The array is allocated from the start to the end of the slab */
   unsigned ArraySize;       /* The size of the array allocated */ 
 
@@ -61,11 +71,10 @@ void poolinit(PoolTy *Pool, unsigned NodeSize) {
     exit(1);
   }
 
-  Pool->NodeSize = NodeSize;
+  /* We must alway return unique pointers, even if they asked for 0 bytes */
+  Pool->NodeSize = NodeSize ? NodeSize : 1;
   Pool->Data = 0;
-
   Pool->FreeablePool = 1;
-
 }
 
 void poolmakeunfreeable(PoolTy *Pool) {
@@ -141,7 +150,7 @@ static void *FindSlabEntry(PoolSlab *PS, unsigned NodeSize) {
   return 0;
 }
 
-char *poolalloc(PoolTy *Pool) {
+void *poolalloc(PoolTy *Pool) {
   unsigned NodeSize;
   PoolSlab *PS;
   void *Result;
@@ -152,10 +161,6 @@ char *poolalloc(PoolTy *Pool) {
   }
   
   NodeSize = Pool->NodeSize;
-  // Return if this pool has size 0
-  if (NodeSize == 0)
-    return 0;
-
   PS = (PoolSlab*)Pool->Data;
 
   if ((Result = FindSlabEntry(PS, NodeSize)))
@@ -400,7 +405,7 @@ static void *FindSlabEntryArray(PoolSlab *PS, unsigned NodeSize,
   return 0;
 }
 
-char* poolallocarray(PoolTy* Pool, unsigned Size) {
+void* poolallocarray(PoolTy* Pool, unsigned Size) {
   unsigned NodeSize;
   PoolSlab *PS;
   void *Result;
