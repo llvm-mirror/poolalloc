@@ -169,9 +169,9 @@ class PoolAllocate : public Pass {
   ///
   void ProcessFunctionBody(Function &Old, Function &New);
   
-  /// CreatePools - This creates the pool initialization and destruction code
-  /// for the DSNodes specified by the NodesToPA list.  This adds an entry to
-  /// the PoolDescriptors map for each DSNode.
+  /// CreatePools - This inserts alloca instruction in the function for all
+  /// pools specified in the NodesToPA list.  This adds an entry to the
+  /// PoolDescriptors map for each DSNode.
   ///
   void CreatePools(Function &F, const std::vector<DSNode*> &NodesToPA,
                    std::map<DSNode*, Value*> &PoolDescriptors,
@@ -184,6 +184,15 @@ class PoolAllocate : public Pass {
                      std::set<std::pair<AllocaInst*, Instruction*> > &poolUses,
                      std::set<std::pair<AllocaInst*, CallInst*> > &poolFrees,
                      Function &F);
+
+  /// InitializeAndDestroyPools - This inserts calls to poolinit and pooldestroy
+  /// into the function to initialize and destroy the pools in the NodesToPA
+  /// list.
+  void InitializeAndDestroyPools(Function &F,
+                                 const std::vector<DSNode*> &NodesToPA,
+                                 std::map<DSNode*, Value*> &PoolDescriptors,
+                                 std::map<const Value *,
+                                          const Type *> &PoolDescTypeMap);
 };
 
 #endif
