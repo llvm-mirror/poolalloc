@@ -70,14 +70,14 @@ typedef struct PoolSlab {
   }
 } PoolSlab;
 
-/* poolinit - Initialize a pool descriptor to empty
- */
+// poolinit - Initialize a pool descriptor to empty
+//
 void poolinit(PoolTy *Pool, unsigned NodeSize) {
   assert(Pool && "Null pool pointer passed into poolinit!\n");
 
   /* We must alway return unique pointers, even if they asked for 0 bytes */
   Pool->NodeSize = NodeSize ? NodeSize : 1;
-  Pool->Data = 0;
+  Pool->Slabs = 0;
   Pool->FreeablePool = 1;
 }
 
@@ -86,13 +86,13 @@ void poolmakeunfreeable(PoolTy *Pool) {
   Pool->FreeablePool = 0;
 }
 
-/* pooldestroy - Release all memory allocated for a pool
- */
+// pooldestroy - Release all memory allocated for a pool
+//
 void pooldestroy(PoolTy *Pool) {
   PoolSlab *PS;
   assert(Pool && "Null pool pointer passed in to pooldestroy!\n");
 
-  PS = (PoolSlab*)Pool->Data;
+  PS = (PoolSlab*)Pool->Slabs;
   while (PS) {
     PoolSlab *Next = PS->Next;
     free(PS);
@@ -101,39 +101,38 @@ void pooldestroy(PoolTy *Pool) {
 }
 
 static void *FindSlabEntry(PoolSlab *PS, unsigned NodeSize) {
-  /* Loop through all of the slabs looking for one with an opening */
+  // Loop through all of the slabs looking for one with an opening */
   for (; PS; PS = PS->Next) {
-
-    /* If the slab is a single array, go on to the next slab */
-    /* Don't allocate single nodes in a SingleArray slab */
+    // If the slab is a single array, go on to the next slab.  Don't allocate
+    // single nodes in a SingleArray slab.
     if (PS->isSingleArray) 
       continue;
 
-    /* Check to see if there are empty entries at the end of the slab... */
+    // Check to see if there are empty entries at the end of the slab...
     if (PS->LastUsed < NODES_PER_SLAB-1) {
-      /* Mark the returned entry used */
+      // Mark the returned entry used
       PS->markNodeAllocated(PS->LastUsed+1);
       PS->setStartBit(PS->LastUsed+1);
 
-      /* If we are allocating out the first unused field, bump its index also */
+      // If we are allocating out the first unused field, bump its index also
       if (PS->FirstUnused == (unsigned)PS->LastUsed+1)
         PS->FirstUnused++;
 
-      /* Return the entry, increment LastUsed field. */
+      // Return the entry, increment LastUsed field.
       return &PS->Data[0] + ++PS->LastUsed * NodeSize;
     }
 
-    /* If not, check to see if this node has a declared "FirstUnused" value that
-     * is less than the number of nodes allocated...
-     */
+    // If not, check to see if this node has a declared "FirstUnused" value that
+    // is less than the number of nodes allocated...
+    //
     if (PS->FirstUnused < NODES_PER_SLAB) {
-      /* Successfully allocate out the first unused node */
+      // Successfully allocate out the first unused node
       unsigned Idx = PS->FirstUnused;
 
       PS->markNodeAllocated(Idx);
       PS->setStartBit(Idx);
 
-      /* Increment FirstUnused to point to the new first unused value... */
+      // Increment FirstUnused to point to the new first unused value...
       do {
         ++PS->FirstUnused;
       } while (PS->FirstUnused < NODES_PER_SLAB &&
@@ -143,7 +142,7 @@ static void *FindSlabEntry(PoolSlab *PS, unsigned NodeSize) {
     }
   }
 
-  /* No empty nodes available, must grow # slabs! */
+  // No empty nodes available, must grow # slabs!
   return 0;
 }
 
@@ -151,7 +150,7 @@ void *poolalloc(PoolTy *Pool) {
   assert(Pool && "Null pool pointer passed in to poolalloc!\n");
   
   unsigned NodeSize = Pool->NodeSize;
-  PoolSlab *PS = (PoolSlab*)Pool->Data;
+  PoolSlab *PS = (PoolSlab*)Pool->Slabs;
 
   void *Result;
   if ((Result = FindSlabEntry(PS, NodeSize)))
@@ -173,8 +172,8 @@ void *poolalloc(PoolTy *Pool) {
   PS->setStartBit(0);
 
   /* Add the slab to the list... */
-  PS->Next = (PoolSlab*)Pool->Data;
-  Pool->Data = PS;
+  PS->Next = (PoolSlab*)Pool->Slabs;
+  Pool->Slabs = PS;
   return &PS->Data[0];
 }
 
@@ -192,8 +191,8 @@ void poolfree(PoolTy *Pool, char *Node) {
   if (NodeSize == 0)
     return;
 
-  PS = (PoolSlab*)Pool->Data;
-  PPS = (PoolSlab**)&Pool->Data;
+  PS = (PoolSlab*)Pool->Slabs;
+  PPS = (PoolSlab**)&Pool->Slabs;
 
   /* Search for the slab that contains this node... */
   while (&PS->Data[0] > Node || &PS->Data[NodeSize*NODES_PER_SLAB-1] < Node) {
@@ -274,14 +273,14 @@ void poolfree(PoolTy *Pool, char *Node) {
       free(PS);
     } else if (PS->LastUsed == -1) {   /* Empty slab? */
       PoolSlab *HeadSlab;
-      *PPS = PS->Next;   /* Unlink from the list of slabs... */
+      *PPS = PS->Next;   // Unlink from the list of slabs...
       
-      HeadSlab = (PoolSlab*)Pool->Data;
-      if (HeadSlab && HeadSlab->LastUsed == -1){/*List already has empty slab?*/
-	free(PS);                               /*Free memory for slab */
+      HeadSlab = (PoolSlab*)Pool->Slabs;
+      if (HeadSlab && HeadSlab->LastUsed == -1){// List already has empty slab?
+	free(PS);                               // Free memory for slab
       } else {
-	PS->Next = HeadSlab;                    /*No empty slab yet, add this*/
-	Pool->Data = PS;                        /*one to the head of the list */
+	PS->Next = HeadSlab;                    // No empty slab yet, add this
+	Pool->Slabs = PS;                       // one to the head of the list
       }
     }
   } else {
@@ -294,10 +293,10 @@ void poolfree(PoolTy *Pool, char *Node) {
 	/* Do not free the pool, but move it to the head of the list if there is
 	   no empty slab there already */
 	PoolSlab *HeadSlab;
-	HeadSlab = (PoolSlab*)Pool->Data;
+	HeadSlab = (PoolSlab*)Pool->Slabs;
 	if (HeadSlab && HeadSlab->LastUsed != -1) {
 	  PS->Next = HeadSlab;
-	  Pool->Data = PS;
+	  Pool->Slabs = PS;
 	}
       }
   }
@@ -388,7 +387,7 @@ void* poolallocarray(PoolTy* Pool, unsigned Size) {
   if (NodeSize == 0)
     return 0;
 
-  PoolSlab *PS = (PoolSlab*)Pool->Data;
+  PoolSlab *PS = (PoolSlab*)Pool->Slabs;
 
   void *Result;
   if ((Result = FindSlabEntryArray(PS, NodeSize,Size)))
@@ -419,7 +418,7 @@ void* poolallocarray(PoolTy* Pool, unsigned Size) {
   }
 
   /* Add the slab to the list... */
-  PS->Next = (PoolSlab*)Pool->Data;
-  Pool->Data = PS;
+  PS->Next = (PoolSlab*)Pool->Slabs;
+  Pool->Slabs = PS;
   return &PS->Data[0];
 }

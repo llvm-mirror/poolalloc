@@ -1,4 +1,4 @@
-//===- PoolAllocator.h - Pool allocator runtime interface file ------------===//
+//===- PoolAllocator.h - Pool allocator runtime interface file --*- C++ -*-===//
 // 
 //                     The LLVM Compiler Infrastructure
 //
@@ -16,8 +16,8 @@
 #define POOLALLOCATOR_RUNTIME_H
 
 typedef struct PoolTy {
-  // Data - An implementation specified data pointer.
-  void *Data;
+  // Slabs - An implementation specified data pointer.
+  void *Slabs;
 
   // NodeSize - Keep track of the object size tracked by this pool
   unsigned NodeSize;
