@@ -156,9 +156,9 @@ void FuncTransform::visitMallocInst(MallocInst &MI) {
   // If we are modifying the original function, update the DSGraph... 
   if (MII != SM.end()) {
     // V and Casted now point to whatever the original malloc did...
-    SM.insert(std::make_pair(V, MII->second));
+    SM[V] = MII->second;
     if (V != Casted)
-      SM.insert(std::make_pair(Casted, MII->second));
+      SM[Casted] = MII->second;
     SM.erase(MII);                     // The malloc is now destroyed
   } else {             // Otherwise, update the NewToOldValueMap
     std::map<Value*,const Value*>::iterator MII =
@@ -342,7 +342,7 @@ void FuncTransform::visitCallSite(CallSite CS) {
     DSGraph::ScalarMapTy &SM = G.getScalarMap();
     DSGraph::ScalarMapTy::iterator CII = SM.find(TheCall);
     if (CII != SM.end()) {
-      SM.insert(std::make_pair(NewCall, CII->second));
+      SM[NewCall] = CII->second;
       SM.erase(CII);                     // Destroy the CallInst
     } else { 
       // Otherwise update the NewToOldValueMap with the new CI return value
