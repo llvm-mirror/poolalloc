@@ -325,7 +325,7 @@ void FuncTransform::visitCallSite(CallSite CS) {
 
   if (InvokeInst *II = dyn_cast<InvokeInst>(TheCall)) {
     NewCall = new InvokeInst(NewCallee, II->getNormalDest(),
-                             II->getExceptionalDest(), Args, Name, TheCall);
+                             II->getUnwindDest(), Args, Name, TheCall);
   } else {
     NewCall = new CallInst(NewCallee, Args, Name, TheCall);
   }
