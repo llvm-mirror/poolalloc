@@ -64,7 +64,7 @@ namespace {
 
   cl::opt<bool>
   DisableInitDestroyOpt("poolalloc-force-simple-pool-init",
-                        cl::desc("Always insert poolinit/pooldestroy calls at start and exit of functions"), cl::init(true));
+                        cl::desc("Always insert poolinit/pooldestroy calls at start and exit of functions"));//, cl::init(true));
   cl::opt<bool>
   DisablePoolFreeOpt("poolalloc-force-all-poolfrees",
                      cl::desc("Do not try to elide poolfree's where possible"));
@@ -698,6 +698,7 @@ void PoolAllocate::InitializeAndDestroyPool(Function &F, DSNode *Node,
       if (NoneIn) {
         if (!PoolInitInsertedBlocks.count(BB)) {
           BasicBlock::iterator It = BB->begin();
+          while (isa<AllocaInst>(It) || isa<PHINode>(It)) ++It;
 #if 0
           // Move through all of the instructions not in the pool
           while (!PoolUses.count(std::make_pair(PD, It)))
@@ -737,10 +738,11 @@ void PoolAllocate::InitializeAndDestroyPool(Function &F, DSNode *Node,
 #if 0
           while (!PoolUses.count(std::make_pair(PD, It)))
             DeleteIfIsPoolFree(It--, PD, PoolFrees);
+          ++It;
 #endif
      
           // Insert after the first using instruction
-          PoolDestroyPoints.push_back(++It);
+          PoolDestroyPoints.push_back(It);
           PoolDestroyInsertedBlocks.insert(BB);
         }
       } else if (!AllIn) {
