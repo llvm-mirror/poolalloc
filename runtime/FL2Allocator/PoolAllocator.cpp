@@ -10,7 +10,6 @@
 // This file is one possible implementation of the LLVM pool allocator runtime
 // library.
 //
-//
 //===----------------------------------------------------------------------===//
 
 #include "PoolAllocator.h"
@@ -33,6 +32,29 @@
 #define DEBUG(X)
 #endif
 
+static inline unsigned getSizeClass(unsigned NumBytes) {
+  if (NumBytes <= FreeListOneSize)
+    return NumBytes > FreeListZeroSize;
+  else
+    return 2 + (NumBytes > FreeListTwoSize);
+}
+
+static void AddNodeToFreeList(PoolTy *Pool, FreedNodeHeader *FreeNode) {
+  unsigned SizeClass = getSizeClass(FreeNode->Header.Size);
+  FreeNode->PrevP = &Pool->FreeNodeLists[SizeClass];
+  FreeNode->Next = Pool->FreeNodeLists[SizeClass];
+  Pool->FreeNodeLists[SizeClass] = FreeNode;
+  if (FreeNode->Next)
+    FreeNode->Next->PrevP = &FreeNode->Next;
+}
+
+static void UnlinkFreeNode(FreedNodeHeader *FNH) {
+  *FNH->PrevP = FNH->Next;
+  if (FNH->Next)
+    FNH->Next->PrevP = FNH->PrevP;
+}
+
+
 // PoolSlab Structure - Hold multiple objects of the current node type.
 // Invariants: FirstUnused <= UsedEnd
 //
@@ -53,13 +75,18 @@ void PoolSlab::create(PoolTy *Pool, unsigned SizeHint) {
   unsigned Size = Pool->AllocSize;
   Pool->AllocSize <<= 1;
   Size = Size / SizeHint * SizeHint;
-  PoolSlab *PS = (PoolSlab*)malloc(Size);
+  PoolSlab *PS = (PoolSlab*)malloc(Size+sizeof(PoolSlab)+ 2*sizeof(NodeHeader));
 
   // Add the body of the slab to the free list...
   FreedNodeHeader *SlabBody = (FreedNodeHeader*)(PS+1);
-  SlabBody->Header.Size = Size-sizeof(PoolSlab)-sizeof(FreedNodeHeader);
-  SlabBody->Next = Pool->FreeNodeLists[LargeFreeList];
-  Pool->FreeNodeLists[LargeFreeList] = SlabBody;
+  SlabBody->Header.Size = Size;
+  AddNodeToFreeList(Pool, SlabBody);
+
+  // Make sure to add a marker at the end of the slab to prevent the coallescer
+  // from trying to merge off the end of the page.
+  FreedNodeHeader *End =
+    (FreedNodeHeader*)((char*)SlabBody + sizeof(NodeHeader) + Size);
+  End->Header.Size = ~0; // Looks like an allocated chunk
 
   // Add the slab to the list...
   PS->Next = Pool->Slabs;
@@ -113,26 +140,15 @@ void pooldestroy(PoolTy *Pool) {
   }
 }
 
-static inline unsigned getSizeClass(unsigned NumBytes) {
-  if (NumBytes <= FreeListOneSize)
-    return NumBytes > FreeListZeroSize;
-  else
-    return 2 + (NumBytes > FreeListTwoSize);
-}
-
-static void AddNodeToFreeList(PoolTy *Pool, FreedNodeHeader *FreeNode) {
-  unsigned SizeClass = getSizeClass(FreeNode->Header.Size);
-  FreeNode->Next = Pool->FreeNodeLists[SizeClass];
-  Pool->FreeNodeLists[SizeClass] = FreeNode;
-}
-
-
 void *poolalloc(PoolTy *Pool, unsigned NumBytes) {
   // If a null pool descriptor is passed in, this is not a pool allocated data
   // structure.  Hand off to the system malloc.
   if (Pool == 0) return malloc(NumBytes);
   if (NumBytes == 0) return 0;
   NumBytes = (NumBytes+3) & ~3;  // Round up to 4 bytes...
+
+  // Objects must be at least 8 bytes to hold the FreedNodeHeader object when
+  // they are freed.
   if (NumBytes < 8) NumBytes = 8;
 
   ++Pool->NumObjects;
@@ -145,11 +161,9 @@ void *poolalloc(PoolTy *Pool, unsigned NumBytes) {
   while (SizeClass < 3 && Pool->FreeNodeLists[SizeClass] == 0)
     ++SizeClass;
 
-  FreedNodeHeader *SizeClassFreeNodeList = Pool->FreeNodeLists[SizeClass];
-
   // Fast path.  In the common case, we can allocate a portion of the node at
   // the front of the free list.
-  if (FreedNodeHeader *FirstNode = SizeClassFreeNodeList) {
+  if (FreedNodeHeader *FirstNode = Pool->FreeNodeLists[SizeClass]) {
     unsigned FirstNodeSize = FirstNode->Header.Size;
     if (FirstNodeSize > NumBytes) {
       if (FirstNodeSize >= 2*NumBytes+sizeof(NodeHeader)) {
@@ -158,19 +172,16 @@ void *poolalloc(PoolTy *Pool, unsigned NumBytes) {
           (FreedNodeHeader*)((char*)FirstNode + sizeof(NodeHeader) + NumBytes);
 
         // Remove from list
-        Pool->FreeNodeLists[SizeClass] = FirstNode->Next;
+        UnlinkFreeNode(FirstNode);
 
         NextNodes->Header.Size = FirstNodeSize-NumBytes-sizeof(NodeHeader);
         AddNodeToFreeList(Pool, NextNodes);
 
-        FirstNode->Header.Size = NumBytes;
-        DEBUG(printf("alloc Pool:0x%X Bytes:%d -> 0x%X\n", Pool, NumBytes, 
-                     &FirstNode->Header+1));
-        return &FirstNode->Header+1;
+      } else {
+        UnlinkFreeNode(FirstNode);
+        NumBytes = FirstNodeSize;
       }
-
-      Pool->FreeNodeLists[SizeClass] = FirstNode->Next; // Unlink
-      FirstNode->Header.Size = FirstNodeSize;
+      FirstNode->Header.Size = NumBytes|1;   // Mark as allocated
       DEBUG(printf("alloc Pool:0x%X Bytes:%d -> 0x%X\n", Pool, NumBytes, 
                    &FirstNode->Header+1));
       return &FirstNode->Header+1;
@@ -193,25 +204,21 @@ void *poolalloc(PoolTy *Pool, unsigned NumBytes) {
         // the free list, otherwise, slice a little bit off and adjust the free
         // list.
         if (FNN->Header.Size > 2*NumBytes+sizeof(NodeHeader)) {
-          *FN = FNN->Next;   // Unlink
+          UnlinkFreeNode(FNN);
 
           // Put the remainder back on the list...
           FreedNodeHeader *NextNodes =
             (FreedNodeHeader*)((char*)FNN + sizeof(NodeHeader) + NumBytes);
           NextNodes->Header.Size = FNN->Header.Size-NumBytes-sizeof(NodeHeader);
           AddNodeToFreeList(Pool, NextNodes);
-
-          FNN->Header.Size = NumBytes;
-          DEBUG(printf("alloc Pool:0x%X Bytes:%d -> 0x%X\n", Pool, NumBytes, 
-                       &FNN->Header+1));
-          return &FNN->Header+1;
         } else {
-          *FN = FNN->Next;   // Unlink
-          FNN->Header.Size = FNN->Header.Size;
-          DEBUG(printf("alloc Pool:0x%X Bytes:%d -> 0x%X\n", Pool, NumBytes,
-                       &FNN->Header+1));
-          return &FNN->Header+1;
+          UnlinkFreeNode(FNN);
+          NumBytes = FNN->Header.Size;
         }
+        FNN->Header.Size = NumBytes|1;   // Mark as allocated
+        DEBUG(printf("alloc Pool:0x%X Bytes:%d -> 0x%X\n", Pool, NumBytes, 
+                     &FNN->Header+1));
+        return &FNN->Header+1;
       }
 
       if (SizeClass < LargeFreeList) {
@@ -239,7 +246,6 @@ void *poolalloc(PoolTy *Pool, unsigned NumBytes) {
   return LAH+1;
 }
 
-
 void poolfree(PoolTy *Pool, void *Node) {
   // If a null pool descriptor is passed in, this is not a pool allocated data
   // structure.  Hand off to the system free.
@@ -248,36 +254,35 @@ void poolfree(PoolTy *Pool, void *Node) {
 
   // Check to see how many elements were allocated to this node...
   FreedNodeHeader *FNH = (FreedNodeHeader*)((char*)Node-sizeof(NodeHeader));
-  unsigned Size = FNH->Header.Size;
-
+  assert((FNH->Header.Size & 1) && "Node not allocated!");
+  unsigned Size = FNH->Header.Size & ~1;
   DEBUG(printf("free  Pool:0x%X <- 0x%X  Size:%d\n", Pool, Node, Size));
 
-  if (Size == ~0U) goto LargeArrayCase;
+  if (Size == ~1U) goto LargeArrayCase;
   
+  // If the node immediately after this one is also free, merge it into node.
+  FreedNodeHeader *NextFNH;
+  NextFNH = (FreedNodeHeader*)((char*)Node+Size);
+  while ((NextFNH->Header.Size & 1) == 0) {
+    // Unlink NextFNH from the freelist that it is in.
+    UnlinkFreeNode(NextFNH);
+    Size += sizeof(NodeHeader)+NextFNH->Header.Size;
+    NextFNH = (FreedNodeHeader*)((char*)Node+Size);
+  }
+
   // If there are already nodes on the freelist, see if these blocks can be
   // coallesced into one of the early blocks on the front of the list.  This is
   // a simple check that prevents many horrible forms of fragmentation.
   //
   for (unsigned SizeClass = 0; SizeClass <= LargeFreeList; ++SizeClass)
-    if (FreedNodeHeader *CurFrontNode = Pool->FreeNodeLists[SizeClass]) {
-      if ((char*)FNH + sizeof(NodeHeader) + Size == (char*)CurFrontNode) {
-        // This node immediately preceeds the node on the front of the
-        // free-list.  Remove the current front of the free list, replacing it
-        // with the current block.
-        FNH->Header.Size = Size + CurFrontNode->Header.Size+sizeof(NodeHeader);
-        FNH->Next = CurFrontNode->Next;
-        Pool->FreeNodeLists[SizeClass] = FNH;
-        return;
-      }
-      
-      if ((char*)CurFrontNode + sizeof(NodeHeader) + CurFrontNode->Header.Size ==
+    if (FreedNodeHeader *CurFrontNode = Pool->FreeNodeLists[SizeClass])
+      if ((char*)CurFrontNode + sizeof(NodeHeader) + CurFrontNode->Header.Size==
           (char*)FNH) {
         // This node immediately follows the node on the front of the free-list.
         // No list manipulation is required.
         CurFrontNode->Header.Size += Size+sizeof(NodeHeader);
         return;
       }
-    }
 
   FNH->Header.Size = Size;
   AddNodeToFreeList(Pool, FNH);
