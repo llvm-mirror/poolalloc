@@ -565,7 +565,7 @@ bool PoolAllocate::SetupGlobalPools(Module &M) {
     case AllNodes: break;
     case NoNodes: ShouldPoolAlloc = false; break;
     case SmartCoallesceNodes:
-#if 0
+#if 1
       if ((*I)->isArray() && !(*I)->isNodeCompletelyFolded())
         ShouldPoolAlloc = false;
 #endif
@@ -693,6 +693,13 @@ void PoolAllocate::CreatePools(Function &F,
         
           // Update the PoolDescriptors map
           PoolDescriptors.insert(std::make_pair(N, AI));
+#if 1
+        } else if (N->isArray() && !N->isNodeCompletelyFolded()) {
+          // We never pool allocate array nodes.
+          PoolDescriptors[N] =
+            Constant::getNullValue(PointerType::get(PoolDescType));
+          ++NumNonprofit;
+#endif
         } else {
           // Otherwise the node is not self recursive.  If the node is not an
           // array, we can co-locate it with the pool of a predecessor node if
