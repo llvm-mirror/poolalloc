@@ -17,7 +17,7 @@ RELDIR  := $(subst $(PROGDIR),,$(CURDIR))
 PA_SO    := $(PROJECT_DIR)/lib/Debug/libpoolalloc.so
 
 # Pool allocator runtime library
-PA_RT    := $(PROJECT_DIR)/lib/Bytecode/libpoolalloc_fl_rt.bc
+#PA_RT    := $(PROJECT_DIR)/lib/Bytecode/libpoolalloc_fl_rt.bc
 PA_RT_O  := $(PROJECT_DIR)/lib/Release/poolalloc_rt.o
 
 

@@ -11,7 +11,7 @@ sub Ratio {
   my ($Cols, $Col) = @_;
   if ($Cols->[$Col-1] ne "*" and $Cols->[$Col-2] ne "*" and
       $Cols->[$Col-1] != "0") {
-    return sprintf "%3.2f%%", ((100.0*$Cols->[$Col-2])/$Cols->[$Col-1] - 100.0);
+    return sprintf "%1.3f", $Cols->[$Col-2]/$Cols->[$Col-1];
   } else {
     return "n/a";
   }
@@ -27,7 +27,7 @@ sub Ratio {
 # Times
  ["Normal<br>ExeTime"  ,  'CBE-RUN-TIME-NORMAL: real[\t ]+0m([0-9.]+)'],
  ["PoolAlloc<br>ExeTime", 'CBE-RUN-TIME-POOLALLOC: real[\t ]+0m([0-9.]+)'],
- ["% Speedup", \&Ratio],         # Normal / PA
+ ["Speedup", \&Ratio],
  ["NumPools",             '([0-9]+).*Number of pools allocated'],
  ["NumCloned",            '([0-9]+).*Number of functions cloned'],
  ["NumArgs",              '([0-9]+).*Number of function arguments added'],
