@@ -18,11 +18,22 @@
 #include "llvm/Instructions.h"
 #include "llvm/Module.h"
 #include "llvm/ADT/Statistic.h"
+#include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/InstVisitor.h"
 using namespace llvm;
 
+/// UINTTYPE - This is the actual type we are compressing to.  This is really
+/// only capable of being UIntTy, except when we are doing tests for 16-bit
+/// integers, when it's UShortTy.
+static const Type *UINTTYPE;
+
 namespace {
+  cl::opt<bool>
+  SmallIntCompress("compress-to-16-bits",
+                   cl::desc("Pointer compress data structures to 16 bit "
+                            "integers instead of 32-bit integers"));
+
   Statistic<> NumCompressed("pointercompress",
                             "Number of pools pointer compressed");
   Statistic<> NumNotCompressed("pointercompress",
@@ -116,7 +127,7 @@ ComputeCompressedType(const Type *OrigTy, unsigned NodeOffset,
                       std::map<const DSNode*, CompressedPoolInfo> &Nodes) {
   if (const PointerType *PTY = dyn_cast<PointerType>(OrigTy)) {
     // FIXME: check to see if this pointer is actually compressed!
-    return Type::UIntTy;
+    return UINTTYPE;
   } else if (OrigTy->isFirstClassType())
     return OrigTy;
 
@@ -243,13 +254,13 @@ namespace {
     /// value, creating a new forward ref value as needed.
     Value *getTransformedValue(Value *V) {
       if (isa<ConstantPointerNull>(V))                // null -> uint 0
-        return Constant::getNullValue(Type::UIntTy);
+        return Constant::getNullValue(UINTTYPE);
 
       assert(getNodeIfCompressed(V) && "Value is not compressed!");
       Value *&RV = OldToNewValueMap[V];
       if (RV) return RV;
 
-      RV = new Argument(Type::UIntTy);
+      RV = new Argument(UINTTYPE);
       return RV;
     }
 
@@ -356,7 +367,7 @@ void InstructionRewriter::visitPHINode(PHINode &PN) {
   const CompressedPoolInfo *DestPI = getPoolInfo(&PN);
   if (DestPI == 0) return;
 
-  PHINode *New = new PHINode(Type::UIntTy, PN.getName(), &PN);
+  PHINode *New = new PHINode(UINTTYPE, PN.getName(), &PN);
   New->reserveOperandSpace(PN.getNumIncomingValues());
 
   for (unsigned i = 0, e = PN.getNumIncomingValues(); i != e; ++i)
@@ -410,9 +421,11 @@ void InstructionRewriter::visitLoadInst(LoadInst &LI) {
   // Get the pointer to load from.
   std::vector<Value*> Ops;
   Ops.push_back(getTransformedValue(LI.getOperand(0)));
+  if (Ops[0]->getType() == Type::UShortTy)
+    Ops[0] = new CastInst(Ops[0], Type::UIntTy, "extend_idx", &LI);
   Value *SrcPtr = new GetElementPtrInst(BasePtr, Ops,
                                         LI.getOperand(0)->getName()+".pp", &LI);
-  const Type *DestTy = LoadingCompressedPtr ? Type::UIntTy : LI.getType();
+  const Type *DestTy = LoadingCompressedPtr ? UINTTYPE : LI.getType();
   SrcPtr = new CastInst(SrcPtr, PointerType::get(DestTy),
                         SrcPtr->getName(), &LI);
   std::string OldName = LI.getName(); LI.setName("");
@@ -461,6 +474,9 @@ void InstructionRewriter::visitStoreInst(StoreInst &SI) {
   // Get the pointer to store to.
   std::vector<Value*> Ops;
   Ops.push_back(getTransformedValue(SI.getOperand(1)));
+  if (Ops[0]->getType() == Type::UShortTy)
+    Ops[0] = new CastInst(Ops[0], Type::UIntTy, "extend_idx", &SI);
+
   Value *DestPtr = new GetElementPtrInst(BasePtr, Ops,
                                          SI.getOperand(1)->getName()+".pp",
                                          &SI);
@@ -587,16 +603,21 @@ void PointerCompress::InitializePoolLibraryFunctions(Module &M) {
                                      Type::UIntTy, 0);
   PoolDestroyPC = M.getOrInsertFunction("pooldestroy_pc", Type::VoidTy,
                                         PoolDescPtrTy, 0);
-  PoolAllocPC = M.getOrInsertFunction("poolalloc_pc",  Type::UIntTy,
+  PoolAllocPC = M.getOrInsertFunction("poolalloc_pc",  UINTTYPE,
                                       PoolDescPtrTy, Type::UIntTy, 0);
   PoolFreePC = M.getOrInsertFunction("poolfree_pc",  Type::VoidTy,
-                                      PoolDescPtrTy, Type::UIntTy, 0);
+                                      PoolDescPtrTy, UINTTYPE, 0);
   // FIXME: Need bumppointer versions as well as realloc??/memalign??
 }  
 
 bool PointerCompress::runOnModule(Module &M) {
   PoolAlloc = &getAnalysis<PoolAllocate>();
   ECG = &getAnalysis<PA::EquivClassGraphs>();
+  
+  if (SmallIntCompress)
+    UINTTYPE = Type::UShortTy;
+  else 
+    UINTTYPE = Type::UIntTy;
 
   // Create the function prototypes for pointer compress runtime library
   // functions.
