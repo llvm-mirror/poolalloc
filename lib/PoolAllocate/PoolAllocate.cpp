@@ -126,6 +126,7 @@ void PoolAllocate::buildIndirectFunctionSets(Module &M) {
 }
 
 bool PoolAllocate::run(Module &M) {
+  if (M.begin() == M.end()) return false;
   CurModule = &M;
   BU = &getAnalysis<BUDataStructures>();
 
@@ -437,6 +438,8 @@ Function *PoolAllocate::MakeFunctionClone(Function &F) {
   // Set the rest of the new arguments names to be PDa<n> and add entries to the
   // pool descriptors map
   std::map<DSNode*, Value*> &PoolDescriptors = FI.PoolDescriptors;
+  //Dinakar set the type of pooldesctriptors
+  std::map<const Value*, const Type*> &PoolDescTypeMap = FI.PoolDescType;
   Function::aiterator NI = New->abegin();
   
   if (FuncECs.findClass(&F)) {
@@ -450,9 +453,11 @@ Function *PoolAllocate::MakeFunctionClone(Function &F) {
       for (int i = 0; i < FI.PoolArgFirst; ++NI, ++i)
 	;
 
-    for (unsigned i = 0, e = FI.ArgNodes.size(); i != e; ++i, ++NI)
+    for (unsigned i = 0, e = FI.ArgNodes.size(); i != e; ++i, ++NI) {
+      PoolDescTypeMap[NI] = FI.ArgNodes[i]->getType();
+      
       PoolDescriptors.insert(std::make_pair(FI.ArgNodes[i], NI));
-
+    }
     NI = New->abegin();
     if (EqClass2LastPoolArg.count(FuncECs.findClass(&F)))
       for (int i = 0; i <= EqClass2LastPoolArg[FuncECs.findClass(&F)]; ++i,++NI)
@@ -462,6 +467,7 @@ Function *PoolAllocate::MakeFunctionClone(Function &F) {
     if (FI.ArgNodes.size())
       for (unsigned i = 0, e = FI.ArgNodes.size(); i != e; ++i, ++NI) {
 	NI->setName("PDa");  // Add pd entry
+	PoolDescTypeMap[NI] = FI.ArgNodes[i]->getType();
 	PoolDescriptors.insert(std::make_pair(FI.ArgNodes[i], NI));
       }
     NI = New->abegin();
@@ -525,7 +531,8 @@ void PoolAllocate::ProcessFunctionBody(Function &F, Function &NewF) {
   if (!NodesToPA.empty()) {
     // Create pool construction/destruction code
     std::map<DSNode*, Value*> &PoolDescriptors = FI.PoolDescriptors;
-    CreatePools(NewF, NodesToPA, PoolDescriptors);
+    std::map<const Value*, const Type*> &PoolDescTypeMap = FI.PoolDescType;
+    CreatePools(NewF, NodesToPA, PoolDescriptors, PoolDescTypeMap);
   }
   
   // Transform the body of the function now...
@@ -539,7 +546,8 @@ void PoolAllocate::ProcessFunctionBody(Function &F, Function &NewF) {
 //
 void PoolAllocate::CreatePools(Function &F,
                                const std::vector<DSNode*> &NodesToPA,
-                               std::map<DSNode*, Value*> &PoolDescriptors) {
+                               std::map<DSNode*, Value*> &PoolDescriptors,
+			       std::map<const Value *, const Type *> &PoolDescTypeMap) {
   // Find all of the return nodes in the CFG...
   std::vector<BasicBlock*> ReturnNodes;
   for (Function::iterator I = F.begin(), E = F.end(); I != E; ++I)
@@ -558,12 +566,14 @@ void PoolAllocate::CreatePools(Function &F,
     
     // Create a new alloca instruction for the pool...
     Value *AI = new AllocaInst(PoolDescType, 0, "PD", InsertPoint);
-    
+    const Type *Eltype;
     Value *ElSize;
     
     // Void types in DS graph are never used
-    if (Node->getType() != Type::VoidTy)
+    if (Node->getType() != Type::VoidTy) {
       ElSize = ConstantUInt::get(Type::UIntTy, TD.getTypeSize(Node->getType()));
+      Eltype = Node->getType();
+    }
     else {
       DEBUG(std::cerr << "Potential node collapsing in " << F.getName() 
 		<< ". All Data Structures may not be pool allocated\n");
@@ -576,6 +586,7 @@ void PoolAllocate::CreatePools(Function &F,
       
     // Update the PoolDescriptors map
     PoolDescriptors.insert(std::make_pair(Node, AI));
+    PoolDescTypeMap[AI] = Eltype;
     
     // Insert a call to pool destroy before each return inst in the function
     for (unsigned r = 0, e = ReturnNodes.size(); r != e; ++r)
@@ -834,7 +845,23 @@ void FuncTransform::visitMallocInst(MallocInst &MI) {
   else
     V = new CallInst(PAInfo.PoolAlloc, make_vector(PH, 0),
 		     MI.getName(), &MI);
-  
+
+  //Added by Dinakar to store the type
+  //  std::cout << " In pool allocation for instruction \n";
+  //  std::cout << MI << "\n";
+  //  std::cout << MI.getType() << "\n";
+  const Type *phtype = 0;
+  if (const PointerType * ptype = dyn_cast<PointerType>(MI.getType())) {
+    phtype = ptype->getElementType();
+  }
+  assert((phtype != 0) && "Needs to be implemented \n ");
+  std::map<const Value*, const Type*> &PoolDescType = FI.PoolDescType;
+  if (PoolDescType.count(PH)) {
+    //There is already an entry, so this is just sanity check 
+    assert((phtype == PoolDescType[PH]) && "pool allocate type info wrong");
+  } else {
+    PoolDescType[PH] = phtype;
+  }
   MI.setName("");  // Nuke MIs name
   
   Value *Casted = V;
@@ -875,6 +902,21 @@ void FuncTransform::visitFreeInst(FreeInst &FrI) {
   Value *Arg = FrI.getOperand(0);
   Value *PH = getPoolHandle(Arg);  // Get the pool handle for this DSNode...
   if (PH == 0) return;
+
+  const Type *phtype = 0;
+  if (const PointerType * ptype = dyn_cast<PointerType>(Arg->getType())) {
+    phtype = ptype->getElementType();
+  }
+  assert((phtype != 0) && "Needs to be implemented \n ");
+  std::map<const Value*, const Type*> &PoolDescType = FI.PoolDescType;
+  if (PoolDescType.count(PH)) {
+    //There is already an entry, so this is just sanity check 
+    assert((phtype == PoolDescType[PH]) && "pool allocate type info wrong");
+  } else {
+    PoolDescType[PH] = phtype;
+  }
+
+  
   // Insert a cast and a call to poolfree...
   Value *Casted = Arg;
   if (Arg->getType() != PointerType::get(Type::SByteTy))
