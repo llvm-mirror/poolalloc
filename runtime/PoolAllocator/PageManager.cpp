@@ -56,7 +56,7 @@ static void *GetPages(unsigned NumPages) {
 #define fd -1
 #endif
 
-  void *pa = mmap(0, NumPages*PageSize, PROT_READ|PROT_WRITE|PROT_EXEC,
+  void *pa = mmap(0, NumPages*PageSize, PROT_READ|PROT_WRITE,
                   MAP_PRIVATE|MAP_ANONYMOUS, fd, 0);
   assert(pa != MAP_FAILED && "MMAP FAILED!");
   return pa;
