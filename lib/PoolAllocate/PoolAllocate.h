@@ -60,6 +60,10 @@ namespace PA {
     /// indirect function calls that are not used in the function.
     std::map<DSNode*, Value*> PoolDescriptors;
 
+    //This is a map from Old to New Value Map reverse of the one above
+    //Useful in SAFECode for check insertion
+    std::map<const Value*, Value*> ValueMap;
+
     /// NewToOldValueMap - When and if a function needs to be cloned, this map
     /// contains a mapping from all of the values in the new function back to
     /// the values they correspond to in the old function.
@@ -111,7 +115,7 @@ class PoolAllocate : public Pass {
   /// OneCalledFunction - For each indirect function call, we keep track of one
   /// target of the call.  This is used to find the equivalence class called by
   /// a call site.
-  std::map<Instruction*, Function *> OneCalledFunction;
+  std::map<DSNode*, Function *> OneCalledFunction;
 
  public:
 
