@@ -25,7 +25,6 @@ namespace {
   struct FuncTransform : public InstVisitor<FuncTransform> {
     PoolAllocate &PAInfo;
     DSGraph &G;      // The Bottom-up DS Graph
-    DSGraph &TDG;    // The Top-down DS Graph
     FuncInfo &FI;
 
     // PoolUses - For each pool (identified by the pool descriptor) keep track
@@ -38,10 +37,10 @@ namespace {
     // inserted into the code.  This is seperated out from PoolUses.
     std::set<std::pair<AllocaInst*, CallInst*> > &PoolFrees;
 
-    FuncTransform(PoolAllocate &P, DSGraph &g, DSGraph &tdg, FuncInfo &fi,
+    FuncTransform(PoolAllocate &P, DSGraph &g, FuncInfo &fi,
                   std::set<std::pair<AllocaInst*, Instruction*> > &poolUses,
                   std::set<std::pair<AllocaInst*, CallInst*> > &poolFrees)
-      : PAInfo(P), G(g), TDG(tdg), FI(fi),
+      : PAInfo(P), G(g), FI(fi),
         PoolUses(poolUses), PoolFrees(poolFrees) {
     }
 
@@ -83,11 +82,11 @@ namespace {
   };
 }
 
-void PoolAllocate::TransformBody(DSGraph &g, DSGraph &tdg, PA::FuncInfo &fi,
+void PoolAllocate::TransformBody(DSGraph &g, PA::FuncInfo &fi,
                        std::set<std::pair<AllocaInst*,Instruction*> > &poolUses,
                        std::set<std::pair<AllocaInst*, CallInst*> > &poolFrees,
                                  Function &F) {
-  FuncTransform(*this, g, tdg, fi, poolUses, poolFrees).visit(F);
+  FuncTransform(*this, g, fi, poolUses, poolFrees).visit(F);
 }
 
 

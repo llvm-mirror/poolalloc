@@ -54,16 +54,14 @@ namespace {
 }
 
 void PoolAllocate::getAnalysisUsage(AnalysisUsage &AU) const {
-  AU.addRequired<BUDataStructures>();
-  AU.addRequired<TDDataStructures>();
+  AU.addRequired<CompleteBUDataStructures>();
   AU.addRequired<TargetData>();
 }
 
 bool PoolAllocate::run(Module &M) {
   if (M.begin() == M.end()) return false;
   CurModule = &M;
-  BU = &getAnalysis<BUDataStructures>();
-  TDDS = &getAnalysis<TDDataStructures>();
+  BU = &getAnalysis<CompleteBUDataStructures>();
 
   // Add the pool* prototypes to the module
   AddPoolPrototypes();
@@ -209,16 +207,15 @@ const PA::EquivClassInfo &PoolAllocate::getECIForIndirectCallSite(CallSite CS) {
 // unify the N functions together in the FuncECs set.
 //
 void PoolAllocate::BuildIndirectFunctionSets(Module &M) {
-  const BUDataStructures::ActualCalleesTy AC = BU->getActualCallees();
 
-#if 0  // THIS SHOULD WORK, but doesn't because DSA is buggy.  FIXME!
+  const CompleteBUDataStructures::ActualCalleesTy AC = BU->getActualCallees();
 
   // Loop over all of the indirect calls in the program.  If a call site can
   // call multiple different functions, we need to unify all of the callees into
   // the same equivalence class.
   Instruction *LastInst = 0;
   Function *FirstFunc = 0;
-  for (BUDataStructures::ActualCalleesTy::const_iterator I = AC.begin(),
+  for (CompleteBUDataStructures::ActualCalleesTy::const_iterator I = AC.begin(),
          E = AC.end(); I != E; ++I) {
     CallSite CS = CallSite::get(I->first);
     if (!CS.getCalledFunction() &&    // Ignore direct calls
@@ -238,43 +235,6 @@ void PoolAllocate::BuildIndirectFunctionSets(Module &M) {
       }
     }
   }
-#else
-
-  for (Module::iterator MI = M.begin(), ME = M.end(); MI != ME; ++MI) {
-    if (MI->isExternal()) continue;
-    DEBUG(std::cerr << "Processing indirect calls function:" <<  MI->getName()
-          << "\n");
-
-    DSGraph &TDG = TDDS->getDSGraph(*MI);
-    const std::vector<DSCallSite> &callSites = TDG.getFunctionCalls();
-
-    // For each call site in the function
-    // All the functions that can be called at the call site are put in the
-    // same equivalence class.
-    for (std::vector<DSCallSite>::const_iterator CSI = callSites.begin(), 
-           CSE = callSites.end(); CSI != CSE ; ++CSI)
-      if (CSI->isIndirectCall()) {
-        Instruction *TheCall = CSI->getCallSite().getInstruction();
-        DSNode *DSN = CSI->getCalleeNode();
-        std::cerr << "INDCALL: " << *TheCall;
-        if (DSN->isIncomplete())
-          std::cerr << "Incomplete node: " << *TheCall;
-        // assert(DSN->isGlobalNode());
-        const std::vector<GlobalValue*> &Callees = DSN->getGlobals();
-        if (Callees.empty())
-          std::cerr << "No targets: " << *TheCall;
-        Function *RunningClass = 0;
-        for (unsigned i = 0, e = Callees.size(); i != e; ++i)
-          if (Function *F = dyn_cast<Function>(Callees[i])) {
-            OneCalledFunction[TheCall] = F;
-            if (RunningClass == 0)
-              FuncECs.addElement(RunningClass = F);
-            else
-              FuncECs.unionSetsWith(RunningClass, F);
-          }
-      }
-  }
-#endif
 
   // Now that all of the equivalences have been built, turn the union-find data
   // structure into a simple map from each function in the equiv class to the
@@ -635,7 +595,7 @@ void PoolAllocate::ProcessFunctionBody(Function &F, Function &NewF) {
   // of the pools.
   std::set<std::pair<AllocaInst*, Instruction*> > PoolUses;
   std::set<std::pair<AllocaInst*, CallInst*> > PoolFrees;
-  TransformBody(G, TDDS->getDSGraph(F), FI, PoolUses, PoolFrees, NewF);
+  TransformBody(G, FI, PoolUses, PoolFrees, NewF);
 
   // Create pool construction/destruction code
   if (!NodesToPA.empty())
