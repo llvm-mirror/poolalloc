@@ -21,18 +21,16 @@
 using namespace PA;
 
 namespace {
-  const Type *VoidPtrTy = PointerType::get(Type::SByteTy);
+  const Type *VoidPtrTy;
 
   // The type to allocate for a pool descriptor: { sbyte*, uint, uint }
   // void *Data (the data)
   // unsigned NodeSize  (size of an allocated node)
   // unsigned FreeablePool (are slabs in the pool freeable upon calls to 
   //                        poolfree?)
-  const Type *PoolDescType = 
-  StructType::get(make_vector<const Type*>(VoidPtrTy, Type::UIntTy, 
-                                           Type::UIntTy, 0));
+  const Type *PoolDescType;
   
-  const PointerType *PoolDescPtr = PointerType::get(PoolDescType);
+  const PointerType *PoolDescPtr;
   
   RegisterOpt<PoolAllocate>
   X("poolalloc", "Pool allocate disjoint data structures");
@@ -73,7 +71,8 @@ void PoolAllocate::buildIndirectFunctionSets(Module &M) {
   
   for (Module::iterator MI = M.begin(), ME = M.end(); MI != ME; ++MI) {
 
-    DEBUG(std::cerr << "Processing indirect calls function:" <<  MI->getName() << "\n");
+    DEBUG(std::cerr << "Processing indirect calls function:" <<  MI->getName()
+                    << "\n");
 
     if (MI->isExternal())
       continue;
@@ -123,6 +122,15 @@ void PoolAllocate::buildIndirectFunctionSets(Module &M) {
 bool PoolAllocate::run(Module &M) {
   if (M.begin() == M.end()) return false;
   CurModule = &M;
+
+  if (VoidPtrTy == 0) {
+    VoidPtrTy = PointerType::get(Type::SByteTy);
+    PoolDescType =
+      StructType::get(make_vector<const Type*>(VoidPtrTy, Type::UIntTy, 
+                                               Type::UIntTy, 0));
+    PoolDescPtr = PointerType::get(PoolDescType);
+  }
+
   
   AddPoolPrototypes();
   BU = &getAnalysis<BUDataStructures>();
