@@ -168,9 +168,20 @@ slabFree (SlabHeader * Slab)
 //
 //===----------------------------------------------------------------------===//
 
-// poolinit - Initialize a pool descriptor to empty
 //
-void poolinit(PoolTy *Pool, unsigned int NodeSize)
+// Function: poolinit ()
+//
+// Description:
+//    Initialize a pool descriptor for a new pool.
+//
+// Inputs:
+//    NodeSize - The typical size allocated for this pool.
+//
+// Outputs:
+//    Pool - An initialized pool.
+//
+void
+poolinit (PoolTy *Pool, unsigned int NodeSize)
 {
   assert(Pool && "Null pool pointer passed into poolinit!\n");
 
@@ -228,12 +239,30 @@ pooldestroy(PoolTy *Pool)
   return;
 }
 
+//
+// Function: poolalloc ()
+//
+// Description:
+//    Allocates memory from the pool.  Typically, we will allocate memory
+//    in the same size chunks as we usually do, but sometimes, we will have to
+//    allocate more.
+//
 void *
-poolalloc(PoolTy *Pool, unsigned NodeSize)
+poolalloc(PoolTy *Pool, unsigned BytesWanted)
 {
+  // Pointer to the data block to return
   void * Data;
+
   assert(Pool && "Null pool pointer passed in to poolalloc!\n");
-  assert((NodeSize <= Pool->NodeSize) && "Wrong Node Size!\n");
+
+  //
+  // Determine if we can satisfy this request normally.  If not, then
+  // we need to use the array allocation instead.
+  //
+  if (Pool->NodeSize < BytesWanted)
+  {
+    return (poolallocarray (Pool, (BytesWanted / Pool->NodeSize) + 1));
+  }
 
   //
   // If we don't have a slab, this is our first initialization.  Do some
