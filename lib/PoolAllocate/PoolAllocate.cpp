@@ -471,17 +471,26 @@ void PoolAllocate::CreatePools(Function &F,
 
   std::set<DSNode*> UnallocatedNodes(NodesToPA.begin(), NodesToPA.end());
 
-  Instruction *InsertPoint = F.front().begin();
+  BasicBlock::iterator InsertPoint = F.front().begin();
+  while (isa<AllocaInst>(InsertPoint)) ++InsertPoint;
+
+  // Is this main?  If so, make the pool descriptors globals, not automatic
+  // vars.
+  bool IsMain = F.getName() == "main" && F.hasExternalLinkage();
 
   // Perform all global assignments as specified.
   for (unsigned i = 0, e = ResultPools.size(); i != e; ++i) {
     Heuristic::OnePool &Pool = ResultPools[i];
     Value *PoolDesc = Pool.PoolDesc;
-    if (PoolDesc == 0)
-      // Create a new alloca instruction for the pool.  The poolinit will be
-      // inserted later.
-      PoolDesc = new AllocaInst(PoolDescType, 0, "PD", InsertPoint);
-
+    if (PoolDesc == 0) {
+      // Create a pool descriptor for the pool.  The poolinit will be inserted
+      // later.
+      if (!IsMain)
+        PoolDesc = new AllocaInst(PoolDescType, 0, "PD", InsertPoint);
+      else
+        PoolDesc = CreateGlobalPool(Pool.PoolSize, Pool.PoolAlignment,
+                                    InsertPoint);
+    }
     for (unsigned N = 0, e = Pool.NodesInPool.size(); N != e; ++N) {
       PoolDescriptors[Pool.NodesInPool[N]] = PoolDesc;
       UnallocatedNodes.erase(Pool.NodesInPool[N]);  // Handled!
