@@ -92,6 +92,15 @@ public:
   // entries in it, returning the pointer into the pool directly.
   static void *createSingleArray(PoolTy *Pool, unsigned NumNodes);
 
+  // getSlabSize - Return the number of nodes that each slab should contain.
+  static unsigned getSlabSize(PoolTy *Pool) {
+    return NodesPerSlab;
+  }
+
+  unsigned getSlabSize() const {
+    return NodesPerSlab;
+  }
+
   // destroy - Release the memory for the current object.
   void destroy() {
     free(this);
@@ -103,7 +112,7 @@ public:
 
   // isFull - This is a quick check to see if the slab is completely allocated.
   //
-  bool isFull() const { return isSingleArray || FirstUnused == NodesPerSlab; }
+  bool isFull() const { return isSingleArray || FirstUnused == getSlabSize(); }
 
   // allocateSingle - Allocate a single element from this pool, returning -1 if
   // there is no space.
@@ -129,7 +138,7 @@ public:
 // create - Create a new (empty) slab and add it to the end of the Pools list.
 PoolSlab *PoolSlab::create(PoolTy *Pool) {
   PoolSlab *PS = (PoolSlab*)malloc(sizeof(PoolSlab) +
-                                   Pool->NodeSize*NodesPerSlab-1);
+                                   Pool->NodeSize*getSlabSize(Pool)-1);
   assert(PS && "poolalloc: Could not allocate memory!");
 
   PS->isSingleArray = 0;  // Not a single array!
@@ -145,7 +154,7 @@ PoolSlab *PoolSlab::create(PoolTy *Pool) {
 void *PoolSlab::createSingleArray(PoolTy *Pool, unsigned NumNodes) {
   PoolSlab *PS = (PoolSlab*)malloc(sizeof(PoolSlab) +
                                    Pool->NodeSize*NumNodes-1);
-  assert(NumNodes > NodesPerSlab && "No need to create a single array!");
+  assert(NumNodes > getSlabSize(Pool) && "No need to create a single array!");
   assert(PS && "poolalloc: Could not allocate memory!");
 
   PS->isSingleArray = 1;  // Not a single array!
@@ -166,7 +175,7 @@ int PoolSlab::allocateSingle() {
   if (isSingleArray) return -1;
 
   // Check to see if there are empty entries at the end of the slab...
-  if (UsedEnd < NodesPerSlab) {
+  if (UsedEnd < getSlabSize()) {
     // Mark the returned entry used
     unsigned short UE = UsedEnd;
     markNodeAllocated(UE);
@@ -183,7 +192,7 @@ int PoolSlab::allocateSingle() {
   // If not, check to see if this node has a declared "FirstUnused" value that
   // is less than the number of nodes allocated...
   //
-  if (FirstUnused < NodesPerSlab) {
+  if (FirstUnused < getSlabSize()) {
     // Successfully allocate out the first unused node
     unsigned Idx = FirstUnused;
     markNodeAllocated(Idx);
@@ -194,7 +203,7 @@ int PoolSlab::allocateSingle() {
     unsigned short FU = FirstUnused;
     do {
       ++FU;
-    } while (FU != NodesPerSlab && isNodeAllocated(FU));
+    } while (FU != getSlabSize() && isNodeAllocated(FU));
     FirstUnused = FU;
     
     return Idx;
@@ -211,7 +220,7 @@ int PoolSlab::allocateMultiple(unsigned Size) {
 
   // For small array allocation, check to see if there are empty entries at the
   // end of the slab...
-  if (UsedEnd+Size <= NodesPerSlab) {
+  if (UsedEnd+Size <= getSlabSize()) {
     // Mark the returned entry used and set the start bit
     unsigned UE = UsedEnd;
     setStartBit(UE);
@@ -233,7 +242,7 @@ int PoolSlab::allocateMultiple(unsigned Size) {
   // starting which Size nodes can be allocated
   //
   unsigned Idx = FirstUnused;
-  while (Idx+Size <= NodesPerSlab) {
+  while (Idx+Size <= getSlabSize()) {
     assert(!isNodeAllocated(Idx) && "FirstUsed is not accurate!");
 
     // Check if there is a continuous array of Size nodes starting FirstUnused
@@ -262,7 +271,7 @@ int PoolSlab::allocateMultiple(unsigned Size) {
 
     // Otherwise, try later in the pool.  Find the next unused entry.
     Idx = LastUnused;
-    while (Idx+Size <= NodesPerSlab && isNodeAllocated(Idx))
+    while (Idx+Size <= getSlabSize() && isNodeAllocated(Idx))
       ++Idx;
   }
 
@@ -273,14 +282,14 @@ int PoolSlab::allocateMultiple(unsigned Size) {
 // containsElement - Return the element number of the specified address in
 // this slab.  If the address is not in slab, return -1.
 int PoolSlab::containsElement(void *Ptr, unsigned ElementSize) const {
-  if (&Data[0] > Ptr || &Data[ElementSize*NodesPerSlab-1] < Ptr)
+  if (&Data[0] > Ptr || &Data[ElementSize*getSlabSize()-1] < Ptr)
     return -1;
 
   unsigned Index = (char*)Ptr-(char*)&Data[0];
   assert(Index % ElementSize == 0 &&
          "Freeing pointer into the middle of an element!");
   Index /= ElementSize;
-  assert(Index < PoolSlab::NodesPerSlab && "Pool slab searching loop broken!");
+  assert(Index < getSlabSize() && "Pool slab searching loop broken!");
   return Index;
 }
 
@@ -419,7 +428,7 @@ void *poolalloc(PoolTy *Pool) {
 void *poolallocarray(PoolTy* Pool, unsigned Size) {
   assert(Pool && "Null pool pointer passed into poolallocarray!\n");
 
-  if (Size > PoolSlab::NodesPerSlab)
+  if (Size > PoolSlab::getSlabSize(Pool))
     return PoolSlab::createSingleArray(Pool, Size);    
 
   PoolSlab *PS = (PoolSlab*)Pool->Ptr1;
