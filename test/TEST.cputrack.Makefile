@@ -51,12 +51,19 @@ Output/test.$(TEST).pa.%: Output/%.poolalloc.cbe Output/test.$(TEST).%
 	@echo "========================================="
 	@echo "Running '$(TEST)' test on '$(TESTNAME)' program"
 ifeq ($(RUN_OPTIONS),)
-	$(VERB) cat $(STDIN_FILENAME) | $(CPUTRACK) $(EVENTS_DC_RD) -o $@.dcrd $<
+	$(VERB) cat $(STDIN_FILENAME) | $(CPUTRACK) $(EVENTS_DC_RD)   -o $@.dcrd $<
+	$(VERB) cat $(STDIN_FILENAME) | $(CPUTRACK) $(EVENTS_EC_MISS) -o $@.ec $<
+	$(VERB) cat $(STDIN_FILENAME) | $(CPUTRACK) $(EVENTS_WC)      -o $@.wc $<
 else
-	$(VERB) cat $(STDIN_FILENAME) | $(CPUTRACK) $(EVENTS_DC_RD) -o $@.dcrd $< $(RUN_OPTIONS)
+	$(VERB) cat $(STDIN_FILENAME) | $(CPUTRACK) $(EVENTS_DC_RD)   -o $@.dcrd $< $(RUN_OPTIONS)
+	$(VERB) cat $(STDIN_FILENAME) | $(CPUTRACK) $(EVENTS_EC_MISS) -o $@.ec $< $(RUN_OPTIONS)
+	$(VERB) cat $(STDIN_FILENAME) | $(CPUTRACK) $(EVENTS_WC)      -o $@.wc $< $(RUN_OPTIONS)
 endif
 	$(VERB) cat $@.dcrd | tail -1 | awk '{print $$4}' > $@.dcrd.total
 	$(VERB) cat $@.dcrd | tail -1 | awk '{print $$5}' > $@.dcrd.misses
+	$(VERB) cat $@.ec   | tail -1 | awk '{print $$4}' > $@.ec.rdmiss
+	$(VERB) cat $@.ec   | tail -1 | awk '{print $$5}' > $@.ec.allmiss
+	$(VERB) cat $@.wc   | tail -1 | awk '{print $$5}' > $@.wc.miss
 
 #
 # Generate events for CBE
@@ -67,11 +74,18 @@ Output/test.$(TEST).%: Output/%.cbe
 	@echo "Running '$(TEST)' test on '$(TESTNAME)' program"
 ifeq ($(RUN_OPTIONS),)
 	$(VERB) cat $(STDIN_FILENAME) | $(CPUTRACK) $(EVENTS_DC_RD) -o $@.dcrd $<
+	$(VERB) cat $(STDIN_FILENAME) | $(CPUTRACK) $(EVENTS_EC_MISS) -o $@.ec $<
+	$(VERB) cat $(STDIN_FILENAME) | $(CPUTRACK) $(EVENTS_WC)      -o $@.wc $<
 else
 	$(VERB) cat $(STDIN_FILENAME) | $(CPUTRACK) $(EVENTS_DC_RD) -o $@.dcrd $< $(RUN_OPTIONS)
+	$(VERB) cat $(STDIN_FILENAME) | $(CPUTRACK) $(EVENTS_EC_MISS) -o $@.ec $< $(RUN_OPTIONS)
+	$(VERB) cat $(STDIN_FILENAME) | $(CPUTRACK) $(EVENTS_WC)      -o $@.wc $< $(RUN_OPTIONS)
 endif
 	$(VERB) cat $@.dcrd | tail -1 | awk '{print $$4}' > $@.dcrd.total
 	$(VERB) cat $@.dcrd | tail -1 | awk '{print $$5}' > $@.dcrd.misses
+	$(VERB) cat $@.ec   | tail -1 | awk '{print $$4}' > $@.ec.rdmiss
+	$(VERB) cat $@.ec   | tail -1 | awk '{print $$5}' > $@.ec.allmiss
+	$(VERB) cat $@.wc   | tail -1 | awk '{print $$5}' > $@.wc.miss
 
 $(PROGRAMS_TO_TEST:%=Output/%.$(TEST).report.txt): \
 Output/%.$(TEST).report.txt: Output/test.$(TEST).pa.% Output/test.$(TEST).%
@@ -79,6 +93,12 @@ Output/%.$(TEST).report.txt: Output/test.$(TEST).pa.% Output/test.$(TEST).%
 	@printf "CBE-PA-L1-Data-Misses: %d\n" `cat Output/test.$(TEST).pa.$*.dcrd.misses` >> $@
 	@printf "CBE-L1-Data-Reads: %d\n" `cat Output/test.$(TEST).$*.dcrd.total` >> $@
 	@printf "CBE-L1-Data-Misses: %d\n" `cat Output/test.$(TEST).$*.dcrd.misses` >> $@
+	@printf "CBE-PA-L2-Data-Read-Misses: %d\n" `cat Output/test.$(TEST).pa.$*.ec.rdmiss` >> $@
+	@printf "CBE-PA-L2-Data-Misses: %d\n" `cat Output/test.$(TEST).pa.$*.ec.allmiss` >> $@
+	@printf "CBE-L2-Data-Read-Misses: %d\n" `cat Output/test.$(TEST).$*.ec.rdmiss` >> $@
+	@printf "CBE-L2-Data-Misses: %d\n" `cat Output/test.$(TEST).$*.ec.allmiss` >> $@
+	@printf "CBE-PA-WriteCache-Misses: %d\n" `cat Output/test.$(TEST).pa.$*.wc.miss` >> $@
+	@printf "CBE-WriteCache-Misses: %d\n" `cat Output/test.$(TEST).$*.wc.miss` >> $@
 	@touch $@
 
 $(PROGRAMS_TO_TEST:%=test.$(TEST).%): \
