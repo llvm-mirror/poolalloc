@@ -84,7 +84,7 @@ my $PTRDIST   = 'MultiSource/Benchmarks/Ptrdist';
  ["NormalSum",     \&Sum],
  ["PoolAllocUser", 'CBE-RUN-TIME-POOLALLOC-USER: user\s*([.0-9m:]+)', \&FormatTime],
  ["PoolAllocSys", 'CBE-RUN-TIME-POOLALLOC-SYS: sys\s*([.0-9m:]+)', \&FormatTime],
- ["NormalSum",     \&Sum],
+ ["PoolAllocSum",     \&Sum],
  ["Speedup", \&Ratio],
  ["NumPools",             '([0-9]+).*Number of pools allocated'],
  ["NumTSPools",           '([0-9]+).*Number of typesafe pools'],
