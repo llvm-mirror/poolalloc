@@ -50,6 +50,11 @@ namespace {
     Function *PoolInitPC, *PoolDestroyPC, *PoolAllocPC, *PoolFreePC;
     typedef std::map<const DSNode*, CompressedPoolInfo> PoolInfoMap;
 
+    /// ClonedFunctionMap - Every time we clone a function to compress its
+    /// arguments, keep track of the clone and which arguments are compressed.
+    std::map<std::pair<Function*, std::vector<unsigned> >,
+             Function *> ClonedFunctionMap;
+
     bool runOnModule(Module &M);
     void getAnalysisUsage(AnalysisUsage &AU) const;
 
@@ -158,7 +163,7 @@ void CompressedPoolInfo::dump() const {
 
 void PointerCompress::getAnalysisUsage(AnalysisUsage &AU) const {
   // Need information about how pool allocation happened.
-  AU.addRequired<PoolAllocate>();
+  AU.addRequired<PoolAllocatePassAllPools>();
 
   // Need information from DSA.
   AU.addRequired<PA::EquivClassGraphs>();
@@ -211,13 +216,12 @@ void PointerCompress::FindPoolsToCompress(std::vector<const DSNode*> &Pools,
                                           Function &F, DSGraph &DSG,
                                           PA::FuncInfo *FI) {
   hash_set<const DSNode*> ReachableFromCalls;
-  
+
   // If a data structure is passed into a call, we currently cannot handle it!
   for (DSGraph::fc_iterator I = DSG.fc_begin(), E = DSG.fc_end(); I != E; ++I) {
     //DEBUG(std::cerr << " CALLS: " << I->getCalleeFunc()->getName() << "\n");
     I->markReachableNodes(ReachableFromCalls);
   }
-  
   DEBUG(std::cerr << "In function '" << F.getName() << "':\n");
   for (unsigned i = 0, e = FI->NodesToPA.size(); i != e; ++i) {
     const DSNode *N = FI->NodesToPA[i];
@@ -289,7 +293,8 @@ namespace {
     /// getNodeIfCompressed - If the specified value is a pointer that will be
     /// compressed, return the DSNode corresponding to the pool it belongs to.
     const DSNode *getNodeIfCompressed(Value *V) {
-      if (!isa<PointerType>(V->getType()) || isa<ConstantPointerNull>(V))
+      if (!isa<PointerType>(V->getType()) || isa<ConstantPointerNull>(V) ||
+          isa<Function>(V))
         return false;
       DSNode *N = DSG.getNodeForValue(V).getNode();
       return PoolInfo.count(N) ? N : 0;
@@ -336,8 +341,6 @@ namespace {
     void visitCallInst(CallInst &CI);
     void visitPoolInit(CallInst &CI);
     void visitPoolDestroy(CallInst &CI);
-    void visitPoolAlloc(CallInst &CI);
-    void visitPoolFree(CallInst &CI);
 
     void visitInstruction(Instruction &I) {
 #ifndef NDEBUG
@@ -544,6 +547,8 @@ void InstructionRewriter::visitPoolInit(CallInst &CI) {
 
   std::vector<Value*> Ops;
   Ops.push_back(CI.getOperand(1));
+  // Transform to pass in the orig and compressed sizes.
+  Ops.push_back(CI.getOperand(2));
   Ops.push_back(ConstantUInt::get(Type::UIntTy, PI->getNewSize()));
   Ops.push_back(CI.getOperand(3));
   // TODO: Compression could reduce the alignment restriction for the pool!
@@ -563,47 +568,61 @@ void InstructionRewriter::visitPoolDestroy(CallInst &CI) {
   CI.eraseFromParent();
 }
 
-void InstructionRewriter::visitPoolAlloc(CallInst &CI) {
-  // Transform to poolalloc_pc if necessary.
-  const CompressedPoolInfo *PI = getPoolInfo(&CI);
-  if (PI == 0) return;  // Not a compressed pool!
-
-  std::vector<Value*> Ops;
-  Ops.push_back(CI.getOperand(1));
-  Ops.push_back(ConstantUInt::get(Type::UIntTy, PI->getNewSize()));
-  Value *New = new CallInst(PtrComp.PoolAllocPC, Ops, CI.getName(), &CI);
-  setTransformedValue(CI, New);
-}
-
-void InstructionRewriter::visitPoolFree(CallInst &CI) {
-  // Transform to poolfree_pc if the pool is compressed.
-  const CompressedPoolInfo *PI = getPoolInfo(CI.getOperand(2));
-  if (PI == 0) return;  // Not a free to a compressed pool.
-
-  std::vector<Value*> Ops;
-  Ops.push_back(CI.getOperand(1));
-  Ops.push_back(getTransformedValue(CI.getOperand(2)));
-  new CallInst(PtrComp.PoolFreePC, Ops, "", &CI);
-  CI.eraseFromParent();
-}
-
 void InstructionRewriter::visitCallInst(CallInst &CI) {
   if (Function *F = CI.getCalledFunction())
+    // These functions are handled specially.
     if (F->getName() == "poolinit") {
       visitPoolInit(CI);
       return;
     } else if (F->getName() == "pooldestroy") {
       visitPoolDestroy(CI);
       return;
-    } else if (F->getName() == "poolalloc") {
-      visitPoolAlloc(CI);
-      return;
-    } else if (F->getName() == "poolfree") {
-      visitPoolFree(CI);
-      return;
     }
   
-  visitInstruction(CI);
+  // Normal function call: check to see if this call produces or uses a pointer
+  // into a compressed pool.  If so, we will need to transform the callee or use
+  // a previously transformed version.  For these purposes, we treat the return
+  // value as "operand #0".
+  std::vector<unsigned> OpsToCompress;
+
+  // Do we need to compress the return value?
+  if (isa<PointerType>(CI.getType()) && getNodeIfCompressed(&CI))
+    OpsToCompress.push_back(0);
+
+  // Check to see if we need to compress any arguments.
+  for (unsigned i = 1, e = CI.getNumOperands(); i != e; ++i)
+    if (isa<PointerType>(CI.getOperand(i)->getType()) &&
+        getNodeIfCompressed(CI.getOperand(i)))
+      OpsToCompress.push_back(i);
+
+  // If this function doesn't require compression, there is nothing to do!
+  if (OpsToCompress.empty()) return;
+  Function *Callee = CI.getCalledFunction();
+  assert(Callee && "Indirect calls not implemented yet!");
+  
+  // Check to see if we have already compressed this function, if so, there is
+  // no need to make another clone.
+  Function *Clone = PtrComp.ClonedFunctionMap[std::make_pair(Callee,
+                                                             OpsToCompress)];
+  if (Clone == 0) { 
+    visitInstruction(CI);
+    return;
+  }
+
+  // Okay, we now have our clone: rewrite the call instruction.
+  std::vector<Value*> Operands;
+  Operands.reserve(CI.getNumOperands()-1);
+  for (unsigned i = 1, e = CI.getNumOperands(); i != e; ++i)
+    if (isa<PointerType>(CI.getOperand(i)->getType()) &&
+        getNodeIfCompressed(CI.getOperand(i)))
+      Operands.push_back(getTransformedValue(CI.getOperand(i)));
+    else
+      Operands.push_back(CI.getOperand(i));
+  Value *NC = new CallInst(Clone, Operands, CI.getName(), &CI);
+  if (OpsToCompress[0] == 0)      // Compressing return value?
+    setTransformedValue(CI, NC);
+  else
+    CI.eraseFromParent();
 }
 
 
@@ -673,7 +692,7 @@ void PointerCompress::InitializePoolLibraryFunctions(Module &M) {
 
   PoolInitPC = M.getOrInsertFunction("poolinit_pc", Type::VoidTy,
                                      PoolDescPtrTy, Type::UIntTy,
-                                     Type::UIntTy, 0);
+                                     Type::UIntTy, Type::UIntTy, 0);
   PoolDestroyPC = M.getOrInsertFunction("pooldestroy_pc", Type::VoidTy,
                                         PoolDescPtrTy, 0);
   PoolAllocPC = M.getOrInsertFunction("poolalloc_pc",  UINTTYPE,
@@ -681,10 +700,19 @@ void PointerCompress::InitializePoolLibraryFunctions(Module &M) {
   PoolFreePC = M.getOrInsertFunction("poolfree_pc",  Type::VoidTy,
                                       PoolDescPtrTy, UINTTYPE, 0);
   // FIXME: Need bumppointer versions as well as realloc??/memalign??
-}  
+
+  // PoolAllocPC/PoolFreePC can be handled just like any other compressed
+  // functions.
+  std::vector<unsigned> Ops;
+  Ops.push_back(0);   // poolalloc -> compress return value.
+  ClonedFunctionMap[std::make_pair(PoolAlloc->PoolAlloc, Ops)] = PoolAllocPC;
+
+  Ops[0] = 2;         // Pool free -> compress second argument.
+  ClonedFunctionMap[std::make_pair(PoolAlloc->PoolFree, Ops)] = PoolFreePC;
+}
 
 bool PointerCompress::runOnModule(Module &M) {
-  PoolAlloc = &getAnalysis<PoolAllocate>();
+  PoolAlloc = &getAnalysis<PoolAllocatePassAllPools>();
   ECG = &getAnalysis<PA::EquivClassGraphs>();
   
   if (SmallIntCompress)
@@ -702,5 +730,6 @@ bool PointerCompress::runOnModule(Module &M) {
   for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I)
     Changed |= CompressPoolsInFunction(*I);
 
+  ClonedFunctionMap.clear();
   return Changed;
 }
