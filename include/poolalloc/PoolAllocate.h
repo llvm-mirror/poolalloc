@@ -20,13 +20,15 @@
 
 namespace llvm {
 
-class CompleteBUDataStructures;
 class DSNode;
 class DSGraph;
 class Type;
 class AllocaInst;
 
 namespace PA {
+
+  class EquivClassGraphs;
+
   /// FuncInfo - Represent the pool allocation information for one function in
   /// the program.  Note that many functions must actually be cloned in order
   /// for pool allocation to add arguments to the function signature.  In this
@@ -71,27 +73,7 @@ namespace PA {
     std::map<Value*, const Value*> NewToOldValueMap;
   };
 
-  struct EquivClassInfo {
-    // FuncsInClass - This is a list of all of the functions in this equiv
-    // class.
-    std::vector<Function*> FuncsInClass;
-
-    // G - The DSGraph which contains a union of all of the nodes in this
-    // equivalence class.
-    DSGraph *G;
-
-    // ECGraphToPrivateMap - This map, given a DSNode in the ECI DSGraph and a
-    // function, will tell you which DS node in the function DS graph this node
-    // corresponds to (or null if none).
-    std::map<std::pair<Function*,DSNode*>, DSNode*> ECGraphToPrivateMap;
-
-    // ArgNodes - The list of DSNodes which require arguments to be passed in
-    // for all members of this equivalence class.
-    std::vector<DSNode*> ArgNodes;
-
-    EquivClassInfo() : G(0) {}
-  };
-}
+}; // end PA namespace
 
 
 
@@ -99,41 +81,26 @@ namespace PA {
 ///
 class PoolAllocate : public Pass {
   Module *CurModule;
-  CompleteBUDataStructures *BU;
+  PA::EquivClassGraphs *ECGraphs;
 
   std::map<Function*, PA::FuncInfo> FunctionInfo;
-
-  // Equivalence class where functions that can potentially be called via the
-  // same function pointer are in the same class.
-  EquivalenceClasses<Function*> FuncECs;
-
-  // Each equivalence class leader has an EquivClassInfo object.  This map holds
-  // them.
-  typedef std::map<Function*, PA::EquivClassInfo> ECInfoForLeadersMapTy;
-  ECInfoForLeadersMapTy ECInfoForLeadersMap;
-
-  /// OneCalledFunction - For each indirect function call, we keep track of one
-  /// target of the call.  This is used to find the equivalence class called by
-  /// a call site.
-  std::map<DSNode*, Function *> OneCalledFunction;
 
  public:
 
   Function *PoolInit, *PoolDestroy, *PoolAlloc, *PoolAllocArray, *PoolFree;
   static const Type *PoolDescPtrTy;
 
-  const PA::EquivClassInfo &getECIForIndirectCallSite(CallSite CS);
-
   /// GlobalNodes - For each node (with an H marker) in the globals graph, this
   /// map contains the global variable that holds the pool descriptor for the
   /// node.
   std::map<DSNode*, Value*> GlobalNodes;
+
  public:
   bool run(Module &M);
   
   virtual void getAnalysisUsage(AnalysisUsage &AU) const;
   
-  CompleteBUDataStructures &getBUDataStructures() const { return *BU; }
+  PA::EquivClassGraphs &getECGraphs() const { return *ECGraphs; }
   
   //Dinakar to get function info for all (cloned functions) 
   PA::FuncInfo *getFunctionInfo(Function *F) {
