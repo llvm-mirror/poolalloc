@@ -18,7 +18,10 @@ VTL := /opt/intel/vtune/bin/vtl
 #
 P4_EVENTS := -ec
 P4_EVENTS += en='2nd Level Cache Read Misses':sa=5000
-#P4_EVENTS += en='2nd-Level Cache Read References'
+P4_EVENTS += -ec
+P4_EVENTS += en='2nd-Level Cache Read References'
+#P4_EVENTS += -ec
+#P4_EVENTS += en='3rd-Level Cache Read Misses':sa=5000
 #P4_EVENTS += en='1st Level Cache Load Misses Retired'
 P3_EVENTS := -ec en='L2 Cache Request Misses (highly correlated)'
 
@@ -33,19 +36,19 @@ EVENTS := $(P4_EVENTS)
 ifeq ($(EVENTS),$(P4_EVENTS))
 $(PROGRAMS_TO_TEST:%=Output/$(TEST).L2cachemisses.%): \
 Output/$(TEST).L2cachemisses.%: Output/test.$(TEST).%
-	grep "Output/$*.cbe" $< | grep "Cache Read Misses" | awk '{print $$(NF-1)}' > $@
+	grep "Output/$*.cbe" $< | grep "Cache Read Misses" | grep "2nd" | awk '{print $$(NF-1)}' > $@
 
 $(PROGRAMS_TO_TEST:%=Output/$(TEST).L2cachemisses.pa.%): \
 Output/$(TEST).L2cachemisses.pa.%: Output/test.$(TEST).pa.%
-	grep "Output/$*.poolalloc.cbe" $< | grep "Cache Read Misses" | awk '{print $$(NF-1)}' > $@
+	grep "Output/$*.poolalloc.cbe" $< | grep "Cache Read Misses" | grep "2nd" | awk '{print $$(NF-1)}' > $@
 
 $(PROGRAMS_TO_TEST:%=Output/$(TEST).L2cacherefs.%): \
 Output/$(TEST).L2cacherefs.%: Output/test.$(TEST).%
-	grep "Output/$*.cbe" $< | grep "Cache Read References" | awk '{print $$(NF-1)}' > $@
+	grep "Output/$*.cbe" $< | grep "Cache Read References" | grep "2nd" | awk '{print $$(NF-1)}' > $@
 
 $(PROGRAMS_TO_TEST:%=Output/$(TEST).L2cacherefs.pa.%): \
 Output/$(TEST).L2cacherefs.pa.%: Output/test.$(TEST).pa.%
-	grep "Output/$*.poolalloc.cbe" $< | grep "Cache Read References" | awk '{print $$(NF-1)}' > $@
+	grep "Output/$*.poolalloc.cbe" $< | grep "Cache Read References" | grep "2nd" | awk '{print $$(NF-1)}' > $@
 endif
 
 # Pentium 3 Events
@@ -98,10 +101,10 @@ Output/%.$(TEST).report.txt: $(PROGRAMS_TO_TEST:%=Output/$(TEST).L2cachemisses.%
                      $(PROGRAMS_TO_TEST:%=Output/$(TEST).L2cacherefs.%)       \
                      $(PROGRAMS_TO_TEST:%=Output/$(TEST).L2cacherefs.pa.%)
 	@echo > $@
-	@echo CBE-PA-L2-Misses `cat Output/$(TEST).L2cachemisses.pa.$*`
-	@echo CBE-PA-L2-Refs   `cat Output/$(TEST).L2cacherefs.pa.$*`
-	@echo CBE-L2-Misses    `cat Output/$(TEST).L2cachemisses.$*`
-	@echo CBE-L2-Refs      `cat Output/$(TEST).L2cacherefs.$*`
+	@echo "CBE-PA-L2-Misses:" `cat Output/$(TEST).L2cachemisses.pa.$*` >> $@
+	@echo "CBE-PA-L2-Refs:" `cat Output/$(TEST).L2cacherefs.pa.$*` >> $@
+	@echo "CBE-L2-Misses:" `cat Output/$(TEST).L2cachemisses.$*` >> $@
+	@echo "CBE-L2-Refs:" `cat Output/$(TEST).L2cacherefs.$*` >> $@
 
 
 $(PROGRAMS_TO_TEST:%=test.$(TEST).%): \
