@@ -1,0 +1,72 @@
+Welcome to the Pre-Release of the Automatic Pool Allocator!
+
+LICENSE:
+========
+Before using the Automatic Pool Allocator, you should read the pre-release
+license in LICENSE.TXT.
+
+BUILDING:
+=========
+To build the Automatic Pool Allocator, you will need to have installed and
+compiled LLVM.
+
+Once that is done, you can build the Automatic Pool Allocator using the
+following steps:
+
+	1. Run the configure script to tell the build system LLVM has been
+	   installed.  Use the --with-llvmsrc=<dir> option to specify the
+	   location of the LLVM source code, and use the --with-llvmobj=<dir>
+	   option to specify the location of the LLVM object code.
+
+	   For example, if the user joe with home directory of /usr/home/joe
+	   has the LLVM source in /usr/home/joe/llvm, and it was configured
+	   with ./configure --with-objroot=/tmp, then the Automatic Pool
+	   Allocator should be configured with:
+
+	   > ./configure --with-llvmsrc=/usr/home/joe/llvm \
+	                 --with-llvmobj=/tmp/llvm
+
+	2. Using GNU Make (sometimes called gmake), type "make" to build the
+	   Automatic Pool Allocator:
+
+	   > make
+
+	3. To install the pool allocator bytecode libraries into the C front
+	   end, use make with the install target:
+
+	   > make install
+
+USING THE POOL ALLOCATOR:
+=========================
+
+To use the Automatic Pool Allocator optimization pass, you will need to
+explicitly load it into the opt program:
+
+	> opt -load <path to pool allocator> -poolalloc <other opt options>
+
+To link and run programs with the pool allocator, you will need to have the
+poolalloc bytecode library in your LLVM_LIB_SEARCH_PATH.  If you have followed
+the directions in the "Getting Started Guide" for LLVM, your
+LLVM_LIB_SEARCH_PATH environment variable already points to the C front end's
+directory of bytecode libraries.  Just use the install target (mentioned above)
+of make to install the poolalloc library into that directory.
+
+To link a bytecode file once it has been optimized, you can do the following:
+
+	> llvmgcc -o <output file> <optimized bytecode file> -lpoolalloc
+
+...where llvmgcc is an alias to the GCC C front end.
+
+This will generate a bytecode file that can be executed.
+
+BUGS:
+=====
+Please see our website for information on how to report bugs
+(http://llvm.cs.uiuc.edu/docs/HowToSubmitABug.html).
+
+LLVM DEVELOPER'S MAILING LIST
+=============================
+The LLVM Developer's Mailing List provides announcements and general discussion
+about LLVM.  The list is low volume.  You can subscribe to it at
+http://mail.cs.uiuc.edu/mailman/listinfo/llvmdev.
+
