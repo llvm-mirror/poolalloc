@@ -32,9 +32,8 @@ extern "C" {
   void poolinit(PoolTy *Pool, unsigned NodeSize);
   void poolmakeunfreeable(PoolTy *Pool);
   void pooldestroy(PoolTy *Pool);
-  void *poolalloc(PoolTy *Pool);
+  void *poolalloc(PoolTy *Pool, unsigned NumBytes);
   void poolfree(PoolTy *Pool, void *Node);
-  void* poolallocarray(PoolTy* Pool, unsigned Size);
 }
 
 #endif

@@ -161,7 +161,7 @@ public:
   int containsElement(void *Ptr, unsigned ElementSize) const;
 
   // freeElement - Free the single node, small array, or entire array indicated.
-  void freeElement(unsigned ElementIdx);
+  void freeElement(unsigned short ElementIdx);
   
   // lastNodeAllocated - Return one past the last node in the pool which is
   // before ScanIdx, that is allocated.  If there are no allocated nodes in this
@@ -345,7 +345,7 @@ int PoolSlab::containsElement(void *Ptr, unsigned ElementSize) const {
 
 
 // freeElement - Free the single node, small array, or entire array indicated.
-void PoolSlab::freeElement(unsigned ElementIdx) {
+void PoolSlab::freeElement(unsigned short ElementIdx) {
   assert(isNodeAllocated(ElementIdx) &&
          "poolfree: Attempt to free node that is already freed\n");
 
@@ -369,10 +369,10 @@ void PoolSlab::freeElement(unsigned ElementIdx) {
   markNodeFree(ElementIdx);
   
   // Free all nodes if this was a small array allocation.
-  unsigned ElementEndIdx = ElementIdx + 1;
+  unsigned short ElementEndIdx = ElementIdx + 1;
 
   // FIXME: This should use manual strength reduction to produce decent code.
-  unsigned UE = UsedEnd;
+  unsigned short UE = UsedEnd;
   while (ElementEndIdx != UE &&
          !isStartOfAllocation(ElementEndIdx) && 
          isNodeAllocated(ElementEndIdx)) {
@@ -514,53 +514,11 @@ void pooldestroy(PoolTy *Pool) {
   }
 }
 
-void *poolalloc(PoolTy *Pool) {
-  assert(Pool && "Null pool pointer passed in to poolalloc!\n");
 
-  PoolSlab *PS = (PoolSlab*)Pool->Ptr1;
-
-  if (__builtin_expect(PS != 0, 1)) {
-    int Element = PS->allocateSingle();
-    if (__builtin_expect(Element != -1, 1)) {
-      // We allocated an element.  Check to see if this slab has been
-      // completely filled up.  If so, move it to the Ptr2 list.
-      if (__builtin_expect(PS->isFull(), false)) {
-        PS->unlinkFromList();
-        PS->addToList((PoolSlab**)&Pool->Ptr2);
-      }
-      
-      return PS->getElementAddress(Element, Pool->NodeSize);
-    }
-
-    // Loop through all of the slabs looking for one with an opening
-    for (PS = PS->Next; PS; PS = PS->Next) {
-      int Element = PS->allocateSingle();
-      if (Element != -1) {
-        // We allocated an element.  Check to see if this slab has been
-        // completely filled up.  If so, move it to the Ptr2 list.
-        if (PS->isFull()) {
-          PS->unlinkFromList();
-          PS->addToList((PoolSlab**)&Pool->Ptr2);
-        }
-        
-        return PS->getElementAddress(Element, Pool->NodeSize);
-      }
-    }
-  }
-
-  // Otherwise we must allocate a new slab and add it to the list
-  PoolSlab *New = PoolSlab::create(Pool);
-  int Idx = New->allocateSingle();
-  assert(Idx == 0 && "New allocation didn't return zero'th node?");
-  return New->getElementAddress(0, 0);
-}
-
-void *poolallocarray(PoolTy* Pool, unsigned Size) {
+// poolallocarray - a helper function used to implement poolalloc, when the
+// number of nodes to allocate is not 1.
+static void *poolallocarray(PoolTy* Pool, unsigned Size) {
   assert(Pool && "Null pool pointer passed into poolallocarray!\n");
-
-  // Special case size=1, because poolalloc is much faster than this function.
-  if (Size == 1 || Size == 0)
-    return poolalloc(Pool);
   if (Size > PoolSlab::getSlabSize(Pool))
     return PoolSlab::createSingleArray(Pool, Size);    
 
@@ -585,6 +543,56 @@ void *poolallocarray(PoolTy* Pool, unsigned Size) {
   assert(Idx == 0 && "New allocation didn't return zero'th node?");
   return New->getElementAddress(0, 0);
 }
+
+void *poolalloc(PoolTy *Pool, unsigned NumBytes) {
+  assert(Pool && "Null pool pointer passed in to poolalloc!\n");
+
+  unsigned NodeSize = Pool->NodeSize;
+  unsigned NodesToAllocate = (NumBytes+NodeSize-1)/NodeSize;
+  if (NodesToAllocate > 1)
+    return poolallocarray(Pool, NodesToAllocate);
+
+  // Special case the most common situation, where a single node is being
+  // allocated.
+  PoolSlab *PS = (PoolSlab*)Pool->Ptr1;
+
+  if (__builtin_expect(PS != 0, 1)) {
+    int Element = PS->allocateSingle();
+    if (__builtin_expect(Element != -1, 1)) {
+      // We allocated an element.  Check to see if this slab has been
+      // completely filled up.  If so, move it to the Ptr2 list.
+      if (__builtin_expect(PS->isFull(), false)) {
+        PS->unlinkFromList();
+        PS->addToList((PoolSlab**)&Pool->Ptr2);
+      }
+      
+      return PS->getElementAddress(Element, NodeSize);
+    }
+
+    // Loop through all of the slabs looking for one with an opening
+    for (PS = PS->Next; PS; PS = PS->Next) {
+      int Element = PS->allocateSingle();
+      if (Element != -1) {
+        // We allocated an element.  Check to see if this slab has been
+        // completely filled up.  If so, move it to the Ptr2 list.
+        if (PS->isFull()) {
+          PS->unlinkFromList();
+          PS->addToList((PoolSlab**)&Pool->Ptr2);
+        }
+        
+        return PS->getElementAddress(Element, NodeSize);
+      }
+    }
+  }
+
+  // Otherwise we must allocate a new slab and add it to the list
+  PoolSlab *New = PoolSlab::create(Pool);
+  int Idx = New->allocateSingle();
+  assert(Idx == 0 && "New allocation didn't return zero'th node?");
+  return New->getElementAddress(0, 0);
+}
+
+
 
 // SearchForContainingSlab - Do a brute force search through the list of
 // allocated slabs for the node in question.
