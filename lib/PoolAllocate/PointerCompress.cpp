@@ -939,7 +939,10 @@ GetFunctionClone(Function *F, const std::vector<unsigned> &OpsToCompress) {
   std::cerr << " CLONING FUNCTION: " << F->getName() << " -> "
             << Clone->getName() << "\n";
 
-  if (F->isExternal()) return Clone;
+  if (F->isExternal()) {
+    Clone->setLinkage(GlobalValue::ExternalLinkage);
+    return Clone;
+  }
 
   std::map<const Value*, Value*> ValueMap;
 
