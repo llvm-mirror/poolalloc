@@ -24,13 +24,14 @@
 #include "llvm/Transforms/Utils/Cloning.h"
 using namespace llvm;
 
-/// UINTTYPE - This is the actual type we are compressing to.  This is really
+/// MEMUINTTYPE - This is the actual type we are compressing to.  This is really
 /// only capable of being UIntTy, except when we are doing tests for 16-bit
 /// integers, when it's UShortTy.
-static const Type *UINTTYPE;
+static const Type *MEMUINTTYPE;
 
-/// FIXME: We should keep scalars the same size as the machine word on the
-/// system (e.g. 64-bits), only keeping memory objects in UINTTYPE.
+/// SCALARUINTTYPE - We keep scalars the same size as the machine word on the
+/// system (e.g. 64-bits), only keeping memory objects in MEMUINTTYPE.
+static const Type *SCALARUINTTYPE;
 
 namespace {
   cl::opt<bool>
@@ -184,7 +185,7 @@ ComputeCompressedType(const Type *OrigTy, unsigned NodeOffset,
                       std::map<const DSNode*, CompressedPoolInfo> &Nodes) {
   if (const PointerType *PTY = dyn_cast<PointerType>(OrigTy)) {
     // FIXME: check to see if this pointer is actually compressed!
-    return UINTTYPE;
+    return MEMUINTTYPE;
   } else if (OrigTy->isFirstClassType())
     return OrigTy;
 
@@ -336,13 +337,13 @@ namespace {
     /// value, creating a new forward ref value as needed.
     Value *getTransformedValue(Value *V) {
       if (isa<ConstantPointerNull>(V))                // null -> uint 0
-        return Constant::getNullValue(UINTTYPE);
+        return Constant::getNullValue(SCALARUINTTYPE);
 
       assert(getNodeIfCompressed(V) && "Value is not compressed!");
       Value *&RV = OldToNewValueMap[V];
       if (RV) return RV;
 
-      RV = new Argument(UINTTYPE);
+      RV = new Argument(SCALARUINTTYPE);
       return RV;
     }
 
@@ -487,7 +488,7 @@ void InstructionRewriter::visitPHINode(PHINode &PN) {
   const CompressedPoolInfo *DestPI = getPoolInfo(&PN);
   if (DestPI == 0) return;
 
-  PHINode *New = new PHINode(UINTTYPE, PN.getName(), &PN);
+  PHINode *New = new PHINode(SCALARUINTTYPE, PN.getName(), &PN);
   New->reserveOperandSpace(PN.getNumIncomingValues());
 
   for (unsigned i = 0, e = PN.getNumIncomingValues(); i != e; ++i)
@@ -535,7 +536,7 @@ void InstructionRewriter::visitGetElementPtrInst(GetElementPtrInst &GEPI) {
   if (Field) {
     const StructType *NTy = cast<StructType>(PI->getNewType());
     uint64_t FieldOffs = TD.getStructLayout(NTy)->MemberOffsets[Field];
-    Constant *FieldOffsCst = ConstantUInt::get(UINTTYPE, FieldOffs);
+    Constant *FieldOffsCst = ConstantUInt::get(SCALARUINTTYPE, FieldOffs);
     Val = BinaryOperator::createAdd(Val, FieldOffsCst, GEPI.getName(), &GEPI);
   }
 
@@ -570,13 +571,17 @@ void InstructionRewriter::visitLoadInst(LoadInst &LI) {
     Ops[0] = new CastInst(Ops[0], Type::UIntTy, "extend_idx", &LI);
   Value *SrcPtr = new GetElementPtrInst(BasePtr, Ops,
                                         LI.getOperand(0)->getName()+".pp", &LI);
-  const Type *DestTy = LoadingCompressedPtr ? UINTTYPE : LI.getType();
+  const Type *DestTy = LoadingCompressedPtr ? MEMUINTTYPE : LI.getType();
   SrcPtr = new CastInst(SrcPtr, PointerType::get(DestTy),
                         SrcPtr->getName(), &LI);
   std::string OldName = LI.getName(); LI.setName("");
   Value *NewLoad = new LoadInst(SrcPtr, OldName, &LI);
 
   if (LoadingCompressedPtr) {
+    // Convert from MEMUINTTYPE to SCALARUINTTYPE if different.
+    if (MEMUINTTYPE != SCALARUINTTYPE)
+      NewLoad = new CastInst(NewLoad, SCALARUINTTYPE, NewLoad->getName(), &LI);
+
     setTransformedValue(LI, NewLoad);
   } else {
     LI.replaceAllUsesWith(NewLoad);
@@ -602,12 +607,17 @@ void InstructionRewriter::visitStoreInst(StoreInst &SI) {
   //
   Value *SrcVal = SI.getOperand(0);
   if (!isa<ConstantPointerNull>(SrcVal)) {
-    const CompressedPoolInfo *SrcPI = getPoolInfo(SrcVal);
-    if (SrcPI)     // If the stored value is compressed, get the xformed version
+    if (const CompressedPoolInfo *SrcPI = getPoolInfo(SrcVal)) {
+      // If the stored value is compressed, get the xformed version
       SrcVal = getTransformedValue(SrcVal);
+
+      // If SCALAR type is not the MEM type, reduce it now.
+      if (SrcVal->getType() != MEMUINTTYPE)
+        SrcVal = new CastInst(SrcVal, MEMUINTTYPE, SrcVal->getName(), &SI);
+    }
   } else {
-    // FIXME: This assumes that all pointers are compressed!
-    SrcVal = getTransformedValue(SrcVal);
+    // FIXME: This assumes that all null pointers are compressed!
+    SrcVal = Constant::getNullValue(MEMUINTTYPE);
   }
   
   // Get the pool base pointer.
@@ -838,14 +848,14 @@ GetFunctionClone(Function *F, const std::vector<unsigned> &OpsToCompress) {
   const Type *RetTy = FTy->getReturnType();
   unsigned OTCIdx = 0;
   if (OpsToCompress[0] == 0) {
-    RetTy = UINTTYPE;
+    RetTy = SCALARUINTTYPE;
     OTCIdx++;
   }
   std::vector<const Type*> ParamTypes;
   for (unsigned i = 0, e = FTy->getNumParams(); i != e; ++i)
     if (OTCIdx != OpsToCompress.size() && OpsToCompress[OTCIdx] == i+1) {
       assert(isa<PointerType>(FTy->getParamType(i)) && "Not a pointer?");
-      ParamTypes.push_back(UINTTYPE);
+      ParamTypes.push_back(SCALARUINTTYPE);
       ++OTCIdx;
     } else {
       ParamTypes.push_back(FTy->getParamType(i));
@@ -927,10 +937,10 @@ void PointerCompress::InitializePoolLibraryFunctions(Module &M) {
                                      Type::UIntTy, Type::UIntTy, 0);
   PoolDestroyPC = M.getOrInsertFunction("pooldestroy_pc", Type::VoidTy,
                                         PoolDescPtrTy, 0);
-  PoolAllocPC = M.getOrInsertFunction("poolalloc_pc",  UINTTYPE,
+  PoolAllocPC = M.getOrInsertFunction("poolalloc_pc",  SCALARUINTTYPE,
                                       PoolDescPtrTy, Type::UIntTy, 0);
   PoolFreePC = M.getOrInsertFunction("poolfree_pc",  Type::VoidTy,
-                                      PoolDescPtrTy, UINTTYPE, 0);
+                                      PoolDescPtrTy, SCALARUINTTYPE, 0);
   // FIXME: Need bumppointer versions as well as realloc??/memalign??
 
   // PoolAllocPC/PoolFreePC can be handled just like any other compressed
@@ -948,9 +958,12 @@ bool PointerCompress::runOnModule(Module &M) {
   ECG = &getAnalysis<PA::EquivClassGraphs>();
   
   if (SmallIntCompress)
-    UINTTYPE = Type::UShortTy;
+    MEMUINTTYPE = Type::UShortTy;
   else 
-    UINTTYPE = Type::UIntTy;
+    MEMUINTTYPE = Type::UIntTy;
+
+  // FIXME: make this IntPtrTy.
+  SCALARUINTTYPE = Type::ULongTy;
 
   // Create the function prototypes for pointer compress runtime library
   // functions.
