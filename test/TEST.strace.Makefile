@@ -1,4 +1,4 @@
-##===- poolalloc/TEST.stract.Makefile ----------------------*- Makefile -*-===##
+##===- poolalloc/TEST.strace.Makefile ----------------------*- Makefile -*-===##
 #
 # Makefile for measuring system call activity with strace
 #
@@ -6,7 +6,7 @@
 
 TESTNAME = $*
 CURDIR  := $(shell cd .; pwd)
-PROGDIR := $(shell cd $(LEVEL)/projects/llvm-test; pwd)/
+PROGDIR := $(shell cd $(LLVM_OBJ_ROOT)/projects/llvm-test; pwd)/
 RELDIR  := $(subst $(PROGDIR),,$(CURDIR))
 
 STRACE := strace -c -f
