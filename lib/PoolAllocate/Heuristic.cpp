@@ -92,6 +92,9 @@ static bool Wants8ByteAlignment(const Type *Ty, unsigned Offs,
 
 unsigned Heuristic::getRecommendedAlignment(const Type *Ty,
                                             const TargetData &TD) {
+  if (Ty == Type::VoidTy)  // Is this void or collapsed?
+    return 0;  // No known alignment, let runtime decide.
+
   return Wants8ByteAlignment(Ty, 0, TD);
 }
 
@@ -101,7 +104,7 @@ unsigned Heuristic::getRecommendedAlignment(const Type *Ty,
 unsigned Heuristic::getRecommendedAlignment(const DSNode *N) {
   if (N->getType() == Type::VoidTy)  // Is this void or collapsed?
     return 0;  // No known alignment, let runtime decide.
-  
+
   const TargetData &TD = N->getParentGraph()->getTargetData();
 
   // If there are no doubles on an 8-byte boundary in this structure, there is
