@@ -863,7 +863,7 @@ GetFunctionClone(Function *F, const std::vector<unsigned> &OpsToCompress) {
   FunctionType *CFTy = FunctionType::get(RetTy, ParamTypes, FTy->isVarArg());
 
   // Next, create the clone prototype and insert it into the module.
-  Clone = new Function(CFTy, GlobalValue::/*Internal*/ ExternalLinkage,
+  Clone = new Function(CFTy, GlobalValue::InternalLinkage,
                        F->getName()+".pc");
   F->getParent()->getFunctionList().insert(F, Clone);
 
