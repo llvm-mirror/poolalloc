@@ -50,12 +50,21 @@ $(PROGRAMS_TO_TEST:%=Output/$(TEST).L1Misses.pa.%): \
 Output/$(TEST).L1Misses.pa.%: Output/test.$(TEST).pa.%
 	$(VERB) grep 0x12000204 $< | awk '{print $$(NF)}' > $@
 
+$(PROGRAMS_TO_TEST:%=Output/$(TEST).L1Misses.allpa.%): \
+Output/$(TEST).L1Misses.allpa.%: Output/test.$(TEST).allpa.%
+	$(VERB) grep 0x12000204 $< | awk '{print $$(NF)}' > $@
+
+
 $(PROGRAMS_TO_TEST:%=Output/$(TEST).L2Misses.%): \
 Output/$(TEST).L2Misses.%: Output/test.$(TEST).%
 	$(VERB) grep 0x12002204 $< | awk '{print $$(NF)}' > $@
 
 $(PROGRAMS_TO_TEST:%=Output/$(TEST).L2Misses.pa.%): \
 Output/$(TEST).L2Misses.pa.%: Output/test.$(TEST).pa.%
+	$(VERB) grep 0x12002204 $< | awk '{print $$(NF)}' > $@
+
+$(PROGRAMS_TO_TEST:%=Output/$(TEST).L2Misses.allpa.%): \
+Output/$(TEST).L2Misses.allpa.%: Output/test.$(TEST).allpa.%
 	$(VERB) grep 0x12002204 $< | awk '{print $$(NF)}' > $@
 endif
 
@@ -71,7 +80,7 @@ ifndef PROGRAMS_HAVE_CUSTOM_RUN_RULES
 $(PROGRAMS_TO_TEST:%=Output/test.$(TEST).pa.%): \
 Output/test.$(TEST).pa.%: Output/%.poolalloc.cbe Output/test.$(TEST).%
 	@echo "========================================="
-	@echo "Running '$(TEST)' test on '$(TESTNAME)' program"
+	@echo "Running '$(TEST)' Default PA test on '$(TESTNAME)' program"
 ifeq ($(RUN_OPTIONS),)
 	$(VERB) cat $(STDIN_FILENAME) | $(PERFEX) -o $@.1 $(P4_L1_READ_MISS) $< > /dev/null
 	$(VERB) cat $(STDIN_FILENAME) | $(PERFEX) -o $@.2 $(P4_L2_READ_MISS) $< > /dev/null
@@ -81,13 +90,28 @@ else
 endif
 	@cat $@.1 $@.2 > $@
 
+
+$(PROGRAMS_TO_TEST:%=Output/test.$(TEST).allpa.%): \
+Output/test.$(TEST).allpa.%: Output/%.allnodes.cbe Output/test.$(TEST).%
+	@echo "========================================="
+	@echo "Running '$(TEST)' AllNodes PA test on '$(TESTNAME)' program"
+ifeq ($(RUN_OPTIONS),)
+	$(VERB) cat $(STDIN_FILENAME) | $(PERFEX) -o $@.1 $(P4_L1_READ_MISS) $< > /dev/null
+	$(VERB) cat $(STDIN_FILENAME) | $(PERFEX) -o $@.2 $(P4_L2_READ_MISS) $< > /dev/null
+else
+	$(VERB) cat $(STDIN_FILENAME) | $(PERFEX) -o $@.1 $(P4_L1_READ_MISS) $< $(RUN_OPTIONS) > /dev/null
+	$(VERB) cat $(STDIN_FILENAME) | $(PERFEX) -o $@.2 $(P4_L2_READ_MISS) $< $(RUN_OPTIONS) > /dev/null
+endif
+	@cat $@.1 $@.2 > $@
+
+
 #
 # Generate events for CBE
 #
 $(PROGRAMS_TO_TEST:%=Output/test.$(TEST).%): \
 Output/test.$(TEST).%: Output/%.nonpa.cbe
 	@echo "========================================="
-	@echo "Running '$(TEST)' test on '$(TESTNAME)' program"
+	@echo "Running '$(TEST)' No-PA test on '$(TESTNAME)' program"
 ifeq ($(RUN_OPTIONS),)
 	$(VERB) cat $(STDIN_FILENAME) | $(PERFEX) -o $@.1 $(P4_L1_READ_MISS) $< > /dev/null
 	$(VERB) cat $(STDIN_FILENAME) | $(PERFEX) -o $@.2 $(P4_L2_READ_MISS) $< > /dev/null
@@ -110,6 +134,19 @@ Output/test.$(TEST).pa.%: Output/%.poolalloc.cbe
              $(RUNSAFELY) $(STDIN_FILENAME) $(STDOUT_FILENAME) \
                   $(PERFEX) -o $@.1 $(P4_L1_READ_MISSES) ../../$< $(RUN_OPTIONS)
 	@cat $@.1 $@.2 > $@
+
+# This rule runs the generated executable, generating timing information, for
+# SPEC
+$(PROGRAMS_TO_TEST:%=Output/test.$(TEST).allpa.%): \
+Output/test.$(TEST).allpa.%: Output/%.allnodes.cbe
+	-$(SPEC_SANDBOX) allnodescbe-$(RUN_TYPE) /dev/null $(REF_IN_DIR) \
+             $(RUNSAFELY) $(STDIN_FILENAME) $(STDOUT_FILENAME) \
+                  $(PERFEX) -o $@.2 $(P4_L2_READ_MISSES) ../../$< $(RUN_OPTIONS)
+	-$(SPEC_SANDBOX) allnodescbe-$(RUN_TYPE) /dev/null $(REF_IN_DIR) \
+             $(RUNSAFELY) $(STDIN_FILENAME) $(STDOUT_FILENAME) \
+                  $(PERFEX) -o $@.1 $(P4_L1_READ_MISSES) ../../$< $(RUN_OPTIONS)
+	@cat $@.1 $@.2 > $@
+
 
 # This rule runs the generated executable, generating timing information, for
 # SPEC
@@ -154,13 +191,17 @@ $(PROGRAMS_TO_TEST:%=Output/%.$(TEST).report.txt): \
 Output/%.$(TEST).report.txt: \
                      $(PROGRAMS_TO_TEST:%=Output/$(TEST).L1Misses.%) \
                      $(PROGRAMS_TO_TEST:%=Output/$(TEST).L1Misses.pa.%) \
+                     $(PROGRAMS_TO_TEST:%=Output/$(TEST).L1Misses.allpa.%) \
                      $(PROGRAMS_TO_TEST:%=Output/$(TEST).L2Misses.%) \
-                     $(PROGRAMS_TO_TEST:%=Output/$(TEST).L2Misses.pa.%)
+                     $(PROGRAMS_TO_TEST:%=Output/$(TEST).L2Misses.pa.%) \
+                     $(PROGRAMS_TO_TEST:%=Output/$(TEST).L2Misses.allpa.%)
 	@echo "Program:" $* > $@
 	@echo "-------------------------------------------------------------" >> $@
 	@printf "CBE-PA-L1-Cache-Misses: %lld\n" `cat Output/$(TEST).L1Misses.pa.$*` >> $@
+	@printf "CBE-ALLPA-L1-Cache-Misses: %lld\n" `cat Output/$(TEST).L1Misses.allpa.$*` >> $@
 	@printf "CBE-L1-Cache-Misses: %lld\n" `cat Output/$(TEST).L1Misses.$*` >> $@
 	@printf "CBE-PA-L2-Cache-Misses: %lld\n" `cat Output/$(TEST).L2Misses.pa.$*` >> $@
+	@printf "CBE-ALLPA-L2-Cache-Misses: %lld\n" `cat Output/$(TEST).L2Misses.allpa.$*` >> $@
 	@printf "CBE-L2-Cache-Misses: %lld\n" `cat Output/$(TEST).L2Misses.$*` >> $@
 
 endif
@@ -172,3 +213,4 @@ test.$(TEST).%: Output/%.$(TEST).report.txt
 	@echo "---------------------------------------------------------------"
 	@cat $<
 
+REPORT_DEPENDENCIES := $(PROGRAMS_TO_TEST:%=Output/%.llvm.bc)
