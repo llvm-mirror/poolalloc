@@ -167,6 +167,14 @@ Output/%.$(TEST).report.txt: $(PROGRAMS_TO_TEST:%=Output/$(TEST).cacheaccesses.%
 	@printf "CBE-L1-Cache-Misses: %lld\n" `cat Output/$(TEST).L1Misses.$*` >> $@
 	@printf "CBE-PA-L2-Cache-Misses: %lld\n" `cat Output/$(TEST).L2Misses.pa.$*` >> $@
 	@printf "CBE-L2-Cache-Misses: %lld\n" `cat Output/$(TEST).L2Misses.$*` >> $@
+	@printf "CBE-RUN-TIME-NORMAL-USER: " >> $@
+	@grep "^user" Output/$*.nonpa.out-cbe.time >> $@
+	@printf "CBE-RUN-TIME-NORMAL-SYS: " >> $@
+	@grep "^sys" Output/$*.nonpa.out-cbe.time >> $@
+	@printf "CBE-RUN-TIME-POOLALLOC-USER: " >> $@
+	@grep "^user" Output/$*.poolalloc.out-cbe.time >> $@
+	@printf "CBE-RUN-TIME-POOLALLOC-SYS: " >> $@
+	@grep "^sys" Output/$*.poolalloc.out-cbe.time >> $@
 endif
 
 ifeq ($(EVENTS),$(P4_EVENTS))

@@ -12,17 +12,21 @@ LEVEL = ..
 include $(LEVEL)/Makefile.common
 
 LARGE_PROBLEM_SIZE_DIRS := \
-   MultiSource/Benchmarks/Olden \
-   MultiSource/Benchmarks/FreeBench/analyzer \
-   MultiSource/Benchmarks/llubenchmark
+   MultiSource/Benchmarks/llubenchmark \
+   MultiSource/Benchmarks/FreeBench \
+   MultiSource/Benchmarks/Ptrdist \
+   MultiSource/Benchmarks/MallocBench/cfrac \
+   SingleSource/Benchmarks/McGill
 
 LARGE_PROBLEM_SIZE_DIRS := \
    $(addprefix $(LLVM_OBJ_ROOT)/projects/llvm-test/,$(LARGE_PROBLEM_SIZE_DIRS))
 
 NORMAL_PROBLEM_SIZE_DIRS := \
-   MultiSource/Benchmarks/Ptrdist \
+   MultiSource/Benchmarks/SciMark2-C/scimark2 \
+   External/Povray \
+   External/FPGrowth \
+   External/Namd \
    External/SPEC/CINT2000
-   #MultiSource/Benchmarks/MallocBench/cfrac
 
 NORMAL_PROBLEM_SIZE_DIRS := \
    $(addprefix $(LLVM_OBJ_ROOT)/projects/llvm-test/,$(NORMAL_PROBLEM_SIZE_DIRS))
@@ -58,22 +62,22 @@ progperf::
 	for dir in $(LARGE_PROBLEM_SIZE_DIRS); do \
             (cd $$dir; \
                PROJECT_DIR=$(BUILD_OBJ_ROOT) $(MAKE) -j1 TEST=perf \
-                   LARGE_PROBLEM_SIZE=1 report.html) \
+                   LARGE_PROBLEM_SIZE=1 report.html report.csv) \
         done
 	for dir in $(NORMAL_PROBLEM_SIZE_DIRS); do \
 	    (cd $$dir; \
                PROJECT_DIR=$(BUILD_OBJ_ROOT) $(MAKE) -j1 TEST=perf \
-                   report.html) \
+                   report.html report.csv) \
         done
 	@for dir in $(LARGE_PROBLEM_SIZE_DIRS); do \
             (cd $$dir; \
                PROJECT_DIR=$(BUILD_OBJ_ROOT) $(MAKE) -s -j1 TEST=perf \
-                   LARGE_PROBLEM_SIZE=1 report) \
+                   LARGE_PROBLEM_SIZE=1 report report.csv) \
         done
 	@for dir in $(NORMAL_PROBLEM_SIZE_DIRS); do \
 	    (cd $$dir; \
                PROJECT_DIR=$(BUILD_OBJ_ROOT) $(MAKE) -s -j1 TEST=perf \
-                   report) \
+                   report report.csv) \
         done
 	@printf "\a"; sleep 1; printf "\a"; sleep 1; printf "\a"
 
@@ -81,22 +85,22 @@ progp4perf::
 	for dir in $(LARGE_PROBLEM_SIZE_DIRS); do \
             (cd $$dir; \
                PROJECT_DIR=$(BUILD_OBJ_ROOT) $(MAKE) -j1 TEST=p4perf \
-                   LARGE_PROBLEM_SIZE=1 report.html) \
+                   LARGE_PROBLEM_SIZE=1 report.html report.csv) \
         done
 	for dir in $(NORMAL_PROBLEM_SIZE_DIRS); do \
 	    (cd $$dir; \
                PROJECT_DIR=$(BUILD_OBJ_ROOT) $(MAKE) -j1 TEST=p4perf \
-                   report.html) \
+                   report.html report.csv) \
         done
 	@for dir in $(LARGE_PROBLEM_SIZE_DIRS); do \
             (cd $$dir; \
                PROJECT_DIR=$(BUILD_OBJ_ROOT) $(MAKE) -s -j1 TEST=p4perf \
-                   LARGE_PROBLEM_SIZE=1 report) \
+                   LARGE_PROBLEM_SIZE=1 report report.csv) \
         done
 	@for dir in $(NORMAL_PROBLEM_SIZE_DIRS); do \
 	    (cd $$dir; \
                PROJECT_DIR=$(BUILD_OBJ_ROOT) $(MAKE) -s -j1 TEST=p4perf \
-                   report) \
+                   report report.csv) \
         done
 	@printf "\a"; sleep 1; printf "\a"; sleep 1; printf "\a"
 
@@ -104,22 +108,22 @@ progcputrack::
 	for dir in $(LARGE_PROBLEM_SIZE_DIRS); do \
             (cd $$dir; \
                PROJECT_DIR=$(BUILD_OBJ_ROOT) $(MAKE) -j1 TEST=cputrack \
-                   LARGE_PROBLEM_SIZE=1 report.html) \
+                   LARGE_PROBLEM_SIZE=1 report.html report.csv) \
         done
 	for dir in $(NORMAL_PROBLEM_SIZE_DIRS); do \
 	    (cd $$dir; \
                PROJECT_DIR=$(BUILD_OBJ_ROOT) $(MAKE) -j1 TEST=cputrack \
-                   report.html) \
+                   report.html report.csv) \
         done
 	@for dir in $(LARGE_PROBLEM_SIZE_DIRS); do \
             (cd $$dir; \
                PROJECT_DIR=$(BUILD_OBJ_ROOT) $(MAKE) -s -j1 TEST=cputrack \
-                   LARGE_PROBLEM_SIZE=1 report) \
+                   LARGE_PROBLEM_SIZE=1 report report.csv) \
         done
 	@for dir in $(NORMAL_PROBLEM_SIZE_DIRS); do \
 	    (cd $$dir; \
                PROJECT_DIR=$(BUILD_OBJ_ROOT) $(MAKE) -s -j1 TEST=cputrack \
-                   report) \
+                   report report.csv) \
         done
 	@printf "\a"; sleep 1; printf "\a"; sleep 1; printf "\a"
 
@@ -139,19 +143,19 @@ test::
 vtl::
 	(cd $(LLVM_OBJ_ROOT)/projects/llvm-test/$(SUBDIR); \
                PROJECT_DIR=$(BUILD_OBJ_ROOT) $(MAKE) -j1 TEST=pavtl \
-                   test report)
+                   test report report.csv)
 	@printf "\a"; sleep 1; printf "\a"; sleep 1; printf "\a"
 
 perf::
 	(cd $(LLVM_OBJ_ROOT)/projects/llvm-test/$(SUBDIR); \
                PROJECT_DIR=$(BUILD_OBJ_ROOT) $(MAKE) -j1 TEST=perf \
-                   test report)
+                   test report report.csv)
 	@printf "\a"; sleep 1; printf "\a"; sleep 1; printf "\a"
 
 p4perf::
 	(cd $(LLVM_OBJ_ROOT)/projects/llvm-test/$(SUBDIR); \
                PROJECT_DIR=$(BUILD_OBJ_ROOT) $(MAKE) -j1 TEST=p4perf \
-                   test report)
+                   test report report.csv)
 	@printf "\a"; sleep 1; printf "\a"; sleep 1; printf "\a"
 
 strace::
@@ -163,6 +167,6 @@ strace::
 cputrack::
 	(cd $(LLVM_OBJ_ROOT)/projects/llvm-test/$(SUBDIR); \
                PROJECT_DIR=$(BUILD_OBJ_ROOT) $(MAKE) -j1 TEST=cputrack \
-                   report)
+                   report report.csv)
 	@printf "\a"; sleep 1; printf "\a"; sleep 1; printf "\a"
 

@@ -78,15 +78,19 @@ my $PTRDIST   = 'MultiSource/Benchmarks/Ptrdist';
  ["Name:" , '\'([^\']+)\' Program'],
  [],
 # Times
- ["NormalCacheAccess",    'CBE-Cache-Accesses: ([0-9]+)'],
- ["NormalCacheMisses",    'CBE-Cache-Misses: ([0-9]+)'],
- ["NormalRefillFromL2",   'CBE-L1-Cache-Misses: ([0-9]+)'],
- ["NormalRefillFromSystem",   'CBE-L2-Cache-Misses: ([.0-9]+)'],
+ ["NormUserTime",  'CBE-RUN-TIME-NORMAL-USER: user\s*([.0-9m:]+)', \&FormatTime],
+ ["NormSysTime",  'CBE-RUN-TIME-NORMAL-SYS: sys\s*([.0-9m:]+)', \&FormatTime],
+ ["NormCacheAccess",    'CBE-Cache-Accesses: ([0-9]+)'],
+ ["NormCacheMisses",    'CBE-Cache-Misses: ([0-9]+)'],
+ ["NormRefillFromL2",   'CBE-L1-Cache-Misses: ([0-9]+)'],
+ ["NormRefillFromSys",   'CBE-L2-Cache-Misses: ([.0-9]+)'],
 
- ["PoolAllocCacheAccess",    'CBE-PA-Cache-Accesses: ([0-9]+)'],
- ["PoolAllocCacheMisses",    'CBE-PA-Cache-Misses: ([0-9]+)'],
- ["PoolAllocRefillFromL2",   'CBE-PA-L1-Cache-Misses: ([0-9]+)'],
- ["PoolAllocRefillFromSystem",   'CBE-PA-L2-Cache-Misses: ([.0-9]+)'],
+ ["PAUserTime",        'CBE-RUN-TIME-POOLALLOC-USER: user\s*([.0-9m:]+)', \&FormatTime],
+ ["PASysTime",        'CBE-RUN-TIME-POOLALLOC-SYS: sys\s*([.0-9m:]+)', \&FormatTime],
+ ["PACacheAccess",    'CBE-PA-Cache-Accesses: ([0-9]+)'],
+ ["PACacheMisses",    'CBE-PA-Cache-Misses: ([0-9]+)'],
+ ["PARefillFromL2",   'CBE-PA-L1-Cache-Misses: ([0-9]+)'],
+ ["PARefillFromSys",   'CBE-PA-L2-Cache-Misses: ([.0-9]+)'],
  []
 );
 
