@@ -40,15 +40,15 @@ namespace {
     // of which blocks require the memory in the pool to not be freed.  This
     // does not include poolfree's.  Note that this is only tracked for pools
     // which this is the home of, ie, they are Alloca instructions.
-    std::set<std::pair<AllocaInst*, Instruction*> > &PoolUses;
+    std::multimap<AllocaInst*, Instruction*> &PoolUses;
 
     // PoolDestroys - For each pool, keep track of the actual poolfree calls
     // inserted into the code.  This is seperated out from PoolUses.
-    std::set<std::pair<AllocaInst*, CallInst*> > &PoolFrees;
+    std::multimap<AllocaInst*, CallInst*> &PoolFrees;
 
     FuncTransform(PoolAllocate &P, DSGraph &g, FuncInfo &fi,
-                  std::set<std::pair<AllocaInst*, Instruction*> > &poolUses,
-                  std::set<std::pair<AllocaInst*, CallInst*> > &poolFrees)
+                  std::multimap<AllocaInst*, Instruction*> &poolUses,
+                  std::multimap<AllocaInst*, CallInst*> &poolFrees)
       : PAInfo(P), G(g), FI(fi),
         PoolUses(poolUses), PoolFrees(poolFrees) {
     }
@@ -111,8 +111,8 @@ namespace {
 }
 
 void PoolAllocate::TransformBody(DSGraph &g, PA::FuncInfo &fi,
-                       std::set<std::pair<AllocaInst*,Instruction*> > &poolUses,
-                       std::set<std::pair<AllocaInst*, CallInst*> > &poolFrees,
+                              std::multimap<AllocaInst*,Instruction*> &poolUses,
+                              std::multimap<AllocaInst*, CallInst*> &poolFrees,
                                  Function &F) {
   FuncTransform(*this, g, fi, poolUses, poolFrees).visit(F);
 }

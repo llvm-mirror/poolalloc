@@ -187,8 +187,8 @@ class PoolAllocate : public ModulePass {
                    std::map<DSNode*, Value*> &PoolDescriptors);
   
   void TransformBody(DSGraph &g, PA::FuncInfo &fi,
-                     std::set<std::pair<AllocaInst*, Instruction*> > &poolUses,
-                     std::set<std::pair<AllocaInst*, CallInst*> > &poolFrees,
+                     std::multimap<AllocaInst*, Instruction*> &poolUses,
+                     std::multimap<AllocaInst*, CallInst*> &poolFrees,
                      Function &F);
 
   /// InitializeAndDestroyPools - This inserts calls to poolinit and pooldestroy
@@ -197,8 +197,13 @@ class PoolAllocate : public ModulePass {
   void InitializeAndDestroyPools(Function &F,
                                  const std::vector<DSNode*> &NodesToPA,
                                  std::map<DSNode*, Value*> &PoolDescriptors,
-                      std::set<std::pair<AllocaInst*, Instruction*> > &PoolUses,
-                      std::set<std::pair<AllocaInst*, CallInst*> > &PoolFrees);
+                      std::multimap<AllocaInst*, Instruction*> &PoolUses,
+                      std::multimap<AllocaInst*, CallInst*> &PoolFrees);
+
+  void InitializeAndDestroyPool(Function &F, DSNode *Pool,
+                                std::map<DSNode*, Value*> &PoolDescriptors,
+                            std::multimap<AllocaInst*, Instruction*> &PoolUses,
+                            std::multimap<AllocaInst*, CallInst*> &PoolFrees);
 
   void CalculateLivePoolFreeBlocks(std::set<BasicBlock*> &LiveBlocks,Value *PD);
 };
