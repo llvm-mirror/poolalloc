@@ -17,6 +17,7 @@
 #include "llvm/Module.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Support/Debug.h"
+#include "llvm/Support/InstVisitor.h"
 using namespace llvm;
 
 namespace {
@@ -25,6 +26,7 @@ namespace {
   Statistic<> NumNotCompressed("pointercompress",
                                "Number of pools not compressible");
 
+  class CompressedPoolInfo;
 
   /// PointerCompress - This transformation hacks on type-safe pool allocated
   /// data structures to reduce the size of pointers in the program.
@@ -32,6 +34,8 @@ namespace {
     PoolAllocate *PoolAlloc;
     PA::EquivClassGraphs *ECG;
   public:
+    typedef std::map<const DSNode*, CompressedPoolInfo> PoolInfoMap;
+
     bool runOnModule(Module &M);
     void getAnalysisUsage(AnalysisUsage &AU) const;
 
@@ -44,6 +48,74 @@ namespace {
   RegisterOpt<PointerCompress>
   X("pointercompress", "Compress type-safe data structures");
 }
+
+//===----------------------------------------------------------------------===//
+//               CompressedPoolInfo Class and Implementation
+//===----------------------------------------------------------------------===//
+
+namespace {
+  /// CompressedPoolInfo - An instance of this structure is created for each
+  /// pool that is compressed.
+  class CompressedPoolInfo {
+    const DSNode *Pool;
+    const Type *NewTy;
+  public:
+    CompressedPoolInfo(const DSNode *N) : Pool(N), NewTy(0) {}
+    
+    /// Initialize - When we know all of the pools in a function that are going
+    /// to be compressed, initialize our state based on that data.
+    void Initialize(std::map<const DSNode*, CompressedPoolInfo> &Nodes);
+
+    const DSNode *getNode() const { return Pool; }
+    const Type *getNewType() const { return NewTy; }
+
+    // dump - Emit a debugging dump of this pool info.
+    void dump() const;
+
+  private:
+    const Type *ComputeCompressedType(const Type *OrigTy, unsigned NodeOffset,
+                           std::map<const DSNode*, CompressedPoolInfo> &Nodes);
+  };
+}
+
+/// Initialize - When we know all of the pools in a function that are going
+/// to be compressed, initialize our state based on that data.
+void CompressedPoolInfo::Initialize(std::map<const DSNode*, 
+                                             CompressedPoolInfo> &Nodes) {
+  // First step, compute the type of the compressed node.  This basically
+  // replaces all pointers to compressed pools with uints.
+  NewTy = ComputeCompressedType(Pool->getType(), 0, Nodes);
+
+}
+
+
+/// ComputeCompressedType - Recursively compute the new type for this node after
+/// pointer compression.  This involves compressing any pointers that point into
+/// compressed pools.
+const Type *CompressedPoolInfo::
+ComputeCompressedType(const Type *OrigTy, unsigned NodeOffset,
+                      std::map<const DSNode*, CompressedPoolInfo> &Nodes) {
+  if (const PointerType *PTY = dyn_cast<PointerType>(OrigTy)) {
+    // FIXME: check to see if this pointer is actually compressed!
+    return Type::UIntTy;
+  } else if (OrigTy->isFirstClassType())
+    return OrigTy;
+
+  // Okay, we have an aggregate type.
+  assert(0 && "FIXME: Unhandled aggregate type!");
+}
+
+/// dump - Emit a debugging dump for this pool info.
+///
+void CompressedPoolInfo::dump() const {
+  std::cerr << "Node: "; getNode()->dump();
+  std::cerr << "New Type: " << *NewTy << "\n";
+}
+
+
+//===----------------------------------------------------------------------===//
+//                    PointerCompress Implementation
+//===----------------------------------------------------------------------===//
 
 void PointerCompress::getAnalysisUsage(AnalysisUsage &AU) const {
   // Need information about how pool allocation happened.
@@ -85,6 +157,11 @@ static bool PoolIsCompressible(const DSNode *N, Function &F) {
     return false;
   }
 
+  if ((N->getNodeFlags() & DSNode::Composition) != DSNode::HeapNode) {
+    DEBUG(std::cerr << "Node contains non-heap values:\n");
+    return false;
+  }
+
   return true;
 }
 
@@ -119,6 +196,41 @@ void PointerCompress::FindPoolsToCompress(std::vector<const DSNode*> &Pools,
 }
 
 
+namespace {
+  class InstructionRewriter : public llvm::InstVisitor<InstructionRewriter> {
+    /// OldToNewValueMap - This keeps track of what new instructions we create
+    /// for instructions that used to produce pointers into our pool.
+    std::map<Value*, Value*> OldToNewValueMap;
+  
+    /// ForwardRefs - If a value is refered to before it is defined, create a
+    /// temporary Argument node as a placeholder.  When the value is really
+    /// defined, call replaceAllUsesWith on argument and remove it from this
+    /// map.
+    std::map<Value*, Argument*> ForwardRefs;
+
+    const PointerCompress::PoolInfoMap &PoolInfo;
+
+    const DSGraph &DSG;
+  public:
+    InstructionRewriter(const PointerCompress::PoolInfoMap &poolInfo,
+                        const DSGraph &dsg)
+      : PoolInfo(poolInfo), DSG(dsg) {
+    }
+    ~InstructionRewriter() {
+      assert(ForwardRefs.empty() && "Unresolved forward refs exist!");
+    }
+
+    void visitInstruction(Instruction &I) {
+      std::cerr << "ERROR: UNHANDLED INSTRUCTION: " << I;
+      //assert(0);
+      //abort();
+    }
+  };
+} // end anonymous namespace.
+
+
+
+
 /// CompressPoolsInFunction - Find all pools that are compressible in this
 /// function and compress them.
 bool PointerCompress::CompressPoolsInFunction(Function &F) {
@@ -145,17 +257,31 @@ bool PointerCompress::CompressPoolsInFunction(Function &F) {
   DSGraph &DSG = ECG->getDSGraph(FI->F);
 
   // Compute the set of compressible pools in this function.
-  std::vector<const DSNode*> PoolsToCompress;
-  FindPoolsToCompress(PoolsToCompress, F, DSG, FI);
+  std::vector<const DSNode*> PoolsToCompressList;
+  FindPoolsToCompress(PoolsToCompressList, F, DSG, FI);
 
-  if (PoolsToCompress.empty()) return false;
+  if (PoolsToCompressList.empty()) return false;
 
+  // Compute the initial collection of compressed pointer infos.
+  std::map<const DSNode*, CompressedPoolInfo> PoolsToCompress;
+  for (unsigned i = 0, e = PoolsToCompressList.size(); i != e; ++i)
+    PoolsToCompress.insert(std::make_pair(PoolsToCompressList[i], 
+                                          PoolsToCompressList[i]));
+
+  // Use these to compute the closure of compression information.  In
+  // particular, if one pool points to another, we need to know if the outgoing
+  // pointer is compressed.
   std::cerr << "In function '" << F.getName() << "':\n";
-  for (unsigned i = 0, e = PoolsToCompress.size(); i != e; ++i) {
+  for (std::map<const DSNode*, CompressedPoolInfo>::iterator
+         I = PoolsToCompress.begin(), E = PoolsToCompress.end(); I != E; ++I) {
+    I->second.Initialize(PoolsToCompress);
     std::cerr << "  COMPRESSING POOL:\nPCS:";
-    PoolsToCompress[i]->dump();
+    I->second.dump();
   }
-  return false;
+  
+  // Finally, rewrite the function body to use compressed pointers!
+  InstructionRewriter(PoolsToCompress, DSG).visit(F);
+  return true;
 }
 
 bool PointerCompress::runOnModule(Module &M) {
