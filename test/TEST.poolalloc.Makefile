@@ -216,25 +216,17 @@ Output/%.$(TEST).report.txt: Output/%.nonpa.diff-cbe         \
                              Output/%.LOC.txt
 	@echo > $@
 	@-if test -f Output/$*.poolalloc.diff-cbe; then \
-	  printf "CBE-RUN-TIME-NORMAL-USER: " >> $@;\
-	  grep "^user" Output/$*.nonpa.out-cbe.time >> $@;\
-	  printf "CBE-RUN-TIME-NORMAL-SYS: " >> $@;\
-	  grep "^sys" Output/$*.nonpa.out-cbe.time >> $@;\
+	  printf "CBE-RUN-TIME-NORMAL: " >> $@;\
+	  grep "^program" Output/$*.nonpa.out-cbe.time >> $@;\
 		\
-	  printf "CBE-RUN-TIME-ALLNODES-USER: " >> $@;\
-	  grep "^user" Output/$*.allnodes.out-cbe.time >> $@;\
-	  printf "CBE-RUN-TIME-ALLNODES-SYS: " >> $@;\
-	  grep "^sys" Output/$*.allnodes.out-cbe.time >> $@;\
+	  printf "CBE-RUN-TIME-ALLNODES: " >> $@;\
+	  grep "^program" Output/$*.allnodes.out-cbe.time >> $@;\
 		\
-	  printf "CBE-RUN-TIME-ONLYOVERHEAD-USER: " >> $@;\
-	  grep "^user" Output/$*.onlyoverhead.out-cbe.time >> $@;\
-	  printf "CBE-RUN-TIME-ONLYOVERHEAD-SYS: " >> $@;\
-	  grep "^sys" Output/$*.onlyoverhead.out-cbe.time >> $@;\
+	  printf "CBE-RUN-TIME-ONLYOVERHEAD: " >> $@;\
+	  grep "^program" Output/$*.onlyoverhead.out-cbe.time >> $@;\
 		\
-	  printf "CBE-RUN-TIME-POOLALLOC-USER: " >> $@;\
-	  grep "^user" Output/$*.poolalloc.out-cbe.time >> $@;\
-	  printf "CBE-RUN-TIME-POOLALLOC-SYS: " >> $@;\
-	  grep "^sys" Output/$*.poolalloc.out-cbe.time >> $@;\
+	  printf "CBE-RUN-TIME-POOLALLOC: " >> $@;\
+	  grep "^program" Output/$*.poolalloc.out-cbe.time >> $@;\
 	  printf "LOC: " >> $@;\
 	  cat Output/$*.LOC.txt >> $@;\
 	fi

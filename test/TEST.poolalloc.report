@@ -10,23 +10,13 @@ $TrimRepeatedPrefix = 1;
 
 sub Ratio {
   my ($Cols, $Col) = @_;
-  if ($Cols->[$Col-1] ne "*" and $Cols->[5] ne "*" and
+  if ($Cols->[$Col-1] ne "*" and $Cols->[3] ne "*" and
       $Cols->[$Col-1] != "0") {
-    return sprintf "%1.3f", $Cols->[5]/$Cols->[$Col-1];
+    return sprintf "%1.3f", $Cols->[3]/$Cols->[$Col-1];
   } else {
     return "n/a";
   }
 }
-
-sub Sum {
-  my ($Cols, $Col) = @_;
-  if ($Cols->[$Col-1] ne "*" and $Cols->[$Col-2] ne "*") {
-    return sprintf "%1.3f", $Cols->[$Col-2]+$Cols->[$Col-1];
-  } else {
-    return "n/a";
-  }
-}
-
 
 sub FormatTime {
   my $Time = shift;
@@ -43,17 +33,6 @@ my $FREEBENCH = 'MultiSource/Benchmarks/FreeBench';
 my $PTRDIST   = 'MultiSource/Benchmarks/Ptrdist';
 
 @LatexRowMapOrder = (
-                     "bh/bh"           => 'bh',
-                     "bisort/bisort"   => 'bisort',
-                     "em3d/em3d"       => 'em3d',
-                     "health/health"   => 'health',
-                     "mst/mst"         => 'mst',
-                     "perimeter/perimeter" => 'perimeter',
-                     "power/power"     => 'power',
-                     "treeadd/treeadd" => 'treeadd',
-                     "tsp/tsp"         => 'tsp',
-                     "voronoi/voronoi" => 'voronoi',
-                     '-' => '-',
                      "anagram/anagram"       => 'anagram',
                      "bc/bc"                 => 'bc',
                      "ft/ft"                 => 'ft',
@@ -84,24 +63,17 @@ my $PTRDIST   = 'MultiSource/Benchmarks/Ptrdist';
  ["LOC"   , 'LOC:\s*([0-9]+)'],
  [],
 # Times
- ["NormalUser",    'CBE-RUN-TIME-NORMAL-USER: user\s*([.0-9m:]+)',    \&FormatTime],
- ["NormalSys",    'CBE-RUN-TIME-NORMAL-SYS: sys\s*([.0-9m:]+)',    \&FormatTime],
- ["NormalSum",     \&Sum],
+ ["NormalTime",   'CBE-RUN-TIME-NORMAL: program\s*([.0-9m:]+)'],
 
- ["AllNodesUser", 'CBE-RUN-TIME-ALLNODES-USER: user\s*([.0-9m:]+)', \&FormatTime],
- ["AllNodesSys", 'CBE-RUN-TIME-ALLNODES-SYS: sys\s*([.0-9m:]+)', \&FormatTime],
- ["AllNodesSum",     \&Sum],
- ["AN Speedup", \&Ratio],
-
- ["OnlyOHUser", 'CBE-RUN-TIME-ONLYOVERHEAD-USER: user\s*([.0-9m:]+)', \&FormatTime],
- ["OnlyOHSys", 'CBE-RUN-TIME-ONLYOVERHEAD-SYS: sys\s*([.0-9m:]+)', \&FormatTime],
- ["OnlyOHSum",     \&Sum],
+ ["OnlyOHTime", 'CBE-RUN-TIME-ONLYOVERHEAD: program\s*([.0-9m:]+)'],
  ["OO Speedup", \&Ratio],
 
- ["PoolAllocUser", 'CBE-RUN-TIME-POOLALLOC-USER: user\s*([.0-9m:]+)', \&FormatTime],
- ["PoolAllocSys", 'CBE-RUN-TIME-POOLALLOC-SYS: sys\s*([.0-9m:]+)', \&FormatTime],
- ["PoolAllocSum",     \&Sum],
+ ["AllNodesTime", 'CBE-RUN-TIME-ALLNODES: program\s*([.0-9m:]+)'],
+ ["AN Speedup", \&Ratio],
+
+ ["PoolAllocTime", 'CBE-RUN-TIME-POOLALLOC: program\s*([.0-9m:]+)'],
  ["PA Speedup", \&Ratio],
+
  ["AP NumPools",          '([0-9]+).*Number of pools allocated'],
  ["AP Typesafe",          '([0-9]+).*Number of typesafe pools'],
  ["NumArgs",              '([0-9]+).*Number of function arguments added'],
