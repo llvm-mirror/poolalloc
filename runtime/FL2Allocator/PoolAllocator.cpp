@@ -26,7 +26,7 @@
 // Configuration macros.  Define up to one of these.
 //#define PRINT_NUM_POOLS          // Print use dynamic # pools info
 //#define PRINT_POOLDESTROY_STATS  // When pools are destroyed, print stats
-//#define PRINT_POOL_TRACE         // Print a full trace
+#define PRINT_POOL_TRACE         // Print a full trace
 
 
 //===----------------------------------------------------------------------===//
@@ -79,6 +79,15 @@ static unsigned removePoolNumber(PoolTy *PD) {
   return 0;
 }
 
+static void PrintPoolStats(PoolTy *Pool);
+static void PrintLivePoolInfo() {
+  for (unsigned i = 0; i != NumLivePools; ++i) {
+    PoolTy *Pool = PoolIDs[i].PD;
+    fprintf(stderr, "[%d] pool at exit ", PoolIDs[i].ID);
+    PrintPoolStats(Pool);
+  }
+}
+
 #define DO_IF_TRACE(X) X
 #else
 #define DO_IF_TRACE(X)
@@ -87,6 +96,16 @@ static unsigned removePoolNumber(PoolTy *PD) {
 #ifdef PRINT_POOLDESTROY_STATS
 #define DO_IF_POOLDESTROY_STATS(X) X
 #define PRINT_NUM_POOLS
+
+static void PrintPoolStats(PoolTy *Pool) {
+  fprintf(stderr,
+          "(0x%X) BytesAlloc=%d  NumObjs=%d"
+          " AvgObjSize=%d  NextAllocSize=%d  DeclaredSize=%d\n",
+          Pool, Pool->BytesAllocated, Pool->NumObjects,
+          Pool->NumObjects ? Pool->BytesAllocated/Pool->NumObjects : 0,
+          Pool->AllocSize, Pool->DeclaredSize);
+}
+
 #else
 #define DO_IF_POOLDESTROY_STATS(X)
 #endif
@@ -95,6 +114,7 @@ static unsigned removePoolNumber(PoolTy *PD) {
 static unsigned PoolCounter = 0;
 static unsigned PoolsInited = 0;
 static void PoolCountPrinter() {
+  DO_IF_TRACE(PrintLivePoolInfo());
   fprintf(stderr, "\n\n"
           "*** %d DYNAMIC POOLS INITIALIZED ***\n\n"
           "*** %d DYNAMIC POOLS ALLOCATED FROM ***\n\n",
@@ -209,14 +229,8 @@ void poolinit(PoolTy *Pool, unsigned DeclaredSize) {
 void pooldestroy(PoolTy *Pool) {
   assert(Pool && "Null pool pointer passed in to pooldestroy!\n");
 
-  DO_IF_TRACE(fprintf(stderr, "[%d] ", removePoolNumber(Pool)));
-  DO_IF_POOLDESTROY_STATS(fprintf(stderr,
-                 "pooldestroy(0x%X) BytesAlloc=%d  NumObjs=%d"
-                 " AvgObjSize=%d  NextAllocSize=%d\n",
-                 Pool, Pool->BytesAllocated, Pool->NumObjects,
-                 Pool->NumObjects ? Pool->BytesAllocated/Pool->NumObjects : 0,
-                 Pool->AllocSize));
-
+  DO_IF_TRACE(fprintf(stderr, "[%d] pooldestroy", removePoolNumber(Pool)));
+  DO_IF_POOLDESTROY_STATS(PrintPoolStats(Pool));
 
   // Free all allocated slabs.
   PoolSlab *PS = Pool->Slabs;
@@ -335,13 +349,9 @@ void *poolalloc(PoolTy *Pool, unsigned NumBytes) {
   // able to help much for this allocation, simply pass it on to malloc.
   LargeArrayHeader *LAH = (LargeArrayHeader*)malloc(sizeof(LargeArrayHeader) + 
                                                     NumBytes);
-  LAH->Next = Pool->LargeArrays;
-  if (LAH->Next)
-    LAH->Next->Prev = &LAH->Next;
-  Pool->LargeArrays = LAH;
-  LAH->Prev = &Pool->LargeArrays;
   LAH->Size = NumBytes;
   LAH->Marker = ~0U;
+  LAH->LinkIntoList(&Pool->LargeArrays);
   DO_IF_TRACE(fprintf(stderr, "0x%X  [large]\n", LAH+1));
   return LAH+1;
 }
@@ -395,10 +405,8 @@ LargeArrayCase:
   LargeArrayHeader *LAH = ((LargeArrayHeader*)Node)-1;
   DO_IF_TRACE(fprintf(stderr, "%d bytes [large]\n", LAH->Size));
 
-  // Unlink it from the list of large arrays...
-  *LAH->Prev = LAH->Next;
-  if (LAH->Next)
-    LAH->Next->Prev = LAH->Prev;
+  // Unlink it from the list of large arrays and free it.
+  LAH->UnlinkFromList();
   free(LAH);
 }
 
@@ -420,17 +428,37 @@ void *poolrealloc(PoolTy *Pool, void *Node, unsigned NumBytes) {
     return 0;
   }
 
-  // FIXME: This is obviously much worse than it could be.  In particular, we
-  // never try to expand something in a pool.  This might hurt some programs!
-  void *New = poolalloc(Pool, NumBytes);
-  assert(New != 0 && "Our poolalloc doesn't ever return null for failure!");
+  FreedNodeHeader *FNH = (FreedNodeHeader*)((char*)Node-sizeof(NodeHeader));
+  assert((FNH->Header.Size & 1) && "Node not allocated!");
+  unsigned Size = FNH->Header.Size & ~1;
+  if (Size != ~1U) {
+    // FIXME: This is obviously much worse than it could be.  In particular, we
+    // never try to expand something in a pool.  This might hurt some programs!
+    void *New = poolalloc(Pool, NumBytes);
+    assert(New != 0 && "Our poolalloc doesn't ever return null for failure!");
+    
+    // Copy the min of the new and old sizes over.
+    memcpy(New, Node, Size < NumBytes ? Size : NumBytes);
+    poolfree(Pool, Node);
+    DO_IF_TRACE(fprintf(stderr, "0x%X (moved)\n", New));
+    return New;
+  }
 
-  // Copy the min of the new and old sizes over.
-  unsigned Size = poolobjsize(Pool, Node);
-  memcpy(New, Node, Size < NumBytes ? Size : NumBytes);
-  poolfree(Pool, Node);
-  DO_IF_TRACE(fprintf(stderr, "0x%X (moved)\n", New));
-  return New;
+  // Otherwise, we have a large array.  Perform the realloc using the system
+  // realloc function.  This case is actually quite common as many large blocks
+  // end up being realloc'd it seems.
+  LargeArrayHeader *LAH = ((LargeArrayHeader*)Node)-1;
+  LAH->UnlinkFromList();
+
+  LargeArrayHeader *NewLAH =
+    (LargeArrayHeader*)realloc(LAH, sizeof(LargeArrayHeader)+NumBytes);
+  
+  DO_IF_TRACE(if (LAH == NewLAH)
+                fprintf(stderr, "resized in place (system realloc)\n");
+              else
+                fprintf(stderr, "0x%X (moved by system realloc)\n", NewLAH+1));
+  NewLAH->LinkIntoList(&Pool->LargeArrays);
+  return NewLAH+1;
 }
 
 unsigned poolobjsize(PoolTy *Pool, void *Node) {

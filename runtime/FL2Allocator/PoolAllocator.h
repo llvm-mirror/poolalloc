@@ -51,6 +51,20 @@ struct LargeArrayHeader {
   // Marker: this is the ObjectSize marker which MUST BE THE LAST ELEMENT of
   // this header!
   unsigned long Marker;
+
+  void UnlinkFromList() {
+    *Prev = Next;
+    if (Next)
+      Next->Prev = Prev;
+  }
+
+  void LinkIntoList(LargeArrayHeader **List) {
+    Next = *List;
+    if (Next)
+      Next->Prev = &Next;
+    *List = this;
+    Prev = List;
+  }
 };
 
 
