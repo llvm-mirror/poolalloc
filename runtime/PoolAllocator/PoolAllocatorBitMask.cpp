@@ -19,29 +19,29 @@
 #undef assert
 #define assert(X)
 
-/* In the current implementation, each slab in the pool has NODES_PER_SLAB
- * nodes unless the isSingleArray flag is set in which case it contains a
- * single array of size ArraySize. Small arrays (size <= NODES_PER_SLAB) are
- * still allocated in the slabs of size NODES_PER_SLAB
- */
-#define NODES_PER_SLAB 512 
+// In the current implementation, each slab in the pool has NODES_PER_SLAB nodes
+// unless the isSingleArray flag is set in which case it contains a single array
+// of size ArraySize. Small arrays (size <= NODES_PER_SLAB) are still allocated
+// in the slabs of size NODES_PER_SLAB
+//
+#define NODES_PER_SLAB 4096
 
-/* PoolSlab Structure - Hold NODES_PER_SLAB objects of the current node type.
- *   Invariants: FirstUnused <= LastUsed+1
- */
-typedef struct PoolSlab {
-  struct PoolSlab *Next;
-  unsigned isSingleArray;   /* If this slab is used for exactly one array */
+// PoolSlab Structure - Hold NODES_PER_SLAB objects of the current node type.
+//   Invariants: FirstUnused <= LastUsed+1
+//
+struct PoolSlab {
+  PoolSlab *Next;
+  unsigned isSingleArray;   // If this slab is used for exactly one array
 
-  unsigned FirstUnused;   /* First empty node in slab    */
-  int LastUsed;           /* Last allocated node in slab. -1 if slab is empty */
+  unsigned FirstUnused;   // First empty node in slab
+  int LastUsed;           // Last allocated node in slab. -1 if slab is empty
   unsigned char AllocatedBitVector[NODES_PER_SLAB/8];
   unsigned char StartOfAllocation[NODES_PER_SLAB/8];
 
-  /* The array is allocated from the start to the end of the slab */
-  unsigned ArraySize;       /* The size of the array allocated */ 
+  // The array is allocated from the start to the end of the slab
+  unsigned ArraySize;       // The size of the array allocated 
 
-  char Data[1];   /* Buffer to hold data in this slab... variable sized */
+  char Data[1];   // Buffer to hold data in this slab... VARIABLE SIZED
 
 
   bool isNodeAllocated(unsigned NodeNum) {
@@ -67,14 +67,14 @@ typedef struct PoolSlab {
   void clearStartBit(unsigned NodeNum) {
     StartOfAllocation[NodeNum >> 3] &= ~(1 << (NodeNum & 7));
   }
-} PoolSlab;
+};
 
 // poolinit - Initialize a pool descriptor to empty
 //
 void poolinit(PoolTy *Pool, unsigned NodeSize) {
   assert(Pool && "Null pool pointer passed into poolinit!\n");
 
-  /* We must alway return unique pointers, even if they asked for 0 bytes */
+  // We must alway return unique pointers, even if they asked for 0 bytes
   Pool->NodeSize = NodeSize ? NodeSize : 1;
   Pool->Slabs = 0;
   Pool->FreeablePool = 1;
@@ -100,6 +100,7 @@ void pooldestroy(PoolTy *Pool) {
 }
 
 static void *FindSlabEntry(PoolSlab *PS, unsigned NodeSize) {
+
   // Loop through all of the slabs looking for one with an opening */
   for (; PS; PS = PS->Next) {
     // If the slab is a single array, go on to the next slab.  Don't allocate
@@ -147,7 +148,7 @@ static void *FindSlabEntry(PoolSlab *PS, unsigned NodeSize) {
 
 void *poolalloc(PoolTy *Pool) {
   assert(Pool && "Null pool pointer passed in to poolalloc!\n");
-  
+
   unsigned NodeSize = Pool->NodeSize;
   PoolSlab *CurPoolSlab = (PoolSlab*)Pool->Slabs;
 
@@ -217,7 +218,6 @@ void poolfree(PoolTy *Pool, char *Node) {
   }
 
   /* PS now points to the slab where Node is */
-
   Idx = (Node-&PS->Data[0])/NodeSize;
   assert(Idx < NODES_PER_SLAB && "Pool slab searching loop broken!");
 
