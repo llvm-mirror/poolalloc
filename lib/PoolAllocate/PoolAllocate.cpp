@@ -6,7 +6,7 @@
 //===----------------------------------------------------------------------===//
 
 #define DEBUG_TYPE "PoolAllocation"
-#include "llvm/Transforms/PoolAllocate.h"
+#include "poolalloc/PoolAllocate.h"
 #include "llvm/Transforms/Utils/Cloning.h"
 #include "llvm/Analysis/DataStructure.h"
 #include "llvm/Analysis/DSGraph.h"
