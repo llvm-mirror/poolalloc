@@ -753,7 +753,7 @@ AllocPool:
 }
 
 void poolfree_pc(PoolTy *Pool, unsigned long Node) {
-  poolfree(Pool, Pool->Slabs+Node);
+  poolfree(Pool, (char*)Pool->Slabs+Node);
 }
 
 
