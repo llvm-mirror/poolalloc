@@ -641,8 +641,11 @@ void InstructionRewriter::visitLoadInst(LoadInst &LI) {
 void InstructionRewriter::visitStoreInst(StoreInst &SI) {
   const CompressedPoolInfo *DestPI = getPoolInfo(SI.getOperand(1));
   if (DestPI == 0) {
-    assert(getPoolInfo(SI.getOperand(0)) == 0 &&
-           "Cannot store a compressed pointer into non-compressed memory!");
+    if (isa<ConstantPointerNull>(SI.getOperand(1)))
+      SI.eraseFromParent();
+    else
+      assert(getPoolInfo(SI.getOperand(0)) == 0 &&
+             "Cannot store a compressed pointer into non-compressed memory!");
     return;
   }
 
