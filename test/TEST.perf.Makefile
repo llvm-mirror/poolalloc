@@ -15,11 +15,7 @@ PERFOUT := /home/vadve/criswell/perf.out
 PERFSCRIPT := $(BUILD_SRC_DIR)/perf.awk
 
 #
-# Events for the AMD processors
-#   Data cache refills from system.
-#   Data cache refills from L2.
-#   Data cache misses.
-#   Data cache accesses.
+# Events for the AMD K7 (Athlon) processors
 #
 K7_REFILL_SYSTEM  := 0x00411F43
 K7_REFILL_L2      := 0x00411F42
@@ -28,12 +24,20 @@ K7_CACHE_ACCESSES := 0x00410040
 
 K7_EVENTS := -e $(K7_REFILL_SYSTEM) -e $(K7_REFILL_L2) -e $(K7_CACHE_MISSES) -e $(K7_CACHE_ACCESSES)
 
+#
+# Events for the Pentium 4/Xeon processors
+#
+P4_L1_READ_MISS := -e 0x0003B000/0x12000204@0x8000000C --p4pe=0x01000001 --p4pmv=0x1
+P4_L2_READ_MISS := -e 0x0003B000/0x12000204@0x8000000D --p4pe=0x01000002 --p4pmv=0x1
+
+P4_EVENTS := $(P4_L1_READ_MISS) $(P4_L2_READ_MISS)
+
 EVENTS := $(K7_EVENTS)
 
-#
+############################################################################
 # Once the results are generated, create files containing each individiual
 # piece of performance information.
-#
+############################################################################
 
 # AMD K7 (Athlon) Events
 ifeq ($(EVENTS),$(K7_EVENTS))
@@ -70,6 +74,29 @@ Output/$(TEST).L2Misses.pa.%: Output/test.$(TEST).pa.%
 	$(VERB) grep $(K7_REFILL_L2) $< | awk '{print $$(NF)}' > $@
 endif
 
+# Pentium 4/Xeon Events
+ifeq ($(EVENTS),$(P4_EVENTS))
+$(PROGRAMS_TO_TEST:%=Output/$(TEST).L1Misses.%): \
+Output/$(TEST).L1Misses.%: Output/test.$(TEST).%
+	$(VERB) grep "$(P4_L1_READ_MISSES)" $< | awk '{print $$(NF)}' > $@
+
+$(PROGRAMS_TO_TEST:%=Output/$(TEST).L1Misses.pa.%): \
+Output/$(TEST).L1Misses.pa.%: Output/test.$(TEST).pa.%
+	$(VERB) grep "$(P4_L1_READ_MISSES)" $< | awk '{print $$(NF)}' > $@
+
+$(PROGRAMS_TO_TEST:%=Output/$(TEST).L2Misses.%): \
+Output/$(TEST).L2Misses.%: Output/test.$(TEST).%
+	$(VERB) grep "$(P4_L2_READ_MISSES)" $< | awk '{print $$(NF)}' > $@
+
+$(PROGRAMS_TO_TEST:%=Output/$(TEST).L2Misses.pa.%): \
+Output/$(TEST).L2Misses.pa.%: Output/test.$(TEST).pa.%
+	$(VERB) grep "$(P4_L2_READ_MISSES)" $< | awk '{print $$(NF)}' > $@
+endif
+
+############################################################################
+# Rules for running the tests
+############################################################################
+
 #
 # Generate events for Pool Allocated CBE
 #
@@ -96,6 +123,10 @@ else
 	$(VERB) cat $(STDIN_FILENAME) | $(PERFEX) -o $@ $(EVENTS) $< $(RUN_OPTIONS) > /dev/null
 endif
 
+############################################################################
+# Report Targets
+############################################################################
+ifeq ($(EVENTS),$(K7_EVENTS))
 $(PROGRAMS_TO_TEST:%=Output/%.$(TEST).report.txt): \
 Output/%.$(TEST).report.txt: $(PROGRAMS_TO_TEST:%=Output/$(TEST).cacheaccesses.%)     \
                      $(PROGRAMS_TO_TEST:%=Output/$(TEST).cacheaccesses.pa.%) \
@@ -115,6 +146,23 @@ Output/%.$(TEST).report.txt: $(PROGRAMS_TO_TEST:%=Output/$(TEST).cacheaccesses.%
 	@printf "CBE-L1-Cache-Misses: %lld\n" `cat Output/$(TEST).L1Misses.$*` >> $@
 	@printf "CBE-PA-L2-Cache-Misses: %lld\n" `cat Output/$(TEST).L2Misses.pa.$*` >> $@
 	@printf "CBE-L2-Cache-Misses: %lld\n" `cat Output/$(TEST).L2Misses.$*` >> $@
+endif
+
+ifeq ($(EVENTS),$(P4_EVENTS))
+$(PROGRAMS_TO_TEST:%=Output/%.$(TEST).report.txt): \
+Output/%.$(TEST).report.txt: \
+                     $(PROGRAMS_TO_TEST:%=Output/$(TEST).L1Misses.%) \
+                     $(PROGRAMS_TO_TEST:%=Output/$(TEST).L1Misses.pa.%) \
+                     $(PROGRAMS_TO_TEST:%=Output/$(TEST).L2Misses.%) \
+                     $(PROGRAMS_TO_TEST:%=Output/$(TEST).L2Misses.pa.%)
+	@echo "Program:" $* > $@
+	@echo "-------------------------------------------------------------" >> $@
+	@printf "CBE-PA-L1-Cache-Misses: %lld\n" `cat Output/$(TEST).L1Misses.pa.$*` >> $@
+	@printf "CBE-L1-Cache-Misses: %lld\n" `cat Output/$(TEST).L1Misses.$*` >> $@
+	@printf "CBE-PA-L2-Cache-Misses: %lld\n" `cat Output/$(TEST).L2Misses.pa.$*` >> $@
+	@printf "CBE-L2-Cache-Misses: %lld\n" `cat Output/$(TEST).L2Misses.$*` >> $@
+
+endif
 
 $(PROGRAMS_TO_TEST:%=test.$(TEST).%): \
 test.$(TEST).%: Output/%.$(TEST).report.txt
