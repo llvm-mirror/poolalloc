@@ -24,7 +24,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#define PageSize (18U*1024U)
+#define PageSize (4*1024U)
 
 #define DEBUG(X)
 //#define DEBUG(X) X
@@ -46,11 +46,13 @@ public:
 
 // create - Create a new (empty) slab and add it to the end of the Pools list.
 void PoolSlab::create(PoolTy *Pool) {
-  PoolSlab *PS = (PoolSlab*)malloc(PageSize);
+  unsigned Size = Pool->AllocSize;
+  Pool->AllocSize <<= 1;
+  PoolSlab *PS = (PoolSlab*)malloc(Size);
 
   // Add the body of the slab to the free list...
   FreedNodeHeader *SlabBody = (FreedNodeHeader*)(PS+1);
-  SlabBody->Size = PageSize-sizeof(PoolSlab)-sizeof(FreedNodeHeader);
+  SlabBody->Size = Size-sizeof(PoolSlab)-sizeof(FreedNodeHeader);
   SlabBody->NormalHeader.Next = Pool->FreeNodeList;
   Pool->FreeNodeList = SlabBody;
 
@@ -77,6 +79,7 @@ void poolinit(PoolTy *Pool) {
   Pool->Slabs = 0;
   Pool->FreeNodeList = 0;
   Pool->LargeArrays = 0;
+  Pool->AllocSize = PageSize;
 
   DEBUG(printf("init pool 0x%X\n", Pool));
 }
@@ -86,7 +89,8 @@ void poolinit(PoolTy *Pool) {
 void pooldestroy(PoolTy *Pool) {
   assert(Pool && "Null pool pointer passed in to pooldestroy!\n");
 
-  DEBUG(printf("destroy pool 0x%X\n", Pool));
+  DEBUG(printf("destroy pool 0x%X  NextAllocSize = %d\n", Pool,
+               Pool->AllocSize));
 
   // Free all allocated slabs.
   PoolSlab *PS = Pool->Slabs;

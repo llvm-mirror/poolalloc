@@ -61,6 +61,9 @@ struct PoolTy {
 
   // The list of free'd nodes.
   FreedNodeHeader *FreeNodeList;
+
+  // The size to allocate for the next slab.
+  unsigned AllocSize;
 };
 
 extern "C" {
