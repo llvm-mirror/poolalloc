@@ -10,26 +10,58 @@
 // This file defines the interface which is implemented by the LLVM pool
 // allocator runtime library.
 //
+// Note: Most of this runtime library is templated based on a PoolTraits
+// instance.  This allows the normal pool allocator to use standard pointers and
+// long's to represent things, but allows the pointer compression runtime
+// library use pool indexes which are smaller.  Using smaller indexes reduces
+// the minimum object size on a 64-bit system from 16 to 8 bytes, and reduces
+// the object header size to 4 bytes (from 8).
+//
 //===----------------------------------------------------------------------===//
 
 #ifndef POOLALLOCATOR_RUNTIME_H
 #define POOLALLOCATOR_RUNTIME_H
 
+template<typename PoolTraits>
 struct PoolSlab;
-struct FreedNodeHeader;
+
+// NormalPoolTraits - This describes normal pool allocation pools, which can
+// address the entire heap, and are made out of multiple chunks of memory.  The
+// object header is a full machine word, and pointers into the heap are native
+// pointers.
+struct NormalPoolTraits {
+  typedef unsigned long NodeHeaderType;
+  enum { UseLargeArrayObjects = 1 };
+};
+
+
+// CompressedPoolTraits - This describes a statically pointer compressed pool,
+// which is known to be <= 2^32 bytes in size (even on a 64-bit machine), and is
+// made out of a single contiguous block.  The meta-data to represent the pool
+// uses 32-bit indexes from the start of the pool instead of full pointers to
+// decrease the minimum object size.
+struct CompressedPoolTraits {
+  typedef unsigned long NodeHeaderType;
+
+  enum { UseLargeArrayObjects = 0 };
+  
+};
+
 
 // NodeHeader - Each block of memory is preceeded in the the pool by one of
 // these headers.
+template<typename PoolTraits>
 struct NodeHeader {
-  unsigned long Size;
+  typename PoolTraits::NodeHeaderType Size;
 };
 
 
 // When objects are on the free list, we pretend they have this header.  
+template<typename PoolTraits>
 struct FreedNodeHeader {
   // NormalHeader - This is the normal node header that is on allocated or free
   // blocks.
-  NodeHeader Header;
+  NodeHeader<PoolTraits> Header;
 
   // Next - The next object in the free list.
   FreedNodeHeader *Next;
@@ -68,14 +100,15 @@ struct LargeArrayHeader {
 };
 
 
+template<typename PoolTraits>
 struct PoolTy {
   // Slabs - the list of slabs in this pool.  NOTE: This must remain the first
   // memory of this structure for the pointer compression pass.
-  PoolSlab *Slabs;
+  PoolSlab<PoolTraits> *Slabs;
 
   // The free node lists for objects of various sizes.  
-  FreedNodeHeader *ObjFreeList;
-  FreedNodeHeader *OtherFreeList;
+  FreedNodeHeader<PoolTraits> *ObjFreeList;
+  FreedNodeHeader<PoolTraits> *OtherFreeList;
 
   // Alignment - The required alignment of allocations the pool in bytes.
   unsigned Alignment;
@@ -90,10 +123,6 @@ struct PoolTy {
   // The size to allocate for the next slab.
   unsigned AllocSize;
 
-  // isPtrCompPool - True if this pool must be kept consequtive for pointer
-  // compression.
-  bool isPtrCompPool;
-
   // NumObjects - the number of poolallocs for this pool.
   unsigned NumObjects;
 
@@ -103,36 +132,40 @@ struct PoolTy {
 };
 
 extern "C" {
-  void poolinit(PoolTy *Pool, unsigned DeclaredSize, unsigned ObjAlignment);
-  void poolmakeunfreeable(PoolTy *Pool);
-  void pooldestroy(PoolTy *Pool);
-  void *poolalloc(PoolTy *Pool, unsigned NumBytes);
-  void *poolrealloc(PoolTy *Pool, void *Node, unsigned NumBytes);
-  void *poolmemalign(PoolTy *Pool, unsigned Alignment, unsigned NumBytes);
-  void poolfree(PoolTy *Pool, void *Node);
+  void poolinit(PoolTy<NormalPoolTraits> *Pool,
+                unsigned DeclaredSize, unsigned ObjAlignment);
+  void poolmakeunfreeable(PoolTy<NormalPoolTraits> *Pool);
+  void pooldestroy(PoolTy<NormalPoolTraits> *Pool);
+  void *poolalloc(PoolTy<NormalPoolTraits> *Pool, unsigned NumBytes);
+  void *poolrealloc(PoolTy<NormalPoolTraits> *Pool,
+                    void *Node, unsigned NumBytes);
+  void *poolmemalign(PoolTy<NormalPoolTraits> *Pool,
+                     unsigned Alignment, unsigned NumBytes);
+  void poolfree(PoolTy<NormalPoolTraits> *Pool, void *Node);
 
   /// poolobjsize - Return the size of the object at the specified address, in
   /// the specified pool.  Note that this cannot be used in normal cases, as it
   /// is completely broken if things land in the system heap.  Perhaps in the
   /// future.  :(
   ///
-  unsigned poolobjsize(PoolTy *Pool, void *Node);
+  unsigned poolobjsize(PoolTy<NormalPoolTraits> *Pool, void *Node);
 
   // Bump pointer pool library.  This is a pool implementation that does not
   // support frees or reallocs to the pool.  As such, it can be much more
   // efficient and simpler than a general pool implementation.
-  void poolinit_bp(PoolTy *Pool, unsigned ObjAlignment);
-  void *poolalloc_bp(PoolTy *Pool, unsigned NumBytes);
-  void pooldestroy_bp(PoolTy *Pool);
+  void poolinit_bp(PoolTy<NormalPoolTraits> *Pool, unsigned ObjAlignment);
+  void *poolalloc_bp(PoolTy<NormalPoolTraits> *Pool, unsigned NumBytes);
+  void pooldestroy_bp(PoolTy<NormalPoolTraits> *Pool);
 
 
   // Pointer Compression runtime library.  Most of these are just wrappers
   // around the normal pool routines.
-  void *poolinit_pc(PoolTy *Pool, unsigned NodeSize,
+  void *poolinit_pc(PoolTy<CompressedPoolTraits> *Pool, unsigned NodeSize,
                     unsigned ObjAlignment);
-  void pooldestroy_pc(PoolTy *Pool);
-  unsigned long poolalloc_pc(PoolTy *Pool, unsigned NumBytes);
-  void poolfree_pc(PoolTy *Pool, unsigned long Node);
+  void pooldestroy_pc(PoolTy<CompressedPoolTraits> *Pool);
+  unsigned long poolalloc_pc(PoolTy<CompressedPoolTraits> *Pool,
+                             unsigned NumBytes);
+  void poolfree_pc(PoolTy<CompressedPoolTraits> *Pool, unsigned long Node);
   //void *poolmemalign_pc(PoolTy *Pool, unsigned Alignment, unsigned NumBytes);
 }
 

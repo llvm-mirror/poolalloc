@@ -40,7 +40,7 @@ typedef unsigned long uintptr_t;
 #define PRINT_POOLDESTROY_STATS
 
 struct PoolID {
-  PoolTy *PD;
+  void *PD;
   unsigned ID;
 };
 
@@ -49,7 +49,7 @@ static unsigned NumLivePools = 0;
 static unsigned NumPoolIDsAllocated = 0;
 static unsigned CurPoolID = 0;
 
-static unsigned addPoolNumber(PoolTy *PD) {
+static unsigned addPoolNumber(void *PD) {
   if (NumLivePools == NumPoolIDsAllocated) {
     NumPoolIDsAllocated = (10+NumPoolIDsAllocated)*2;
     PoolIDs = (PoolID*)realloc(PoolIDs, sizeof(PoolID)*NumPoolIDsAllocated);
@@ -61,7 +61,7 @@ static unsigned addPoolNumber(PoolTy *PD) {
   return CurPoolID;
 }
 
-static unsigned getPoolNumber(PoolTy *PD) {
+static unsigned getPoolNumber(void *PD) {
   if (PD == 0) return 1234567;
   for (unsigned i = 0; i != NumLivePools; ++i)
     if (PoolIDs[i].PD == PD)
@@ -70,7 +70,7 @@ static unsigned getPoolNumber(PoolTy *PD) {
   return 0;
 }
 
-static unsigned removePoolNumber(PoolTy *PD) {
+static unsigned removePoolNumber(void *PD) {
   for (unsigned i = 0; i != NumLivePools; ++i)
     if (PoolIDs[i].PD == PD) {
       unsigned PN = PoolIDs[i].ID;
@@ -82,12 +82,12 @@ static unsigned removePoolNumber(PoolTy *PD) {
   return 0;
 }
 
-static void PrintPoolStats(PoolTy *Pool);
+static void PrintPoolStats(void *Pool);
+template<typename PoolTraits>
 static void PrintLivePoolInfo() {
   for (unsigned i = 0; i != NumLivePools; ++i) {
-    PoolTy *Pool = PoolIDs[i].PD;
     fprintf(stderr, "[%d] pool at exit ", PoolIDs[i].ID);
-    PrintPoolStats(Pool);
+    PrintPoolStats((PoolTy<PoolTraits>*)PoolIDs[i].PD);
   }
 }
 
@@ -100,7 +100,8 @@ static void PrintLivePoolInfo() {
 #define DO_IF_POOLDESTROY_STATS(X) X
 #define PRINT_NUM_POOLS
 
-static void PrintPoolStats(PoolTy *Pool) {
+template<typename PoolTraits>
+static void PrintPoolStats(PoolTy<PoolTraits> *Pool) {
   fprintf(stderr,
           "(0x%X) BytesAlloc=%d  NumObjs=%d"
           " AvgObjSize=%d  NextAllocSize=%d  DeclaredSize=%d\n",
@@ -116,19 +117,22 @@ static void PrintPoolStats(PoolTy *Pool) {
 #ifdef PRINT_NUM_POOLS
 static unsigned PoolCounter = 0;
 static unsigned PoolsInited = 0;
+
+template<typename PoolTraits>
 static void PoolCountPrinter() {
-  DO_IF_TRACE(PrintLivePoolInfo());
+  DO_IF_TRACE(PrintLivePoolInfo<PoolTraits>());
   fprintf(stderr, "\n\n"
           "*** %d DYNAMIC POOLS INITIALIZED ***\n\n"
           "*** %d DYNAMIC POOLS ALLOCATED FROM ***\n\n",
           PoolsInited, PoolCounter);
 }
 
+template<typename PoolTraits>
 static void InitPrintNumPools() {
   static bool Initialized = 0;
   if (!Initialized) {
     Initialized = 1;
-    atexit(PoolCountPrinter);
+    atexit(PoolCountPrinter<PoolTraits>);
   }
 }
 
@@ -141,8 +145,11 @@ static void InitPrintNumPools() {
 //  PoolSlab implementation
 //===----------------------------------------------------------------------===//
 
-static void AddNodeToFreeList(PoolTy *Pool, FreedNodeHeader *FreeNode) {
-  FreedNodeHeader **FreeList;
+
+template<typename PoolTraits>
+static void AddNodeToFreeList(PoolTy<PoolTraits> *Pool,
+                              FreedNodeHeader<PoolTraits> *FreeNode) {
+  FreedNodeHeader<PoolTraits> **FreeList;
   if (FreeNode->Header.Size == Pool->DeclaredSize)
     FreeList = &Pool->ObjFreeList;
   else
@@ -155,7 +162,8 @@ static void AddNodeToFreeList(PoolTy *Pool, FreedNodeHeader *FreeNode) {
     FreeNode->Next->PrevP = &FreeNode->Next;
 }
 
-static void UnlinkFreeNode(FreedNodeHeader *FNH) {
+template<typename PoolTraits>
+static void UnlinkFreeNode(FreedNodeHeader<PoolTraits> *FNH) {
   *FNH->PrevP = FNH->Next;
   if (FNH->Next)
     FNH->Next->PrevP = FNH->PrevP;
@@ -165,56 +173,63 @@ static void UnlinkFreeNode(FreedNodeHeader *FNH) {
 // PoolSlab Structure - Hold multiple objects of the current node type.
 // Invariants: FirstUnused <= UsedEnd
 //
+template<typename PoolTraits>
 struct PoolSlab {
   // Next - This link is used when we need to traverse the list of slabs in a
   // pool, for example, to destroy them all.
-  PoolSlab *Next;
+  PoolSlab<PoolTraits> *Next;
 
 public:
-  static void create(PoolTy *Pool, unsigned SizeHint);
-  static void *create_for_bp(PoolTy *Pool);
-  static void create_for_ptrcomp(PoolTy *Pool, void *Mem, unsigned Size);
+  static void create(PoolTy<PoolTraits> *Pool, unsigned SizeHint);
+  static void *create_for_bp(PoolTy<PoolTraits> *Pool);
+  static void create_for_ptrcomp(PoolTy<PoolTraits> *Pool,
+                                 void *Mem, unsigned Size);
   void destroy();
 
-  PoolSlab *getNext() const { return Next; }
+  PoolSlab<PoolTraits> *getNext() const { return Next; }
 };
 
 // create - Create a new (empty) slab and add it to the end of the Pools list.
-void PoolSlab::create(PoolTy *Pool, unsigned SizeHint) {
+template<typename PoolTraits>
+void PoolSlab<PoolTraits>::create(PoolTy<PoolTraits> *Pool, unsigned SizeHint) {
   if (Pool->DeclaredSize == 0) {
     unsigned Align = Pool->Alignment;
-    if (SizeHint < sizeof(FreedNodeHeader)-sizeof(NodeHeader))
-      SizeHint = sizeof(FreedNodeHeader)-sizeof(NodeHeader);
-    SizeHint = SizeHint+sizeof(FreedNodeHeader)+(Align-1);
-    SizeHint = (SizeHint & ~(Align-1))-sizeof(FreedNodeHeader);
+    if (SizeHint < sizeof(FreedNodeHeader<PoolTraits>) - 
+                   sizeof(NodeHeader<PoolTraits>))
+      SizeHint = sizeof(FreedNodeHeader<PoolTraits>) -
+                 sizeof(NodeHeader<PoolTraits>);
+    SizeHint = SizeHint+sizeof(FreedNodeHeader<PoolTraits>)+(Align-1);
+    SizeHint = (SizeHint & ~(Align-1))-sizeof(FreedNodeHeader<PoolTraits>);
     Pool->DeclaredSize = SizeHint;
   }
 
   unsigned Size = Pool->AllocSize;
   Pool->AllocSize <<= 1;
   Size = (Size+SizeHint-1) / SizeHint * SizeHint;
-  PoolSlab *PS = (PoolSlab*)malloc(Size+sizeof(PoolSlab) + sizeof(NodeHeader) +
-                                   sizeof(FreedNodeHeader));
+  PoolSlab *PS = (PoolSlab*)malloc(Size+sizeof(PoolSlab<PoolTraits>) +
+                                   sizeof(NodeHeader<PoolTraits>) +
+                                   sizeof(FreedNodeHeader<PoolTraits>));
   char *PoolBody = (char*)(PS+1);
 
   // If the Alignment is greater than the size of the FreedNodeHeader, skip over
   // some space so that the a "free pointer + sizeof(FreedNodeHeader)" is always
   // aligned.
   unsigned Alignment = Pool->Alignment;
-  if (Alignment > sizeof(FreedNodeHeader)) {
-    PoolBody += Alignment-sizeof(FreedNodeHeader);
-    Size -= Alignment-sizeof(FreedNodeHeader);
+  if (Alignment > sizeof(FreedNodeHeader<PoolTraits>)) {
+    PoolBody += Alignment-sizeof(FreedNodeHeader<PoolTraits>);
+    Size -= Alignment-sizeof(FreedNodeHeader<PoolTraits>);
   }
 
   // Add the body of the slab to the free list.
-  FreedNodeHeader *SlabBody = (FreedNodeHeader*)PoolBody;
+  FreedNodeHeader<PoolTraits> *SlabBody =(FreedNodeHeader<PoolTraits>*)PoolBody;
   SlabBody->Header.Size = Size;
   AddNodeToFreeList(Pool, SlabBody);
 
   // Make sure to add a marker at the end of the slab to prevent the coallescer
   // from trying to merge off the end of the page.
-  FreedNodeHeader *End =
-      (FreedNodeHeader*)(PoolBody + sizeof(NodeHeader) + Size);
+  FreedNodeHeader<PoolTraits> *End =
+      (FreedNodeHeader<PoolTraits>*)(PoolBody + sizeof(NodeHeader<PoolTraits>)+
+                                     Size);
   End->Header.Size = ~0; // Looks like an allocated chunk
 
   // Add the slab to the list...
@@ -223,7 +238,8 @@ void PoolSlab::create(PoolTy *Pool, unsigned SizeHint) {
 }
 
 /// create_for_bp - This creates a slab for a bump-pointer pool.
-void *PoolSlab::create_for_bp(PoolTy *Pool) {
+template<typename PoolTraits>
+void *PoolSlab<PoolTraits>::create_for_bp(PoolTy<PoolTraits> *Pool) {
   unsigned Size = Pool->AllocSize;
   Pool->AllocSize <<= 1;
   PoolSlab *PS = (PoolSlab*)malloc(Size+sizeof(PoolSlab));
@@ -232,7 +248,7 @@ void *PoolSlab::create_for_bp(PoolTy *Pool) {
     PoolBody += 4;            // No reason to start out unaligned.
 
   // Update the end pointer.
-  Pool->OtherFreeList = (FreedNodeHeader*)((char*)(PS+1)+Size);
+  Pool->OtherFreeList = (FreedNodeHeader<PoolTraits>*)((char*)(PS+1)+Size);
 
   // Add the slab to the list...
   PS->Next = Pool->Slabs;
@@ -242,16 +258,20 @@ void *PoolSlab::create_for_bp(PoolTy *Pool) {
 
 /// create_for_ptrcomp - Initialize a chunk of memory 'Mem' of size 'Size' for
 /// pointer compression.
-void PoolSlab::create_for_ptrcomp(PoolTy *Pool, void *SMem, unsigned Size) {
+template<typename PoolTraits>
+void PoolSlab<PoolTraits>::create_for_ptrcomp(PoolTy<PoolTraits> *Pool, 
+                                              void *SMem, unsigned Size) {
   if (Pool->DeclaredSize == 0) {
     unsigned Align = Pool->Alignment;
-    unsigned SizeHint = sizeof(FreedNodeHeader)-sizeof(NodeHeader);
-    SizeHint = SizeHint+sizeof(FreedNodeHeader)+(Align-1);
-    SizeHint = (SizeHint & ~(Align-1))-sizeof(FreedNodeHeader);
+    unsigned SizeHint = sizeof(FreedNodeHeader<PoolTraits>) -
+                        sizeof(NodeHeader<PoolTraits>);
+    SizeHint = SizeHint+sizeof(FreedNodeHeader<PoolTraits>)+(Align-1);
+    SizeHint = (SizeHint & ~(Align-1))-sizeof(FreedNodeHeader<PoolTraits>);
     Pool->DeclaredSize = SizeHint;
   }
 
-  Size -= sizeof(PoolSlab) + sizeof(NodeHeader) + sizeof(FreedNodeHeader);
+  Size -= sizeof(PoolSlab) + sizeof(NodeHeader<PoolTraits>) +
+          sizeof(FreedNodeHeader<PoolTraits>);
   PoolSlab *PS = (PoolSlab*)SMem;
   char *PoolBody = (char*)(PS+1);
 
@@ -259,26 +279,28 @@ void PoolSlab::create_for_ptrcomp(PoolTy *Pool, void *SMem, unsigned Size) {
   // some space so that the a "free pointer + sizeof(FreedNodeHeader)" is always
   // aligned.
   unsigned Alignment = Pool->Alignment;
-  if (Alignment > sizeof(FreedNodeHeader)) {
-    PoolBody += Alignment-sizeof(FreedNodeHeader);
-    Size -= Alignment-sizeof(FreedNodeHeader);
+  if (Alignment > sizeof(FreedNodeHeader<PoolTraits>)) {
+    PoolBody += Alignment-sizeof(FreedNodeHeader<PoolTraits>);
+    Size -= Alignment-sizeof(FreedNodeHeader<PoolTraits>);
   }
 
   // Add the body of the slab to the free list.
-  FreedNodeHeader *SlabBody = (FreedNodeHeader*)PoolBody;
+  FreedNodeHeader<PoolTraits> *SlabBody =(FreedNodeHeader<PoolTraits>*)PoolBody;
   SlabBody->Header.Size = Size;
   AddNodeToFreeList(Pool, SlabBody);
 
   // Make sure to add a marker at the end of the slab to prevent the coallescer
   // from trying to merge off the end of the page.
-  FreedNodeHeader *End =
-      (FreedNodeHeader*)(PoolBody + sizeof(NodeHeader) + Size);
+  FreedNodeHeader<PoolTraits> *End =
+    (FreedNodeHeader<PoolTraits>*)(PoolBody + sizeof(NodeHeader<PoolTraits>) +
+                                   Size);
   End->Header.Size = ~0; // Looks like an allocated chunk
   PS->Next = 0;
 }
 
 
-void PoolSlab::destroy() {
+template<typename PoolTraits>
+void PoolSlab<PoolTraits>::destroy() {
   free(this);
 }
 
@@ -288,8 +310,8 @@ void PoolSlab::destroy() {
 //
 //===----------------------------------------------------------------------===//
 
-void poolinit_bp(PoolTy *Pool, unsigned ObjAlignment) {
-  DO_IF_PNP(memset(Pool, 0, sizeof(PoolTy)));
+void poolinit_bp(PoolTy<NormalPoolTraits> *Pool, unsigned ObjAlignment) {
+  DO_IF_PNP(memset(Pool, 0, sizeof(PoolTy<NormalPoolTraits>)));
   Pool->Slabs = 0;
   if (ObjAlignment < 4) ObjAlignment = __alignof(double);
   Pool->AllocSize = INITIAL_SLAB_SIZE;
@@ -301,10 +323,10 @@ void poolinit_bp(PoolTy *Pool, unsigned ObjAlignment) {
   DO_IF_TRACE(fprintf(stderr, "[%d] poolinit_bp(0x%X, %d)\n",
                       addPoolNumber(Pool), Pool, ObjAlignment));
   DO_IF_PNP(++PoolsInited);  // Track # pools initialized
-  DO_IF_PNP(InitPrintNumPools());
+  DO_IF_PNP(InitPrintNumPools<NormalPoolTraits>());
 }
 
-void *poolalloc_bp(PoolTy *Pool, unsigned NumBytes) {
+void *poolalloc_bp(PoolTy<NormalPoolTraits> *Pool, unsigned NumBytes) {
   assert(Pool && "Bump pointer pool does not support null PD!");
   DO_IF_TRACE(fprintf(stderr, "[%d] poolalloc_bp(%d) -> ",
                       getPoolNumber(Pool), NumBytes));
@@ -331,12 +353,12 @@ TryAgain:
   if (BumpPtr + NumBytes < EndPtr) {
     void *Result = BumpPtr;
     // Update bump ptr.
-    Pool->ObjFreeList = (FreedNodeHeader*)(BumpPtr+NumBytes);
+    Pool->ObjFreeList = (FreedNodeHeader<NormalPoolTraits>*)(BumpPtr+NumBytes);
     DO_IF_TRACE(fprintf(stderr, "0x%X\n", Result));
     return Result;
   }
   
-  BumpPtr = (char*)PoolSlab::create_for_bp(Pool);
+  BumpPtr = (char*)PoolSlab<NormalPoolTraits>::create_for_bp(Pool);
   EndPtr  = (char*)Pool->OtherFreeList; // Get our updated end pointer.  
   goto TryAgain;
 
@@ -352,16 +374,16 @@ LargeObject:
   return LAH+1;
 }
 
-void pooldestroy_bp(PoolTy *Pool) {
+void pooldestroy_bp(PoolTy<NormalPoolTraits> *Pool) {
   assert(Pool && "Null pool pointer passed in to pooldestroy!\n");
 
   DO_IF_TRACE(fprintf(stderr, "[%d] pooldestroy_bp", removePoolNumber(Pool)));
   DO_IF_POOLDESTROY_STATS(PrintPoolStats(Pool));
 
   // Free all allocated slabs.
-  PoolSlab *PS = Pool->Slabs;
+  PoolSlab<NormalPoolTraits> *PS = Pool->Slabs;
   while (PS) {
-    PoolSlab *Next = PS->getNext();
+    PoolSlab<NormalPoolTraits> *Next = PS->getNext();
     PS->destroy();
     PS = Next;
   }
@@ -385,9 +407,11 @@ void pooldestroy_bp(PoolTy *Pool) {
 
 // poolinit - Initialize a pool descriptor to empty
 //
-void poolinit(PoolTy *Pool, unsigned DeclaredSize, unsigned ObjAlignment) {
+template<typename PoolTraits>
+static void poolinit_internal(PoolTy<PoolTraits> *Pool,
+                              unsigned DeclaredSize, unsigned ObjAlignment) {
   assert(Pool && "Null pool pointer passed into poolinit!\n");
-  memset(Pool, 0, sizeof(PoolTy));
+  memset(Pool, 0, sizeof(PoolTy<PoolTraits>));
   Pool->AllocSize = INITIAL_SLAB_SIZE;
 
   if (ObjAlignment < 4) ObjAlignment = __alignof(double);
@@ -396,10 +420,14 @@ void poolinit(PoolTy *Pool, unsigned DeclaredSize, unsigned ObjAlignment) {
   // Round the declared size up to an alignment boundary-header size, just like
   // we have to do for objects.
   if (DeclaredSize) {
-    if (DeclaredSize < sizeof(FreedNodeHeader)-sizeof(NodeHeader))
-      DeclaredSize = sizeof(FreedNodeHeader)-sizeof(NodeHeader);
-    DeclaredSize = DeclaredSize+sizeof(FreedNodeHeader)+(ObjAlignment-1);
-    DeclaredSize = (DeclaredSize & ~(ObjAlignment-1))-sizeof(FreedNodeHeader);
+    if (DeclaredSize < sizeof(FreedNodeHeader<PoolTraits>) -
+                       sizeof(NodeHeader<PoolTraits>))
+      DeclaredSize = sizeof(FreedNodeHeader<PoolTraits>) -
+                     sizeof(NodeHeader<PoolTraits>);
+    DeclaredSize = DeclaredSize+sizeof(FreedNodeHeader<PoolTraits>) + 
+                   (ObjAlignment-1);
+    DeclaredSize = (DeclaredSize & ~(ObjAlignment-1)) -
+                   sizeof(FreedNodeHeader<PoolTraits>);
   }
 
   Pool->DeclaredSize = DeclaredSize;
@@ -407,21 +435,26 @@ void poolinit(PoolTy *Pool, unsigned DeclaredSize, unsigned ObjAlignment) {
   DO_IF_TRACE(fprintf(stderr, "[%d] poolinit(0x%X, %d, %d)\n",
                       addPoolNumber(Pool), Pool, DeclaredSize, ObjAlignment));
   DO_IF_PNP(++PoolsInited);  // Track # pools initialized
-  DO_IF_PNP(InitPrintNumPools());
+  DO_IF_PNP(InitPrintNumPools<PoolTraits>());
+}
+
+void poolinit(PoolTy<NormalPoolTraits> *Pool,
+              unsigned DeclaredSize, unsigned ObjAlignment) {
+  poolinit_internal(Pool, DeclaredSize, ObjAlignment);
 }
 
 // pooldestroy - Release all memory allocated for a pool
 //
-void pooldestroy(PoolTy *Pool) {
+void pooldestroy(PoolTy<NormalPoolTraits> *Pool) {
   assert(Pool && "Null pool pointer passed in to pooldestroy!\n");
 
   DO_IF_TRACE(fprintf(stderr, "[%d] pooldestroy", removePoolNumber(Pool)));
   DO_IF_POOLDESTROY_STATS(PrintPoolStats(Pool));
 
   // Free all allocated slabs.
-  PoolSlab *PS = Pool->Slabs;
+  PoolSlab<NormalPoolTraits> *PS = Pool->Slabs;
   while (PS) {
-    PoolSlab *Next = PS->getNext();
+    PoolSlab<NormalPoolTraits> *Next = PS->getNext();
     PS->destroy();
     PS = Next;
   }
@@ -435,7 +468,8 @@ void pooldestroy(PoolTy *Pool) {
   }
 }
 
-void *poolalloc(PoolTy *Pool, unsigned NumBytes) {
+template<typename PoolTraits>
+static void *poolalloc_internal(PoolTy<PoolTraits> *Pool, unsigned NumBytes) {
   DO_IF_TRACE(fprintf(stderr, "[%d] poolalloc(%d) -> ",
                       getPoolNumber(Pool), NumBytes));
 
@@ -450,21 +484,25 @@ void *poolalloc(PoolTy *Pool, unsigned NumBytes) {
 
   // Objects must be at least 8 bytes to hold the FreedNodeHeader object when
   // they are freed.  This also handles allocations of 0 bytes.
-  if (NumBytes < (sizeof(FreedNodeHeader)-sizeof(NodeHeader)))
-    NumBytes = sizeof(FreedNodeHeader)-sizeof(NodeHeader);
+  if (NumBytes < (sizeof(FreedNodeHeader<PoolTraits>) - 
+                  sizeof(NodeHeader<PoolTraits>)))
+    NumBytes = sizeof(FreedNodeHeader<PoolTraits>) - 
+               sizeof(NodeHeader<PoolTraits>);
 
   // Adjust the size so that memory allocated from the pool is always on the
   // proper alignment boundary.
   unsigned Alignment = Pool->Alignment;
-  NumBytes = NumBytes+sizeof(FreedNodeHeader)+(Alignment-1);      // Round up
-  NumBytes = (NumBytes & ~(Alignment-1))-sizeof(FreedNodeHeader); // Truncate
+  NumBytes = NumBytes+sizeof(FreedNodeHeader<PoolTraits>) + 
+             (Alignment-1);      // Round up
+  NumBytes = (NumBytes & ~(Alignment-1)) - 
+             sizeof(FreedNodeHeader<PoolTraits>); // Truncate
 
   DO_IF_PNP(++Pool->NumObjects);
   DO_IF_PNP(Pool->BytesAllocated += NumBytes);
 
   // Fast path - allocate objects off the object list.
   if (NumBytes == Pool->DeclaredSize && Pool->ObjFreeList != 0) {
-    FreedNodeHeader *Node = Pool->ObjFreeList;
+    FreedNodeHeader<PoolTraits> *Node = Pool->ObjFreeList;
     UnlinkFreeNode(Node);
     assert(NumBytes == Node->Header.Size);
 
@@ -472,27 +510,30 @@ void *poolalloc(PoolTy *Pool, unsigned NumBytes) {
     DO_IF_TRACE(fprintf(stderr, "0x%X\n", &Node->Header+1));
     return &Node->Header+1;
   }
-    
-  if (NumBytes >= LARGE_SLAB_SIZE-sizeof(PoolSlab)-sizeof(NodeHeader) &&
-      !Pool->isPtrCompPool)
+
+  if (PoolTraits::UseLargeArrayObjects &&
+      NumBytes >= LARGE_SLAB_SIZE-sizeof(PoolSlab<PoolTraits>) - 
+      sizeof(NodeHeader<PoolTraits>))
     goto LargeObject;
 
   // Fast path.  In the common case, we can allocate a portion of the node at
   // the front of the free list.
   do {
-    FreedNodeHeader *FirstNode = Pool->OtherFreeList;
+    FreedNodeHeader<PoolTraits> *FirstNode = Pool->OtherFreeList;
     if (FirstNode) {
       unsigned FirstNodeSize = FirstNode->Header.Size;
       if (FirstNodeSize >= NumBytes) {
-        if (FirstNodeSize >= 2*NumBytes+sizeof(NodeHeader)) {
+        if (FirstNodeSize >= 2*NumBytes+sizeof(NodeHeader<PoolTraits>)) {
           // Put the remainder back on the list...
-          FreedNodeHeader *NextNodes =
-            (FreedNodeHeader*)((char*)FirstNode + sizeof(NodeHeader) +NumBytes);
+          FreedNodeHeader<PoolTraits> *NextNodes =
+            (FreedNodeHeader<PoolTraits>*)((char*)FirstNode +
+                                   sizeof(NodeHeader<PoolTraits>) +NumBytes);
           
           // Remove from list
           UnlinkFreeNode(FirstNode);
           
-          NextNodes->Header.Size = FirstNodeSize-NumBytes-sizeof(NodeHeader);
+          NextNodes->Header.Size = FirstNodeSize-NumBytes -
+                                   sizeof(NodeHeader<PoolTraits>);
           AddNodeToFreeList(Pool, NextNodes);
           
         } else {
@@ -506,8 +547,8 @@ void *poolalloc(PoolTy *Pool, unsigned NumBytes) {
 
       // Perform a search of the free list, taking the front of the first free
       // chunk that is big enough.
-      FreedNodeHeader **FN = &Pool->OtherFreeList;
-      FreedNodeHeader *FNN = FirstNode;
+      FreedNodeHeader<PoolTraits> **FN = &Pool->OtherFreeList;
+      FreedNodeHeader<PoolTraits> *FNN = FirstNode;
       
       // Search the list for the first-fit.
       while (FNN && FNN->Header.Size < NumBytes)
@@ -517,13 +558,16 @@ void *poolalloc(PoolTy *Pool, unsigned NumBytes) {
         // We found a slab big enough.  If it's a perfect fit, just unlink
         // from the free list, otherwise, slice a little bit off and adjust
         // the free list.
-        if (FNN->Header.Size > 2*NumBytes+sizeof(NodeHeader)) {
+        if (FNN->Header.Size > 2*NumBytes+sizeof(NodeHeader<PoolTraits>)) {
           UnlinkFreeNode(FNN);
           
           // Put the remainder back on the list...
-          FreedNodeHeader *NextNodes =
-            (FreedNodeHeader*)((char*)FNN + sizeof(NodeHeader) + NumBytes);
-          NextNodes->Header.Size = FNN->Header.Size-NumBytes-sizeof(NodeHeader);
+          FreedNodeHeader<PoolTraits> *NextNodes =
+            (FreedNodeHeader<PoolTraits>*)((char*)FNN +
+                                           sizeof(NodeHeader<PoolTraits>) +
+                                           NumBytes);
+          NextNodes->Header.Size = FNN->Header.Size-NumBytes -
+            sizeof(NodeHeader<PoolTraits>);
           AddNodeToFreeList(Pool, NextNodes);
         } else {
           UnlinkFreeNode(FNN);
@@ -537,7 +581,7 @@ void *poolalloc(PoolTy *Pool, unsigned NumBytes) {
 
     // Oops, we didn't find anything on the free list big enough!  Allocate
     // another slab and try again.
-    PoolSlab::create(Pool, NumBytes);
+    PoolSlab<PoolTraits>::create(Pool, NumBytes);
   } while (1);
 
 LargeObject:
@@ -552,7 +596,8 @@ LargeObject:
   return LAH+1;
 }
 
-void poolfree(PoolTy *Pool, void *Node) {
+template<typename PoolTraits>
+static void poolfree_internal(PoolTy<PoolTraits> *Pool, void *Node) {
   if (Node == 0) return;
   DO_IF_TRACE(fprintf(stderr, "[%d] poolfree(0x%X) ",
                       getPoolNumber(Pool), Node));
@@ -566,7 +611,8 @@ void poolfree(PoolTy *Pool, void *Node) {
   }
 
   // Check to see how many elements were allocated to this node...
-  FreedNodeHeader *FNH = (FreedNodeHeader*)((char*)Node-sizeof(NodeHeader));
+  FreedNodeHeader<PoolTraits> *FNH =
+    (FreedNodeHeader<PoolTraits>*)((char*)Node-sizeof(NodeHeader<PoolTraits>));
   assert((FNH->Header.Size & 1) && "Node not allocated!");
   unsigned Size = FNH->Header.Size & ~1;
 
@@ -574,13 +620,13 @@ void poolfree(PoolTy *Pool, void *Node) {
   DO_IF_TRACE(fprintf(stderr, "%d bytes\n", Size));
   
   // If the node immediately after this one is also free, merge it into node.
-  FreedNodeHeader *NextFNH;
-  NextFNH = (FreedNodeHeader*)((char*)Node+Size);
+  FreedNodeHeader<PoolTraits> *NextFNH;
+  NextFNH = (FreedNodeHeader<PoolTraits>*)((char*)Node+Size);
   while ((NextFNH->Header.Size & 1) == 0) {
     // Unlink NextFNH from the freelist that it is in.
     UnlinkFreeNode(NextFNH);
-    Size += sizeof(NodeHeader)+NextFNH->Header.Size;
-    NextFNH = (FreedNodeHeader*)((char*)Node+Size);
+    Size += sizeof(NodeHeader<PoolTraits>)+NextFNH->Header.Size;
+    NextFNH = (FreedNodeHeader<PoolTraits>*)((char*)Node+Size);
   }
 
   // If there are already nodes on the freelist, see if these blocks can be
@@ -588,21 +634,23 @@ void poolfree(PoolTy *Pool, void *Node) {
   // a simple check that prevents many horrible forms of fragmentation,
   // particularly when freeing objects in allocation order.
   //
-  if (FreedNodeHeader *ObjFNH = Pool->ObjFreeList)
-    if ((char*)ObjFNH + sizeof(NodeHeader) + ObjFNH->Header.Size == (char*)FNH){
+  if (FreedNodeHeader<PoolTraits> *ObjFNH = Pool->ObjFreeList)
+    if ((char*)ObjFNH + sizeof(NodeHeader<PoolTraits>) +
+        ObjFNH->Header.Size == (char*)FNH){
       // Merge this with a node that is already on the object size free list.
       // Because the object is growing, we will never be able to find it if we
       // leave it on the object freelist.
       UnlinkFreeNode(ObjFNH);
-      ObjFNH->Header.Size += Size+sizeof(NodeHeader);
+      ObjFNH->Header.Size += Size+sizeof(NodeHeader<PoolTraits>);
       AddNodeToFreeList(Pool, ObjFNH);
       return;
     }
 
-  if (FreedNodeHeader *OFNH = Pool->OtherFreeList)
-    if ((char*)OFNH + sizeof(NodeHeader) + OFNH->Header.Size == (char*)FNH) {
+  if (FreedNodeHeader<PoolTraits> *OFNH = Pool->OtherFreeList)
+    if ((char*)OFNH + sizeof(NodeHeader<PoolTraits>) +
+        OFNH->Header.Size == (char*)FNH) {
       // Merge this with a node that is already on the object size free list.
-      OFNH->Header.Size += Size+sizeof(NodeHeader);
+      OFNH->Header.Size += Size+sizeof(NodeHeader<PoolTraits>);
       return;
     }
 
@@ -619,7 +667,9 @@ LargeArrayCase:
   free(LAH);
 }
 
-void *poolrealloc(PoolTy *Pool, void *Node, unsigned NumBytes) {
+template<typename PoolTraits>
+static void *poolrealloc_internal(PoolTy<PoolTraits> *Pool, void *Node,
+                                  unsigned NumBytes) {
   DO_IF_TRACE(fprintf(stderr, "[%d] poolrealloc(0x%X, %d) -> ",
                       getPoolNumber(Pool), Node, NumBytes));
 
@@ -637,7 +687,8 @@ void *poolrealloc(PoolTy *Pool, void *Node, unsigned NumBytes) {
     return 0;
   }
 
-  FreedNodeHeader *FNH = (FreedNodeHeader*)((char*)Node-sizeof(NodeHeader));
+  FreedNodeHeader<PoolTraits> *FNH =
+    (FreedNodeHeader<PoolTraits>*)((char*)Node-sizeof(NodeHeader<PoolTraits>));
   assert((FNH->Header.Size & 1) && "Node not allocated!");
   unsigned Size = FNH->Header.Size & ~1;
   if (Size != ~1U) {
@@ -670,7 +721,7 @@ void *poolrealloc(PoolTy *Pool, void *Node, unsigned NumBytes) {
   return NewLAH+1;
 }
 
-unsigned poolobjsize(PoolTy *Pool, void *Node) {
+unsigned poolobjsize(PoolTy<NormalPoolTraits> *Pool, void *Node) {
   if (Node == 0) return 0;
 
   // If a null pool descriptor is passed in, this is not a pool allocated data
@@ -682,7 +733,9 @@ unsigned poolobjsize(PoolTy *Pool, void *Node) {
   }
 
   // Check to see how many bytes were allocated to this node.
-  FreedNodeHeader *FNH = (FreedNodeHeader*)((char*)Node-sizeof(NodeHeader));
+  FreedNodeHeader<NormalPoolTraits> *FNH =
+    (FreedNodeHeader<NormalPoolTraits>*)((char*)Node -
+                                         sizeof(NodeHeader<NormalPoolTraits>));
   assert((FNH->Header.Size & 1) && "Node not allocated!");
   unsigned Size = FNH->Header.Size & ~1;
   if (Size != ~1U) return Size;
@@ -691,6 +744,23 @@ unsigned poolobjsize(PoolTy *Pool, void *Node) {
   LargeArrayHeader *LAH = ((LargeArrayHeader*)Node)-1;
   return LAH->Size;
 }
+
+
+void *poolalloc(PoolTy<NormalPoolTraits> *Pool, unsigned NumBytes) {
+  return poolalloc_internal(Pool, NumBytes);
+}
+
+
+void poolfree(PoolTy<NormalPoolTraits> *Pool, void *Node) {
+  poolfree_internal(Pool, Node);
+}
+
+void *poolrealloc(PoolTy<NormalPoolTraits> *Pool, void *Node,
+                  unsigned NumBytes) {
+  return poolrealloc_internal(Pool, Node, NumBytes);
+}
+
+
 
 //===----------------------------------------------------------------------===//
 // Pointer Compression runtime library.  Most of these are just wrappers
@@ -702,12 +772,12 @@ unsigned poolobjsize(PoolTy *Pool, void *Node) {
 
 // Pools - When we are done with a pool, don't munmap it, keep it around for
 // next time.
-static PoolSlab *Pools[4] = { 0, 0, 0, 0 };
+static PoolSlab<CompressedPoolTraits> *Pools[4] = { 0, 0, 0, 0 };
 
 
-void *poolinit_pc(PoolTy *Pool, unsigned NodeSize, unsigned ObjAlignment) {
-  poolinit(Pool, NodeSize, ObjAlignment);
-  Pool->isPtrCompPool = true;
+void *poolinit_pc(PoolTy<CompressedPoolTraits> *Pool,
+                  unsigned DeclaredSize, unsigned ObjAlignment) {
+  poolinit_internal(Pool, DeclaredSize, ObjAlignment);
 
   // Create the pool.  We have to do this eagerly (instead of on the first
   // allocation), because code may want to eagerly copy the pool base into a
@@ -723,16 +793,18 @@ void *poolinit_pc(PoolTy *Pool, unsigned NodeSize, unsigned ObjAlignment) {
 
   if (Pool->Slabs == 0) {
     // Didn't find an existing pool, create one.
-    Pool->Slabs = (PoolSlab*)mmap(0, POOLSIZE, PROT_READ|PROT_WRITE,
-                                 MAP_PRIVATE|MAP_NORESERVE|MAP_ANONYMOUS, 0, 0);
+    Pool->Slabs = (PoolSlab<CompressedPoolTraits>*)
+                     mmap(0, POOLSIZE, PROT_READ|PROT_WRITE,
+                          MAP_PRIVATE|MAP_NORESERVE|MAP_ANONYMOUS, 0, 0);
     DO_IF_TRACE(fprintf(stderr, "RESERVED ADDR SPACE: %p -> %p\n",
                         Pool->Slabs, (char*)Pool->Slabs+POOLSIZE));
   }
-  PoolSlab::create_for_ptrcomp(Pool, Pool->Slabs, POOLSIZE);
+  PoolSlab<CompressedPoolTraits>::create_for_ptrcomp(Pool, Pool->Slabs,
+                                                     POOLSIZE);
   return Pool->Slabs;
 }
 
-void pooldestroy_pc(PoolTy *Pool) {
+void pooldestroy_pc(PoolTy<CompressedPoolTraits> *Pool) {
   assert(Pool && "Null pool pointer passed in to pooldestroy!\n");
   if (Pool->Slabs == 0)
     return;   // no memory allocated from this pool.
@@ -753,13 +825,14 @@ void pooldestroy_pc(PoolTy *Pool) {
   munmap(Pool->Slabs, POOLSIZE);
 }
 
-unsigned long poolalloc_pc(PoolTy *Pool, unsigned NumBytes) {
-  void *Result = poolalloc(Pool, NumBytes);
+unsigned long poolalloc_pc(PoolTy<CompressedPoolTraits> *Pool,
+                           unsigned NumBytes) {
+  void *Result = poolalloc_internal(Pool, NumBytes);
   return (char*)Result-(char*)Pool->Slabs;
 }
 
-void poolfree_pc(PoolTy *Pool, unsigned long Node) {
-  poolfree(Pool, (char*)Pool->Slabs+Node);
+void poolfree_pc(PoolTy<CompressedPoolTraits> *Pool, unsigned long Node) {
+  poolfree_internal(Pool, (char*)Pool->Slabs+Node);
 }
 
 
