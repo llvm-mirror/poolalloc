@@ -16,6 +16,7 @@
 #include "Support/hash_set"
 #include "Support/VectorExtras.h"
 #include "Support/EquivalenceClasses.h"
+#include <set>
 
 class BUDataStructures;
 class TDDataStructures;
@@ -97,6 +98,7 @@ class PoolAllocate : public Pass {
  public:
 
   Function *PoolInit, *PoolDestroy, *PoolAlloc, *PoolAllocArray, *PoolFree;
+  static const Type *PoolDescPtrTy;
 
   // Equivalence class where functions that can potentially be called via
   // the same function pointer are in the same class.
@@ -174,11 +176,13 @@ class PoolAllocate : public Pass {
                    std::map<DSNode*, Value*> &PoolDescriptors,
 		   std::map<const Value*, const Type *> &PoolDescTypeMap);
   
-  void TransformFunctionBody(Function &F, Function &OldF,
-                             DSGraph &G, PA::FuncInfo &FI);
-
   void InlineIndirectCalls(Function &F, DSGraph &G, 
 			   hash_set<Function*> &visited);
+
+  void TransformBody(DSGraph &g, DSGraph &tdg, PA::FuncInfo &fi,
+                     std::set<Value*, BasicBlock*> &poolUses,
+                     std::set<Value*, CallInst*> &poolFrees,
+                     Function &F);
 };
 
 #endif
