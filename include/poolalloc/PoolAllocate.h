@@ -63,10 +63,6 @@ namespace PA {
     /// indirect function calls that are not used in the function.
     std::map<DSNode*, Value*> PoolDescriptors;
 
-    // Dinakar :  Added  map from alloca of poolinit or argument to the
-    // corresponding type, the type of Value * is that of pooldescriptor
-    std::map<const Value*, const Type*> PoolDescType;
-  
     /// NewToOldValueMap - When and if a function needs to be cloned, this map
     /// contains a mapping from all of the values in the new function back to
     /// the values they correspond to in the old function.
@@ -174,8 +170,7 @@ class PoolAllocate : public Pass {
   /// PoolDescriptors map for each DSNode.
   ///
   void CreatePools(Function &F, const std::vector<DSNode*> &NodesToPA,
-                   std::map<DSNode*, Value*> &PoolDescriptors,
-		   std::map<const Value*, const Type *> &PoolDescTypeMap);
+                   std::map<DSNode*, Value*> &PoolDescriptors);
   
   void InlineIndirectCalls(Function &F, DSGraph &G, 
 			   hash_set<Function*> &visited);
@@ -190,9 +185,7 @@ class PoolAllocate : public Pass {
   /// list.
   void InitializeAndDestroyPools(Function &F,
                                  const std::vector<DSNode*> &NodesToPA,
-                                 std::map<DSNode*, Value*> &PoolDescriptors,
-                                 std::map<const Value *,
-                                          const Type *> &PoolDescTypeMap);
+                                 std::map<DSNode*, Value*> &PoolDescriptors);
 };
 
 #endif
