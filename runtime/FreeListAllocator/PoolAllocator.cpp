@@ -7,7 +7,7 @@
 // 
 //===----------------------------------------------------------------------===//
 //
-// This file is one possible implementation of the LLVM pool allocator runtime
+// This file is yet another implementation of the LLVM pool allocator runtime
 // library.
 //
 //===----------------------------------------------------------------------===//
@@ -28,16 +28,16 @@
 struct SlabHeader
 {
   // Flags whether this is an array
-  unsigned char IsArray;
+  unsigned int IsArray;
 
   // Number of nodes per slab
   unsigned int NodesPerSlab;
 
-  // The size of each node
-  unsigned int NodeSize;
-
   // Reference Count
   unsigned int LiveNodes;
+
+  // Next free data block
+  unsigned int NextFreeData;
 
   // Pointer to the next slab
   struct SlabHeader * Next;
@@ -91,20 +91,10 @@ createSlab (unsigned int NodeSize, unsigned int NodesPerSlab = 0)
   // Initialize the contents of the slab.
   //
   NewSlab->IsArray = 0;
-  NewSlab->NodeSize = NodeSize;
   NewSlab->NodesPerSlab = NodesPerSlab;
-  NewSlab->LiveNodes = 0;
+  NewSlab->NextFreeData = NewSlab->LiveNodes = 0;
   NewSlab->Next = NULL;
   NewSlab->Data = (unsigned char *)NewSlab + sizeof (struct SlabHeader) + ((NodesPerSlab) * sizeof (NodePointer));
-
-  //
-  // Initialize each node in the list.
-  //
-  for (index = 0; index < NodesPerSlab - 1; index++)
-  {
-    NewSlab->BlockList[index].Next = &(NewSlab->BlockList[index + 1]);
-  }
-  NewSlab->BlockList[NodesPerSlab - 1].Next = NULL;
 
   return NewSlab;
 }
@@ -218,7 +208,27 @@ poolalloc(PoolTy *Pool)
   assert(Pool && "Null pool pointer passed in to poolalloc!\n");
 
   //
-  // If there isn't an available block, we need a new slab.
+  // Check to see if we have a slab.  If we don't, get one.
+  //
+  if (Pool->Slabs == NULL)
+  {
+    Pool->Slabs = createSlab (Pool->NodeSize);
+  }
+
+  //
+  // Determine whether we can allocate from the current slab.
+  //
+  if (Pool->Slabs->NextFreeData < Pool->Slabs->NodesPerSlab)
+  {
+    //
+    // Return the block and increment the index of the next free data block.
+    //
+    return (Pool->Slabs->Data + (Pool->NodeSize * Pool->Slabs->NextFreeData++));
+  }
+
+  //
+  // We have a slab, but it doesn't have any new blocks.
+  // Check the free list to see if we can use any recycled blocks.
   //
   if (Pool->FreeList.Next == NULL)
   {
@@ -226,21 +236,13 @@ poolalloc(PoolTy *Pool)
     // Create a new slab and add it to the list.
     //
     struct SlabHeader * NewSlab = createSlab (Pool->NodeSize);
-    if (Pool->Slabs == NULL)
-    {
-      Pool->Slabs = NewSlab;
-    }
-    else
-    {
-      NewSlab->Next = Pool->Slabs;
-      Pool->Slabs = NewSlab;
-    }
+    NewSlab->Next = Pool->Slabs;
+    Pool->Slabs = NewSlab;
 
     //
-    // Take the linked list of nodes inside the slab and add them to the
-    // free list.
+    // Return the block and increment the index of the next free data block.
     //
-    Pool->FreeList.Next = &(NewSlab->BlockList[0]);
+    return (Pool->Slabs->Data + (Pool->NodeSize * Pool->Slabs->NextFreeData++));
   }
 
   //
@@ -273,6 +275,10 @@ poolalloc(PoolTy *Pool)
 //
 // Description:
 //  Allocate an array of contiguous nodes.
+//
+// Inputs:
+//  Pool - The pool from which to allocate memory.
+//  ArraySize - The size of the array in number of elements (not bytes).
 //
 // FIXME:
 //  This algorithm is not very space efficient.  This needs to be fixed.
