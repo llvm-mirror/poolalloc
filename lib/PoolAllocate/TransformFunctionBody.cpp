@@ -91,35 +91,11 @@ namespace {
       return G.getScalarMap()[V];
     }
 
-    DSNodeHandle& getTDDSNodeHFor(Value *V) {
-      if (!FI.NewToOldValueMap.empty()) {
-        // If the NewToOldValueMap is in effect, use it.
-        std::map<Value*,const Value*>::iterator I = FI.NewToOldValueMap.find(V);
-        if (I != FI.NewToOldValueMap.end())
-          V = (Value*)I->second;
-      }
-
-      return TDG.getScalarMap()[V];
-    }
-
     Value *getPoolHandle(Value *V) {
       DSNode *Node = getDSNodeHFor(V).getNode();
       // Get the pool handle for this DSNode...
       std::map<DSNode*, Value*>::iterator I = FI.PoolDescriptors.find(Node);
-
-      if (I != FI.PoolDescriptors.end()) {
-	// Check that the node pointed to by V in the TD DS graph is not
-	// collapsed
-	DSNode *TDNode = getTDDSNodeHFor(V).getNode();
-	if (TDNode && TDNode->getType() != Type::VoidTy)
-	  return I->second;
-
-        PAInfo.CollapseFlag = 1;
-        return 0;
-      }
-      else
-	return 0;
-	  
+      return I != FI.PoolDescriptors.end() ? I->second : 0;
     }
     
     bool isFuncPtr(Value *V);
@@ -167,9 +143,8 @@ Function* FuncTransform::getFuncClass(Value *V) {
 
   // if V is not a constant
   DSNode *DSN = TDG.getNodeForValue(V).getNode();
-  if (!DSN) {
-    return 0;
-  }
+  if (!DSN) return 0;
+
   const std::vector<GlobalValue*> &Callees = DSN->getGlobals();
   if (Callees.size() > 0) {
     Function *calledF = dyn_cast<Function>(*Callees.begin());

@@ -178,9 +178,6 @@ bool PoolAllocate::run(Module &M) {
       ProcessFunctionBody(*I, FI != FuncMap.end() ? *FI->second : *I);
     }
 
-  if (CollapseFlag)
-    std::cerr << "Pool Allocation successful!"
-              << " However all data structures may not be pool allocated\n";
   return true;
 }
 
