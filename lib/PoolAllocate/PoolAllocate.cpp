@@ -109,10 +109,9 @@ bool PoolAllocate::run(Module &M) {
 
 static void GetNodesReachableFromGlobals(DSGraph &G,
                                          hash_set<DSNode*> &NodesFromGlobals) {
-  for (DSGraph::ScalarMapTy::iterator I = G.getScalarMap().begin(), 
-         E = G.getScalarMap().end(); I != E; ++I)
-    if (isa<GlobalValue>(I->first))              // Found a global
-      I->second.getNode()->markReachableNodes(NodesFromGlobals);
+  for (DSScalarMap::global_iterator I = G.getScalarMap().global_begin(), 
+         E = G.getScalarMap().global_end(); I != E; ++I)
+    G.getNodeForValue(*I).getNode()->markReachableNodes(NodesFromGlobals);
 }
 
 // AddPoolPrototypes - Add prototypes for the pool functions to the specified
