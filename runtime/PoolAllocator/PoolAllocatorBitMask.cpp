@@ -27,15 +27,23 @@
 static const unsigned NODES_PER_SLAB = 4096;
 
 // PoolSlab Structure - Hold NODES_PER_SLAB objects of the current node type.
-//   Invariants: FirstUnused <= LastUsed+1
+//   Invariants: FirstUnused <= UsedEnd
 //
 struct PoolSlab {
   PoolSlab *Next;
   unsigned isSingleArray;   // If this slab is used for exactly one array
 
-  unsigned FirstUnused;   // First empty node in slab
-  int LastUsed;           // Last allocated node in slab. -1 if slab is empty
+  unsigned FirstUnused;     // First empty node in slab
+
+  // UsedEnd - 1 past the last allocated node in slab. 0 if slab is empty
+  unsigned UsedEnd;
+
+  // AllocatedBitVector - One bit is set for every node in this slab which has
+  // been allocated.
   unsigned char AllocatedBitVector[NODES_PER_SLAB/8];
+
+  // StartOfAllocation - A bit is set if this is the start of an allocation,
+  // either a unit allocation or an array.
   unsigned char StartOfAllocation[NODES_PER_SLAB/8];
 
   // The array is allocated from the start to the end of the slab
@@ -108,17 +116,17 @@ static void *FindSlabEntry(PoolSlab *PS, unsigned NodeSize) {
       continue;
 
     // Check to see if there are empty entries at the end of the slab...
-    if (PS->LastUsed < NODES_PER_SLAB-1) {
+    if (PS->UsedEnd < NODES_PER_SLAB) {
       // Mark the returned entry used
-      PS->markNodeAllocated(PS->LastUsed+1);
-      PS->setStartBit(PS->LastUsed+1);
+      PS->markNodeAllocated(PS->UsedEnd);
+      PS->setStartBit(PS->UsedEnd);
 
       // If we are allocating out the first unused field, bump its index also
-      if (PS->FirstUnused == (unsigned)PS->LastUsed+1)
+      if (PS->FirstUnused == (unsigned)PS->UsedEnd)
         PS->FirstUnused++;
 
-      // Return the entry, increment LastUsed field.
-      return &PS->Data[0] + ++PS->LastUsed * NodeSize;
+      // Return the entry, increment UsedEnd field.
+      return &PS->Data[0] + PS->UsedEnd++ * NodeSize;
     }
 
     // If not, check to see if this node has a declared "FirstUnused" value that
@@ -153,17 +161,17 @@ void *poolalloc(PoolTy *Pool) {
 
   // Fastpath for allocation in the common case.
   if (CurPoolSlab && !CurPoolSlab->isSingleArray &&
-      CurPoolSlab->LastUsed < NODES_PER_SLAB-1) {
+      CurPoolSlab->UsedEnd < NODES_PER_SLAB) {
     // Mark the returned entry used
-    CurPoolSlab->markNodeAllocated(CurPoolSlab->LastUsed+1);
-    CurPoolSlab->setStartBit(CurPoolSlab->LastUsed+1);
+    CurPoolSlab->markNodeAllocated(CurPoolSlab->UsedEnd);
+    CurPoolSlab->setStartBit(CurPoolSlab->UsedEnd);
     
     // If we are allocating out the first unused field, bump its index also
-    if (CurPoolSlab->FirstUnused == (unsigned)CurPoolSlab->LastUsed+1)
+    if (CurPoolSlab->FirstUnused == CurPoolSlab->UsedEnd)
       CurPoolSlab->FirstUnused++;
     
-    // Return the entry, increment LastUsed field.
-    return &CurPoolSlab->Data[0] + ++CurPoolSlab->LastUsed * NodeSize;
+    // Return the entry, increment UsedEnd field.
+    return &CurPoolSlab->Data[0] + CurPoolSlab->UsedEnd++ * NodeSize;
   }
 
   if (void *Result = FindSlabEntry(CurPoolSlab, NodeSize))
@@ -175,7 +183,7 @@ void *poolalloc(PoolTy *Pool) {
 
   // Initialize the slab to indicate that the first element is allocated
   PS->FirstUnused = 1;
-  PS->LastUsed = 0;
+  PS->UsedEnd = 1;
 
   // This is not a single array
   PS->isSingleArray = 0;
@@ -249,20 +257,20 @@ void poolfree(PoolTy *Pool, char *Node) {
     if (Idx < PS->FirstUnused) PS->FirstUnused = Idx;
     
     // If we are not freeing the last element in a slab...
-    if (idxiter - 1 != (unsigned)PS->LastUsed)
+    if (idxiter != PS->UsedEnd)
       return;
 
     // Otherwise we are freeing the last element in a slab... shrink the
-    // LastUsed marker down to last used node.
-    PS->LastUsed = Idx;
+    // UsedEnd marker down to last used node.
+    PS->UsedEnd = Idx+1;
     do {
-      --PS->LastUsed;
+      --PS->UsedEnd;
       // FIXME, this should scan the allocated array an entire byte at a time 
       // for performance!
       //
-    } while (PS->LastUsed >= 0 && (!PS->isNodeAllocated(PS->LastUsed)));
+    } while (PS->UsedEnd && !PS->isNodeAllocated(PS->UsedEnd-1));
     
-    assert(PS->FirstUnused <= PS->LastUsed+1 &&
+    assert(PS->FirstUnused <= PS->UsedEnd &&
 	   "FirstUnused field was out of date!");
   }
     
@@ -275,12 +283,12 @@ void poolfree(PoolTy *Pool, char *Node) {
       // If it is a SingleArray, just free it
       *PPS = PS->Next;
       free(PS);
-    } else if (PS->LastUsed == -1) {   // Empty slab?
+    } else if (PS->UsedEnd == 0) {   // Empty slab?
       PoolSlab *HeadSlab;
       *PPS = PS->Next;   // Unlink from the list of slabs...
       
       HeadSlab = (PoolSlab*)Pool->Slabs;
-      if (HeadSlab && HeadSlab->LastUsed == -1){// List already has empty slab?
+      if (HeadSlab && HeadSlab->UsedEnd == 0) {// List already has empty slab?
 	free(PS);                               // Free memory for slab
       } else {
 	PS->Next = HeadSlab;                    // No empty slab yet, add this
@@ -291,14 +299,14 @@ void poolfree(PoolTy *Pool, char *Node) {
     // Pool is not freeable for safety reasons
     // Leave it in the list of PoolSlabs as an empty PoolSlab
     if (!PS->isSingleArray)
-      if (PS->LastUsed == -1) {
+      if (PS->UsedEnd == 0) {
 	PS->FirstUnused = 0;
 	
 	// Do not free the pool, but move it to the head of the list if there is
 	// no empty slab there already
 	PoolSlab *HeadSlab;
 	HeadSlab = (PoolSlab*)Pool->Slabs;
-	if (HeadSlab && HeadSlab->LastUsed != -1) {
+	if (HeadSlab && HeadSlab->UsedEnd != 0) {
 	  PS->Next = HeadSlab;
 	  Pool->Slabs = PS;
 	}
@@ -324,31 +332,31 @@ static void *FindSlabEntryArray(PoolSlab *PS, unsigned NodeSize, unsigned Size){
     } else if (PS->isSingleArray)
       continue; // Do not allocate small arrays in SingleArray slabs
 
-    // For small array allocation
-    // Check to see if there are empty entries at the end of the slab...
-    if (PS->LastUsed < (int)(NODES_PER_SLAB-Size)) {
+    // For small array allocation, check to see if there are empty entries at
+    // the end of the slab...
+    if (PS->UsedEnd-1 < NODES_PER_SLAB-Size) {
       // Mark the returned entry used and set the start bit
-      PS->setStartBit(PS->LastUsed + 1);
-      for (unsigned i = PS->LastUsed + 1; i <= PS->LastUsed + Size; ++i)
+      PS->setStartBit(PS->UsedEnd);
+      for (unsigned i = PS->UsedEnd; i < PS->UsedEnd + Size; ++i)
 	PS->markNodeAllocated(i);
 
       // If we are allocating out the first unused field, bump its index also
-      if (PS->FirstUnused == (unsigned)PS->LastUsed+1)
+      if (PS->FirstUnused == PS->UsedEnd)
         PS->FirstUnused += Size;
 
-      // Increment LastUsed
-      PS->LastUsed += Size;
+      // Increment UsedEnd
+      PS->UsedEnd += Size;
 
       // Return the entry
-      return &PS->Data[0] + (PS->LastUsed - Size + 1) * NodeSize;
+      return &PS->Data[0] + (PS->UsedEnd - Size) * NodeSize;
     }
 
     // If not, check to see if this node has a declared "FirstUnused" value
     // starting which Size nodes can be allocated
     //
     if (PS->FirstUnused < NODES_PER_SLAB - Size + 1 &&
-	(PS->LastUsed < (int)PS->FirstUnused || 
-	 PS->LastUsed - PS->FirstUnused >= Size)) {
+	(PS->UsedEnd < PS->FirstUnused+1 || 
+	 PS->UsedEnd - PS->FirstUnused >= Size+1)) {
       unsigned Idx = PS->FirstUnused, foundArray;
       
       // Check if there is a continuous array of Size nodes starting FirstUnused
@@ -405,7 +413,7 @@ void* poolallocarray(PoolTy* Pool, unsigned Size) {
 
     // Initialize the slab to indicate that the first element is allocated
     PS->FirstUnused = Size;
-    PS->LastUsed = Size - 1;
+    PS->UsedEnd = Size;
     
     PS->isSingleArray = 0;
     PS->ArraySize = 0;
