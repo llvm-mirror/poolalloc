@@ -215,12 +215,13 @@ void PoolSlab::destroy() {
 
 // poolinit - Initialize a pool descriptor to empty
 //
-void poolinit(PoolTy *Pool, unsigned DeclaredSize) {
+void poolinit(PoolTy *Pool, unsigned DeclaredSize, unsigned ObjAlignment) {
   assert(Pool && "Null pool pointer passed into poolinit!\n");
   memset(Pool, 0, sizeof(PoolTy));
   Pool->AllocSize = INITIAL_SLAB_SIZE;
   Pool->DeclaredSize = DeclaredSize;
-  Pool->Alignment = __alignof(double);
+  if (ObjAlignment < 4) ObjAlignment = __alignof(double);
+  Pool->Alignment = ObjAlignment;
 
   DO_IF_TRACE(fprintf(stderr, "[%d] poolinit(0x%X, %d)\n", addPoolNumber(Pool),
                       Pool, DeclaredSize));

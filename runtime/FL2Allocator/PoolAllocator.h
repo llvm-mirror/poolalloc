@@ -108,7 +108,7 @@ struct PoolTy {
 };
 
 extern "C" {
-  void poolinit(PoolTy *Pool, unsigned DeclaredSize);
+  void poolinit(PoolTy *Pool, unsigned DeclaredSize, unsigned ObjAlignment);
   void poolmakeunfreeable(PoolTy *Pool);
   void pooldestroy(PoolTy *Pool);
   void *poolalloc(PoolTy *Pool, unsigned NumBytes);
