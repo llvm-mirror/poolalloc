@@ -248,13 +248,14 @@ namespace {
   
     const PointerCompress::PoolInfoMap &PoolInfo;
 
+    const TargetData &TD;
     const DSGraph &DSG;
 
     PointerCompress &PtrComp;
   public:
     InstructionRewriter(const PointerCompress::PoolInfoMap &poolInfo,
                         const DSGraph &dsg, PointerCompress &ptrcomp)
-      : PoolInfo(poolInfo), DSG(dsg), PtrComp(ptrcomp) {
+      : PoolInfo(poolInfo), TD(dsg.getTargetData()), DSG(dsg), PtrComp(ptrcomp){
     }
 
     ~InstructionRewriter();
@@ -318,6 +319,7 @@ namespace {
     void visitCastInst(CastInst &CI);
     void visitPHINode(PHINode &PN);
     void visitSetCondInst(SetCondInst &SCI);
+    void visitGetElementPtrInst(GetElementPtrInst &GEPI);
     void visitLoadInst(LoadInst &LI);
     void visitStoreInst(StoreInst &SI);
 
@@ -404,6 +406,31 @@ void InstructionRewriter::visitSetCondInst(SetCondInst &SCI) {
                                Name, &SCI);
   SCI.replaceAllUsesWith(New);
   SCI.eraseFromParent();
+}
+
+void InstructionRewriter::visitGetElementPtrInst(GetElementPtrInst &GEPI) {
+  const CompressedPoolInfo *PI = getPoolInfo(&GEPI);
+  if (PI == 0) return;
+
+  // For now, we only support very very simple getelementptr instructions, with
+  // two indices, where the first is zero.
+  assert(GEPI.getNumOperands() == 3 && isa<Constant>(GEPI.getOperand(1)) &&
+         cast<Constant>(GEPI.getOperand(1))->isNullValue());
+  const Type *IdxTy = 
+    cast<PointerType>(GEPI.getOperand(0)->getType())->getElementType();
+  assert(isa<StructType>(IdxTy) && "Can only handle structs right now!");
+
+  Value *Val = getTransformedValue(GEPI.getOperand(0));
+
+  unsigned Field = (unsigned)cast<ConstantUInt>(GEPI.getOperand(2))->getValue();
+  if (Field) {
+    const StructType *NTy = cast<StructType>(PI->getNewType());
+    uint64_t FieldOffs = TD.getStructLayout(NTy)->MemberOffsets[Field];
+    Constant *FieldOffsCst = ConstantUInt::get(UINTTYPE, FieldOffs);
+    Val = BinaryOperator::createAdd(Val, FieldOffsCst, GEPI.getName(), &GEPI);
+  }
+
+  setTransformedValue(GEPI, Val);
 }
 
 void InstructionRewriter::visitLoadInst(LoadInst &LI) {
