@@ -673,7 +673,7 @@ void InstructionRewriter::visitGetElementPtrInst(GetElementPtrInst &GEPI) {
       const SequentialType *STy = cast<SequentialType>(*GTI);
       if (!isa<Constant>(Idx) || !cast<Constant>(Idx)->isNullValue()) {
         // Add Idx*sizeof(NewElementType) to the index.
-        const Type *ElTy = STy->getElementType();
+        const Type *ElTy = cast<SequentialType>(NTy)->getElementType();
         if (Idx->getType() != SCALARUINTTYPE)
           Idx = new CastInst(Idx, SCALARUINTTYPE, Idx->getName(), &GEPI);
 
@@ -907,6 +907,28 @@ void InstructionRewriter::visitCallInst(CallInst &CI) {
     // work out if we pass compressed pointers.
     std::vector<Value*> Operands;
     Operands.reserve(CI.getNumOperands()-1);
+
+    // If this is one of the functions we know about, just materialize the
+    // compressed pointer as a real pointer, and pass it.
+    if (Callee->getName() == "printf") {
+      for (unsigned i = 1, e = CI.getNumOperands(); i != e; ++i)
+        if (isa<PointerType>(CI.getOperand(i)->getType()) &&
+            getPoolInfo(CI.getOperand(i)))
+          CI.setOperand(i, getTransformedValue(CI.getOperand(i)));
+      return;
+    } else if (Callee->getName() == "llvm.memset") {
+      if (const CompressedPoolInfo *DestPI = getPoolInfo(CI.getOperand(1))) {
+        std::vector<Value*> Ops;
+        Ops.push_back(getTransformedValue(CI.getOperand(1)));
+        Value *BasePtr = DestPI->EmitPoolBaseLoad(CI);
+        Value *SrcPtr = new GetElementPtrInst(BasePtr, Ops,
+                                       CI.getOperand(1)->getName()+".pp", &CI);
+        SrcPtr = new CastInst(SrcPtr, CI.getOperand(1)->getType(), "", &CI);
+        CI.setOperand(1, SrcPtr);
+        return;
+      }
+    }
+
 
     std::vector<unsigned> CompressedArgs;
     if (isa<PointerType>(CI.getType()) && getPoolInfo(&CI))
