@@ -89,6 +89,7 @@ my $PTRDIST   = 'MultiSource/Benchmarks/Ptrdist';
  ["NumTSPools",           '([0-9]+).*Number of typesafe pools'],
  ["NumArgs",              '([0-9]+).*Number of function arguments added'],
  ["Nonprofit",            '([0-9]+).*Number of DSNodes not profitable'],
+ ["Colocated",            '([0-9]+).*Number of DSNodes colocated'],
  ["NumPFElide",           '([0-9]+).*Number of poolfree.s elided'],
  []
 );

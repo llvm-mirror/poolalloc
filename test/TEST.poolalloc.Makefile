@@ -9,8 +9,8 @@ CFLAGS = -O3
 
 EXTRA_PA_FLAGS := -poolalloc-force-simple-pool-init
 
-ifdef DISABLE_PROFITABILITY
-EXTRA_PA_FLAGS += -poolalloc-heuristic=AllPools
+ifdef HEURISTIC
+EXTRA_PA_FLAGS += -poolalloc-heuristic=$(HEURISTIC)
 endif
 
 
