@@ -34,16 +34,13 @@
 using namespace llvm;
 using namespace PA;
 
-// PASS_ALL_ARGUMENTS - If this is set to true, pass in pool descriptors for all
-// DSNodes in a function, even if there are no allocations or frees in it.  This
-// is useful for SafeCode.
-#define PASS_ALL_ARGUMENTS 0
-
 const Type *PoolAllocate::PoolDescPtrTy = 0;
 
 namespace {
   RegisterOpt<PoolAllocate>
   X("poolalloc", "Pool allocate disjoint data structures");
+  RegisterPass<PoolAllocatePassAllPools>
+  Y("poolalloc-passing-all-pools", "Pool allocate disjoint data structures");
 
   Statistic<> NumArgsAdded("poolalloc", "Number of function arguments added");
   Statistic<> NumCloned   ("poolalloc", "Number of functions cloned");
@@ -232,7 +229,8 @@ static void GetNodesReachableFromGlobals(DSGraph &G,
 }
 
 static void MarkNodesWhichMustBePassedIn(hash_set<const DSNode*> &MarkedNodes,
-                                         Function &F, DSGraph &G) {
+                                         Function &F, DSGraph &G,
+                                         bool PassAllArguments) {
   // Mark globals and incomplete nodes as live... (this handles arguments)
   if (F.getName() != "main") {
     // All DSNodes reachable from arguments must be passed in.
@@ -261,7 +259,7 @@ static void MarkNodesWhichMustBePassedIn(hash_set<const DSNode*> &MarkedNodes,
   for (hash_set<const DSNode*>::iterator I = MarkedNodes.begin(),
          E = MarkedNodes.end(); I != E; ) {
     const DSNode *N = *I++;
-    if ((!N->isHeapNode() && !PASS_ALL_ARGUMENTS) || NodesFromGlobals.count(N))
+    if ((!N->isHeapNode() && !PassAllArguments) || NodesFromGlobals.count(N))
       MarkedNodes.erase(N);
   }
 }
@@ -284,7 +282,7 @@ void PoolAllocate::FindFunctionPoolArgs(Function &F) {
   // Find DataStructure nodes which are allocated in pools non-local to the
   // current function.  This set will contain all of the DSNodes which require
   // pools to be passed in from outside of the function.
-  MarkNodesWhichMustBePassedIn(MarkedNodes, F, G);
+  MarkNodesWhichMustBePassedIn(MarkedNodes, F, G, PassAllArguments);
   
   FI.ArgNodes.insert(FI.ArgNodes.end(), MarkedNodes.begin(), MarkedNodes.end());
 }

@@ -93,6 +93,12 @@ namespace PA {
 /// PoolAllocate - The main pool allocation pass
 ///
 class PoolAllocate : public ModulePass {
+  /// PassAllArguments - If set to true, we should pass pool descriptor
+  /// arguments into any function that loads or stores to a pool, in addition to
+  /// those functions that allocate or deallocate.  See also the
+  /// PoolAllocatePassAllPools pass below.
+  bool PassAllArguments;
+
   Module *CurModule;
   PA::EquivClassGraphs *ECGraphs;
 
@@ -112,6 +118,9 @@ public:
   std::map<const DSNode*, Value*> GlobalNodes;
 
  public:
+  PoolAllocate(bool passAllArguments = false) 
+    : PassAllArguments(passAllArguments) {}
+
   bool runOnModule(Module &M);
   
   virtual void getAnalysisUsage(AnalysisUsage &AU) const;
@@ -232,6 +241,16 @@ public:
                             std::multimap<AllocaInst*, CallInst*> &PoolFrees);
 
   void CalculateLivePoolFreeBlocks(std::set<BasicBlock*> &LiveBlocks,Value *PD);
+};
+
+
+/// PoolAllocatePassAllPools - This class is the same as the pool allocator,
+/// except that it passes pool descriptors into functions that do not do
+/// allocations or deallocations.  This is needed by the pointer compression
+/// pass, which requires a pool descriptor to be available for a pool if any
+/// load or store to that pool is performed.
+struct PoolAllocatePassAllPools : public PoolAllocate {
+  PoolAllocatePassAllPools() : PoolAllocate(true) {}
 };
 
 }
