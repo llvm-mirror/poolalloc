@@ -278,6 +278,9 @@ Value *CompressedPoolInfo::EmitPoolBaseLoad(Instruction &I) const {
 /// dump - Emit a debugging dump for this pool info.
 ///
 void CompressedPoolInfo::dump() const {
+  const TargetData &TD = getNode()->getParentGraph()->getTargetData();
+  std::cerr << "  From size: " << TD.getTypeSize(getNode()->getType())
+            << "  To size: " << TD.getTypeSize(NewTy) << "\n";
   std::cerr << "Node: "; getNode()->dump();
   std::cerr << "New Type: " << *NewTy << "\n";
 }
