@@ -62,10 +62,13 @@ CHANGES:
 ========
 This pre-release has the following changes:
 
-	- Correctly handles indirect calls
-	- Correctly handles globals
-	- Accepts partially pool allocatable programs
-	- Fixed a large number of bugs
+	- Pool Allocator Optimization pass is now separate from LLVM and
+	  compiled into a shared object.  The LLVM utilities do not need to be
+	  recompiled when the pool allocator code is changed.
+	- Correctly handles indirect calls.
+	- Correctly handles globals.
+	- Accepts partially pool allocatable programs.
+	- Fixed a large number of bugs.
 	- Tested on a number of benchmarks including Olden, Ptrdist, and a few
 	  SPEC codes.
 
