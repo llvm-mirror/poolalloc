@@ -297,6 +297,7 @@ namespace {
 
     void visitCastInst(CastInst &CI);
     void visitPHINode(PHINode &PN);
+    void visitSetCondInst(SetCondInst &SCI);
     void visitLoadInst(LoadInst &LI);
     void visitStoreInst(StoreInst &SI);
 
@@ -362,6 +363,27 @@ void InstructionRewriter::visitPHINode(PHINode &PN) {
     New->addIncoming(getTransformedValue(PN.getIncomingValue(i)),
                      PN.getIncomingBlock(i));
   setTransformedValue(PN, New);
+}
+
+void InstructionRewriter::visitSetCondInst(SetCondInst &SCI) {
+  if (!isa<PointerType>(SCI.getOperand(0)->getType())) return;
+  Value *NonNullPtr = SCI.getOperand(0);
+  if (isa<ConstantPointerNull>(NonNullPtr)) {
+    NonNullPtr = SCI.getOperand(1);
+    if (isa<ConstantPointerNull>(NonNullPtr))
+      return;  // setcc null, null
+  }
+
+  const CompressedPoolInfo *SrcPI = getPoolInfo(NonNullPtr);
+  if (SrcPI == 0) return;   // comparing non-compressed pointers.
+ 
+  std::string Name = SCI.getName(); SCI.setName("");
+  Value *New = new SetCondInst(SCI.getOpcode(),
+                               getTransformedValue(SCI.getOperand(0)),
+                               getTransformedValue(SCI.getOperand(1)),
+                               Name, &SCI);
+  SCI.replaceAllUsesWith(New);
+  SCI.eraseFromParent();
 }
 
 void InstructionRewriter::visitLoadInst(LoadInst &LI) {
