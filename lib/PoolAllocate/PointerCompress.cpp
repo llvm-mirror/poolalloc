@@ -69,6 +69,10 @@ namespace {
     const Value *getValueInOriginalFunction(Value *V) const {
       std::map<Value*, const Value*>::const_iterator I =
         NewToOldValueMap.find(V);
+      if (I == NewToOldValueMap.end()) {
+        for (I = NewToOldValueMap.begin(); I != NewToOldValueMap.end(); ++I)
+          std::cerr << "MAP: " << *I->first << " TO: " << *I->second << "\n";
+      }
       assert (I != NewToOldValueMap.end() && "Value did not come from clone!");
       return I->second;
     }
@@ -106,8 +110,8 @@ namespace {
     /// getCloneInfo - If the specified function is a clone, return the
     /// information about the cloning process for it.  Otherwise, return a null
     /// pointer.
-    const FunctionCloneRecord *getCloneInfo(Function &F) const {
-      std::map<Function*, FunctionCloneRecord>::const_iterator I = 
+    FunctionCloneRecord *getCloneInfo(Function &F) {
+      std::map<Function*, FunctionCloneRecord>::iterator I = 
         ClonedFunctionInfoMap.find(&F);
       return I == ClonedFunctionInfoMap.end() ? 0 : &I->second;
     }
@@ -322,14 +326,13 @@ namespace {
     /// FCR - If we are compressing a clone of a pool allocated function (as
     /// opposed to the pool allocated function itself), this contains
     /// information about the clone.
-    const FunctionCloneRecord *FCR;
+    FunctionCloneRecord *FCR;
 
     PointerCompress &PtrComp;
   public:
     InstructionRewriter(const PointerCompress::PoolInfoMap &poolInfo,
                         const DSGraph &dsg, PA::FuncInfo &pafi,
-                        const FunctionCloneRecord *fcr,
-                        PointerCompress &ptrcomp)
+                        FunctionCloneRecord *fcr, PointerCompress &ptrcomp)
       : PoolInfo(poolInfo), TD(dsg.getTargetData()), DSG(dsg),
         PAFuncInfo(pafi), FCR(fcr), PtrComp(ptrcomp) {
     }
@@ -419,6 +422,26 @@ namespace {
       return 0;
     }
 
+    /// ValueRemoved - Whenever we remove a value from the current function,
+    /// update any maps that contain that pointer so we don't have stale
+    /// pointers hanging around.
+    void ValueRemoved(Value *V) {
+      if (FCR) FCR->NewToOldValueMap.erase(V);
+    }
+
+    /// ValueReplaced - Whenever we replace a value from the current function,
+    /// update any maps that contain that pointer so we don't have stale
+    /// pointers hanging around.
+    void ValueReplaced(Value &Old, Value *New) {
+      if (FCR) {
+        std::map<Value*, const Value*>::iterator I =
+          FCR->NewToOldValueMap.find(&Old);
+        assert(I != FCR->NewToOldValueMap.end() && "Didn't find element!?");
+        FCR->NewToOldValueMap.insert(std::make_pair(New, I->second));
+        FCR->NewToOldValueMap.erase(I);       
+      }
+    }
+
     //===------------------------------------------------------------------===//
     // Visitation methods.  These do all of the heavy lifting for the various
     // cases we have to handle.
@@ -463,8 +486,10 @@ InstructionRewriter::~InstructionRewriter() {
       I->first->replaceAllUsesWith(UndefValue::get(I->first->getType()));
 
     // Finally, remove it from the program.
-    if (Instruction *Inst = dyn_cast<Instruction>(I->first))
+    if (Instruction *Inst = dyn_cast<Instruction>(I->first)) {
       Inst->eraseFromParent();
+      ValueRemoved(Inst);
+    }
     else if (Argument *Arg = dyn_cast<Argument>(I->first)) {
       assert(Arg->getParent() == 0 && "Unexpected argument type here!");
       delete Arg;  // Marker node used when cloning.
@@ -527,6 +552,7 @@ void InstructionRewriter::visitSetCondInst(SetCondInst &SCI) {
                                getTransformedValue(SCI.getOperand(1)),
                                Name, &SCI);
   SCI.replaceAllUsesWith(New);
+  ValueReplaced(SCI, New);
   SCI.eraseFromParent();
 }
 
@@ -597,6 +623,7 @@ void InstructionRewriter::visitLoadInst(LoadInst &LI) {
     setTransformedValue(LI, NewLoad);
   } else {
     LI.replaceAllUsesWith(NewLoad);
+    ValueReplaced(LI, NewLoad);
     LI.eraseFromParent();
   }
 }
@@ -787,8 +814,10 @@ void InstructionRewriter::visitCallInst(CallInst &CI) {
   if (OpsToCompress[0] == 0)      // Compressing return value?
     setTransformedValue(CI, NC);
   else {
-    if (!CI.use_empty())
+    if (CI.getType() != Type::VoidTy) {
       CI.replaceAllUsesWith(NC);
+      ValueReplaced(CI, NC);
+    }
     CI.eraseFromParent();
   }
 }
@@ -804,7 +833,7 @@ CompressPoolsInFunction(Function &F,
   // If this is a pointer compressed clone of a pool allocated function, get the
   // the pool allocated function.  Rewriting a clone means that there are
   // incoming arguments that point into compressed pools.
-  const FunctionCloneRecord *FCR = getCloneInfo(F);
+  FunctionCloneRecord *FCR = getCloneInfo(F);
   Function *CloneSource = FCR ? FCR->PAFn : 0;
 
   PA::FuncInfo *FI;
