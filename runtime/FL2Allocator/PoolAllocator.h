@@ -34,6 +34,9 @@ struct FreedNodeHeader {
 
   // Next - The next object in the free list.
   FreedNodeHeader *Next;
+
+  // PrevP - The pointer that points to this node on the free list.
+  FreedNodeHeader **PrevP;
 };
 
 
