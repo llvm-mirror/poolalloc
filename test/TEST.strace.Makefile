@@ -1,6 +1,6 @@
-##===- poolalloc/TEST.vtl.Makefile -------------------------*- Makefile -*-===##
+##===- poolalloc/TEST.stract.Makefile ----------------------*- Makefile -*-===##
 #
-# Makefile for getting performance metrics using Intel's VTune.
+# Makefile for measuring system call activity with strace
 #
 ##===----------------------------------------------------------------------===##
 
