@@ -359,9 +359,9 @@ void poolfree(PoolTy *Pool, void *Node) {
   FreedNodeHeader *FNH = (FreedNodeHeader*)((char*)Node-sizeof(NodeHeader));
   assert((FNH->Header.Size & 1) && "Node not allocated!");
   unsigned Size = FNH->Header.Size & ~1;
-  DO_IF_TRACE(fprintf(stderr, "%d bytes\n", Size));
 
   if (Size == ~1U) goto LargeArrayCase;
+  DO_IF_TRACE(fprintf(stderr, "%d bytes\n", Size));
   
   // If the node immediately after this one is also free, merge it into node.
   FreedNodeHeader *NextFNH;
@@ -393,6 +393,7 @@ void poolfree(PoolTy *Pool, void *Node) {
 
 LargeArrayCase:
   LargeArrayHeader *LAH = ((LargeArrayHeader*)Node)-1;
+  DO_IF_TRACE(fprintf(stderr, "%d bytes [large]\n", LAH->Size));
 
   // Unlink it from the list of large arrays...
   *LAH->Prev = LAH->Next;
@@ -402,15 +403,20 @@ LargeArrayCase:
 }
 
 void *poolrealloc(PoolTy *Pool, void *Node, unsigned NumBytes) {
-  DO_IF_TRACE(fprintf(stderr, "[%d] poolrealloc(0x%X, %d)\n",
+  DO_IF_TRACE(fprintf(stderr, "[%d] poolrealloc(0x%X, %d) -> ",
                       getPoolNumber(Pool), Node, NumBytes));
 
   // If a null pool descriptor is passed in, this is not a pool allocated data
   // structure.  Hand off to the system realloc.
-  if (Pool == 0) return realloc(Node, NumBytes);
+  if (Pool == 0) {
+    void *Result = realloc(Node, NumBytes);
+    DO_IF_TRACE(fprintf(stderr, "0x%X (system realloc)\n", Result));
+    return Result;
+  }
   if (Node == 0) return poolalloc(Pool, NumBytes);
   if (NumBytes == 0) {
     poolfree(Pool, Node);
+    DO_IF_TRACE(fprintf(stderr, "freed\n"));
     return 0;
   }
 
@@ -423,6 +429,7 @@ void *poolrealloc(PoolTy *Pool, void *Node, unsigned NumBytes) {
   unsigned Size = poolobjsize(Pool, Node);
   memcpy(New, Node, Size < NumBytes ? Size : NumBytes);
   poolfree(Pool, Node);
+  DO_IF_TRACE(fprintf(stderr, "0x%X (moved)\n", New));
   return New;
 }
 
