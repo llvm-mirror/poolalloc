@@ -32,6 +32,7 @@ OPT_PA_STATS = $(OPT_PA) -info-output-file=$(CURDIR)/$@.info -stats -time-passes
 # file
 $(PROGRAMS_TO_TEST:%=Output/%.$(TEST).transformed.bc): \
 Output/%.$(TEST).transformed.bc: Output/%.llvm.bc $(PA_SO)
+	-@rm -f $(CURDIR)/$@.info
 	-$(OPT_PA_STATS) -q -poolalloc $(EXTRA_PA_FLAGS) -globaldce -ipconstprop -deadargelim $< -o $@ -f 2>&1 > $@.out
 
 # This rule compiles the new .bc file into a .c file using CBE
@@ -58,7 +59,7 @@ else
 # SPEC
 $(PROGRAMS_TO_TEST:%=Output/%.poolalloc.out-cbe): \
 Output/%.poolalloc.out-cbe: Output/%.poolalloc.cbe
-	$(SPEC_SANDBOX) poolalloccbe-$(RUN_TYPE) $@ $(REF_IN_DIR) \
+	-$(SPEC_SANDBOX) poolalloccbe-$(RUN_TYPE) $@ $(REF_IN_DIR) \
              $(RUNSAFELY) $(STDIN_FILENAME) $(STDOUT_FILENAME) \
                   ../../$< $(RUN_OPTIONS)
 	-(cd Output/poolalloccbe-$(RUN_TYPE); cat $(LOCAL_OUTPUTS)) > $@
