@@ -94,14 +94,15 @@ void PoolAllocate::buildIndirectFunctionSets(Module &M) {
       if (CSI->isIndirectCall()) {
 	DSNode *DSN = CSI->getCalleeNode();
 	if (DSN->isIncomplete())
-	  std::cerr << "Incomplete node " << CSI->getCallInst();
+	  std::cerr << "Incomplete node: "
+                    << *CSI->getCallSite().getInstruction();
 	// assert(DSN->isGlobalNode());
 	const std::vector<GlobalValue*> &Callees = DSN->getGlobals();
 	if (Callees.size() > 0) {
 	  Function *firstCalledF = dyn_cast<Function>(*Callees.begin());
 	  FuncECs.addElement(firstCalledF);
 	  CallInstTargets.insert(std::pair<CallInst*,Function*>
-				 (&CSI->getCallInst(),
+				 (cast<CallInst>(CSI->getCallSite().getInstruction()),
 				  firstCalledF));
 	  if (Callees.size() > 1) {
 	    for (std::vector<GlobalValue*>::const_iterator CalleesI = 
@@ -110,11 +111,11 @@ void PoolAllocate::buildIndirectFunctionSets(Module &M) {
 	      Function *calledF = dyn_cast<Function>(*CalleesI);
 	      FuncECs.unionSetsWith(firstCalledF, calledF);
 	      CallInstTargets.insert(std::pair<CallInst*,Function*>
-				     (&CSI->getCallInst(), calledF));
+				     (cast<CallInst>(CSI->getCallSite().getInstruction()), calledF));
 	    }
 	  }
 	} else {
-	  std::cerr << "No targets " << CSI->getCallInst();
+	  std::cerr << "No targets: " << *CSI->getCallSite().getInstruction();
 	}
       }
     }
@@ -234,7 +235,7 @@ void PoolAllocate::InlineIndirectCalls(Function &F, DSGraph &G,
   for (std::vector<DSCallSite>::iterator CSI = callSites.begin(),
          CSE = callSites.end(); CSI != CSE; ++CSI) {
     if (CSI->isIndirectCall()) {
-      CallInst &CI = CSI->getCallInst();
+      CallInst &CI = *cast<CallInst>(CSI->getCallSite().getInstruction());
       std::pair<std::multimap<CallInst*, Function*>::iterator,
         std::multimap<CallInst*, Function*>::iterator> Targets =
         CallInstTargets.equal_range(&CI);
