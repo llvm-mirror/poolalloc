@@ -32,7 +32,7 @@ dnl * Check for programs.
 dnl **************************************************************************
 
 dnl Verify that the source directory is valid
-AC_CONFIG_SRCDIR(["Makefile.config.in"])
+AC_CONFIG_SRCDIR(["Makefile.common.in"])
 
 dnl **************************************************************************
 dnl * Check for libraries.
@@ -74,5 +74,4 @@ AC_ARG_WITH(llvmobj,AC_HELP_STRING([--with-llvmobj],[Location of LLVM Object Cod
 dnl **************************************************************************
 dnl * Create the output files
 dnl **************************************************************************
-AC_OUTPUT(Makefile.config)
 AC_OUTPUT(Makefile.common)
