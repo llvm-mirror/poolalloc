@@ -77,14 +77,15 @@ namespace PA {
     /// contains a mapping from all of the values in the new function back to
     /// the values they correspond to in the old function.
     ///
-    std::map<Value*, const Value*> NewToOldValueMap;
+    typedef std::map<Value*, const Value*> NewToOldValueMapTy;
+    NewToOldValueMapTy NewToOldValueMap;
 
     /// MapValueToOriginal - Given a value in the cloned version of this
     /// function, map it back to the original.  If the specified value did not
     /// exist in the original function (e.g. because it's a pool descriptor),
     /// return null.
     Value *MapValueToOriginal(Value *V) const {
-      std::map<Value*,const Value*>::const_iterator I =NewToOldValueMap.find(V);
+      NewToOldValueMapTy::const_iterator I = NewToOldValueMap.find(V);
       return I != NewToOldValueMap.end() ? const_cast<Value*>(I->second) : 0;
     }
   };
