@@ -31,7 +31,6 @@ sub RuntimePercent {
 
 @LatexColumns = (1, 5, 8, 12, 9, 13, 14, 15, 2, 16);
 
-my $OLDEN     = 'MultiSource/Benchmarks/Olden';
 my $FREEBENCH = 'MultiSource/Benchmarks/FreeBench';
 my $PTRDIST   = 'MultiSource/Benchmarks/Ptrdist';
 
@@ -76,6 +75,9 @@ my $PTRDIST   = 'MultiSource/Benchmarks/Ptrdist';
  [],
  ["PA Time",        'CBE-RUN-TIME-POOLALLOC: program\s*([.0-9m:]+)', \&FormatTime],
  ["PA run%",        \&RuntimePercent],
+ [],
+ ["AllNodes",       'CBE-RUN-TIME-ALLNODES: program\s*([.0-9m:]+)', \&FormatTime],
+ ["AN run%",        \&RuntimePercent],
  [],
  ["NumPools",       '([0-9]+).*Number of pools allocated'],
  ["Typesafe",       '([0-9]+).*Number of typesafe pools'],
