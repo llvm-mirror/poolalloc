@@ -40,6 +40,9 @@ namespace {
   SmallIntCompress("compress-to-16-bits",
                    cl::desc("Pointer compress data structures to 16 bit "
                             "integers instead of 32-bit integers"));
+  cl::opt<bool>
+  DisablePoolBaseASR("disable-ptrcomp-poolbase-aggregation",
+                     cl::desc("Don't optimize pool base loads"));
 
   Statistic<> NumCompressed("pointercompress",
                             "Number of pools pointer compressed");
@@ -152,9 +155,10 @@ namespace {
     Value *PoolDesc;
     const Type *NewTy;
     unsigned NewSize;
+    mutable Value *PoolBase;
   public:
     CompressedPoolInfo(const DSNode *N, Value *PD)
-      : Pool(N), PoolDesc(PD), NewTy(0) {}
+      : Pool(N), PoolDesc(PD), NewTy(0), PoolBase(0) {}
     
     /// Initialize - When we know all of the pools in a function that are going
     /// to be compressed, initialize our state based on that data.
@@ -174,13 +178,8 @@ namespace {
 
     /// EmitPoolBaseLoad - Emit code to load the pool base value for this pool
     /// before the specified instruction.
-    Value *EmitPoolBaseLoad(Instruction &I) const {
-      // Get the pool base pointer.
-      Constant *Zero = Constant::getNullValue(Type::UIntTy);
-      Value *BasePtrPtr = new GetElementPtrInst(getPoolDesc(), Zero, Zero,
-                                                "poolbaseptrptr", &I);
-      return new LoadInst(BasePtrPtr, "poolbaseptr", &I);
-    }
+    Value *EmitPoolBaseLoad(Instruction &I) const;
+    void setPoolBase(Value *PB) const { PoolBase = PB; }
 
     // dump - Emit a debugging dump of this pool info.
     void dump() const;
@@ -234,6 +233,36 @@ ComputeCompressedType(const Type *OrigTy, unsigned NodeOffset,
     assert(0 && "FIXME: Unhandled aggregate type!");
   }
 }
+
+/// EmitPoolBaseLoad - Emit code to load the pool base value for this pool
+/// before the specified instruction.
+Value *CompressedPoolInfo::EmitPoolBaseLoad(Instruction &I) const {
+  if (DisablePoolBaseASR) {
+    assert(PoolBase == 0 && "Mixing and matching optimized vs not!");
+    
+    // Get the pool base pointer.
+    Constant *Zero = Constant::getNullValue(Type::UIntTy);
+    Value *BasePtrPtr = new GetElementPtrInst(getPoolDesc(), Zero, Zero,
+                                              "poolbaseptrptr", &I);
+    return new LoadInst(BasePtrPtr, "poolbaseptr", &I);
+  } else {
+    // If this is a pool descriptor passed into the function, and this is the
+    // first use, emit a load of the pool base into the entry of the function.
+    if (PoolBase == 0 && (isa<Argument>(PoolDesc) || 
+                          isa<GlobalVariable>(PoolDesc))) {
+      BasicBlock::iterator IP = I.getParent()->getParent()->begin()->begin();
+      while (isa<AllocaInst>(IP)) ++IP;
+      Constant *Zero = Constant::getNullValue(Type::UIntTy);
+      Value *BasePtrPtr = new GetElementPtrInst(getPoolDesc(), Zero, Zero,
+                                                "poolbaseptrptr", &I);
+      PoolBase = new LoadInst(BasePtrPtr, "poolbaseptr", &I);
+    }
+    
+    assert(PoolBase && "Mixing and matching optimized vs not!");
+    return PoolBase;
+  }
+}
+
 
 /// dump - Emit a debugging dump for this pool info.
 ///
@@ -778,7 +807,14 @@ void InstructionRewriter::visitPoolInit(CallInst &CI) {
   Ops.push_back(ConstantUInt::get(Type::UIntTy, PI->getNewSize()));
   Ops.push_back(CI.getOperand(3));
   // TODO: Compression could reduce the alignment restriction for the pool!
-  new CallInst(PtrComp.PoolInitPC, Ops, "", &CI);
+  Value *PB = new CallInst(PtrComp.PoolInitPC, Ops, "", &CI);
+
+  if (!DisablePoolBaseASR) { // Load the pool base immediately.
+    PB->setName(CI.getOperand(1)->getName()+".poolbase");
+    // Remember the pool base for this pool.
+    PI->setPoolBase(PB);
+  }
+
   CI.eraseFromParent();
 }
 
@@ -1206,8 +1242,7 @@ void PointerCompress::InitializePoolLibraryFunctions(Module &M) {
   const Type *VoidPtrTy = PointerType::get(Type::SByteTy);
   const Type *PoolDescPtrTy = PointerType::get(ArrayType::get(VoidPtrTy, 16));
 
-  PoolInitPC = M.getOrInsertFunction("poolinit_pc", Type::VoidTy,
-                                     PoolDescPtrTy, 
+  PoolInitPC = M.getOrInsertFunction("poolinit_pc", VoidPtrTy, PoolDescPtrTy, 
                                      Type::UIntTy, Type::UIntTy, 0);
   PoolDestroyPC = M.getOrInsertFunction("pooldestroy_pc", Type::VoidTy,
                                         PoolDescPtrTy, 0);
