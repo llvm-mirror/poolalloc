@@ -63,12 +63,12 @@ namespace {
   const Type *PoolDescType;
 
   enum PoolAllocHeuristic {
-    AllNodes,
     NoNodes,
-    CyclicNodes,
-    SmartCoallesceNodes,
-    AllInOneGlobalPool,
     OnlyOverhead,
+    AllInOneGlobalPool,
+    SmartCoallesceNodes,
+    CyclicNodes,
+    AllNodes,
   };
   cl::opt<PoolAllocHeuristic>
   Heuristic("poolalloc-heuristic",
@@ -146,14 +146,11 @@ bool PoolAllocate::runOnModule(Module &M) {
     Function *F = I->first;
     F->replaceAllUsesWith(ConstantExpr::getCast(I->second, F->getType()));
   }
-  return true;
-}
 
-static void GetNodesReachableFromGlobals(DSGraph &G,
-                                         hash_set<DSNode*> &NodesFromGlobals) {
-  for (DSScalarMap::global_iterator I = G.getScalarMap().global_begin(), 
-         E = G.getScalarMap().global_end(); I != E; ++I)
-    G.getNodeForValue(*I).getNode()->markReachableNodes(NodesFromGlobals);
+  if (Heuristic != NoNodes && Heuristic != OnlyOverhead &&
+      Heuristic != AllInOneGlobalPool)
+    MicroOptimizePoolCalls();
+  return true;
 }
 
 // AddPoolPrototypes - Add prototypes for the pool functions to the specified
@@ -191,6 +188,70 @@ void PoolAllocate::AddPoolPrototypes() {
                                             PoolDescPtrTy, VoidPtrTy, 0);  
 }
 
+static void getCallsOf(Function *F, std::vector<CallInst*> &Calls) {
+  Calls.clear();
+  for (Value::use_iterator UI = F->use_begin(), E = F->use_end(); UI != E; ++UI)
+    Calls.push_back(cast<CallInst>(*UI));
+}
+
+static void OptimizePointerNotNull(Value *V) {
+  for (Value::use_iterator I = V->use_begin(), E = V->use_end(); I != E; ++I) {
+    Instruction *User = cast<Instruction>(*I);
+    if (User->getOpcode() == Instruction::SetEQ ||
+        User->getOpcode() == Instruction::SetNE) {
+      if (isa<Constant>(User->getOperand(1)) && 
+          cast<Constant>(User->getOperand(1))->isNullValue()) {
+        bool CondIsTrue = User->getOpcode() == Instruction::SetNE;
+        User->replaceAllUsesWith(ConstantBool::get(CondIsTrue));
+      }
+    } else if (User->getOpcode() == Instruction::Cast) {
+      // Casted pointers are also not null.
+      if (isa<PointerType>(User->getType()))
+        OptimizePointerNotNull(User);
+    } else if (User->getOpcode() == Instruction::GetElementPtr) {
+      // GEP'd pointers are also not null.
+      OptimizePointerNotNull(User);
+    }
+  }
+}
+
+/// MicroOptimizePoolCalls - Apply any microoptimizations to calls to pool
+/// allocation function calls that we can.  This runs after the whole program
+/// has been transformed.
+void PoolAllocate::MicroOptimizePoolCalls() {
+  // Optimize poolalloc
+  std::vector<CallInst*> Calls;
+  getCallsOf(PoolAlloc, Calls);
+  for (unsigned i = 0, e = Calls.size(); i != e; ++i) {
+    CallInst *CI = Calls[i];
+    // poolalloc never returns null.  Loop over all uses of the call looking for
+    // set(eq|ne) X, null.
+    OptimizePointerNotNull(CI);
+
+    // poolalloc(null, X) -> malloc(X)
+    if (isa<Constant>(CI->getOperand(0)) && 
+        cast<Constant>(CI->getOperand(0))->isNullValue())
+      std::cerr << "Could turn into malloc: " << *CI;
+  }
+
+  // TODO: poolfree accepts a null pointer, so remove any check above it, like
+  // 'if (P) poolfree(P)'
+
+  // poolfree(null) -> noop
+
+  // poolrealloc(null, X) -> malloc(X)
+
+}
+
+
+
+
+static void GetNodesReachableFromGlobals(DSGraph &G,
+                                         hash_set<DSNode*> &NodesFromGlobals) {
+  for (DSScalarMap::global_iterator I = G.getScalarMap().global_begin(), 
+         E = G.getScalarMap().global_end(); I != E; ++I)
+    G.getNodeForValue(*I).getNode()->markReachableNodes(NodesFromGlobals);
+}
 
 static void printNTOMap(std::map<Value*, const Value*> &NTOM) {
   std::cerr << "NTOM MAP\n";

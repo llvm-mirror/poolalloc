@@ -139,6 +139,10 @@ class PoolAllocate : public ModulePass {
   /// them.
   ///
   void AddPoolPrototypes();
+
+  /// MicroOptimizePoolCalls - Apply any microoptimizations to calls to pool
+  /// allocation function calls that we can.
+  void MicroOptimizePoolCalls();
   
   /// BuildIndirectFunctionSets - Iterate over the module looking for indirect
   /// calls to functions
