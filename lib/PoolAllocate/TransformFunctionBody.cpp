@@ -424,8 +424,10 @@ void FuncTransform::visitCallSite(CallSite CS) {
       if (DSNode *LocalNode = NodeMapping[ArgNodes[i]].getNode())
         if (FI.PoolDescriptors.count(LocalNode))
           ArgVal = FI.PoolDescriptors.find(LocalNode)->second;
+#if 0
     if (isa<Constant>(ArgVal) && cast<Constant>(ArgVal)->isNullValue())
       std::cerr << "WARNING: NULL POOL ARGUMENTS ARE PASSED IN!\n";
+#endif
     Args.push_back(ArgVal);
   }
 
