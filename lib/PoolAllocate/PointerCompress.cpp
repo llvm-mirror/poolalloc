@@ -12,12 +12,12 @@
 //===----------------------------------------------------------------------===//
 
 #define DEBUG_TYPE "pointercompress"
-#include "EquivClassGraphs.h"
 #include "PoolAllocate.h"
 #include "Heuristic.h"
 #include "llvm/Constants.h"
 #include "llvm/Instructions.h"
 #include "llvm/Module.h"
+#include "llvm/Analysis/DataStructure/EquivClassGraphs.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/Support/CommandLine.h"

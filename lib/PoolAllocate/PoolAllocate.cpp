@@ -14,7 +14,6 @@
 
 #define DEBUG_TYPE "poolalloc"
 #include "PoolAllocate.h"
-#include "EquivClassGraphs.h"
 #include "Heuristic.h"
 #include "llvm/Constants.h"
 #include "llvm/DerivedTypes.h"
@@ -23,6 +22,7 @@
 #include "llvm/Constants.h"
 #include "llvm/Analysis/DataStructure/DataStructure.h"
 #include "llvm/Analysis/DataStructure/DSGraph.h"
+#include "llvm/Analysis/DataStructure/EquivClassGraphs.h"
 #include "llvm/Support/CFG.h"
 #include "llvm/Target/TargetData.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
