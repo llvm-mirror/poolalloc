@@ -638,18 +638,25 @@ void InstructionRewriter::visitGetElementPtrInst(GetElementPtrInst &GEPI) {
     Value *Idx = GEPI.getOperand(i);
     if (const StructType *STy = dyn_cast<StructType>(*GTI)) {
       unsigned Field = (unsigned)cast<ConstantUInt>(Idx)->getValue();
+      if (Field) {
+        uint64_t FieldOffs = TD.getStructLayout(cast<StructType>(NTy))
+                                        ->MemberOffsets[Field];
+        Constant *FieldOffsCst = ConstantUInt::get(SCALARUINTTYPE, FieldOffs);
+        Val = BinaryOperator::createAdd(Val, FieldOffsCst,
+                                        GEPI.getName(), &GEPI);
+      }
 
-      uint64_t FieldOffs = TD.getStructLayout(cast<StructType>(NTy))
-                                  ->MemberOffsets[Field];
-      Constant *FieldOffsCst = ConstantUInt::get(SCALARUINTTYPE, FieldOffs);
-      Val = BinaryOperator::createAdd(Val, FieldOffsCst, GEPI.getName(), &GEPI);
-
-      NTy = cast<StructType>(NTy)->getElementType(Field);
+      // If this is a one element struct, NTy may not have the structure type.
+      if (STy->getNumElements() > 1 ||
+          (isa<StructType>(NTy) &&
+           cast<StructType>(NTy)->getNumElements() == 1))
+        NTy = cast<StructType>(NTy)->getElementType(Field);
     } else {
       assert(isa<SequentialType>(*GTI) && "Not struct or sequential?");
+      const SequentialType *STy = cast<SequentialType>(*GTI);
       if (!isa<Constant>(Idx) || !cast<Constant>(Idx)->isNullValue()) {
         // Add Idx*sizeof(NewElementType) to the index.
-        const Type *ElTy = cast<SequentialType>(NTy)->getElementType();
+        const Type *ElTy = STy->getElementType();
         if (Idx->getType() != SCALARUINTTYPE)
           Idx = new CastInst(Idx, SCALARUINTTYPE, Idx->getName(), &GEPI);
 
@@ -658,7 +665,11 @@ void InstructionRewriter::visitGetElementPtrInst(GetElementPtrInst &GEPI) {
         Idx = BinaryOperator::createMul(Idx, Scale, "fieldidx", &GEPI);
         Val = BinaryOperator::createAdd(Val, Idx, GEPI.getName(), &GEPI);
       }
-      NTy = cast<SequentialType>(NTy)->getElementType();
+
+      // If this is a one element array type, NTy may not reflect the array.
+      if (!isa<ArrayType>(STy) || cast<ArrayType>(STy)->getNumElements() != 1 ||
+          (isa<ArrayType>(NTy) && cast<ArrayType>(NTy)->getNumElements() == 1))
+        NTy = cast<SequentialType>(NTy)->getElementType();
     }
   }
 
