@@ -123,7 +123,7 @@ class PoolAllocate : public Pass {
   /// GlobalNodes - For each node (with an H marker) in the globals graph, this
   /// map contains the global variable that holds the pool descriptor for the
   /// node.
-  std::map<DSNode*, GlobalVariable*> GlobalNodes;
+  std::map<DSNode*, Value*> GlobalNodes;
  public:
   bool run(Module &M);
   
