@@ -17,7 +17,7 @@ VTL := /opt/intel/vtune/bin/vtl
 # the Pentium 4 on Zion).
 #
 P4_EVENTS := -ec
-P4_EVENTS += en='2nd Level Cache Read Misses'
+P4_EVENTS += en='2nd Level Cache Read Misses':sa=5000
 #P4_EVENTS += en='2nd-Level Cache Read References'
 #P4_EVENTS += en='1st Level Cache Load Misses Retired'
 P3_EVENTS := -ec en='L2 Cache Request Misses (highly correlated)'
@@ -67,9 +67,9 @@ Output/test.$(TEST).pa.%: Output/%.poolalloc.cbe Output/test.$(TEST).%
 	@echo "========================================="
 	@echo "Running '$(TEST)' test on '$(TESTNAME)' program"
 ifeq ($(RUN_OPTIONS),)
-	$(VERB) cat $(STDIN_FILENAME) | $(VTL) activity $* -d 50 -c sampling -o "$(EVENTS)" -app $<
+	$(VERB) cat $(STDIN_FILENAME) | $(VTL) activity $* -d 50 -c sampling -o "$(EVENTS)" -app $< -moi $<
 else
-	$(VERB) cat $(STDIN_FILENAME) | $(VTL) activity $* -d 50 -c sampling -o "$(EVENTS)" -app $<,"$(RUN_OPTIONS)"
+	$(VERB) cat $(STDIN_FILENAME) | $(VTL) activity $* -d 50 -c sampling -o "$(EVENTS)" -app $<,"$(RUN_OPTIONS)" -moi $<
 endif
 	$(VERB) $(VTL) run $*
 	$(VERB) $(VTL) view > $@
@@ -83,9 +83,9 @@ Output/test.$(TEST).%: Output/%.cbe
 	@echo "========================================="
 	@echo "Running '$(TEST)' test on '$(TESTNAME)' program"
 ifeq ($(RUN_OPTIONS),)
-	$(VERB) cat $(STDIN_FILENAME) | $(VTL) activity $* -d 50 -c sampling -o "$(EVENTS)" -app $<
+	$(VERB) cat $(STDIN_FILENAME) | $(VTL) activity $* -d 50 -c sampling -o "$(EVENTS)" -app $< -moi $<
 else
-	$(VERB) cat $(STDIN_FILENAME) | $(VTL) activity $* -d 50 -c sampling -o "$(EVENTS)" -app $<,"$(RUN_OPTIONS)"
+	$(VERB) cat $(STDIN_FILENAME) | $(VTL) activity $* -d 50 -c sampling -o "$(EVENTS)" -app $<,"$(RUN_OPTIONS)" -moi $<
 endif
 	$(VERB) $(VTL) run $*
 	$(VERB) $(VTL) view > $@
