@@ -125,7 +125,7 @@ $(PROGRAMS_TO_TEST:%=Output/test.$(TEST).pa.%): \
 Output/test.$(TEST).pa.%: Output/%.poolalloc.cbe Output/test.$(TEST).%
 	@echo "========================================="
 	@echo "Running '$(TEST)' test on '$(TESTNAME)' program"
-	-$(PERFEX) -o $@ $(EVENTS) $< $(RUN_OPTIONS) > /dev/null < $(STDIN_FILENAME)
+	-$(PERFEX) -o $@ $(EVENTS) $< $(RUN_OPTIONS) > /dev/null 2>&1 < $(STDIN_FILENAME)
 
 #
 # Generate events for CBE
@@ -134,7 +134,7 @@ $(PROGRAMS_TO_TEST:%=Output/test.$(TEST).%): \
 Output/test.$(TEST).%: Output/%.nonpa.cbe
 	@echo "========================================="
 	@echo "Running '$(TEST)' test on '$(TESTNAME)' program"
-	-$(PERFEX) -o $@ $(EVENTS) $< $(RUN_OPTIONS) > /dev/null < $(STDIN_FILENAME)
+	-$(PERFEX) -o $@ $(EVENTS) $< $(RUN_OPTIONS) > /dev/null 2>&1 < $(STDIN_FILENAME)
 
 else
 
@@ -178,14 +178,10 @@ Output/%.$(TEST).report.txt: $(PROGRAMS_TO_TEST:%=Output/$(TEST).tlbmisses.%)   
 	@printf "CBE-L1-Cache-Misses: %lld\n" `cat Output/$(TEST).L1Misses.$*` >> $@
 	@printf "CBE-PA-L2-Cache-Misses: %lld\n" `cat Output/$(TEST).L2Misses.pa.$*` >> $@
 	@printf "CBE-L2-Cache-Misses: %lld\n" `cat Output/$(TEST).L2Misses.$*` >> $@
-	@printf "CBE-RUN-TIME-NORMAL-USER: " >> $@
-	@grep "^user" Output/$*.nonpa.out-cbe.time >> $@
-	@printf "CBE-RUN-TIME-NORMAL-SYS: " >> $@
-	@grep "^sys" Output/$*.nonpa.out-cbe.time >> $@
-	@printf "CBE-RUN-TIME-POOLALLOC-USER: " >> $@
-	@grep "^user" Output/$*.poolalloc.out-cbe.time >> $@
-	@printf "CBE-RUN-TIME-POOLALLOC-SYS: " >> $@
-	@grep "^sys" Output/$*.poolalloc.out-cbe.time >> $@
+	@printf "CBE-RUN-TIME: " >> $@
+	@grep "^program" Output/$*.nonpa.out-cbe.time >> $@
+	@printf "CBE-PA-RUN-TIME: " >> $@
+	@grep "^program" Output/$*.poolalloc.out-cbe.time >> $@
 endif
 
 ifeq ($(EVENTS),$(P4_EVENTS))
