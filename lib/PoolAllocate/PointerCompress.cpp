@@ -312,6 +312,16 @@ namespace {
       return 0;
     }
 
+    /// getPoolInfoForPoolDesc - Given a pool descriptor as a Value*, return the
+    /// pool info for the pool if it is compressed.
+    const CompressedPoolInfo *getPoolInfoForPoolDesc(Value *PD) const {
+      for (PointerCompress::PoolInfoMap::const_iterator I = PoolInfo.begin(),
+             E = PoolInfo.end(); I != E; ++I)
+        if (I->second.getPoolDesc() == PD)
+          return &I->second;
+      return 0;
+    }
+
     //===------------------------------------------------------------------===//
     // Visitation methods.  These do all of the heavy lifting for the various
     // cases we have to handle.
@@ -527,12 +537,30 @@ void InstructionRewriter::visitStoreInst(StoreInst &SI) {
 
 
 void InstructionRewriter::visitPoolInit(CallInst &CI) {
-  // Transform to poolinit_pc if necessary.
+  // Transform to poolinit_pc if this is initializing a pool that we are
+  // compressing.
+  const CompressedPoolInfo *PI = getPoolInfoForPoolDesc(CI.getOperand(1));
+  if (PI == 0) return;  // Pool isn't compressed.
+
+  std::vector<Value*> Ops;
+  Ops.push_back(CI.getOperand(1));
+  Ops.push_back(ConstantUInt::get(Type::UIntTy, PI->getNewSize()));
+  Ops.push_back(CI.getOperand(3));
+  // TODO: Compression could reduce the alignment restriction for the pool!
+  new CallInst(PtrComp.PoolInitPC, Ops, "", &CI);
+  CI.eraseFromParent();
 }
 
 void InstructionRewriter::visitPoolDestroy(CallInst &CI) {
-  // Transform to pooldestroy_pc if necessary.
-  /* TODO */
+  // Transform to pooldestroy_pc if this is destroying a pool that we are
+  // compressing.
+  const CompressedPoolInfo *PI = getPoolInfoForPoolDesc(CI.getOperand(1));
+  if (PI == 0) return;  // Pool isn't compressed.
+
+  std::vector<Value*> Ops;
+  Ops.push_back(CI.getOperand(1));
+  new CallInst(PtrComp.PoolDestroyPC, Ops, "", &CI);
+  CI.eraseFromParent();
 }
 void InstructionRewriter::visitPoolAlloc(CallInst &CI) {
   // Transform to poolalloc_pc if necessary.
