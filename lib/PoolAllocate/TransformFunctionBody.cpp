@@ -473,9 +473,9 @@ void FuncTransform::visitCallSite(CallSite CS) {
       // For all globals map getDSNodeForGlobal(g)->CG.getDSNodeForGlobal(g)
       for (DSGraph::ScalarMapTy::iterator SMI = G.getScalarMap().begin(), 
              SME = G.getScalarMap().end(); SMI != SME; ++SMI)
-        if (isa<GlobalValue>(SMI->first)) { 
+        if (GlobalValue *GV = dyn_cast<GlobalValue>(SMI->first)) { 
           CalcNodeMapping(SMI->second, 
-                          CG.getScalarMap()[SMI->first], NodeMapping);
+                          CG.getScalarMap()[GV], NodeMapping);
         }
 
       unsigned idx = CFI->PoolArgFirst;
@@ -484,16 +484,15 @@ void FuncTransform::visitCallSite(CallSite CS) {
       // CFI.
       for (unsigned i = 0, e = CFI->ArgNodes.size(); i != e; ++i, ++idx) {
         if (NodeMapping.count(CFI->ArgNodes[i])) {
-          assert(NodeMapping.count(CFI->ArgNodes[i]) && "Node not in mapping!");
           DSNode *LocalNode = NodeMapping.find(CFI->ArgNodes[i])->second;
           if (LocalNode) {
             assert(FI.PoolDescriptors.count(LocalNode) &&
                    "Node not pool allocated?");
             PoolArgs[idx] = FI.PoolDescriptors.find(LocalNode)->second;
-          }
-          else
+          } else {
             // LocalNode is null when a constant is passed in as a parameter
             PoolArgs[idx] = Constant::getNullValue(PoolAllocate::PoolDescPtrTy);
+          }
         } else {
           PoolArgs[idx] = Constant::getNullValue(PoolAllocate::PoolDescPtrTy);
         }
@@ -591,9 +590,8 @@ void FuncTransform::visitCallSite(CallSite CS) {
     // For all globals map getDSNodeForGlobal(g)->CG.getDSNodeForGlobal(g)
     for (DSGraph::ScalarMapTy::iterator SMI = G.getScalarMap().begin(), 
 	   SME = G.getScalarMap().end(); SMI != SME; ++SMI)
-      if (isa<GlobalValue>(SMI->first)) 
-	CalcNodeMapping(SMI->second, 
-			CG.getScalarMap()[SMI->first], NodeMapping);
+      if (GlobalValue *GV = dyn_cast<GlobalValue>(SMI->first)) 
+	CalcNodeMapping(SMI->second, CG.getScalarMap()[GV], NodeMapping);
 
     // Okay, now that we have established our mapping, we can figure out which
     // pool descriptors to pass in...
