@@ -77,6 +77,28 @@ progperf::
         done
 	@printf "\a"; sleep 1; printf "\a"; sleep 1; printf "\a"
 
+progp4perf::
+	for dir in $(LARGE_PROBLEM_SIZE_DIRS); do \
+            (cd $$dir; \
+               PROJECT_DIR=$(BUILD_OBJ_ROOT) $(MAKE) -j1 TEST=p4perf \
+                   LARGE_PROBLEM_SIZE=1 report.html) \
+        done
+	for dir in $(NORMAL_PROBLEM_SIZE_DIRS); do \
+	    (cd $$dir; \
+               PROJECT_DIR=$(BUILD_OBJ_ROOT) $(MAKE) -j1 TEST=p4perf \
+                   report.html) \
+        done
+	@for dir in $(LARGE_PROBLEM_SIZE_DIRS); do \
+            (cd $$dir; \
+               PROJECT_DIR=$(BUILD_OBJ_ROOT) $(MAKE) -s -j1 TEST=p4perf \
+                   LARGE_PROBLEM_SIZE=1 report) \
+        done
+	@for dir in $(NORMAL_PROBLEM_SIZE_DIRS); do \
+	    (cd $$dir; \
+               PROJECT_DIR=$(BUILD_OBJ_ROOT) $(MAKE) -s -j1 TEST=p4perf \
+                   report) \
+        done
+	@printf "\a"; sleep 1; printf "\a"; sleep 1; printf "\a"
 
 ##############################################################################
 # Targets for running tests and gathering statistics for arbitrary tests
