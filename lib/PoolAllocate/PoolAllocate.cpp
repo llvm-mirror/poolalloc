@@ -6,6 +6,7 @@
 //===----------------------------------------------------------------------===//
 
 #define DEBUG_TYPE "PoolAllocator"
+#include "EquivClassGraphs.h"
 #include "poolalloc/PoolAllocate.h"
 #include "llvm/Constants.h"
 #include "llvm/DerivedTypes.h"
@@ -77,19 +78,17 @@ namespace {
 
 void PoolAllocate::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.addRequired<CompleteBUDataStructures>();
+  AU.addRequired<EquivClassGraphs>();
   AU.addRequired<TargetData>();
 }
 
 bool PoolAllocate::run(Module &M) {
   if (M.begin() == M.end()) return false;
   CurModule = &M;
-  BU = &getAnalysis<CompleteBUDataStructures>();
+  ECGraphs = &getAnalysis<EquivClassGraphs>();   // folded inlined CBU graphs
 
   // Add the pool* prototypes to the module
   AddPoolPrototypes();
-
-  // Figure out what the equivalence classes are for indirectly called functions
-  BuildIndirectFunctionSets(M);
 
   // Create the pools for memory objects reachable by global variables.
   if (SetupGlobalPools(M))
@@ -223,185 +222,12 @@ static void MarkNodesWhichMustBePassedIn(hash_set<DSNode*> &MarkedNodes,
   }
 }
 
-const PA::EquivClassInfo &PoolAllocate::getECIForIndirectCallSite(CallSite CS) {
-  Instruction *I = CS.getInstruction();
-  assert(I && "Not a call site?");
-  Function *thisFunc = I->getParent()->getParent();
-  DSNode *calleeNode = BU->getDSGraph(*thisFunc).getNodeForValue(CS.getCalledValue()).getNode();
-  if (!OneCalledFunction.count(calleeNode))
-    return ECInfoForLeadersMap[0];    // Special null function for empty graphs
-  Function *Called = OneCalledFunction[calleeNode];
-  Function *Leader = FuncECs.findClass(Called);
-  assert(Leader && "Leader not found for indirect call target!");
-  assert(ECInfoForLeadersMap.count(Leader) && "No ECI for indirect call site!");
-  return ECInfoForLeadersMap[Leader];
-}
-
-// BuildIndirectFunctionSets - Iterate over the module looking for indirect
-// calls to functions.  If a call site can invoke any functions [F1, F2... FN],
-// unify the N functions together in the FuncECs set.
-//
-void PoolAllocate::BuildIndirectFunctionSets(Module &M) {
-  const CompleteBUDataStructures::ActualCalleesTy AC = BU->getActualCallees();
-
-  // Loop over all of the indirect calls in the program.  If a call site can
-  // call multiple different functions, we need to unify all of the callees into
-  // the same equivalence class.
-  Instruction *LastInst = 0;
-  Function *FirstFunc = 0;
-  for (CompleteBUDataStructures::ActualCalleesTy::const_iterator I = AC.begin(),
-         E = AC.end(); I != E; ++I) {
-    CallSite CS = CallSite::get(I->first);
-    if (!CS.getCalledFunction() &&    // Ignore direct calls
-        !I->second->isExternal()) {   // Ignore functions we cannot modify
-      //std::cerr << "CALLEE: " << I->second->getName() << " from : " <<
-      //I->first;
-      if (I->first != LastInst) {
-        // This is the first callee from this call site.
-        LastInst = I->first;
-        FirstFunc = I->second;
-	//Instead of storing the lastInst For Indirection call Sites we store the
-	//DSNode for the function ptr arguemnt
-	Function *thisFunc = LastInst->getParent()->getParent();
-	DSNode *calleeNode = BU->getDSGraph(*thisFunc).getNodeForValue(CS.getCalledValue()).getNode();
-        OneCalledFunction[calleeNode] = FirstFunc;
-        FuncECs.addElement(I->second);
-      } else {
-        // This is not the first possible callee from a particular call site.
-        // Union the callee in with the other functions.
-        FuncECs.unionSetsWith(FirstFunc, I->second);
-      }
-    }
-  }
-
-  // Now that all of the equivalences have been built, turn the union-find data
-  // structure into a simple map from each function in the equiv class to the
-  // DSGraph used to represent the union of graphs.
-  //
-  std::map<Function*, Function*> &leaderMap = FuncECs.getLeaderMap();
-  DEBUG(std::cerr << "Indirect Function Equivalence Map:\n");
-  for (std::map<Function*, Function*>::iterator LI = leaderMap.begin(),
-	 LE = leaderMap.end(); LI != LE; ++LI) {
-    DEBUG(std::cerr << "  " << LI->first->getName() << ": leader is "
-                    << LI->second->getName() << "\n");
-
-    // Now the we have the equiv class info for this object, merge the DSGraph
-    // for this function into the composite DSGraph.
-    EquivClassInfo &ECI = ECInfoForLeadersMap[LI->second];
-
-    // If this is the first function in this equiv class, create the graph now.
-    if (ECI.G == 0)
-      ECI.G = new DSGraph(BU->getGlobalsGraph().getTargetData());
-
-    // Clone this member of the equivalence class into ECI.
-    DSGraph::NodeMapTy NodeMap;    
-    ECI.G->cloneInto(BU->getDSGraph(*LI->first), ECI.G->getScalarMap(),
-                     ECI.G->getReturnNodes(), NodeMap, 0);
-
-    // This is N^2 with the number of functions in this equiv class, but I don't
-    // really care right now.  FIXME!
-    for (unsigned i = 0, e = ECI.FuncsInClass.size(); i != e; ++i) {
-      Function *F = ECI.FuncsInClass[i];
-      // Merge the return nodes together.
-      ECI.G->getReturnNodes()[F].mergeWith(ECI.G->getReturnNodes()[LI->first]);
-
-      // Merge the arguments of the functions together.
-      Function::aiterator AI1 = F->abegin();
-      Function::aiterator AI2 = LI->first->abegin();
-      for (; AI1 != F->aend() && AI2 != LI->first->aend(); ++AI1,++AI2)
-        ECI.G->getNodeForValue(AI1).mergeWith(ECI.G->getNodeForValue(AI2));
-    }
-    ECI.FuncsInClass.push_back(LI->first);
-  }
-  DEBUG(std::cerr << "\n");
-
-  // Now that we have created the graphs for each of the equivalence sets, we
-  // have to figure out which pool descriptors to pass into the functions.  We
-  // must pass arguments for any pool descriptor that is needed by any function
-  // in the equiv. class.
-  for (ECInfoForLeadersMapTy::iterator ECII = ECInfoForLeadersMap.begin(),
-         E = ECInfoForLeadersMap.end(); ECII != E; ++ECII) {
-    EquivClassInfo &ECI = ECII->second;
-
-    // Traverse part of the graph to provoke most of the node forwardings to
-    // occur.
-    DSGraph::ScalarMapTy &SM = ECI.G->getScalarMap();
-    for (DSGraph::ScalarMapTy::iterator I = SM.begin(), E = SM.end(); I!=E; ++I)
-      I->second.getNode();   // Collapse forward references...
-
-    // Remove breadcrumbs from merging nodes.
-    ECI.G->removeTriviallyDeadNodes();
-
-    // Loop over all of the functions in this equiv class, figuring out which
-    // pools must be passed in for each function.
-    for (unsigned i = 0, e = ECI.FuncsInClass.size(); i != e; ++i) {
-      Function *F = ECI.FuncsInClass[i];
-      DSGraph &FG = BU->getDSGraph(*F);
-
-      // Figure out which nodes need to be passed in for this function (if any)
-      hash_set<DSNode*> &MarkedNodes = FunctionInfo[F].MarkedNodes;
-      MarkNodesWhichMustBePassedIn(MarkedNodes, *F, FG);
-
-      if (!MarkedNodes.empty()) {
-        // If any nodes need to be passed in, figure out which nodes these are
-        // in the unified graph for this equivalence class.
-        DSGraph::NodeMapTy NodeMapping;
-        for (Function::aiterator I = F->abegin(), E = F->aend(); I != E; ++I)
-          DSGraph::computeNodeMapping(FG.getNodeForValue(I),
-                                      ECI.G->getNodeForValue(I), NodeMapping);
-        DSGraph::computeNodeMapping(FG.getReturnNodeFor(*F),
-                                    ECI.G->getReturnNodeFor(*F), NodeMapping);
-        
-        // Loop through all of the nodes which must be passed through for this
-        // callee, and add them to the arguments list.
-        for (hash_set<DSNode*>::iterator I = MarkedNodes.begin(),
-               E = MarkedNodes.end(); I != E; ++I) {
-          DSNode *LocGraphNode = *I, *ECIGraphNode = NodeMapping[*I].getNode();
-
-          // Remember the mapping of this node
-          ECI.ECGraphToPrivateMap[std::make_pair(F,ECIGraphNode)] =LocGraphNode;
-
-          // Add this argument to be passed in.  Don't worry about duplicates,
-          // they will be eliminated soon.
-          ECI.ArgNodes.push_back(ECIGraphNode);
-        }
-      }
-    }
-
-    // Okay, all of the functions have had their required nodes added to the
-    // ECI.ArgNodes list, but there might be duplicates.  Eliminate the dups
-    // now.
-    std::sort(ECI.ArgNodes.begin(), ECI.ArgNodes.end());
-    ECI.ArgNodes.erase(std::unique(ECI.ArgNodes.begin(), ECI.ArgNodes.end()),
-                       ECI.ArgNodes.end());
-    
-    // Uncomment this if you want to see the aggregate graph result
-    //ECI.G->viewGraph();
-  }
-}
-
 
 void PoolAllocate::FindFunctionPoolArgs(Function &F) {
-  DSGraph &G = BU->getDSGraph(F);
+  DSGraph &G = ECGraphs->getDSGraph(F);
 
   FuncInfo &FI = FunctionInfo[&F];   // Create a new entry for F
   hash_set<DSNode*> &MarkedNodes = FI.MarkedNodes;
-
-  // If this function is part of an indirectly called function equivalence
-  // class, we have to handle it specially.
-  if (Function *Leader = FuncECs.findClass(&F)) {
-    EquivClassInfo &ECI = ECInfoForLeadersMap[Leader];
-
-    // The arguments passed in will be the ones specified by the ArgNodes list.
-    for (unsigned i = 0, e = ECI.ArgNodes.size(); i != e; ++i) {
-      DSNode *ArgNode =
-        ECI.ECGraphToPrivateMap[std::make_pair(&F, ECI.ArgNodes[i])];
-      FI.ArgNodes.push_back(ArgNode);
-      MarkedNodes.insert(ArgNode);
-    }
-
-    return;
-  }
 
   if (G.node_begin() == G.node_end())
     return;  // No memory activity, nothing is required
@@ -419,7 +245,7 @@ void PoolAllocate::FindFunctionPoolArgs(Function &F) {
 // necessary, and return it.  If not, just return null.
 //
 Function *PoolAllocate::MakeFunctionClone(Function &F) {
-  DSGraph &G = BU->getDSGraph(F);
+  DSGraph &G = ECGraphs->getDSGraph(F);
   if (G.node_begin() == G.node_end()) return 0;
     
   FuncInfo &FI = FunctionInfo[&F];
@@ -540,7 +366,7 @@ static void POVisit(DSNode *N, std::set<DSNode*> &Visited,
 //
 bool PoolAllocate::SetupGlobalPools(Module &M) {
   // Get the globals graph for the program.
-  DSGraph &GG = BU->getGlobalsGraph();
+  DSGraph &GG = ECGraphs->getGlobalsGraph();
 
   // Get all of the nodes reachable from globals.
   hash_set<DSNode*> GlobalHeapNodes;
@@ -791,7 +617,7 @@ void PoolAllocate::CreatePools(Function &F,
 // the specified function...
 //
 void PoolAllocate::ProcessFunctionBody(Function &F, Function &NewF) {
-  DSGraph &G = BU->getDSGraph(F);
+  DSGraph &G = ECGraphs->getDSGraph(F);
 
   if (G.node_begin() == G.node_end()) return;  // Quick exit if nothing to do...
   
@@ -801,7 +627,7 @@ void PoolAllocate::ProcessFunctionBody(Function &F, Function &NewF) {
   // Calculate which DSNodes are reachable from globals.  If a node is reachable
   // from a global, we will create a global pool for it, so no argument passage
   // is required.
-  DSGraph &GG = BU->getGlobalsGraph();
+  DSGraph &GG = ECGraphs->getGlobalsGraph();
   DSGraph::NodeMapTy GlobalsGraphNodeMapping;
   for (DSScalarMap::global_iterator I = G.getScalarMap().global_begin(),
          E = G.getScalarMap().global_end(); I != E; ++I) {
