@@ -666,7 +666,8 @@ void PoolAllocate::InitializeAndDestroyPools(Function &F,
     PoolInitPoints.push_back(InsertPoint);
 
     for (Function::iterator BB = F.begin(), E = F.end(); BB != E; ++BB)
-      if (isa<ReturnInst>(BB->getTerminator()))
+      if (isa<ReturnInst>(BB->getTerminator()) ||
+          isa<UnwindInst>(BB->getTerminator()))
         PoolDestroyPoints.push_back(BB->getTerminator());
   }
 
@@ -738,7 +739,8 @@ void PoolAllocate::InitializeAndDestroyPools(Function &F,
           while (!PoolUses.count(std::make_pair(PD, It)))
             // Advance past non-users deleting any pool frees that we run across
             DeleteIfIsPoolFree(It++, PD, PoolFrees);
-          PoolInitPoints.push_back(It);
+          if (!DisableInitDestroyOpt)
+            PoolInitPoints.push_back(It);
           PoolInitInsertedBlocks.insert(BB);
         }
       } else if (!AllIn) {
@@ -750,7 +752,8 @@ void PoolAllocate::InitializeAndDestroyPools(Function &F,
               goto TryAgainPred;
 
             // Insert at the end of the predecessor, before the terminator.
-            PoolInitPoints.push_back((*PI)->getTerminator());
+            if (!DisableInitDestroyOpt)
+              PoolInitPoints.push_back((*PI)->getTerminator());
             PoolInitInsertedBlocks.insert(*PI);
           }
       }
@@ -770,7 +773,8 @@ void PoolAllocate::InitializeAndDestroyPools(Function &F,
             DeleteIfIsPoolFree(It--, PD, PoolFrees);
 
           // Insert after the first using instruction
-          PoolDestroyPoints.push_back(++It);
+          if (!DisableInitDestroyOpt)
+            PoolDestroyPoints.push_back(++It);
           PoolDestroyInsertedBlocks.insert(BB);
         }
       } else if (!AllIn) {
@@ -782,7 +786,8 @@ void PoolAllocate::InitializeAndDestroyPools(Function &F,
             // Insert at entry to the successor, but after any PHI nodes.
             BasicBlock::iterator It = (*SI)->begin();
             while (isa<PHINode>(It)) ++It;
-            PoolDestroyPoints.push_back(It);
+            if (!DisableInitDestroyOpt)
+              PoolDestroyPoints.push_back(It);
             PoolDestroyInsertedBlocks.insert(*SI);
           }
       }
@@ -795,7 +800,8 @@ void PoolAllocate::InitializeAndDestroyPools(Function &F,
                    PoolInitPoints[i]);
       DEBUG(std::cerr << PoolInitPoints[i]->getParent()->getName() << " ");
     }
-    PoolInitPoints.clear();
+    if (!DisableInitDestroyOpt)
+      PoolInitPoints.clear();
 
     DEBUG(std::cerr << "\n  Destroy in blocks: ");
 
@@ -816,7 +822,8 @@ void PoolAllocate::InitializeAndDestroyPools(Function &F,
       CalculateLivePoolFreeBlocks(PoolFreeLiveBlocks, PD);
     else
       PoolFreeLiveBlocks = LiveBlocks;
-    PoolDestroyPoints.clear();
+    if (!DisableInitDestroyOpt)
+      PoolDestroyPoints.clear();
 
     // Delete any pool frees which are not in live blocks, for correctness.
     std::set<std::pair<AllocaInst*, CallInst*> >::iterator PFI =
