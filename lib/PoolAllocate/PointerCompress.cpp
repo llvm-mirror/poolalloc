@@ -21,12 +21,16 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/InstVisitor.h"
+#include "llvm/Transforms/Utils/Cloning.h"
 using namespace llvm;
 
 /// UINTTYPE - This is the actual type we are compressing to.  This is really
 /// only capable of being UIntTy, except when we are doing tests for 16-bit
 /// integers, when it's UShortTy.
 static const Type *UINTTYPE;
+
+/// FIXME: We should keep scalars the same size as the machine word on the
+/// system (e.g. 64-bits), only keeping memory objects in UINTTYPE.
 
 namespace {
   cl::opt<bool>
@@ -38,8 +42,29 @@ namespace {
                             "Number of pools pointer compressed");
   Statistic<> NumNotCompressed("pointercompress",
                                "Number of pools not compressible");
+  Statistic<> NumCloned    ("pointercompress", "Number of functions cloned");
 
   class CompressedPoolInfo;
+
+  /// FunctionCloneRecord - One of these is kept for each function that is
+  /// cloned.
+  struct FunctionCloneRecord {
+    /// PAFn - The pool allocated input function that we compressed.
+    ///
+    Function *PAFn;
+    FunctionCloneRecord(Function *pafn) : PAFn(pafn) {}
+
+    /// NewToOldValueMap - This is a mapping from the values in the cloned body
+    /// to the values in PAFn.
+    std::map<Value*, const Value*> NewToOldValueMap;
+
+    const Value *getValueInOriginalFunction(Value *V) const {
+      std::map<Value*, const Value*>::const_iterator I =
+        NewToOldValueMap.find(V);
+      assert (I != NewToOldValueMap.end() && "Value did not come from clone!");
+      return I->second;
+    }
+  };
 
   /// PointerCompress - This transformation hacks on type-safe pool allocated
   /// data structures to reduce the size of pointers in the program.
@@ -51,6 +76,11 @@ namespace {
     /// arguments, keep track of the clone and which arguments are compressed.
     std::map<std::pair<Function*, std::vector<unsigned> >,
              Function *> ClonedFunctionMap;
+
+    /// ClonedFunctionInfoMap - This identifies the pool allocated function that
+    /// a clone came from.
+    std::map<Function*, FunctionCloneRecord> ClonedFunctionInfoMap;
+    
   public:
     Function *PoolInitPC, *PoolDestroyPC, *PoolAllocPC, *PoolFreePC;
     typedef std::map<const DSNode*, CompressedPoolInfo> PoolInfoMap;
@@ -59,12 +89,24 @@ namespace {
 
     void getAnalysisUsage(AnalysisUsage &AU) const;
 
+    /// getCloneInfo - If the specified function is a clone, return the
+    /// information about the cloning process for it.  Otherwise, return a null
+    /// pointer.
+    const FunctionCloneRecord *getCloneInfo(Function &F) const {
+      std::map<Function*, FunctionCloneRecord>::const_iterator I = 
+        ClonedFunctionInfoMap.find(&F);
+      return I == ClonedFunctionInfoMap.end() ? 0 : &I->second;
+    }
+
     Function *GetFunctionClone(Function *F, 
                                const std::vector<unsigned> &OpsToCompress);
 
   private:
     void InitializePoolLibraryFunctions(Module &M);
-    bool CompressPoolsInFunction(Function &F);
+    bool CompressPoolsInFunction(Function &F,
+                                 std::vector<std::pair<Value*,
+                                              Value*> > *PremappedVals = 0);
+
     void FindPoolsToCompress(std::vector<const DSNode*> &Pools, Function &F,
                              DSGraph &DSG, PA::FuncInfo *FI);
   };
@@ -247,17 +289,42 @@ namespace {
   
     const PointerCompress::PoolInfoMap &PoolInfo;
 
+    /// TD - The TargetData object for the current target.
+    ///
     const TargetData &TD;
+
+
     const DSGraph &DSG;
+
+    /// PAFuncInfo - Information about the transformation the pool allocator did
+    /// to the original function.
+    PA::FuncInfo &PAFuncInfo;
+
+    /// FCR - If we are compressing a clone of a pool allocated function (as
+    /// opposed to the pool allocated function itself), this contains
+    /// information about the clone.
+    const FunctionCloneRecord *FCR;
 
     PointerCompress &PtrComp;
   public:
     InstructionRewriter(const PointerCompress::PoolInfoMap &poolInfo,
-                        const DSGraph &dsg, PointerCompress &ptrcomp)
-      : PoolInfo(poolInfo), TD(dsg.getTargetData()), DSG(dsg), PtrComp(ptrcomp){
+                        const DSGraph &dsg, PA::FuncInfo &pafi,
+                        const FunctionCloneRecord *fcr,
+                        PointerCompress &ptrcomp)
+      : PoolInfo(poolInfo), TD(dsg.getTargetData()), DSG(dsg),
+        PAFuncInfo(pafi), FCR(fcr), PtrComp(ptrcomp) {
     }
 
     ~InstructionRewriter();
+
+    /// PremapValues - Seed the transformed value map with the specified values.
+    /// This indicates that the first value (a pointer) will map to the second
+    /// value (an integer).  When the InstructionRewriter is complete, all of
+    /// the pointers in this vector are deleted.
+    void PremapValues(std::vector<std::pair<Value*, Value*> > &Vals) {
+      for (unsigned i = 0, e = Vals.size(); i != e; ++i)
+        OldToNewValueMap.insert(Vals[i]);
+    }
 
     /// getTransformedValue - Return the transformed version of the specified
     /// value, creating a new forward ref value as needed.
@@ -291,6 +358,16 @@ namespace {
       if (!isa<PointerType>(V->getType()) || isa<ConstantPointerNull>(V) ||
           isa<Function>(V))
         return false;
+
+      // If this is a function clone, map the value to the original function.
+      if (FCR)
+        V = const_cast<Value*>(FCR->getValueInOriginalFunction(V));
+
+      // If this is a pool allocator clone, map the value to the REAL original
+      // function.
+      if (!PAFuncInfo.NewToOldValueMap.empty())
+        V = PAFuncInfo.MapValueToOriginal(V);
+
       DSNode *N = DSG.getNodeForValue(V).getNode();
       return PoolInfo.count(N) ? N : 0;
     }
@@ -365,7 +442,14 @@ InstructionRewriter::~InstructionRewriter() {
       I->first->replaceAllUsesWith(UndefValue::get(I->first->getType()));
 
     // Finally, remove it from the program.
-    cast<Instruction>(I->first)->eraseFromParent();
+    if (Instruction *Inst = dyn_cast<Instruction>(I->first))
+      Inst->eraseFromParent();
+    else if (Argument *Arg = dyn_cast<Argument>(I->first)) {
+      assert(Arg->getParent() == 0 && "Unexpected argument type here!");
+      delete Arg;  // Marker node used when cloning.
+    } else {
+      assert(0 && "Unknown entry in this map!");
+    }      
   }
 }
 
@@ -621,10 +705,23 @@ void InstructionRewriter::visitCallInst(CallInst &CI) {
 
 /// CompressPoolsInFunction - Find all pools that are compressible in this
 /// function and compress them.
-bool PointerCompress::CompressPoolsInFunction(Function &F) {
+bool PointerCompress::
+CompressPoolsInFunction(Function &F,
+                        std::vector<std::pair<Value*, Value*> > *PremappedVals){
   if (F.isExternal()) return false;
 
-  PA::FuncInfo *FI = PoolAlloc->getFuncInfoOrClone(F);
+  // If this is a pointer compressed clone of a pool allocated function, get the
+  // the pool allocated function.  Rewriting a clone means that there are
+  // incoming arguments that point into compressed pools.
+  const FunctionCloneRecord *FCR = getCloneInfo(F);
+  Function *CloneSource = FCR ? FCR->PAFn : 0;
+
+  PA::FuncInfo *FI;
+  if (CloneSource)
+    FI = PoolAlloc->getFuncInfoOrClone(*CloneSource);
+  else
+    FI = PoolAlloc->getFuncInfoOrClone(F);
+
   if (FI == 0) {
     std::cerr << "DIDN'T FIND POOL INFO FOR: "
               << *F.getType() << F.getName() << "!\n";
@@ -637,21 +734,25 @@ bool PointerCompress::CompressPoolsInFunction(Function &F) {
   if (FI->Clone && &FI->F == &F)
     return false;
 
-  // There are no pools in this function.
-  if (FI->NodesToPA.empty())
+  // If there are no pools in this function, exit early.
+  if (FI->NodesToPA.empty() && CloneSource == 0)
     return false;
 
   // Get the DSGraph for this function.
   DSGraph &DSG = ECG->getDSGraph(FI->F);
 
-  // Compute the set of compressible pools in this function.
+  // Compute the set of compressible pools in this function that are hosted
+  // here.
   std::vector<const DSNode*> PoolsToCompressList;
   FindPoolsToCompress(PoolsToCompressList, F, DSG, FI);
 
-  if (PoolsToCompressList.empty()) return false;
+  // If there is nothing that we can compress, exit now.
+  if (PoolsToCompressList.empty() && !CloneSource) return false;
 
   // Compute the initial collection of compressed pointer infos.
   std::map<const DSNode*, CompressedPoolInfo> PoolsToCompress;
+
+  // Handle pools that are local to this function.
   for (unsigned i = 0, e = PoolsToCompressList.size(); i != e; ++i) {
     const DSNode *N = PoolsToCompressList[i];
     Value *PD = FI->PoolDescriptors[N];
@@ -672,7 +773,10 @@ bool PointerCompress::CompressPoolsInFunction(Function &F) {
   }
   
   // Finally, rewrite the function body to use compressed pointers!
-  InstructionRewriter(PoolsToCompress, DSG, *this).visit(F);
+  InstructionRewriter IR(PoolsToCompress, DSG, *FI, FCR, *this);
+  if (PremappedVals)
+    IR.PremapValues(*PremappedVals);
+  IR.visit(F);
   return true;
 }
 
@@ -685,7 +789,8 @@ GetFunctionClone(Function *F, const std::vector<unsigned> &OpsToCompress) {
   assert(!OpsToCompress.empty() && "No clone needed!");
 
   // Check to see if we have already compressed this function, if so, there is
-  // no need to make another clone.
+  // no need to make another clone.  This is also important to avoid infinite
+  // recursion.
   Function *&Clone = ClonedFunctionMap[std::make_pair(F, OpsToCompress)];
   if (Clone) return Clone;
 
@@ -713,6 +818,55 @@ GetFunctionClone(Function *F, const std::vector<unsigned> &OpsToCompress) {
                        F->getName()+".pc");
   F->getParent()->getFunctionList().insert(F, Clone);
 
+  // Remember where this clone came from.
+  FunctionCloneRecord &CFI = 
+    ClonedFunctionInfoMap.insert(std::make_pair(Clone, F)).first->second;
+
+  ++NumCloned;
+  std::cerr << " CLONING FUNCTION: " << F->getName() << " -> "
+            << Clone->getName() << "\n";
+  std::map<const Value*, Value*> ValueMap;
+
+  // Create dummy Value*'s of pointer type for any arguments that are
+  // compressed.  These are needed to satisfy typing constraints before the
+  // function body has been rewritten.
+  std::vector<std::pair<Value*,Value*> > RemappedArgs;
+
+  // Process arguments, setting up the ValueMap for them.
+  Function::aiterator CI = Clone->abegin();   // Iterator over cloned fn args.
+  for (Function::aiterator I = F->abegin(), E = F->aend(); I != E; ++I, ++CI) {
+    // Transfer the argument names over.
+    CI->setName(I->getName());
+
+    // If we are compressing this argument, set up RemappedArgs.
+    if (CI->getType() != I->getType()) {
+      // Create a useless value* that is only needed to hold the uselist for the
+      // argument.
+      Value *V = new Argument(I->getType());   // dummy argument
+      RemappedArgs.push_back(std::make_pair(V, CI));
+      ValueMap[I] = V;
+    } else {
+      // Otherwise, just remember the mapping.
+      ValueMap[I] = CI;
+    }
+  }
+
+  // Clone the actual function body over.
+  std::vector<ReturnInst*> Returns;
+  CloneFunctionInto(Clone, F, ValueMap, Returns);
+  Returns.clear();  // We don't need this.
+
+  // Invert the ValueMap into the NewToOldValueMap
+  std::map<Value*, const Value*> &NewToOldValueMap = CFI.NewToOldValueMap;
+  for (std::map<const Value*, Value*>::iterator I = ValueMap.begin(),
+         E = ValueMap.end(); I != E; ++I)
+    NewToOldValueMap.insert(std::make_pair(I->second, I->first));
+  ValueMap.clear();
+
+  // Recursively transform the function.
+  CompressPoolsInFunction(*Clone, &RemappedArgs);
+
+  Clone->dump();
   return Clone;
 }
 
