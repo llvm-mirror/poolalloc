@@ -69,6 +69,10 @@ struct LargeArrayHeader {
 
 
 struct PoolTy {
+  // Slabs - the list of slabs in this pool.  NOTE: This must remain the first
+  // memory of this structure for the pointer compression pass.
+  PoolSlab *Slabs;
+
   // The free node lists for objects of various sizes.  
   FreedNodeHeader *ObjFreeList;
   FreedNodeHeader *OtherFreeList;
@@ -86,8 +90,9 @@ struct PoolTy {
   // The size to allocate for the next slab.
   unsigned AllocSize;
 
-  // Lists - the list of slabs in this pool.
-  PoolSlab *Slabs;
+  // isPtrCompPool - True if this pool must be kept consequtive for pointer
+  // compression.
+  bool isPtrCompPool;
 
   // NumObjects - the number of poolallocs for this pool.
   unsigned NumObjects;
@@ -106,7 +111,7 @@ extern "C" {
   void *poolmemalign(PoolTy *Pool, unsigned Alignment, unsigned NumBytes);
   void poolfree(PoolTy *Pool, void *Node);
 
-  /// poolobjsize - Reutrn the size of the object at the specified address, in
+  /// poolobjsize - Return the size of the object at the specified address, in
   /// the specified pool.  Note that this cannot be used in normal cases, as it
   /// is completely broken if things land in the system heap.  Perhaps in the
   /// future.  :(
@@ -119,6 +124,17 @@ extern "C" {
   void poolinit_bp(PoolTy *Pool, unsigned ObjAlignment);
   void *poolalloc_bp(PoolTy *Pool, unsigned NumBytes);
   void pooldestroy_bp(PoolTy *Pool);
+
+
+  // Pointer Compression runtime library.  Most of these are just wrappers
+  // around the normal pool routines.
+  void poolinit_pc(PoolTy *Pool, unsigned NodeSize,
+                   unsigned ObjAlignment);
+  void pooldestroy_pc(PoolTy *Pool);
+  unsigned long poolalloc_pc(PoolTy *Pool, unsigned NumBytes);
+  void poolfree_pc(PoolTy *Pool, unsigned long Node);
+  //void *poolmemalign_pc(PoolTy *Pool, unsigned Alignment, unsigned NumBytes);
 }
 
 #endif
+

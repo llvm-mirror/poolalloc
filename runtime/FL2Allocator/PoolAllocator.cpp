@@ -66,7 +66,7 @@ static unsigned getPoolNumber(PoolTy *PD) {
   for (unsigned i = 0; i != NumLivePools; ++i)
     if (PoolIDs[i].PD == PD)
       return PoolIDs[i].ID;
-  fprintf(stderr, "INVALID/UNKNOWN POOL DESCRIPTOR: 0x%lX\n", (unsigned long)PD);
+  fprintf(stderr, "INVALID/UNKNOWN POOL DESCRIPTOR: 0x%lX\n",(unsigned long)PD);
   return 0;
 }
 
@@ -78,7 +78,7 @@ static unsigned removePoolNumber(PoolTy *PD) {
       --NumLivePools;
       return PN;
     }
-  fprintf(stderr, "INVALID/UNKNOWN POOL DESCRIPTOR: 0x%lX\n", (unsigned long)PD);
+  fprintf(stderr, "INVALID/UNKNOWN POOL DESCRIPTOR: 0x%lX\n",(unsigned long)PD);
   return 0;
 }
 
@@ -173,6 +173,7 @@ struct PoolSlab {
 public:
   static void create(PoolTy *Pool, unsigned SizeHint);
   static void *create_for_bp(PoolTy *Pool);
+  static void create_for_ptrcomp(PoolTy *Pool, void *Mem, unsigned Size);
   void destroy();
 
   PoolSlab *getNext() const { return Next; }
@@ -204,7 +205,7 @@ void PoolSlab::create(PoolTy *Pool, unsigned SizeHint) {
     PoolBody += Alignment-sizeof(FreedNodeHeader);
     Size -= Alignment-sizeof(FreedNodeHeader);
   }
-      
+
   // Add the body of the slab to the free list.
   FreedNodeHeader *SlabBody = (FreedNodeHeader*)PoolBody;
   SlabBody->Header.Size = Size;
@@ -237,6 +238,41 @@ void *PoolSlab::create_for_bp(PoolTy *Pool) {
   PS->Next = Pool->Slabs;
   Pool->Slabs = PS;
   return PoolBody;
+}
+
+/// create_for_ptrcomp - Initialize a chunk of memory 'Mem' of size 'Size' for
+/// pointer compression.
+void PoolSlab::create_for_ptrcomp(PoolTy *Pool, void *SMem, unsigned Size) {
+  if (Pool->DeclaredSize == 0) {
+    unsigned Align = Pool->Alignment;
+    unsigned SizeHint = sizeof(FreedNodeHeader)-sizeof(NodeHeader);
+    SizeHint = SizeHint+sizeof(FreedNodeHeader)+(Align-1);
+    SizeHint = (SizeHint & ~(Align-1))-sizeof(FreedNodeHeader);
+    Pool->DeclaredSize = SizeHint;
+  }
+
+  PoolSlab *PS = (PoolSlab*)SMem;
+  char *PoolBody = (char*)(PS+1);
+
+  // If the Alignment is greater than the size of the FreedNodeHeader, skip over
+  // some space so that the a "free pointer + sizeof(FreedNodeHeader)" is always
+  // aligned.
+  unsigned Alignment = Pool->Alignment;
+  if (Alignment > sizeof(FreedNodeHeader)) {
+    PoolBody += Alignment-sizeof(FreedNodeHeader);
+    Size -= Alignment-sizeof(FreedNodeHeader)-sizeof(PoolSlab);
+  }
+
+  // Add the body of the slab to the free list.
+  FreedNodeHeader *SlabBody = (FreedNodeHeader*)PoolBody;
+  SlabBody->Header.Size = Size;
+  AddNodeToFreeList(Pool, SlabBody);
+
+  // Make sure to add a marker at the end of the slab to prevent the coallescer
+  // from trying to merge off the end of the page.
+  FreedNodeHeader *End =
+      (FreedNodeHeader*)(PoolBody + sizeof(NodeHeader) + Size);
+  End->Header.Size = ~0; // Looks like an allocated chunk
 }
 
 
@@ -435,7 +471,8 @@ void *poolalloc(PoolTy *Pool, unsigned NumBytes) {
     return &Node->Header+1;
   }
     
-  if (NumBytes >= LARGE_SLAB_SIZE-sizeof(PoolSlab)-sizeof(NodeHeader))
+  if (NumBytes >= LARGE_SLAB_SIZE-sizeof(PoolSlab)-sizeof(NodeHeader) &&
+      !Pool->isPtrCompPool)
     goto LargeObject;
 
   // Fast path.  In the common case, we can allocate a portion of the node at
@@ -652,3 +689,71 @@ unsigned poolobjsize(PoolTy *Pool, void *Node) {
   LargeArrayHeader *LAH = ((LargeArrayHeader*)Node)-1;
   return LAH->Size;
 }
+
+//===----------------------------------------------------------------------===//
+// Pointer Compression runtime library.  Most of these are just wrappers
+// around the normal pool routines.
+//===----------------------------------------------------------------------===//
+
+#include <sys/mman.h>
+#define POOLSIZE (256*1024*1024)
+
+// Pools - When we are done with a pool, don't munmap it, keep it around for
+// next time.
+static PoolSlab *Pools[4] = { 0, 0, 0, 0 };
+
+
+void poolinit_pc(PoolTy *Pool, unsigned NodeSize, unsigned ObjAlignment) {
+  poolinit(Pool, NodeSize, ObjAlignment);
+  Pool->isPtrCompPool = true;
+}
+
+void pooldestroy_pc(PoolTy *Pool) {
+  if (Pool->Slabs == 0)
+    return;   // no memory allocated from this pool.
+
+  // If there is space to remember this pool, do so.
+  for (unsigned i = 0; i != 4; ++i)
+    if (Pools[i] == 0) {
+      Pools[i] = Pool->Slabs;
+      return;
+    }
+
+  // Otherwise, just munmap it.
+  munmap(Pool->Slabs, POOLSIZE);
+}
+
+unsigned long poolalloc_pc(PoolTy *Pool, unsigned NumBytes) {
+  if (Pool->Slabs == 0)
+    goto AllocPool;
+Continue:
+  {
+    void *Result = poolalloc(Pool, NumBytes);
+    return (char*)Result-(char*)Pool->Slabs;
+  }
+
+AllocPool:
+  // This is the first allocation out of this pool.  If we already have a pool
+  // mmapp'd, reuse it.
+  for (unsigned i = 0; i != 4; ++i)
+    if (Pools[i]) {
+      Pool->Slabs = Pools[i];
+      Pools[i] = 0;
+      break;
+    }
+  if (Pool->Slabs == 0) {
+    // Didn't find an existing pool, create one.
+    Pool->Slabs = (PoolSlab*)mmap(0, POOLSIZE, PROT_READ|PROT_WRITE,
+                                 MAP_PRIVATE|MAP_NORESERVE|MAP_ANONYMOUS, 0, 0);
+    DO_IF_TRACE(fprintf(stderr, "RESERVED ADDR SPACE: %p -> %p\n",
+                        Pool->Slabs, (char*)Pool->Slabs+POOLSIZE));
+  }
+  PoolSlab::create_for_ptrcomp(Pool, Pool->Slabs, POOLSIZE);
+  goto Continue;
+}
+
+void poolfree_pc(PoolTy *Pool, unsigned long Node) {
+  poolfree(Pool, Pool->Slabs+Node);
+}
+
+
