@@ -93,6 +93,11 @@ my $PTRDIST   = 'MultiSource/Benchmarks/Ptrdist';
  ["AllNodesSum",     \&Sum],
  ["AN Speedup", \&Ratio],
 
+ ["OnlyOHUser", 'CBE-RUN-TIME-ONLYOVERHEAD-USER: user\s*([.0-9m:]+)', \&FormatTime],
+ ["OnlyOHSys", 'CBE-RUN-TIME-ONLYOVERHEAD-SYS: sys\s*([.0-9m:]+)', \&FormatTime],
+ ["OnlyOHSum",     \&Sum],
+ ["OO Speedup", \&Ratio],
+
  ["PoolAllocUser", 'CBE-RUN-TIME-POOLALLOC-USER: user\s*([.0-9m:]+)', \&FormatTime],
  ["PoolAllocSys", 'CBE-RUN-TIME-POOLALLOC-SYS: sys\s*([.0-9m:]+)', \&FormatTime],
  ["PoolAllocSum",     \&Sum],

@@ -36,28 +36,41 @@ OPT_PA := $(LOPT) -load $(PA_SO)
 # output to a file.
 OPT_PA_STATS = $(OPT_PA) -info-output-file=$(CURDIR)/$@.info -stats -time-passes
 
+OPTZN_PASSES := -globaldce -ipconstprop -deadargelim -adce -instcombine -simplifycfg
+
+
 # This rule runs the pool allocator on the .llvm.bc file to produce a new .bc
 # file
-$(PROGRAMS_TO_TEST:%=Output/%.$(TEST).transformed.bc): \
-Output/%.$(TEST).transformed.bc: Output/%.llvm.bc $(PA_SO) $(LOPT)
+$(PROGRAMS_TO_TEST:%=Output/%.$(TEST).poolalloc.bc): \
+Output/%.$(TEST).poolalloc.bc: Output/%.llvm.bc $(PA_SO) $(LOPT)
 	-@rm -f $(CURDIR)/$@.info
-	-$(OPT_PA_STATS) -q -poolalloc $(EXTRA_PA_FLAGS) -globaldce -ipconstprop -deadargelim $< -o $@ -f 2>&1 > $@.out
+	-$(OPT_PA_STATS) -poolalloc $(EXTRA_PA_FLAGS) $(OPTZN_PASSES) $< -o $@ -f 2>&1 > $@.out
 
 
 $(PROGRAMS_TO_TEST:%=Output/%.$(TEST).allnodes.bc): \
 Output/%.$(TEST).allnodes.bc: Output/%.llvm.bc $(PA_SO) $(LOPT)
 	-@rm -f $(CURDIR)/$@.info
-	-$(OPT_PA_STATS) -q -poolalloc -poolalloc-heuristic=AllNodes -globaldce -ipconstprop -deadargelim $< -o $@ -f 2>&1 > $@.out
+	-$(OPT_PA_STATS) -poolalloc -poolalloc-heuristic=AllNodes $(OPTZN_PASSES) $< -o $@ -f 2>&1 > $@.out
+
+$(PROGRAMS_TO_TEST:%=Output/%.$(TEST).onlyoverhead.bc): \
+Output/%.$(TEST).onlyoverhead.bc: Output/%.llvm.bc $(PA_SO) $(LOPT)
+	-@rm -f $(CURDIR)/$@.info
+	-$(OPT_PA_STATS) -poolalloc -poolalloc-heuristic=OnlyOverhead $(OPTZN_PASSES) $< -o $@ -f 2>&1 > $@.out
+
 
 # This rule compiles the new .bc file into a .c file using CBE
 $(PROGRAMS_TO_TEST:%=Output/%.poolalloc.cbe.c): \
-Output/%.poolalloc.cbe.c: Output/%.$(TEST).transformed.bc $(LLC)
+Output/%.poolalloc.cbe.c: Output/%.$(TEST).poolalloc.bc $(LLC)
 	-$(LLC) -march=c -f $< -o $@
-
 
 # This rule compiles the new .bc file into a .c file using CBE
 $(PROGRAMS_TO_TEST:%=Output/%.allnodes.cbe.c): \
 Output/%.allnodes.cbe.c: Output/%.$(TEST).allnodes.bc $(LLC)
+	-$(LLC) -march=c -f $< -o $@
+
+# This rule compiles the new .bc file into a .c file using CBE
+$(PROGRAMS_TO_TEST:%=Output/%.onlyoverhead.cbe.c): \
+Output/%.onlyoverhead.cbe.c: Output/%.$(TEST).onlyoverhead.bc $(LLC)
 	-$(LLC) -march=c -f $< -o $@
 
 # This rule compiles the .c file into an executable using $CC
@@ -70,10 +83,16 @@ $(PROGRAMS_TO_TEST:%=Output/%.allnodes.cbe): \
 Output/%.allnodes.cbe: Output/%.allnodes.cbe.c $(PA_RT_O)
 	-$(CC) $(CFLAGS) $< $(PA_RT_O) $(LLCLIBS) $(LDFLAGS) -o $@
 
+# This rule compiles the .c file into an executable using $CC
+$(PROGRAMS_TO_TEST:%=Output/%.onlyoverhead.cbe): \
+Output/%.onlyoverhead.cbe: Output/%.onlyoverhead.cbe.c $(PA_RT_O)
+	-$(CC) $(CFLAGS) $< $(PA_RT_O) $(LLCLIBS) $(LDFLAGS) -o $@
+
+
 $(PROGRAMS_TO_TEST:%=Output/%.nonpa.bc): \
 Output/%.nonpa.bc: Output/%.llvm.bc $(LOPT)
 	-@rm -f $(CURDIR)/$@.info
-	-$(LOPT) -q -globaldce -ipconstprop -deadargelim $< -o $@ -f 2>&1 > $@.out
+	-$(LOPT) $(OPTZN_PASSES) $< -o $@ -f 2>&1 > $@.out
 
 $(PROGRAMS_TO_TEST:%=Output/%.nonpa.cbe.c): \
 Output/%.nonpa.cbe.c: Output/%.nonpa.bc $(LLC)
@@ -98,6 +117,13 @@ Output/%.poolalloc.out-cbe: Output/%.poolalloc.cbe
 # normal test programs
 $(PROGRAMS_TO_TEST:%=Output/%.allnodes.out-cbe): \
 Output/%.allnodes.out-cbe: Output/%.allnodes.cbe
+	-$(RUNSAFELY) $(STDIN_FILENAME) $@ $< $(RUN_OPTIONS)
+
+
+# This rule runs the generated executable, generating timing information, for
+# normal test programs
+$(PROGRAMS_TO_TEST:%=Output/%.onlyoverhead.out-cbe): \
+Output/%.onlyoverhead.out-cbe: Output/%.onlyoverhead.cbe
 	-$(RUNSAFELY) $(STDIN_FILENAME) $@ $< $(RUN_OPTIONS)
 
 
@@ -130,6 +156,16 @@ Output/%.allnodes.out-cbe: Output/%.allnodes.cbe
 
 # This rule runs the generated executable, generating timing information, for
 # SPEC
+$(PROGRAMS_TO_TEST:%=Output/%.onlyoverhead.out-cbe): \
+Output/%.onlyoverhead.out-cbe: Output/%.onlyoverhead.cbe
+	-$(SPEC_SANDBOX) onlyoverheadcbe-$(RUN_TYPE) $@ $(REF_IN_DIR) \
+             $(RUNSAFELY) $(STDIN_FILENAME) $(STDOUT_FILENAME) \
+                  ../../$< $(RUN_OPTIONS)
+	-(cd Output/onlyoverheadcbe-$(RUN_TYPE); cat $(LOCAL_OUTPUTS)) > $@
+	-cp Output/onlyoverheadcbe-$(RUN_TYPE)/$(STDOUT_FILENAME).time $@.time
+
+# This rule runs the generated executable, generating timing information, for
+# SPEC
 $(PROGRAMS_TO_TEST:%=Output/%.nonpa.out-cbe): \
 Output/%.nonpa.out-cbe: Output/%.nonpa.cbe
 	-$(SPEC_SANDBOX) nonpacbe-$(RUN_TYPE) $@ $(REF_IN_DIR) \
@@ -155,6 +191,13 @@ Output/%.allnodes.diff-cbe: Output/%.out-nat Output/%.allnodes.out-cbe
 	@cp Output/$*.out-nat Output/$*.allnodes.out-nat
 	-$(DIFFPROG) cbe $*.allnodes $(HIDEDIFF)
 
+# This rule diffs the post-poolallocated version to make sure we didn't break
+# the program!
+$(PROGRAMS_TO_TEST:%=Output/%.onlyoverhead.diff-cbe): \
+Output/%.onlyoverhead.diff-cbe: Output/%.out-nat Output/%.onlyoverhead.out-cbe
+	@cp Output/$*.out-nat Output/$*.onlyoverhead.out-nat
+	-$(DIFFPROG) cbe $*.onlyoverhead $(HIDEDIFF)
+
 # This rule diffs the post-nonpa version to make sure we didn't break the
 # program!
 $(PROGRAMS_TO_TEST:%=Output/%.nonpa.diff-cbe): \
@@ -166,10 +209,10 @@ Output/%.nonpa.diff-cbe: Output/%.out-nat Output/%.nonpa.out-cbe
 # This rule wraps everything together to build the actual output the report is
 # generated from.
 $(PROGRAMS_TO_TEST:%=Output/%.$(TEST).report.txt): \
-Output/%.$(TEST).report.txt: Output/%.$(TEST).transformed.bc \
-			     Output/%.nonpa.diff-cbe         \
+Output/%.$(TEST).report.txt: Output/%.nonpa.diff-cbe         \
 			     Output/%.poolalloc.diff-cbe     \
-			     Output/%.allnodes.diff-cbe     \
+			     Output/%.allnodes.diff-cbe      \
+			     Output/%.onlyoverhead.diff-cbe  \
                              Output/%.LOC.txt
 	@echo > $@
 	@-if test -f Output/$*.poolalloc.diff-cbe; then \
@@ -182,6 +225,11 @@ Output/%.$(TEST).report.txt: Output/%.$(TEST).transformed.bc \
 	  grep "^user" Output/$*.allnodes.out-cbe.time >> $@;\
 	  printf "CBE-RUN-TIME-ALLNODES-SYS: " >> $@;\
 	  grep "^sys" Output/$*.allnodes.out-cbe.time >> $@;\
+		\
+	  printf "CBE-RUN-TIME-ONLYOVERHEAD-USER: " >> $@;\
+	  grep "^user" Output/$*.onlyoverhead.out-cbe.time >> $@;\
+	  printf "CBE-RUN-TIME-ONLYOVERHEAD-SYS: " >> $@;\
+	  grep "^sys" Output/$*.onlyoverhead.out-cbe.time >> $@;\
 		\
 	  printf "CBE-RUN-TIME-POOLALLOC-USER: " >> $@;\
 	  grep "^user" Output/$*.poolalloc.out-cbe.time >> $@;\
