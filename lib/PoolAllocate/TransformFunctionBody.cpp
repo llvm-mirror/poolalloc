@@ -111,12 +111,11 @@ namespace {
 	// Check that the node pointed to by V in the TD DS graph is not
 	// collapsed
 	DSNode *TDNode = getTDDSNodeHFor(V).getNode();
-	if (TDNode->getType() != Type::VoidTy)
+	if (TDNode && TDNode->getType() != Type::VoidTy)
 	  return I->second;
-	else {
-	  PAInfo.CollapseFlag = 1;
-	  return 0;
-	}
+
+        PAInfo.CollapseFlag = 1;
+        return 0;
       }
       else
 	return 0;
