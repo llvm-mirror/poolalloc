@@ -52,6 +52,7 @@ namespace PA {
     hash_set<const DSNode*> MarkedNodes;
 
     /// F - The function this FuncInfo corresponds to.
+    ///
     Function &F;
 
     /// Clone - The cloned version of the function, if applicable.
@@ -79,10 +80,6 @@ namespace PA {
     /// the values they correspond to in the old function.
     ///
     std::map<Value*, const Value*> NewToOldValueMap;
-
-    /// ValueMap - This is a map from Old to New Value Map reverse of the one
-    /// above.  Useful in SAFECode for check insertion.
-    std::map<const Value*, Value*> ValueMap;
   };
 
 }; // end PA namespace
