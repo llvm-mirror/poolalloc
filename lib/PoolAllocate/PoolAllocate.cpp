@@ -482,9 +482,13 @@ void PoolAllocate::CreatePools(Function &F,
       // later.
       if (!IsMain)
         PoolDesc = new AllocaInst(PoolDescType, 0, "PD", InsertPoint);
-      else
+      else {
         PoolDesc = CreateGlobalPool(Pool.PoolSize, Pool.PoolAlignment,
                                     InsertPoint);
+        if (Pool.NodesInPool.size() == 1 &&
+            !Pool.NodesInPool[0]->isNodeCompletelyFolded())
+          ++NumTSPools;
+      }
     }
     for (unsigned N = 0, e = Pool.NodesInPool.size(); N != e; ++N) {
       PoolDescriptors[Pool.NodesInPool[N]] = PoolDesc;
