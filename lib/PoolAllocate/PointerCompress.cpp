@@ -1113,7 +1113,7 @@ void PointerCompress::FindPoolsToCompress(std::set<const DSNode*> &Pools,
   // Map all node reachable from this global to the corresponding nodes in the
   // globals graph.
   DSGraph::NodeMapTy GlobalsGraphNodeMapping;
-  DSG.computeGlobalGraphMapping(GlobalsGraphNodeMapping);
+  DSG.computeGToGGMapping(GlobalsGraphNodeMapping);
 
   // See if there are nodes in this graph that correspond to nodes in the
   // globals graph, and if so, if it is compressed.

@@ -544,7 +544,7 @@ void PoolAllocate::ProcessFunctionBody(Function &F, Function &NewF) {
   // Map all node reachable from this global to the corresponding nodes in
   // the globals graph.
   DSGraph::NodeMapTy GlobalsGraphNodeMapping;
-  G.computeGlobalGraphMapping(GlobalsGraphNodeMapping);
+  G.computeGToGGMapping(GlobalsGraphNodeMapping);
 
   // Loop over all of the nodes which are non-escaping, adding pool-allocatable
   // ones to the NodesToPA vector.
