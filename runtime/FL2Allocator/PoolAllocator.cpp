@@ -324,6 +324,28 @@ LargeArrayCase:
   free(LAH);
 }
 
+void *poolrealloc(PoolTy *Pool, void *Node, unsigned NumBytes) {
+  // If a null pool descriptor is passed in, this is not a pool allocated data
+  // structure.  Hand off to the system realloc.
+  if (Pool == 0) return realloc(Node, NumBytes);
+  if (Node == 0) return poolalloc(Pool, NumBytes);
+  if (NumBytes == 0) {
+    poolfree(Pool, Node);
+    return 0;
+  }
+
+  // FIXME: This is obviously much worse than it could be.  In particular, we
+  // never try to expand something in a pool.  This might hurt some programs!
+  void *New = poolalloc(Pool, NumBytes);
+  assert(New != 0 && "Our poolalloc doesn't ever return null for failure!");
+
+  // Copy the min of the new and old sizes over.
+  unsigned Size = poolobjsize(Pool, Node);
+  memcpy(New, Node, Size < NumBytes ? Size : NumBytes);
+  poolfree(Pool, Node);
+  return New;
+}
+
 unsigned poolobjsize(PoolTy *Pool, void *Node) {
   if (Node == 0) return 0;
 

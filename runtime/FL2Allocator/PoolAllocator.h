@@ -95,6 +95,7 @@ extern "C" {
   void poolmakeunfreeable(PoolTy *Pool);
   void pooldestroy(PoolTy *Pool);
   void *poolalloc(PoolTy *Pool, unsigned NumBytes);
+  void *poolrealloc(PoolTy *Pool, void *Node, unsigned NumBytes);
   void poolfree(PoolTy *Pool, void *Node);
 
   /// poolobjsize - Reutrn the size of the object at the specified address, in
