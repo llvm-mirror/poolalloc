@@ -229,8 +229,8 @@ ComputeCompressedType(const Type *OrigTy, unsigned NodeOffset,
   if (const PointerType *PTY = dyn_cast<PointerType>(OrigTy)) {
     // Okay, we have a pointer.  Check to see if the node pointed to is actually
     // compressed!
-    DSNode *PointeeNode = getNode()->getLink(NodeOffset).getNode();
-    if (PointeeNode && Nodes.count(PointeeNode))
+    //DSNode *PointeeNode = getNode()->getLink(NodeOffset).getNode();
+    //if (PointeeNode && Nodes.count(PointeeNode))
       return MEMUINTTYPE;
     // Otherwise, it points to a non-compressed node.
     return OrigTy;
