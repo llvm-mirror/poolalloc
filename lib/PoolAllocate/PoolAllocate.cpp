@@ -72,6 +72,7 @@ namespace {
 
 void PoolAllocate::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.addRequired<EquivClassGraphs>();
+  AU.addPreserved<EquivClassGraphs>();
   AU.addRequired<TargetData>();
 }
 
