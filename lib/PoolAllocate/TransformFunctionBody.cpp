@@ -6,7 +6,7 @@
 
 #define DEBUG_TYPE "PoolAllocator"
 #include "EquivClassGraphs.h"
-#include "poolalloc/PoolAllocate.h"
+#include "PoolAllocate.h"
 #include "llvm/Analysis/DataStructure//DataStructure.h"
 #include "llvm/Analysis/DataStructure/DSGraph.h"
 #include "llvm/Module.h"

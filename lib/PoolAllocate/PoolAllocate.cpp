@@ -7,7 +7,7 @@
 
 #define DEBUG_TYPE "PoolAllocator"
 #include "EquivClassGraphs.h"
-#include "poolalloc/PoolAllocate.h"
+#include "PoolAllocate.h"
 #include "llvm/Constants.h"
 #include "llvm/DerivedTypes.h"
 #include "llvm/Instructions.h"
