@@ -134,6 +134,9 @@ Instruction *FuncTransform::TransformAllocationInstr(Instruction *I,
                                                      Value *Size) {
   std::string Name = I->getName(); I->setName("");
 
+  if (Size->getType() != Type::UIntTy)
+    Size = new CastInst(Size, Type::UIntTy, Size->getName(), I);
+
   // Insert a call to poolalloc
   Value *PH = getPoolHandle(I);
   Instruction *V = new CallInst(PAInfo.PoolAlloc, make_vector(PH, Size, 0),
