@@ -1,27 +1,24 @@
+//===- PoolAllocatorChained.cpp - Implementation of poolallocator runtime -===//
+// 
+//                     The LLVM Compiler Infrastructure
+//
+// This file was developed by the LLVM research group and is distributed under
+// the University of Illinois Open Source License. See LICENSE.TXT for details.
+// 
+//===----------------------------------------------------------------------===//
+//
+// This file is one possible implementation of the LLVM pool allocator runtime
+// library.
+//
+//===----------------------------------------------------------------------===//
+
+#include "PoolAllocator.h"
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 
 #undef assert
 #define assert(X)
-
-typedef struct PoolTy {
-  void    *Data;
-  unsigned NodeSize;
-  unsigned FreeablePool; /* Set to false if the memory from this pool cannot be
-			    freed before destroy*/
-} PoolTy;
-
-extern "C" {
-  void poolinit(PoolTy *Pool, unsigned NodeSize);
-  void poolmakeunfreeable(PoolTy *Pool);
-  void pooldestroy(PoolTy *Pool);
-  void *poolalloc(PoolTy *Pool);
-  void poolfree(PoolTy *Pool, char *Node);
-  void* poolallocarray(PoolTy* Pool, unsigned Size);
-}
-
-
 
 /* In the current implementation, each slab in the pool has NODES_PER_SLAB
  * nodes unless the isSingleArray flag is set in which case it contains a
@@ -47,29 +44,36 @@ typedef struct PoolSlab {
 
   char Data[1];   /* Buffer to hold data in this slab... variable sized */
 
+
+  bool isNodeAllocated(unsigned NodeNum) {
+    return AllocatedBitVector[NodeNum >> 3] & (1 << (NodeNum & 7));
+  }
+
+  void markNodeAllocated(unsigned NodeNum) {
+    AllocatedBitVector[NodeNum >> 3] |= 1 << (NodeNum & 7);
+  }
+
+  void markNodeFree(unsigned NodeNum) {
+    AllocatedBitVector[NodeNum >> 3] &= ~(1 << (NodeNum & 7));
+  }
+
+  bool isStartOfAllocation(unsigned NodeNum) {
+    return StartOfAllocation[NodeNum >> 3] & (1 << (NodeNum & 7));
+  }
+  
+  void setStartBit(unsigned NodeNum) {
+    StartOfAllocation[NodeNum >> 3] |= 1 << (NodeNum & 7);
+  }
+
+  void clearStartBit(unsigned NodeNum) {
+    StartOfAllocation[NodeNum >> 3] &= ~(1 << (NodeNum & 7));
+  }
 } PoolSlab;
-
-#define NODE_ALLOCATED(POOLSLAB, NODENUM) \
-   ((POOLSLAB)->AllocatedBitVector[(NODENUM) >> 3] & (1 << ((NODENUM) & 7)))
-#define MARK_NODE_ALLOCATED(POOLSLAB, NODENUM) \
-   (POOLSLAB)->AllocatedBitVector[(NODENUM) >> 3] |= 1 << ((NODENUM) & 7)
-#define MARK_NODE_FREE(POOLSLAB, NODENUM) \
-   (POOLSLAB)->AllocatedBitVector[(NODENUM) >> 3] &= ~(1 << ((NODENUM) & 7))
-#define ALLOCATION_BEGINS(POOLSLAB, NODENUM) \
-   ((POOLSLAB)->StartOfAllocation[(NODENUM) >> 3] & (1 << ((NODENUM) & 7)))
-#define SET_START_BIT(POOLSLAB, NODENUM) \
-   (POOLSLAB)->StartOfAllocation[(NODENUM) >> 3] |= 1 << ((NODENUM) & 7)
-#define CLEAR_START_BIT(POOLSLAB, NODENUM) \
-   (POOLSLAB)->StartOfAllocation[(NODENUM) >> 3] &= ~(1 << ((NODENUM) & 7))
-
 
 /* poolinit - Initialize a pool descriptor to empty
  */
 void poolinit(PoolTy *Pool, unsigned NodeSize) {
-  if (!Pool) {
-    printf("Null pool pointer passed into poolinit!\n");
-    exit(1);
-  }
+  assert(Pool && "Null pool pointer passed into poolinit!\n");
 
   /* We must alway return unique pointers, even if they asked for 0 bytes */
   Pool->NodeSize = NodeSize ? NodeSize : 1;
@@ -78,11 +82,7 @@ void poolinit(PoolTy *Pool, unsigned NodeSize) {
 }
 
 void poolmakeunfreeable(PoolTy *Pool) {
-  if (!Pool) {
-    printf("Null pool pointer passed in to poolmakeunfreeable!\n");
-    exit(1);
-  }
-
+  assert (Pool && "Null pool pointer passed in to poolmakeunfreeable!\n");
   Pool->FreeablePool = 0;
 }
 
@@ -90,10 +90,7 @@ void poolmakeunfreeable(PoolTy *Pool) {
  */
 void pooldestroy(PoolTy *Pool) {
   PoolSlab *PS;
-  if (!Pool) {
-    printf("Null pool pointer passed in to pooldestroy!\n");
-    exit(1);
-  }
+  assert(Pool && "Null pool pointer passed in to pooldestroy!\n");
 
   PS = (PoolSlab*)Pool->Data;
   while (PS) {
@@ -115,8 +112,8 @@ static void *FindSlabEntry(PoolSlab *PS, unsigned NodeSize) {
     /* Check to see if there are empty entries at the end of the slab... */
     if (PS->LastUsed < NODES_PER_SLAB-1) {
       /* Mark the returned entry used */
-      MARK_NODE_ALLOCATED(PS, PS->LastUsed+1);
-      SET_START_BIT(PS, PS->LastUsed+1);
+      PS->markNodeAllocated(PS->LastUsed+1);
+      PS->setStartBit(PS->LastUsed+1);
 
       /* If we are allocating out the first unused field, bump its index also */
       if (PS->FirstUnused == (unsigned)PS->LastUsed+1)
@@ -133,14 +130,14 @@ static void *FindSlabEntry(PoolSlab *PS, unsigned NodeSize) {
       /* Successfully allocate out the first unused node */
       unsigned Idx = PS->FirstUnused;
 
-      MARK_NODE_ALLOCATED(PS, Idx);
-      SET_START_BIT(PS, Idx);
+      PS->markNodeAllocated(Idx);
+      PS->setStartBit(Idx);
 
       /* Increment FirstUnused to point to the new first unused value... */
       do {
         ++PS->FirstUnused;
       } while (PS->FirstUnused < NODES_PER_SLAB &&
-               NODE_ALLOCATED(PS, PS->FirstUnused));
+               PS->isNodeAllocated(PS->FirstUnused));
 
       return &PS->Data[0] + Idx*NodeSize;
     }
@@ -151,28 +148,19 @@ static void *FindSlabEntry(PoolSlab *PS, unsigned NodeSize) {
 }
 
 void *poolalloc(PoolTy *Pool) {
-  unsigned NodeSize;
-  PoolSlab *PS;
-  void *Result;
-
-  if (!Pool) {
-    printf("Null pool pointer passed in to poolalloc!\n");
-    exit(1);
-  }
+  assert(Pool && "Null pool pointer passed in to poolalloc!\n");
   
-  NodeSize = Pool->NodeSize;
-  PS = (PoolSlab*)Pool->Data;
+  unsigned NodeSize = Pool->NodeSize;
+  PoolSlab *PS = (PoolSlab*)Pool->Data;
 
+  void *Result;
   if ((Result = FindSlabEntry(PS, NodeSize)))
     return Result;
 
   /* Otherwise we must allocate a new slab and add it to the list */
   PS = (PoolSlab*)malloc(sizeof(PoolSlab)+NodeSize*NODES_PER_SLAB-1);
 
-  if (!PS) {
-    printf("poolalloc: Could not allocate memory!");
-    exit(1);
-  }
+  assert(PS && "poolalloc: Could not allocate memory!");
 
   /* Initialize the slab to indicate that the first element is allocated */
   PS->FirstUnused = 1;
@@ -181,8 +169,8 @@ void *poolalloc(PoolTy *Pool) {
   PS->isSingleArray = 0;
   PS->ArraySize = 0;
   
-  MARK_NODE_ALLOCATED(PS, 0);
-  SET_START_BIT(PS, 0);
+  PS->markNodeAllocated(0);
+  PS->setStartBit(0);
 
   /* Add the slab to the list... */
   PS->Next = (PoolSlab*)Pool->Data;
@@ -191,17 +179,14 @@ void *poolalloc(PoolTy *Pool) {
 }
 
 void poolfree(PoolTy *Pool, char *Node) {
-  unsigned NodeSize, Idx;
+  assert(Pool && "Null pool pointer passed in to poolfree!\n");
+
+  unsigned Idx;
   PoolSlab *PS;
   PoolSlab **PPS;
   unsigned idxiter;
 
-  if (!Pool) {
-    printf("Null pool pointer passed in to poolfree!\n");
-    exit(1);
-  }
-
-  NodeSize = Pool->NodeSize;
+  unsigned NodeSize = Pool->NodeSize;
 
   // Return if this pool has size 0
   if (NodeSize == 0)
@@ -212,10 +197,8 @@ void poolfree(PoolTy *Pool, char *Node) {
 
   /* Search for the slab that contains this node... */
   while (&PS->Data[0] > Node || &PS->Data[NodeSize*NODES_PER_SLAB-1] < Node) {
-    if (!PS) { 
-      printf("poolfree: node being free'd not found in allocation pool specified!\n");
-      exit(1);
-    }
+    assert(PS && "poolfree: node being free'd not found in allocation "
+           " pool specified!\n");
 
     PPS = &PS->Next;
     PS = PS->Next;
@@ -229,40 +212,31 @@ void poolfree(PoolTy *Pool, char *Node) {
   if (PS->isSingleArray) {
 
     /* If this slab is a SingleArray */
+    assert(Idx == 0 && "poolfree: Attempt to free middle of allocated array\n");
+    assert(PS->isNodeAllocated(0) &&
+           "poolfree: Attempt to free node that is already freed\n");
 
-    if (Idx != 0) {
-      printf("poolfree: Attempt to free middle of allocated array\n");
-      exit(1);
-    }
-    if (!NODE_ALLOCATED(PS,0)) {
-      printf("poolfree: Attempt to free node that is already freed\n");
-      exit(1);
-    }
     /* Mark this SingleArray slab as being free by just marking the first
        entry as free*/
-    MARK_NODE_FREE(PS, 0);
+    PS->markNodeFree(0);
   } else {
     
     /* If this slab is not a SingleArray */
-    
-    if (!ALLOCATION_BEGINS(PS, Idx)) { 
-      printf("poolfree: Attempt to free middle of allocated array\n");
-      exit(1);
-    }
+    assert(PS->isStartOfAllocation(Idx) &&
+           "poolfree: Attempt to free middle of allocated array\n");
 
     /* Free the first node */
-    if (!NODE_ALLOCATED(PS, Idx)) {
-      printf("poolfree: Attempt to free node that is already freed\n");
-      exit(1); 
-    }
-    CLEAR_START_BIT(PS, Idx);
-    MARK_NODE_FREE(PS, Idx);
+    assert(PS->isNodeAllocated(Idx) &&
+           "poolfree: Attempt to free node that is already freed\n");
+
+    PS->clearStartBit(Idx);
+    PS->markNodeFree(Idx);
     
     // Free all nodes 
     idxiter = Idx + 1;
-    while (idxiter < NODES_PER_SLAB && (!ALLOCATION_BEGINS(PS,idxiter)) && 
-	   (NODE_ALLOCATED(PS, idxiter))) {
-      MARK_NODE_FREE(PS, idxiter);
+    while (idxiter < NODES_PER_SLAB && (!PS->isStartOfAllocation(idxiter)) && 
+	   (PS->isNodeAllocated(idxiter))) {
+      PS->markNodeFree(idxiter);
       ++idxiter;
     }
 
@@ -282,7 +256,7 @@ void poolfree(PoolTy *Pool, char *Node) {
       /* FIXME, this should scan the allocated array an entire byte at a time 
        * for performance!
        */
-    } while (PS->LastUsed >= 0 && (!NODE_ALLOCATED(PS, PS->LastUsed)));
+    } while (PS->LastUsed >= 0 && (!PS->isNodeAllocated(PS->LastUsed)));
     
     assert(PS->FirstUnused <= PS->LastUsed+1 &&
 	   "FirstUnused field was out of date!");
@@ -340,10 +314,10 @@ static void *FindSlabEntryArray(PoolSlab *PS, unsigned NodeSize,
     /* For large array allocation */
     if (Size > NODES_PER_SLAB) {
       /* If this slab is a SingleArray that is free with size > Size, use it */
-      if (PS->isSingleArray && !NODE_ALLOCATED(PS,0) && PS->ArraySize >= Size) {
-	/* Allocate the array in this slab */
-	MARK_NODE_ALLOCATED(PS,0); /* In a single array, only the first node
-				      needs to be marked */
+      if (PS->isSingleArray && !PS->isNodeAllocated(0) &&PS->ArraySize >= Size){
+	// Allocate the array in this slab
+        // In a single array, only the first node needs to be marked
+	PS->markNodeAllocated(0);
 	return &PS->Data[0];
       } else
 	continue;
@@ -354,9 +328,9 @@ static void *FindSlabEntryArray(PoolSlab *PS, unsigned NodeSize,
     /* Check to see if there are empty entries at the end of the slab... */
     if (PS->LastUsed < (int)(NODES_PER_SLAB-Size)) {
       /* Mark the returned entry used and set the start bit*/
-      SET_START_BIT(PS, PS->LastUsed + 1);
+      PS->setStartBit(PS->LastUsed + 1);
       for (i = PS->LastUsed + 1; i <= PS->LastUsed + Size; ++i)
-	MARK_NODE_ALLOCATED(PS, i);
+	PS->markNodeAllocated(i);
 
       /* If we are allocating out the first unused field, bump its index also */
       if (PS->FirstUnused == (unsigned)PS->LastUsed+1)
@@ -381,18 +355,18 @@ static void *FindSlabEntryArray(PoolSlab *PS, unsigned NodeSize,
 	 FirstUnused */
       foundArray = 1;
       for (i = Idx; (i < Idx + Size) && foundArray; ++i)
-	if (NODE_ALLOCATED(PS, i))
+	if (PS->isNodeAllocated(i))
 	  foundArray = 0;
 
       if (foundArray) {
 	/* Successfully allocate starting from the first unused node */
-	SET_START_BIT(PS, Idx);
+	PS->setStartBit(Idx);
 	for (i = Idx; i < Idx + Size; ++i)
-	  MARK_NODE_ALLOCATED(PS, i);
+	  PS->markNodeAllocated(i);
 	
 	PS->FirstUnused += Size;
 	while (PS->FirstUnused < NODES_PER_SLAB &&
-               NODE_ALLOCATED(PS, PS->FirstUnused)) {
+               PS->isNodeAllocated(PS->FirstUnused)) {
 	  ++PS->FirstUnused;
 	}
 	return &PS->Data[0] + Idx*NodeSize;
@@ -406,24 +380,17 @@ static void *FindSlabEntryArray(PoolSlab *PS, unsigned NodeSize,
 }
 
 void* poolallocarray(PoolTy* Pool, unsigned Size) {
-  unsigned NodeSize;
-  PoolSlab *PS;
-  void *Result;
-  unsigned i;
+  assert(Pool && "Null pool pointer passed into poolallocarray!\n");
 
-  if (!Pool) {
-    printf("Null pool pointer passed to poolallocarray!\n");
-    exit(1);
-  }
-
-  NodeSize = Pool->NodeSize;
+  unsigned NodeSize = Pool->NodeSize;
 
   // Return if this pool has size 0
   if (NodeSize == 0)
     return 0;
 
-  PS = (PoolSlab*)Pool->Data;
+  PoolSlab *PS = (PoolSlab*)Pool->Data;
 
+  void *Result;
   if ((Result = FindSlabEntryArray(PS, NodeSize,Size)))
     return Result;
 
@@ -431,19 +398,13 @@ void* poolallocarray(PoolTy* Pool, unsigned Size) {
   if (Size > NODES_PER_SLAB) {
     /* Allocate a new slab of size Size */
     PS = (PoolSlab*)malloc(sizeof(PoolSlab)+NodeSize*Size-1);
-    if (!PS) {
-      printf("poolallocarray: Could not allocate memory!\n");
-      exit(1);
-    }
+    assert(PS && "poolallocarray: Could not allocate memory!\n");
     PS->isSingleArray = 1;
     PS->ArraySize = Size;
-    MARK_NODE_ALLOCATED(PS, 0);
+    PS->markNodeAllocated(0);
   } else {
     PS = (PoolSlab*)malloc(sizeof(PoolSlab)+NodeSize*NODES_PER_SLAB-1);
-    if (!PS) {
-      printf("poolallocarray: Could not allocate memory!\n");
-      exit(1);
-    }
+    assert(PS && "poolallocarray: Could not allocate memory!\n");
 
     /* Initialize the slab to indicate that the first element is allocated */
     PS->FirstUnused = Size;
@@ -452,10 +413,9 @@ void* poolallocarray(PoolTy* Pool, unsigned Size) {
     PS->isSingleArray = 0;
     PS->ArraySize = 0;
 
-    SET_START_BIT(PS, 0);
-    for (i = 0; i < Size; ++i) {
-      MARK_NODE_ALLOCATED(PS, i);
-    }
+    PS->setStartBit(0);
+    for (unsigned i = 0; i != Size; ++i)
+      PS->markNodeAllocated(i);
   }
 
   /* Add the slab to the list... */
