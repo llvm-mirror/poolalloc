@@ -16,5 +16,11 @@ include $(LEVEL)/Makefile.common
 test::
 	(cd $(LLVM_OBJ_ROOT)/test/Programs/$(SUBDIR); \
                PROJECT_DIR=$(BUILD_OBJ_ROOT) $(MAKE) TEST=poolalloc \
-                   report report.html )
+                   report report.html)
+	@printf "\a"; sleep 1; printf "\a"; sleep 1; printf "\a"
+
+vtl::
+	(cd $(LLVM_OBJ_ROOT)/test/Programs/$(SUBDIR); \
+               PROJECT_DIR=$(BUILD_OBJ_ROOT) $(MAKE) TEST=vtl DOPA=1 \
+                   test)
 	@printf "\a"; sleep 1; printf "\a"; sleep 1; printf "\a"
