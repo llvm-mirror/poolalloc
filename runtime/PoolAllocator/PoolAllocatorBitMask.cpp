@@ -23,9 +23,6 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-#undef assert
-#define assert(X)
-
 //===----------------------------------------------------------------------===//
 //
 //  PoolSlab implementation
@@ -332,10 +329,10 @@ int PoolSlab::allocateMultiple(unsigned Size) {
 int PoolSlab::containsElement(void *Ptr, unsigned ElementSize) const {
   const void *FirstElement = getElementAddress(0, 0);
   if (FirstElement <= Ptr) {
-    unsigned Index = (char*)Ptr-(char*)FirstElement;
-    Index /= ElementSize;
+    unsigned Delta = (char*)Ptr-(char*)FirstElement;
+    unsigned Index = Delta/ElementSize;
     if (Index < getSlabSize()) {
-      assert(Index % ElementSize == 0 &&
+      assert(Delta % ElementSize == 0 &&
              "Freeing pointer into the middle of an element!");
       return Index;
     }
@@ -665,7 +662,6 @@ void poolcheck(PoolTy *Pool, void *Node) {
 
 void poolfree(PoolTy *Pool, void *Node) {
   assert(Pool && "Null pool pointer passed in to poolfree!\n");
-
   PoolSlab *PS;
   unsigned Idx;
   if (0) {                  // THIS SHOULD BE SET FOR SAFECODE!
