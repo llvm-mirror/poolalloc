@@ -44,6 +44,9 @@ private:
   // FirstUnused - First empty node in slab
   unsigned short FirstUnused;
 
+  // UsedBegin - The first node in the slab that is used.
+  unsigned short UsedBegin;
+
   // UsedEnd - 1 past the last allocated node in slab. 0 if slab is empty
   unsigned short UsedEnd;
 
@@ -172,12 +175,13 @@ PoolSlab *PoolSlab::create(PoolTy *Pool) {
 
   unsigned Size = sizeof(PoolSlab) + 4*((NodesPerSlab+15)/16) +
                   Pool->NodeSize*getSlabSize(Pool);
-  assert(Size < PageSize && "Trying to allocate a slab larger than a page!");
+  assert(Size <= PageSize && "Trying to allocate a slab larger than a page!");
   PoolSlab *PS = (PoolSlab*)AllocatePage();
 
   PS->NumNodesInSlab = NodesPerSlab;
   PS->isSingleArray = 0;  // Not a single array!
   PS->FirstUnused = 0;    // Nothing allocated.
+  PS->UsedBegin   = 0;    // Nothing allocated.
   PS->UsedEnd     = 0;    // Nothing allocated.
 
   // Add the slab to the list...
@@ -378,13 +382,35 @@ void PoolSlab::freeElement(unsigned ElementIdx) {
   
   // Update the first free field if this node is below the free node line
   if (ElementIdx < FirstUnused) FirstUnused = ElementIdx;
+
+  // Update the first used field if this node was the first used.
+  if (ElementIdx == UsedBegin) UsedBegin = ElementEndIdx;
   
   // If we are freeing the last element in a slab, shrink the UsedEnd marker
   // down to the last used node.
   if (ElementEndIdx == UE) {
-    UsedEnd = lastNodeAllocated(ElementIdx);
-    assert(FirstUnused <= UsedEnd &&
-           "FirstUnused field was out of date!");
+#if 0
+      printf("FU: %d, UB: %d, UE: %d  FREED: [%d-%d)",
+           FirstUnused, UsedBegin, UsedEnd, ElementIdx, ElementEndIdx);
+#endif
+
+    // If the user is freeing the slab entirely in-order, it's quite possible
+    // that all nodes are free in the slab.  If this is the case, simply reset
+    // our pointers.
+    if (UsedBegin == UE) {
+      //printf(": SLAB EMPTY\n");
+      FirstUnused = 0;
+      UsedBegin = 0;
+      UsedEnd = 0;
+    } else if (FirstUnused == ElementIdx) {
+      // Freed the last node(s) in this slab.
+      FirstUnused = ElementIdx;
+      UsedEnd = ElementIdx;
+    } else {
+      UsedEnd = lastNodeAllocated(ElementIdx);
+      assert(FirstUnused <= UsedEnd &&
+             "FirstUnused field was out of date!");
+    }
   }
 }
 
@@ -394,32 +420,49 @@ unsigned PoolSlab::lastNodeAllocated(unsigned ScanIdx) {
   unsigned short Flags = NodeFlagsVector[CurWord] & 0xFFFF;
   if (Flags) {
     // Mask off nodes above this one
-    Flags &= (1 << (ScanIdx & 15))-1;
+    Flags &= (1 << ((ScanIdx & 15)+1))-1;
     if (Flags) {
       // If there is still something in the flags vector, then there is a node
       // allocated in this part.  The goto is a hack to get the uncommonly
       // executed code away from the common code path.
+      //printf("A: ");
       goto ContainsAllocatedNode;
     }
   }
 
   // Ok, the top word doesn't contain anything, scan the whole flag words now.
-  ScanIdx &= ~15;
   --CurWord;
   while (CurWord != ~0U) {
-    if (NodeFlagsVector[CurWord] & 0xFFFF)
+    Flags = NodeFlagsVector[CurWord] & 0xFFFF;
+    if (Flags) {
+      // There must be a node allocated in this word!
+      //printf("B: ");
       goto ContainsAllocatedNode;
+    }
     CurWord--;
-    ScanIdx -= 16;
   }
   return 0;
 
 ContainsAllocatedNode:
-  // Figure out exactly which node is allocated in this word now.
-  // FIXME: this could be made to be more efficient!
-  do {
-    --ScanIdx;
-  } while (ScanIdx && !isNodeAllocated(ScanIdx-1));
+  // Figure out exactly which node is allocated in this word now.  The node
+  // allocated is the one with the highest bit set in 'Flags'.
+  //
+  // This should use __builtin_clz to get the value, but this builtin is only
+  // available with GCC 3.4 and above.  :(
+  assert(Flags && "Should have allocated node!");
+  
+  unsigned short MSB;
+#if GCC3_4_EVENTUALLY
+  MSB = 16 - ::__builtin_clz(Flags);
+#else
+  for (MSB = 15; (Flags & (1U << MSB)) == 0; --MSB)
+    /*empty*/;
+#endif
+
+  assert((1U << MSB) & Flags);   // The bit should be set
+  assert((~(1U << MSB) & Flags) < Flags);// Removing it should make flag smaller
+  ScanIdx = CurWord*16 + MSB;
+  assert(isNodeAllocated(ScanIdx));
   return ScanIdx;
 }
 
