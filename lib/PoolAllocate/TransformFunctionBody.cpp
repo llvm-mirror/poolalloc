@@ -75,7 +75,7 @@ namespace {
     Instruction *TransformAllocationInstr(Instruction *I, Value *Size);
     Instruction *InsertPoolFreeInstr(Value *V, Instruction *Where);
 
-    void UpdateNewToOldValueMap(Value *OldVal, Value *NewV1, Value *NewV2) {
+    void UpdateNewToOldValueMap(Value *OldVal, Value *NewV1, Value *NewV2 = 0) {
       std::map<Value*, const Value*>::iterator I =
         FI.NewToOldValueMap.find(OldVal);
       assert(I != FI.NewToOldValueMap.end() && "OldVal not found in clone?");
@@ -563,26 +563,16 @@ void FuncTransform::visitCallSite(CallSite CS) {
     if (CII != SM.end()) {
       SM[NewCall] = CII->second;
       SM.erase(CII);                     // Destroy the CallInst
-    } else { 
-      // Otherwise update the NewToOldValueMap with the new CI return value
-      if (DS::isPointerType(TheCall->getType())) {
-        std::map<Value*,const Value*>::iterator CII = 
-          FI.NewToOldValueMap.find(TheCall);
-        assert(CII != FI.NewToOldValueMap.end() && "CI not found in clone?");
-        FI.NewToOldValueMap.insert(std::make_pair(NewCall, CII->second));
-        FI.NewToOldValueMap.erase(CII);
-      }
+    } else if (!FI.NewToOldValueMap.empty()) {
+      // Otherwise, if this is a clone, update the NewToOldValueMap with the new
+      // CI return value.
+      UpdateNewToOldValueMap(TheCall, NewCall);
     }
   } else if (!FI.NewToOldValueMap.empty()) {
-    std::map<Value*,const Value*>::iterator II =
-      FI.NewToOldValueMap.find(TheCall);
-    assert(II != FI.NewToOldValueMap.end() && 
-           "CI not found in clone?");
-    FI.NewToOldValueMap.insert(std::make_pair(NewCall, II->second));
-    FI.NewToOldValueMap.erase(II);
+    UpdateNewToOldValueMap(TheCall, NewCall);
   }
 
-  TheCall->getParent()->getInstList().erase(TheCall);
+  TheCall->eraseFromParent();
   visitInstruction(*NewCall);
 }
 
