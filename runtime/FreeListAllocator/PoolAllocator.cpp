@@ -212,101 +212,6 @@ pooldestroy(PoolTy *Pool)
 }
 
 //
-// Function: poolalloc ()
-//
-// Description:
-//    Allocates memory from the pool.  Typically, we will allocate memory
-//    in the same size chunks as we usually do, but sometimes, we will have to
-//    allocate more.
-//
-void *
-poolalloc(PoolTy *Pool, unsigned BytesWanted)
-{
-  // Pointer to the data block to return
-  void * Data;
-
-  // Slab Pointer
-  struct SlabHeader * Slabp;
-
-  assert(Pool && "Null pool pointer passed in to poolalloc!\n");
-
-  // Make sure we allocate something
-  BytesWanted = (BytesWanted ? BytesWanted : 1);
-
-  //
-  // Determine if we can satisfy this request normally.  If not, then
-  // we need to use the array allocation instead.
-  //
-  if (Pool->NodeSize < BytesWanted)
-  {
-    return (poolallocarray (Pool, (BytesWanted+Pool->NodeSize-1)/Pool->NodeSize));
-  }
-
-  //
-  // If we don't have a slab, this is our first initialization.  Do some
-  // quick stuff.
-  //
-  Slabp = Pool->Slabs;
-  if (Slabp == NULL)
-  {
-    Pool->Slabs = Slabp = createSlab (Pool);
-    (Slabp->NextFreeData)++;
-    return (Slabp->Data);
-  }
-
-  //
-  // Determine whether we can allocate from the current slab.
-  //
-  if (Slabp->NextFreeData < Slabp->NodesPerSlab)
-  {
-    //
-    // Return the block and increment the index of the next free data block.
-    //
-    Data = (Slabp->Data + (Pool->NodeSize * Slabp->NextFreeData));
-    (Slabp->NextFreeData)++;
-    return (Data);
-  }
-
-  //
-  // We have a slab, but it doesn't have any new blocks.
-  // Check the free list to see if we can use any recycled blocks.
-  //
-  if (Pool->FreeList.Next == NULL)
-  {
-    //
-    // Create a new slab and add it to the list.
-    //
-    Slabp = createSlab (Pool);
-    Slabp->Next = Pool->Slabs;
-    Pool->Slabs = Slabp;
-
-    (Slabp->NextFreeData)++;
-
-    //
-    // Return the block and increment the index of the next free data block.
-    //
-    return (Slabp->Data);
-  }
-
-  //
-  // Determine which slab owns this block.
-  //
-  Slabp = BlockOwner (PageSize, Pool->FreeList);
-
-  //
-  // Find the data block that corresponds with this pointer.
-  //
-  Data = (Slabp->Data + (Pool->NodeSize * (Pool->FreeList.Next - &(Slabp->BlockList[0]))));
-
-  //
-  // Unlink the first block.
-  //
-  Pool->FreeList.Next = Pool->FreeList.Next->Next;
-
-  return Data;
-}
-
-//
 // Function: poolallocarray ()
 //
 // Description:
@@ -316,7 +221,7 @@ poolalloc(PoolTy *Pool, unsigned BytesWanted)
 //  Pool - The pool from which to allocate memory.
 //  ArraySize - The size of the array in number of elements (not bytes).
 //
-void *
+static void *
 poolallocarray(PoolTy* Pool, unsigned ArraySize)
 {
   assert(Pool && "Null pool pointer passed into poolallocarray!\n");
@@ -413,6 +318,102 @@ poolallocarray(PoolTy* Pool, unsigned ArraySize)
   // Return the list of blocks to the caller.
   //
   return (Slabp->Data);
+}
+
+
+//
+// Function: poolalloc ()
+//
+// Description:
+//    Allocates memory from the pool.  Typically, we will allocate memory
+//    in the same size chunks as we usually do, but sometimes, we will have to
+//    allocate more.
+//
+void *
+poolalloc(PoolTy *Pool, unsigned BytesWanted)
+{
+  // Pointer to the data block to return
+  void * Data;
+
+  // Slab Pointer
+  struct SlabHeader * Slabp;
+
+  assert(Pool && "Null pool pointer passed in to poolalloc!\n");
+
+  // Make sure we allocate something
+  BytesWanted = (BytesWanted ? BytesWanted : 1);
+
+  //
+  // Determine if we can satisfy this request normally.  If not, then
+  // we need to use the array allocation instead.
+  //
+  if (Pool->NodeSize < BytesWanted)
+  {
+    return (poolallocarray (Pool, (BytesWanted+Pool->NodeSize-1)/Pool->NodeSize));
+  }
+
+  //
+  // If we don't have a slab, this is our first initialization.  Do some
+  // quick stuff.
+  //
+  Slabp = Pool->Slabs;
+  if (Slabp == NULL)
+  {
+    Pool->Slabs = Slabp = createSlab (Pool);
+    (Slabp->NextFreeData)++;
+    return (Slabp->Data);
+  }
+
+  //
+  // Determine whether we can allocate from the current slab.
+  //
+  if (Slabp->NextFreeData < Slabp->NodesPerSlab)
+  {
+    //
+    // Return the block and increment the index of the next free data block.
+    //
+    Data = (Slabp->Data + (Pool->NodeSize * Slabp->NextFreeData));
+    (Slabp->NextFreeData)++;
+    return (Data);
+  }
+
+  //
+  // We have a slab, but it doesn't have any new blocks.
+  // Check the free list to see if we can use any recycled blocks.
+  //
+  if (Pool->FreeList.Next == NULL)
+  {
+    //
+    // Create a new slab and add it to the list.
+    //
+    Slabp = createSlab (Pool);
+    Slabp->Next = Pool->Slabs;
+    Pool->Slabs = Slabp;
+
+    (Slabp->NextFreeData)++;
+
+    //
+    // Return the block and increment the index of the next free data block.
+    //
+    return (Slabp->Data);
+  }
+
+  //
+  // Determine which slab owns this block.
+  //
+  Slabp = BlockOwner (PageSize, Pool->FreeList);
+
+  //
+  // Find the data block that corresponds with this pointer.
+  //
+  Data = (Slabp->Data + (Pool->NodeSize * (Pool->FreeList.Next - &(Slabp->BlockList[0]))));
+
+  //
+  // Unlink the first block.
+  //
+  Pool->FreeList.Next = Pool->FreeList.Next->Next;
+
+  return Data;
 }
 
 void
