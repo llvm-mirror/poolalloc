@@ -328,7 +328,7 @@ namespace {
     const TargetData &TD;
 
 
-    const DSGraph &DSG;
+    DSGraph &DSG;
 
     /// PAFuncInfo - Information about the transformation the pool allocator did
     /// to the original function.
@@ -342,7 +342,7 @@ namespace {
     PointerCompress &PtrComp;
   public:
     InstructionRewriter(const PointerCompress::PoolInfoMap &poolInfo,
-                        const DSGraph &dsg, PA::FuncInfo &pafi,
+                        DSGraph &dsg, PA::FuncInfo &pafi,
                         FunctionCloneRecord *fcr, PointerCompress &ptrcomp)
       : PoolInfo(poolInfo), TD(dsg.getTargetData()), DSG(dsg),
         PAFuncInfo(pafi), FCR(fcr), PtrComp(ptrcomp) {
@@ -367,7 +367,8 @@ namespace {
       if (isa<UndefValue>(V))                // undef -> uint undef
         return UndefValue::get(SCALARUINTTYPE);
 
-      assert(getNodeIfCompressed(V) && "Value is not compressed!");
+      if (!getNodeIfCompressed(V))
+        assert(getNodeIfCompressed(V) && "Value is not compressed!");
       Value *&RV = OldToNewValueMap[V];
       if (RV) return RV;
 
@@ -449,19 +450,45 @@ namespace {
     /// update any maps that contain that pointer so we don't have stale
     /// pointers hanging around.
     void ValueRemoved(Value *V) {
-      if (FCR) FCR->NewToOldValueMap.erase(V);
+      if (FCR) {
+        // If this is in a pointer-compressed clone, update our map.
+        FCR->NewToOldValueMap.erase(V);
+      } else if (!PAFuncInfo.NewToOldValueMap.empty()) {
+        // Otherwise if this exists in a pool allocator clone, update it now.
+        PAFuncInfo.NewToOldValueMap.erase(V);
+      } else {
+        // Otherwise if this was in the original function, remove it from the
+        // DSG scalar map if it is there.
+        DSG.getScalarMap().eraseIfExists(V);
+      }
     }
 
     /// ValueReplaced - Whenever we replace a value from the current function,
-    /// update any maps that contain that pointer so we don't have stale
-    /// pointers hanging around.
+    /// update any maps that contain that value so we don't have stale pointers
+    /// hanging around.
     void ValueReplaced(Value &Old, Value *New) {
+      // If this value exists in a pointer compress clone, update it now.
       if (FCR) {
         std::map<Value*, const Value*>::iterator I =
           FCR->NewToOldValueMap.find(&Old);
         assert(I != FCR->NewToOldValueMap.end() && "Didn't find element!?");
         FCR->NewToOldValueMap.insert(std::make_pair(New, I->second));
-        FCR->NewToOldValueMap.erase(I);       
+        FCR->NewToOldValueMap.erase(I);
+      } else if (!PAFuncInfo.NewToOldValueMap.empty()) {
+        // Otherwise if this exists in a pool allocator clone, update it now.
+        PA::FuncInfo::NewToOldValueMapTy::iterator I =
+          PAFuncInfo.NewToOldValueMap.find(&Old);
+        if (I != PAFuncInfo.NewToOldValueMap.end()) {
+          PAFuncInfo.NewToOldValueMap[New] = I->second;
+          PAFuncInfo.NewToOldValueMap.erase(I);
+        }
+      
+      } else {
+        // Finally, if this occurred in a function that neither the pool
+        // allocator nor the ptr compression implementation had to change,
+        // update the DSGraph.
+        if (DSG.getScalarMap().count(&Old))
+          DSG.getScalarMap().replaceScalar(&Old, New);
       }
     }
 
@@ -511,8 +538,8 @@ InstructionRewriter::~InstructionRewriter() {
 
     // Finally, remove it from the program.
     if (Instruction *Inst = dyn_cast<Instruction>(I->first)) {
-      Inst->eraseFromParent();
       ValueRemoved(Inst);
+      Inst->eraseFromParent();
     } else if (Argument *Arg = dyn_cast<Argument>(I->first)) {
       assert(Arg->getParent() == 0 && "Unexpected argument type here!");
       delete Arg;  // Marker node used when cloning.
@@ -821,10 +848,9 @@ void InstructionRewriter::visitCallInst(CallInst &CI) {
     if (NC->getType() != CI.getType())      // Compressing return value?
       setTransformedValue(CI, NC);
     else {
-      if (CI.getType() != Type::VoidTy) {
+      if (CI.getType() != Type::VoidTy)
         CI.replaceAllUsesWith(NC);
-        ValueReplaced(CI, NC);
-      }
+      ValueReplaced(CI, NC);
       CI.eraseFromParent();
     }
     return;
@@ -892,14 +918,16 @@ void InstructionRewriter::visitCallInst(CallInst &CI) {
       Operands.push_back(CI.getOperand(i));
     }
 
+  std::cerr << "REPL: " << CI;
+
   Value *NC = new CallInst(Clone, Operands, CI.getName(), &CI);
+  std::cerr << "WITH: " << *NC;
   if (NC->getType() != CI.getType())      // Compressing return value?
     setTransformedValue(CI, NC);
   else {
-    if (CI.getType() != Type::VoidTy) {
+    if (CI.getType() != Type::VoidTy)
       CI.replaceAllUsesWith(NC);
-      ValueReplaced(CI, NC);
-    }
+    ValueReplaced(CI, NC);
     CI.eraseFromParent();
   }
 }
