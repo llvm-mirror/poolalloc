@@ -36,8 +36,8 @@ Output/%.$(TEST).transformed.bc: Output/%.llvm.bc $(PA_SO)
 
 # This rule compiles the new .bc file into a .c file using CBE
 $(PROGRAMS_TO_TEST:%=Output/%.poolalloc.cbe.c): \
-Output/%.poolalloc.cbe.c: Output/%.$(TEST).transformed.bc $(LDIS)
-	-$(LDIS) -c -f $< -o $@
+Output/%.poolalloc.cbe.c: Output/%.$(TEST).transformed.bc $(LLC)
+	-$(LLC) -march=c -f $< -o $@
 
 # This rule compiles the .c file into an executable using $CC
 $(PROGRAMS_TO_TEST:%=Output/%.poolalloc.cbe): \
