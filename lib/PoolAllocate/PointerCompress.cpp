@@ -102,11 +102,19 @@ namespace {
     /// a clone came from.
     std::map<Function*, FunctionCloneRecord> ClonedFunctionInfoMap;
     
+    /// CompressedGlobalPools - Keep track of which DSNodes in the globals graph
+    /// are both pool allocated and should be compressed, and which GlobalValue
+    /// their pool descriptor is.
+    std::map<const DSNode*, GlobalValue*> CompressedGlobalPools;
+
   public:
     Function *PoolInitPC, *PoolDestroyPC, *PoolAllocPC;
     typedef std::map<const DSNode*, CompressedPoolInfo> PoolInfoMap;
 
     bool runOnModule(Module &M);
+
+    void HandleGlobalPools(Module &M);
+
 
     void getAnalysisUsage(AnalysisUsage &AU) const;
 
@@ -276,82 +284,8 @@ void CompressedPoolInfo::dump() const {
 
 
 //===----------------------------------------------------------------------===//
-//                    PointerCompress Implementation
+//                    InstructionRewriter Implementation
 //===----------------------------------------------------------------------===//
-
-void PointerCompress::getAnalysisUsage(AnalysisUsage &AU) const {
-  // Need information about how pool allocation happened.
-  AU.addRequired<PoolAllocatePassAllPools>();
-
-  // Need information from DSA.
-  AU.addRequired<PA::EquivClassGraphs>();
-}
-
-/// PoolIsCompressible - Return true if we can pointer compress this node.
-/// If not, we should DEBUG print out why.
-static bool PoolIsCompressible(const DSNode *N, Function &F) {
-  assert(!N->isForwarding() && "Should not be dealing with merged nodes!");
-  if (N->isNodeCompletelyFolded()) {
-    DEBUG(std::cerr << "Node is not type-safe:\n");
-    return false;
-  }
-
-  // FIXME: If any non-type-safe nodes point to this one, we cannot compress it.
-#if 0
-  bool HasFields = false;
-  for (DSNode::const_edge_iterator I = N->edge_begin(), E = N->edge_end();
-       I != E; ++I)
-    if (!I->isNull()) {
-      HasFields = true;
-      if (I->getNode() != N) {
-        // We currently only handle trivially self cyclic DS's right now.
-        DEBUG(std::cerr << "Node points to nodes other than itself:\n");
-        return false;
-      }        
-    }
-
-  if (!HasFields) {
-    DEBUG(std::cerr << "Node does not contain any pointers to compress:\n");
-    return false;
-  }
-#endif
-
-  if (N->isArray()) {
-    DEBUG(std::cerr << "Node is an array (not yet handled!):\n");
-    return false;
-  }
-
-  if ((N->getNodeFlags() & DSNode::Composition) != DSNode::HeapNode) {
-    DEBUG(std::cerr << "Node contains non-heap values:\n");
-    return false;
-  }
-
-  return true;
-}
-
-/// FindPoolsToCompress - Inspect the specified function and find pools that are
-/// compressible that are homed in that function.  Return those pools in the
-/// Pools set.
-void PointerCompress::FindPoolsToCompress(std::set<const DSNode*> &Pools,
-                                          Function &F, DSGraph &DSG,
-                                          PA::FuncInfo *FI) {
-  DEBUG(std::cerr << "In function '" << F.getName() << "':\n");
-  for (unsigned i = 0, e = FI->NodesToPA.size(); i != e; ++i) {
-    const DSNode *N = FI->NodesToPA[i];
-
-    // Ignore potential pools that the pool allocation heuristic decided not to
-    // pool allocated.
-    if (!isa<ConstantPointerNull>(FI->PoolDescriptors[N]))
-      if (PoolIsCompressible(N, F)) {
-        Pools.insert(N);
-        ++NumCompressed;
-      } else {
-        DEBUG(std::cerr << "PCF: "; N->dump());
-        ++NumNotCompressed;
-      }
-  }
-}
-
 
 namespace {
   /// InstructionRewriter - This class implements the rewriting neccesary to
@@ -673,6 +607,20 @@ void InstructionRewriter::visitGetElementPtrInst(GetElementPtrInst &GEPI) {
 
   // Get the base index.
   Value *Val = getTransformedValue(GEPI.getOperand(0));
+
+  bool AllZeros = true;
+  for (unsigned i = 1, e = GEPI.getNumOperands(); i != e; ++i)
+    if (!isa<Constant>(GEPI.getOperand(i)) ||
+        !cast<Constant>(GEPI.getOperand(i))->isNullValue()) {
+      AllZeros = false;
+      break;
+    }
+  if (AllZeros) {
+    // We occasionally get non-type-matching GEP instructions with zeros.  These
+    // are effectively pointer casts, so treat them as such.
+    setTransformedValue(GEPI, Val);
+    return;
+  }
 
   // The compressed type for the pool.  FIXME: NOTE: This only works if 'Val'
   // pointed to the start of a node!
@@ -1027,6 +975,112 @@ void InstructionRewriter::visitCallInst(CallInst &CI) {
 }
 
 
+
+//===----------------------------------------------------------------------===//
+//                    PointerCompress Implementation
+//===----------------------------------------------------------------------===//
+
+void PointerCompress::getAnalysisUsage(AnalysisUsage &AU) const {
+  // Need information about how pool allocation happened.
+  AU.addRequired<PoolAllocatePassAllPools>();
+
+  // Need information from DSA.
+  AU.addRequired<PA::EquivClassGraphs>();
+}
+
+/// PoolIsCompressible - Return true if we can pointer compress this node.
+/// If not, we should DEBUG print out why.
+static bool PoolIsCompressible(const DSNode *N) {
+  assert(!N->isForwarding() && "Should not be dealing with merged nodes!");
+  if (N->isNodeCompletelyFolded()) {
+    DEBUG(std::cerr << "Node is not type-safe:\n");
+    return false;
+  }
+
+  // FIXME: If any non-type-safe nodes point to this one, we cannot compress it.
+#if 0
+  bool HasFields = false;
+  for (DSNode::const_edge_iterator I = N->edge_begin(), E = N->edge_end();
+       I != E; ++I)
+    if (!I->isNull()) {
+      HasFields = true;
+      if (I->getNode() != N) {
+        // We currently only handle trivially self cyclic DS's right now.
+        DEBUG(std::cerr << "Node points to nodes other than itself:\n");
+        return false;
+      }        
+    }
+
+  if (!HasFields) {
+    DEBUG(std::cerr << "Node does not contain any pointers to compress:\n");
+    return false;
+  }
+#endif
+
+  if (N->isArray()) {
+    DEBUG(std::cerr << "Node is an array (not yet handled!):\n");
+    return false;
+  }
+
+  if ((N->getNodeFlags() & DSNode::Composition) != DSNode::HeapNode) {
+    DEBUG(std::cerr << "Node contains non-heap values:\n");
+    return false;
+  }
+
+  return true;
+}
+
+/// FindPoolsToCompress - Inspect the specified function and find pools that are
+/// compressible that are homed in that function.  Return those pools in the
+/// Pools set.
+void PointerCompress::FindPoolsToCompress(std::set<const DSNode*> &Pools,
+                                          Function &F, DSGraph &DSG,
+                                          PA::FuncInfo *FI) {
+  DEBUG(std::cerr << "In function '" << F.getName() << "':\n");
+  for (unsigned i = 0, e = FI->NodesToPA.size(); i != e; ++i) {
+    const DSNode *N = FI->NodesToPA[i];
+
+    // Ignore potential pools that the pool allocation heuristic decided not to
+    // pool allocated.
+    if (!isa<ConstantPointerNull>(FI->PoolDescriptors[N]))
+      if (PoolIsCompressible(N)) {
+        Pools.insert(N);
+        ++NumCompressed;
+      } else {
+        DEBUG(std::cerr << "PCF: "; N->dump());
+        ++NumNotCompressed;
+      }
+  }
+
+  // If there are no compressed global pools, don't bother to look for them.
+  if (CompressedGlobalPools.empty()) return;
+
+  // Calculate which DSNodes are reachable from globals.  If a node is reachable
+  // from a global, we check to see if the global pool is compressed.
+  DSGraph &GG = ECG->getGlobalsGraph();
+
+  DSGraph::NodeMapTy GlobalsGraphNodeMapping;
+  for (DSScalarMap::global_iterator I = DSG.getScalarMap().global_begin(),
+         E = DSG.getScalarMap().global_end(); I != E; ++I) {
+    // Map all node reachable from this global to the corresponding nodes in
+    // the globals graph.
+    DSGraph::computeNodeMapping(DSG.getNodeForValue(*I), GG.getNodeForValue(*I),
+                                GlobalsGraphNodeMapping);
+  }
+
+  // See if there are nodes in this graph that correspond to nodes in the
+  // globals graph, and if so, if it is compressed.
+  for (DSGraph::node_iterator I = DSG.node_begin(), E = DSG.node_end();
+       I != E;++I)
+    if (GlobalsGraphNodeMapping.count(*I)) {
+      // If it is a global pool, set up the pool descriptor appropriately.
+      DSNode *GGN = GlobalsGraphNodeMapping[*I].getNode();
+      if (CompressedGlobalPools.count(GGN))
+        Pools.insert(*I);
+    }
+}
+
+
 /// CompressPoolsInFunction - Find all pools that are compressible in this
 /// function and compress them.
 bool PointerCompress::
@@ -1057,10 +1111,6 @@ CompressPoolsInFunction(Function &F,
   // (it's dead).  We'll deal with the cloned version later when we run into it
   // again.
   if (FI->Clone && &FI->F == &F)
-    return false;
-
-  // If there are no pools in this function, exit early.
-  if (FI->NodesToPA.empty() && CloneSource == 0)
     return false;
 
   // Get the DSGraph for this function.
@@ -1261,6 +1311,33 @@ GetFunctionClone(Function *F, std::set<const DSNode*> &PoolsToCompress,
 }
 
 
+// Handle all pools pointed to by global variables.
+void PointerCompress::HandleGlobalPools(Module &M) {
+  if (PoolAlloc->GlobalNodes.empty()) return;
+
+  DEBUG(std::cerr << "Inspecting global nodes:\n");
+
+  // Loop over all of the global nodes identified by the pool allocator.
+  for (std::map<const DSNode*, Value*>::iterator I =
+         PoolAlloc->GlobalNodes.begin(), E = PoolAlloc->GlobalNodes.end();
+       I != E; ++I) {
+    const DSNode *N = I->first;
+
+    // Ignore potential pools that the pool allocation heuristic decided not to
+    // pool allocated.
+    if (!isa<ConstantPointerNull>(I->second))
+      if (PoolIsCompressible(N)) {
+        CompressedGlobalPools.insert(std::make_pair(N, 
+                                             cast<GlobalValue>(I->second)));
+        ++NumCompressed;
+      } else {
+        DEBUG(std::cerr << "PCF: "; N->dump());
+        ++NumNotCompressed;
+      }
+  }
+}
+
+
 /// InitializePoolLibraryFunctions - Create the function prototypes for pointer
 /// compress runtime library functions.
 void PointerCompress::InitializePoolLibraryFunctions(Module &M) {
@@ -1291,6 +1368,9 @@ bool PointerCompress::runOnModule(Module &M) {
   // Create the function prototypes for pointer compress runtime library
   // functions.
   InitializePoolLibraryFunctions(M);
+
+  // Handle all pools pointed to by global variables.
+  HandleGlobalPools(M);
 
   // Iterate over all functions in the module, looking for compressible data
   // structures.
