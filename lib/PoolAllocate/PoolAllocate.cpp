@@ -105,35 +105,27 @@ bool PoolAllocate::runOnModule(Module &M) {
   // over the modules.  Loop over only the function initially in the program,
   // don't traverse newly added ones.  If the function needs new arguments, make
   // its clone.
-  Module::iterator LastOrigFunction = --M.end();
-  for (Module::iterator I = M.begin(); ; ++I) {
+  std::set<Function*> ClonedFunctions;
+  for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I)
     if (!I->isExternal())
-      if (Function *R = MakeFunctionClone(*I))
-        FuncMap[I] = R;
-    if (I == LastOrigFunction) break;
-  }
+      if (Function *Clone = MakeFunctionClone(*I)) {
+        FuncMap[I] = Clone;
+        ClonedFunctions.insert(Clone);
+      }
   
-  ++LastOrigFunction;
-
   // Now that all call targets are available, rewrite the function bodies of the
   // clones.
-  for (Module::iterator I = M.begin(); I != LastOrigFunction; ++I)
-    if (!I->isExternal()) {
+  for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I)
+    if (!I->isExternal() && !ClonedFunctions.count(I)) {
       std::map<Function*, Function*>::iterator FI = FuncMap.find(I);
       ProcessFunctionBody(*I, FI != FuncMap.end() ? *FI->second : *I);
     }
 
-  //Loop to replace all uses of original functions with new values
-  // create a new ConstantPtrRef
-  //create a new ConstantExpr cast
-  std::map<Function *, Function *>::iterator fmI = FuncMap.begin(),
-    fmE = FuncMap.end();
-  for (; fmI != fmE; ++fmI) {
-    Function *origF = fmI->first;
-    Function *cloneF = fmI->second;
-
-    Constant *expr = ConstantExpr::getCast(cloneF, origF->getType());
-    origF->replaceAllUsesWith(expr);
+  // Replace all uses of original functions with the transformed function.
+  for (std::map<Function *, Function *>::iterator I = FuncMap.begin(),
+         E = FuncMap.end(); I != E; ++I) {
+    Function *F = I->first;
+    F->replaceAllUsesWith(ConstantExpr::getCast(I->second, F->getType()));
   }
   return true;
 }
@@ -271,8 +263,8 @@ Function *PoolAllocate::MakeFunctionClone(Function &F) {
   FunctionType *FuncTy = FunctionType::get(OldFuncTy->getReturnType(), ArgTys,
                                            OldFuncTy->isVarArg());
   // Create the new function...
-  Function *New = new Function(FuncTy, GlobalValue::InternalLinkage,
-                               F.getName(), F.getParent());
+  Function *New = new Function(FuncTy, Function::InternalLinkage, F.getName());
+  F.getParent()->getFunctionList().insert(&F, New);
 
   // Set the rest of the new arguments names to be PDa<n> and add entries to the
   // pool descriptors map
@@ -661,9 +653,13 @@ void PoolAllocate::ProcessFunctionBody(Function &F, Function &NewF) {
       }
   }
 
-  std::cerr << "[" << F.getName() << "] " << NodesToPA.size()
-            << " nodes pool allocatable\n";
-  CreatePools(NewF, NodesToPA, FI.PoolDescriptors);
+  if (!NodesToPA.empty()) {
+    std::cerr << "[" << F.getName() << "] " << NodesToPA.size()
+              << " nodes pool allocatable\n";
+    CreatePools(NewF, NodesToPA, FI.PoolDescriptors);
+  } else {
+    DEBUG(std::cerr << "[" << F.getName() << "] transforming body.\n");
+  }
   
   // Transform the body of the function now... collecting information about uses
   // of the pools.
