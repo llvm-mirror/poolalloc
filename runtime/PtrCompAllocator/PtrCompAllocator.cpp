@@ -150,7 +150,7 @@ void poolinit_pc(PoolTy *Pool, unsigned NewSize, unsigned OldSize,
   Pool->OrigSize = OldSize;
 
   // Round up to the next alignment boundary.
-  Pool->NewSize = (NewSize+NewSize-1) & ~(ObjAlignment-1);
+  Pool->NewSize = (NewSize+ObjAlignment-1) & ~(ObjAlignment-1);
 
   Pool->PoolBase = 0;
   Pool->BitVector = 0;
