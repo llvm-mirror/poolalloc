@@ -24,6 +24,12 @@
 #include "Support/Statistic.h"
 using namespace PA;
 
+// PASS_ALL_ARGUMENTS - If this is set to true, pass in pool descriptors for all
+// DSNodes in a function, even if there are no allocations or frees in it.  This
+// is useful for SafeCode.
+#define PASS_ALL_ARGUMENTS 0
+
+
 const Type *PoolAllocate::PoolDescPtrTy = 0;
 
 namespace {
@@ -54,6 +60,93 @@ void PoolAllocate::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.addRequired<TargetData>();
 }
 
+bool PoolAllocate::run(Module &M) {
+  if (M.begin() == M.end()) return false;
+  CurModule = &M;
+  BU = &getAnalysis<BUDataStructures>();
+
+  AddPoolPrototypes();
+  BuildIndirectFunctionSets(M);
+
+  if (SetupGlobalPools(M))
+    return true;
+
+  // Loop over the functions in the original program finding the pool desc.
+  // arguments necessary for each function that is indirectly callable.
+  // For each equivalence class, make a list of pool arguments and update
+  // the PoolArgFirst and PoolArgLast values for each function.
+  for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I)
+    if (!I->isExternal())
+      FindFunctionPoolArgs(*I);
+
+  std::map<Function*, Function*> FuncMap;
+
+  // Now clone a function using the pool arg list obtained in the previous pass
+  // over the modules.  Loop over only the function initially in the program,
+  // don't traverse newly added ones.  If the function needs new arguments, make
+  // its clone.
+  Module::iterator LastOrigFunction = --M.end();
+  for (Module::iterator I = M.begin(); ; ++I) {
+    if (!I->isExternal())
+      if (Function *R = MakeFunctionClone(*I))
+        FuncMap[I] = R;
+    if (I == LastOrigFunction) break;
+  }
+  
+  ++LastOrigFunction;
+
+  // Now that all call targets are available, rewrite the function bodies of the
+  // clones.
+  for (Module::iterator I = M.begin(); I != LastOrigFunction; ++I)
+    if (!I->isExternal()) {
+      std::map<Function*, Function*>::iterator FI = FuncMap.find(I);
+      ProcessFunctionBody(*I, FI != FuncMap.end() ? *FI->second : *I);
+    }
+
+  return true;
+}
+
+static void GetNodesReachableFromGlobals(DSGraph &G,
+                                         hash_set<DSNode*> &NodesFromGlobals) {
+  for (DSGraph::ScalarMapTy::iterator I = G.getScalarMap().begin(), 
+         E = G.getScalarMap().end(); I != E; ++I)
+    if (isa<GlobalValue>(I->first))              // Found a global
+      I->second.getNode()->markReachableNodes(NodesFromGlobals);
+}
+
+// AddPoolPrototypes - Add prototypes for the pool functions to the specified
+// module and update the Pool* instance variables to point to them.
+//
+void PoolAllocate::AddPoolPrototypes() {
+  if (VoidPtrTy == 0) {
+    VoidPtrTy = PointerType::get(Type::SByteTy);
+    PoolDescType =
+      StructType::get(make_vector<const Type*>(VoidPtrTy, VoidPtrTy,
+                                               Type::UIntTy, Type::UIntTy, 0));
+    PoolDescPtrTy = PointerType::get(PoolDescType);
+  }
+
+  CurModule->addTypeName("PoolDescriptor", PoolDescType);
+  
+  // Get poolinit function...
+  PoolInit = CurModule->getOrInsertFunction("poolinit", Type::VoidTy,
+                                            PoolDescPtrTy, Type::UIntTy, 0);
+
+  // Get pooldestroy function...
+  PoolDestroy = CurModule->getOrInsertFunction("pooldestroy", Type::VoidTy,
+                                               PoolDescPtrTy, 0);
+  
+  // The poolalloc function
+  PoolAlloc = CurModule->getOrInsertFunction("poolalloc", 
+                                             VoidPtrTy, PoolDescPtrTy,
+                                             Type::UIntTy, 0);
+  
+  // Get the poolfree function...
+  PoolFree = CurModule->getOrInsertFunction("poolfree", Type::VoidTy,
+                                            PoolDescPtrTy, VoidPtrTy, 0);  
+}
+
+
 // Prints out the functions mapped to the leader of the equivalence class they
 // belong to.
 void PoolAllocate::printFuncECs() {
@@ -75,14 +168,13 @@ static void printNTOMap(std::map<Value*, const Value*> &NTOM) {
   }
 }
 
-void PoolAllocate::buildIndirectFunctionSets(Module &M) {
-  // Iterate over the module looking for indirect calls to functions
-
+// BuildIndirectFunctionSets - Iterate over the module looking for indirect
+// calls to functions
+void PoolAllocate::BuildIndirectFunctionSets(Module &M) {
   // Get top down DSGraph for the functions
   TDDS = &getAnalysis<TDDataStructures>();
   
   for (Module::iterator MI = M.begin(), ME = M.end(); MI != ME; ++MI) {
-
     DEBUG(std::cerr << "Processing indirect calls function:" <<  MI->getName()
                     << "\n");
 
@@ -128,83 +220,70 @@ void PoolAllocate::buildIndirectFunctionSets(Module &M) {
   DEBUG(printFuncECs());
 }
 
-bool PoolAllocate::run(Module &M) {
-  if (M.begin() == M.end()) return false;
-  CurModule = &M;
-  BU = &getAnalysis<BUDataStructures>();
-
-  if (VoidPtrTy == 0) {
-    VoidPtrTy = PointerType::get(Type::SByteTy);
-    PoolDescType =
-      StructType::get(make_vector<const Type*>(VoidPtrTy, VoidPtrTy,
-                                               Type::UIntTy, Type::UIntTy, 0));
-    PoolDescPtrTy = PointerType::get(PoolDescType);
-  }
-  
-  AddPoolPrototypes();
-  buildIndirectFunctionSets(M);
-
-  std::map<Function*, Function*> FuncMap;
-
-  // Loop over the functions in the original program finding the pool desc.
-  // arguments necessary for each function that is indirectly callable.
-  // For each equivalence class, make a list of pool arguments and update
-  // the PoolArgFirst and PoolArgLast values for each function.
-  Module::iterator LastOrigFunction = --M.end();
-  for (Module::iterator I = M.begin(); ; ++I) {
-    if (!I->isExternal())
-      FindFunctionPoolArgs(*I);
-    if (I == LastOrigFunction) break;
-  }
-
-  // Now clone a function using the pool arg list obtained in the previous
-  // pass over the modules.
-  // Loop over only the function initially in the program, don't traverse newly
-  // added ones.  If the function uses memory, make its clone.
-  for (Module::iterator I = M.begin(); ; ++I) {
-    if (!I->isExternal())
-      if (Function *R = MakeFunctionClone(*I))
-        FuncMap[I] = R;
-    if (I == LastOrigFunction) break;
-  }
-  
-  ++LastOrigFunction;
-
-  // Now that all call targets are available, rewrite the function bodies of the
-  // clones.
-  for (Module::iterator I = M.begin(); I != LastOrigFunction; ++I)
-    if (!I->isExternal()) {
-      std::map<Function*, Function*>::iterator FI = FuncMap.find(I);
-      ProcessFunctionBody(*I, FI != FuncMap.end() ? *FI->second : *I);
-    }
-
-  return true;
-}
-
-
-// AddPoolPrototypes - Add prototypes for the pool functions to the specified
-// module and update the Pool* instance variables to point to them.
+// SetupGlobalPools - Create global pools for all DSNodes in the globals graph
+// which contain heap objects.  If a global variable points to a piece of memory
+// allocated from the heap, this pool gets a global lifetime.  This is
+// implemented by making the pool descriptor be a global variable of it's own,
+// and initializing the pool on entrance to main.  Note that we never destroy
+// the pool, because it has global lifetime.
 //
-void PoolAllocate::AddPoolPrototypes() {
-  CurModule->addTypeName("PoolDescriptor", PoolDescType);
-  
-  // Get poolinit function...
-  PoolInit = CurModule->getOrInsertFunction("poolinit", Type::VoidTy,
-                                            PoolDescPtrTy, Type::UIntTy, 0);
+// This method returns true if correct pool allocation of the module cannot be
+// performed because there is no main function for the module and there are
+// global pools.
+//
+bool PoolAllocate::SetupGlobalPools(Module &M) {
+  // Get the globals graph for the program.
+  DSGraph &GG = BU->getGlobalsGraph();
 
-  // Get pooldestroy function...
-  PoolDestroy = CurModule->getOrInsertFunction("pooldestroy", Type::VoidTy,
-                                               PoolDescPtrTy, 0);
+  // Get all of the nodes reachable from globals.
+  hash_set<DSNode*> GlobalHeapNodes;
+  GetNodesReachableFromGlobals(GG, GlobalHeapNodes);
+
+  // Filter out all nodes which have no heap allocations merged into them.
+  for (hash_set<DSNode*>::iterator I = GlobalHeapNodes.begin(),
+         E = GlobalHeapNodes.end(); I != E; ) {
+    hash_set<DSNode*>::iterator Last = I++;
+    if (!(*Last)->isHeapNode())
+      GlobalHeapNodes.erase(Last);
+  }
   
-  // The poolalloc function
-  PoolAlloc = CurModule->getOrInsertFunction("poolalloc", 
-                                             VoidPtrTy, PoolDescPtrTy,
-                                             Type::UIntTy, 0);
+  // If we don't need to create any global pools, exit now.
+  if (GlobalHeapNodes.empty()) return false;
+
+  // Otherwise get the main function to insert the poolinit calls.
+  Function *MainFunc = M.getMainFunction();
+  if (MainFunc == 0 || MainFunc->isExternal()) {
+    std::cerr << "Cannot pool allocate this program: it has global "
+              << "pools but no 'main' function yet!\n";
+    return true;
+  }
+
+  BasicBlock::iterator InsertPt = MainFunc->getEntryBlock().begin();
+  while (isa<AllocaInst>(InsertPt)) ++InsertPt;
   
-  // Get the poolfree function...
-  PoolFree = CurModule->getOrInsertFunction("poolfree", Type::VoidTy,
-                                            PoolDescPtrTy, VoidPtrTy, 0);  
+  TargetData &TD = getAnalysis<TargetData>();
+
+  // Loop over all of the pools, creating a new global pool descriptor,
+  // inserting a new entry in GlobalNodes, and inserting a call to poolinit in
+  // main.
+  for (hash_set<DSNode*>::iterator I = GlobalHeapNodes.begin(),
+         E = GlobalHeapNodes.end(); I != E; ++I) {
+    GlobalVariable *GV =
+      new GlobalVariable(PoolDescType, false, GlobalValue::InternalLinkage, 
+                         Constant::getNullValue(PoolDescType), "GlobalPool",&M);
+    GlobalNodes[*I] = GV;
+
+    Value *ElSize =
+      ConstantUInt::get(Type::UIntTy, (*I)->getType()->isSized() ? 
+                        TD.getTypeSize((*I)->getType()) : 4);
+    new CallInst(PoolInit, make_vector((Value*)GV, ElSize, 0), "", InsertPt);
+  }
+
+  return false;
 }
+
+
+
 
 // Inline the DSGraphs of functions corresponding to the potential targets at
 // indirect call sites into the DS Graph of the callee.
@@ -252,41 +331,24 @@ void PoolAllocate::InlineIndirectCalls(Function &F, DSGraph &G,
 }
 
 void PoolAllocate::FindFunctionPoolArgs(Function &F) {
-
   DSGraph &G = BU->getDSGraph(F);
  
   // Inline the potential targets of indirect calls
   hash_set<Function*> visitedFuncs;
   InlineIndirectCalls(F, G, visitedFuncs);
 
-  // The DSGraph is merged with the globals graph. 
-  G.mergeInGlobalsGraph();
-
-  // The nodes reachable from globals need to be recognized as potential 
-  // arguments. This is required because, upon merging in the globals graph,
-  // the nodes pointed to by globals that are not live are not marked 
-  // incomplete.
-  hash_set<DSNode*> NodesFromGlobals;
-  for (DSGraph::ScalarMapTy::iterator I = G.getScalarMap().begin(), 
-	 E = G.getScalarMap().end(); I != E; ++I)
-    if (isa<GlobalValue>(I->first)) {             // Found a global
-      DSNodeHandle &GH = I->second;
-      GH.getNode()->markReachableNodes(NodesFromGlobals);
-    }
-
   // At this point the DS Graphs have been modified in place including
-  // information about globals as well as indirect calls, making it useful
-  // for pool allocation
+  // information about indirect calls, making it useful for pool allocation.
   std::vector<DSNode*> &Nodes = G.getNodes();
-  if (Nodes.empty()) return ;  // No memory activity, nothing is required
+  if (Nodes.empty()) return;  // No memory activity, nothing is required
 
   FuncInfo &FI = FunctionInfo[&F];   // Create a new entry for F
   
   FI.Clone = 0;
   
-  // Initialize the PoolArgFirst and PoolArgLast for the function depending
-  // on whether there have been other functions in the equivalence class
-  // that have pool arguments so far in the analysis.
+  // Initialize the PoolArgFirst and PoolArgLast for the function depending on
+  // whether there have been other functions in the equivalence class that have
+  // pool arguments so far in the analysis.
   if (!FuncECs.findClass(&F)) {
     FI.PoolArgFirst = FI.PoolArgLast = 0;
   } else {
@@ -304,34 +366,39 @@ void PoolAllocate::FindFunctionPoolArgs(Function &F) {
   hash_set<DSNode*> &MarkedNodes = FI.MarkedNodes;
   
   // Mark globals and incomplete nodes as live... (this handles arguments)
-  if (F.getName() != "main")
-    for (unsigned i = 0, e = Nodes.size(); i != e; ++i) {
-      if (Nodes[i]->isGlobalNode() && !Nodes[i]->isIncomplete())
-        DEBUG(std::cerr << "Global node is not Incomplete\n");
-      if ((Nodes[i]->isIncomplete() || Nodes[i]->isGlobalNode() || 
-	   NodesFromGlobals.count(Nodes[i])) && Nodes[i]->isHeapNode())
-        Nodes[i]->markReachableNodes(MarkedNodes);
+  if (F.getName() != "main") {
+    // All DSNodes reachable from arguments must be passed in.
+    for (Function::aiterator I = F.abegin(), E = F.aend(); I != E; ++I) {
+      DSGraph::ScalarMapTy::iterator AI = G.getScalarMap().find(I);
+      if (AI != G.getScalarMap().end())
+        if (DSNode *N = AI->second.getNode())
+          N->markReachableNodes(MarkedNodes);
     }
+  }
 
   // Marked the returned node as alive...
   if (DSNode *RetNode = G.getReturnNodeFor(F).getNode())
-    if (RetNode->isHeapNode())
-      RetNode->markReachableNodes(MarkedNodes);
+    RetNode->markReachableNodes(MarkedNodes);
+
+  // Calculate which DSNodes are reachable from globals.  If a node is reachable
+  // from a global, we will create a global pool for it, so no argument passage
+  // is required.
+  hash_set<DSNode*> NodesFromGlobals;
+  GetNodesReachableFromGlobals(G, NodesFromGlobals);
+
+  // Remove any nodes reachable from a global.  These nodes will be put into
+  // global pools, which do not require arguments to be passed in.  Also, erase
+  // any marked node that is not a heap node.  Since no allocations or frees
+  // will be done with it, it needs no argument.
+  for (hash_set<DSNode*>::iterator I = MarkedNodes.begin(),
+         E = MarkedNodes.end(); I != E; ) {
+    DSNode *N = *I++;
+    if ((!N->isHeapNode() && !PASS_ALL_ARGUMENTS) || NodesFromGlobals.count(N))
+      MarkedNodes.erase(N);
+  }
 
   if (MarkedNodes.empty())   // We don't need to clone the function if there
     return;                  // are no incoming arguments to be added.
-
-  // Erase any marked node that is not a heap node
-
-  for (hash_set<DSNode*>::iterator I = MarkedNodes.begin(),
-	 E = MarkedNodes.end(); I != E; ) {
-    // erase invalidates hash_set iterators if the iterator points to the
-    // element being erased
-    if (!(*I)->isHeapNode())
-      MarkedNodes.erase(I++);
-    else
-      ++I;
-  }
 
   FI.PoolArgLast += MarkedNodes.size();
 
@@ -380,8 +447,7 @@ Function *PoolAllocate::MakeFunctionClone(Function &F) {
     }
     if (FI.ArgNodes.empty()) return 0;      // No nodes to be pool allocated!
 
-  }
-  else {
+  } else {
     // This function is a member of an equivalence class and needs to be cloned 
     ArgTys.reserve(OldFuncTy->getParamTypes().size() + 
 		   EqClass2LastPoolArg[FuncECs.findClass(&F)] + 1);
@@ -423,8 +489,7 @@ Function *PoolAllocate::MakeFunctionClone(Function &F) {
   
   if (FuncECs.findClass(&F)) {
     // If the function belongs to an equivalence class
-    for (int i = 0; i <= EqClass2LastPoolArg[FuncECs.findClass(&F)]; ++i, 
-	   ++NI)
+    for (int i = 0; i <= EqClass2LastPoolArg[FuncECs.findClass(&F)]; ++i, ++NI)
       NI->setName("PDa");
     
     NI = New->abegin();
@@ -525,14 +590,37 @@ void PoolAllocate::ProcessFunctionBody(Function &F, Function &NewF) {
   hash_set<DSNode*> &MarkedNodes = FI.MarkedNodes;
   
   DEBUG(std::cerr << "[" << F.getName() << "] Pool Allocate: ");
+
+  // Calculate which DSNodes are reachable from globals.  If a node is reachable
+  // from a global, we will create a global pool for it, so no argument passage
+  // is required.
+  DSGraph &GG = BU->getGlobalsGraph();
+  DSGraph::NodeMapTy GlobalsGraphNodeMapping;
+  for (DSGraph::ScalarMapTy::iterator I = G.getScalarMap().begin(), 
+         E = G.getScalarMap().end(); I != E; ++I)
+    if (GlobalValue *GV = dyn_cast<GlobalValue>(I->first)) {
+      // Map all node reachable from this global to the corresponding nodes in
+      // the globals graph.
+      DSGraph::computeNodeMapping(I->second.getNode(), GG.getNodeForValue(GV),
+                                  GlobalsGraphNodeMapping);
+    }
   
   // Loop over all of the nodes which are non-escaping, adding pool-allocatable
   // ones to the NodesToPA vector.
   std::vector<DSNode*> NodesToPA;
   for (unsigned i = 0, e = Nodes.size(); i != e; ++i)
-    if (Nodes[i]->isHeapNode() &&   // Pick nodes with heap elems
-        !MarkedNodes.count(Nodes[i]))              // Can't be marked
-      NodesToPA.push_back(Nodes[i]);
+    // We only need to make a pool if there is a heap object in it...
+    if (Nodes[i]->isHeapNode())
+      if (GlobalsGraphNodeMapping.count(Nodes[i])) {
+        // If it is a global pool, set up the pool descriptor appropriately.
+        DSNode *GGN = GlobalsGraphNodeMapping[Nodes[i]].getNode();
+        assert(GGN && GlobalNodes[GGN] && "No global node found??");
+        FI.PoolDescriptors[Nodes[i]] = GlobalNodes[GGN];
+      } else if (!MarkedNodes.count(Nodes[i])) {
+        // Otherwise, if it was not passed in from outside the function, it must
+        // be a local pool!
+        NodesToPA.push_back(Nodes[i]);
+      }
   
   DEBUG(std::cerr << NodesToPA.size() << " nodes to pool allocate\n");
   if (!NodesToPA.empty())    // Insert pool alloca's
@@ -759,7 +847,10 @@ void PoolAllocate::InitializeAndDestroyPools(Function &F,
     // to poolalloc, and the call to pooldestroy.  Figure out which basic blocks
     // have this property for this pool.
     std::set<BasicBlock*> PoolFreeLiveBlocks;
-    CalculateLivePoolFreeBlocks(PoolFreeLiveBlocks, PD);
+    if (!DisableInitDestroyOpt)
+      CalculateLivePoolFreeBlocks(PoolFreeLiveBlocks, PD);
+    else
+      PoolFreeLiveBlocks = LiveBlocks;
     PoolDestroyPoints.clear();
 
     // Delete any pool frees which are not in live blocks, for correctness.
@@ -772,6 +863,5 @@ void PoolAllocate::InitializeAndDestroyPools(Function &F,
           !PoolFreeLiveBlocks.count(PoolFree->getParent()))
         DeleteIfIsPoolFree(PoolFree, PD, PoolFrees);
     }
-
   }
 }
