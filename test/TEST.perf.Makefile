@@ -13,44 +13,42 @@ PERFEX := /home/vadve/criswell/local/Linux/bin/perfex
 
 #
 # Events for the AMD processors
+#   Data cache refills from system.
+#   Data cache refills from L2.
+#   Data cache misses.
+#   Data cache accesses.
 #
-AMD_EVENTS := -e0x1f430044 -e 0x00410041 -e 0x00410040
+K7_REFILL_SYSTEM  := 0x00411f43
+K7_REFILL_L2      := 0x00411f42
+K7_CACHE_MISSES   := 0x00410041
+K7_CACHE_ACCESSES := 0x00410040
 
-EVENTS := $(AMD_EVENTS)
+K7_EVENTS := -e $(K7_REFILL_SYSTEM) -e $(K7_REFILL_L2) -e $(K7_CACHE_MISSES) -e $(K7_CACHE_ACCESSES)
+
+EVENTS := $(K7_EVENTS)
 
 #
 # Once the results are generated, create files containing each individiual
 # piece of performance information.
 #
 
-# AMD Events
-ifeq ($(EVENTS),$(AMD_EVENTS))
-$(PROGRAMS_TO_TEST:%=Output/$(TEST).L2cachemisses.%): \
-Output/$(TEST).L2cachemisses.%: Output/test.$(TEST).%
-	grep "Output/$*.cbe" $< | grep "Cache Read Misses" | awk '{print $$(NF-1)}' > $@
+# AMD K7 (Athlon) Events
+ifeq ($(EVENTS),$(K7_EVENTS))
+$(PROGRAMS_TO_TEST:%=Output/$(TEST).cacheaccesses.%): \
+Output/$(TEST).cacheaccesses.%: Output/test.$(TEST).%
+	grep $(K7_CACHE_ACCESSES) $< | awk '{print $$(NF)}' > $@
 
-$(PROGRAMS_TO_TEST:%=Output/$(TEST).L2cachemisses.pa.%): \
-Output/$(TEST).L2cachemisses.pa.%: Output/test.$(TEST).pa.%
-	grep "Output/$*.poolalloc.cbe" $< | grep "Cache Read Misses" | awk '{print $$(NF-1)}' > $@
+$(PROGRAMS_TO_TEST:%=Output/$(TEST).cacheaccesses.pa.%): \
+Output/$(TEST).cacheaccesses.pa.%: Output/test.$(TEST).pa.%
+	grep $(K7_CACHE_ACCESSES) $< | awk '{print $$(NF)}' > $@
 
-$(PROGRAMS_TO_TEST:%=Output/$(TEST).L2cacherefs.%): \
-Output/$(TEST).L2cacherefs.%: Output/test.$(TEST).%
-	grep "Output/$*.cbe" $< | grep "Cache Read References" | awk '{print $$(NF-1)}' > $@
+$(PROGRAMS_TO_TEST:%=Output/$(TEST).cachemisses.%): \
+Output/$(TEST).cachemisses.%: Output/test.$(TEST).%
+	grep $(K7_CACHE_MISSES) $< | awk '{print $$(NF)}' > $@
 
-$(PROGRAMS_TO_TEST:%=Output/$(TEST).L2cacherefs.pa.%): \
-Output/$(TEST).L2cacherefs.pa.%: Output/test.$(TEST).pa.%
-	grep "Output/$*.poolalloc.cbe" $< | grep "Cache Read References" | awk '{print $$(NF-1)}' > $@
-endif
-
-# Pentium 3 Events
-ifeq ($(EVENTS),$(P3_EVENTS))
-$(PROGRAMS_TO_TEST:%=Output/$(TEST).L2cachemisses.%): \
-Output/$(TEST).L2cachemisses.%: Output/test.$(TEST).%
-	grep "Output/$*.cbe" $< | grep " L2 Cache Request Misses" | awk '{print $$(NF-1)}' > $@
-
-$(PROGRAMS_TO_TEST:%=Output/$(TEST).L2cachemisses.pa.%): \
-Output/$(TEST).L2cachemisses.pa.%: Output/test.$(TEST).pa.%
-	grep "Output/$*.poolalloc.cbe" $< | grep " L2 Cache Request Misses" | awk '{print $$(NF-1)}' > $@
+$(PROGRAMS_TO_TEST:%=Output/$(TEST).cachemisses.pa.%): \
+Output/$(TEST).cachemisses.pa.%: Output/test.$(TEST).pa.%
+	grep $(K7_CACHE_MISSES) $< | awk '{print $$(NF)}' > $@
 endif
 
 #
@@ -81,15 +79,15 @@ endif
 
 
 $(PROGRAMS_TO_TEST:%=Output/%.$(TEST).report.txt): \
-Output/%.$(TEST).report.txt: $(PROGRAMS_TO_TEST:%=Output/$(TEST).L2cachemisses.%)     \
-                     $(PROGRAMS_TO_TEST:%=Output/$(TEST).L2cachemisses.pa.%)  \
-                     $(PROGRAMS_TO_TEST:%=Output/$(TEST).L2cacherefs.%)       \
-                     $(PROGRAMS_TO_TEST:%=Output/$(TEST).L2cacherefs.pa.%)
+Output/%.$(TEST).report.txt: $(PROGRAMS_TO_TEST:%=Output/$(TEST).cacheaccesses.%)     \
+                     $(PROGRAMS_TO_TEST:%=Output/$(TEST).cacheaccesses.pa.%) \
+                     $(PROGRAMS_TO_TEST:%=Output/$(TEST).cachemisses.%) \
+                     $(PROGRAMS_TO_TEST:%=Output/$(TEST).cachemisses.pa.%)
 	@echo > $@
-	@echo CBE-PA-L2-Misses `cat Output/$(TEST).L2cachemisses.pa.$*`
-	@echo CBE-PA-L2-Refs   `cat Output/$(TEST).L2cacherefs.pa.$*`
-	@echo CBE-L2-Misses    `cat Output/$(TEST).L2cachemisses.$*`
-	@echo CBE-L2-Refs      `cat Output/$(TEST).L2cacherefs.$*`
+	@printf "CBE-PA-Cache-Accesses: %11lld\n" `cat Output/$(TEST).cacheaccesses.pa.$*`
+	@printf "CBE-Cache-Accesses   : %11lld\n" `cat Output/$(TEST).cacheaccesses.$*`
+	@printf "CBE-PA-Cache-Misses  : %11lld\n" `cat Output/$(TEST).cachemisses.pa.$*`
+	@printf "CBE-Cache-Misses     : %11lld\n" `cat Output/$(TEST).cachemisses.$*`
 
 
 $(PROGRAMS_TO_TEST:%=test.$(TEST).%): \
