@@ -410,6 +410,7 @@ namespace {
     // Visitation methods.  These do all of the heavy lifting for the various
     // cases we have to handle.
 
+    void visitReturnInst(ReturnInst &RI);
     void visitCastInst(CastInst &CI);
     void visitPHINode(PHINode &PN);
     void visitSetCondInst(SetCondInst &SCI);
@@ -458,6 +459,15 @@ InstructionRewriter::~InstructionRewriter() {
       assert(0 && "Unknown entry in this map!");
     }      
   }
+}
+
+void InstructionRewriter::visitReturnInst(ReturnInst &RI) {
+  if (RI.getNumOperands() && isa<PointerType>(RI.getOperand(0)->getType()))
+    if (!isa<PointerType>(RI.getParent()->getParent()->getReturnType())) {
+      // Compressing the return value.  
+      new ReturnInst(getTransformedValue(RI.getOperand(0)), &RI);
+      RI.eraseFromParent();
+    }
 }
 
 
