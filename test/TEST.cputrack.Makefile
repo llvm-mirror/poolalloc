@@ -1,4 +1,4 @@
-##===- poolalloc/TEST.strace.Makefile ----------------------*- Makefile -*-===##
+##===- poolalloc/TEST.cputrack.Makefile --------------------*- Makefile -*-===##
 #
 # Makefile for measuring system call activity with strace
 #
