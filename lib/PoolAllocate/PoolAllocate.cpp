@@ -573,6 +573,23 @@ static void DeleteIfIsPoolFree(Instruction *I, AllocaInst *PD,
     }
 }
 
+void PoolAllocate::CalculateLivePoolFreeBlocks(std::set<BasicBlock*>&LiveBlocks,
+                                               Value *PD) {
+  for (Value::use_iterator I = PD->use_begin(), E = PD->use_end(); I != E; ++I){
+    // The only users of the pool should be call instructions.
+    CallInst *U = cast<CallInst>(*I);
+    if (U->getCalledValue() != PoolFree && U->getCalledValue() != PoolDestroy) {
+      // This block and every block that can reach this block must keep pool
+      // frees.
+      for (idf_ext_iterator<BasicBlock*, std::set<BasicBlock*> >
+             DI = idf_ext_begin(U->getParent(), LiveBlocks),
+             DE = idf_ext_end(U->getParent(), LiveBlocks); DI != DE; ++DI)
+        /* empty */;
+    }
+  }
+}
+
+
 /// InitializeAndDestroyPools - This inserts calls to poolinit and pooldestroy
 /// into the function to initialize and destroy the pools in the NodesToPA list.
 ///
@@ -735,17 +752,25 @@ void PoolAllocate::InitializeAndDestroyPools(Function &F,
                    PoolDestroyPoints[i]);
       DEBUG(std::cerr << PoolDestroyPoints[i]->getParent()->getName() << " ");
     }
-    PoolDestroyPoints.clear();
     DEBUG(std::cerr << "\n\n");
 
-    // Delete any pool frees which are not in live blocks.
+    // We are allowed to delete any pool frees which occur between the last call
+    // to poolalloc, and the call to pooldestroy.  Figure out which basic blocks
+    // have this property for this pool.
+    std::set<BasicBlock*> PoolFreeLiveBlocks;
+    CalculateLivePoolFreeBlocks(PoolFreeLiveBlocks, PD);
+    PoolDestroyPoints.clear();
+
+    // Delete any pool frees which are not in live blocks, for correctness.
     std::set<std::pair<AllocaInst*, CallInst*> >::iterator PFI =
       PoolFrees.lower_bound(std::make_pair(PD, (CallInst*)0));
     if (PFI != PoolFrees.end() && PFI->first < PD) ++PFI;
     for (; PFI != PoolFrees.end() && PFI->first == PD; ) {
       CallInst *PoolFree = (PFI++)->second;
-      if (!LiveBlocks.count(PoolFree->getParent()))
+      if (!LiveBlocks.count(PoolFree->getParent()) ||
+          !PoolFreeLiveBlocks.count(PoolFree->getParent()))
         DeleteIfIsPoolFree(PoolFree, PD, PoolFrees);
     }
+
   }
 }
