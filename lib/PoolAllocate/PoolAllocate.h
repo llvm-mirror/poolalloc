@@ -11,17 +11,16 @@
 #define LLVM_TRANSFORMS_POOLALLOCATE_H
 
 #include "llvm/Pass.h"
-#include "Support/hash_set"
-#include "Support/EquivalenceClasses.h"
 #include "llvm/DerivedTypes.h"
+#include "llvm/Support/CallSite.h"
+#include "Support/hash_set"
 #include "Support/VectorExtras.h"
-#include "llvm/Function.h"
+#include "Support/EquivalenceClasses.h"
 
 class BUDataStructures;
 class TDDataStructures;
 class DSNode;
 class DSGraph;
-class CallInst;
 class Type;
 
 namespace PA {
@@ -103,8 +102,8 @@ class PoolAllocate : public Pass {
   // the same function pointer are in the same class.
   EquivalenceClasses<Function *> FuncECs;
 
-  // Map from an Indirect CallInst to the set of Functions that it can point to
-  std::multimap<CallInst *, Function *> CallInstTargets;
+  // Map from an Indirect call site to the set of Functions that it can point to
+  std::multimap<CallSite, Function *> CallSiteTargets;
 
   // This maps an equivalence class to the last pool argument number for that 
   // class. This is used because the pool arguments for all functions within
@@ -128,19 +127,15 @@ class PoolAllocate : public Pass {
   //Dinakar to get function info for all (cloned functions) 
   PA::FuncInfo *getFunctionInfo(Function *F) {
     //If it is cloned or not check it out
-    if (FunctionInfo.count(F) > 0)  
+    if (FunctionInfo.count(F))
       return &FunctionInfo[F];
     else {
       //Probably cloned
       std::map<Function *, PA::FuncInfo>::iterator fI = FunctionInfo.begin(), 
 	fE = FunctionInfo.end();
-      for (; fI != fE; ++fI) {
-	if (fI->second.Clone == F) {
-	  return &(fI->second);
-	}
-      }
-      std::cerr << F->getName() << " for the function \n"; 
-      //      assert(1 != 1 && "Still cant find it");
+      for (; fI != fE; ++fI)
+	if (fI->second.Clone == F)
+	  return &fI->second;
       return 0;
     }
   }
