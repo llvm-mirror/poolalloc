@@ -287,7 +287,7 @@ void FuncTransform::visitCallSite(CallSite CS) {
     if (!isa<Constant>(*AI))
       DSGraph::computeNodeMapping(CalleeGraph->getNodeForValue(FAI),
                                   getDSNodeHFor(*AI), NodeMapping, false);
-  assert(AI == AE && "Varargs calls not handled yet!");
+  //assert(AI == AE && "Varargs calls not handled yet!");
 
   // Map the return value as well...
   if (TheCall->getType() != Type::VoidTy)

@@ -812,7 +812,7 @@ void PoolAllocate::InitializeAndDestroyPools(Function &F,
     }
     DEBUG(std::cerr << "\n\n");
 
-    // We are allowed to delete any pool frees which occur between the last call
+    // We are allowed to delete any poolfree's which occur between the last call
     // to poolalloc, and the call to pooldestroy.  Figure out which basic blocks
     // have this property for this pool.
     std::set<BasicBlock*> PoolFreeLiveBlocks;
