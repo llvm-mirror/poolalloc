@@ -433,7 +433,7 @@ void PoolAllocate::FindFunctionPoolArgs(Function &F) {
     return;
   }
 
-  if (G.getNodes().empty())
+  if (G.node_begin() == G.node_end())
     return;  // No memory activity, nothing is required
 
   // Find DataStructure nodes which are allocated in pools non-local to the
@@ -450,8 +450,7 @@ void PoolAllocate::FindFunctionPoolArgs(Function &F) {
 //
 Function *PoolAllocate::MakeFunctionClone(Function &F) {
   DSGraph &G = BU->getDSGraph(F);
-  std::vector<DSNode*> &Nodes = G.getNodes();
-  if (Nodes.empty()) return 0;
+  if (G.node_begin() == G.node_end()) return 0;
     
   FuncInfo &FI = FunctionInfo[&F];
   if (FI.ArgNodes.empty())
@@ -555,8 +554,7 @@ void PoolAllocate::CreatePools(Function &F,
 void PoolAllocate::ProcessFunctionBody(Function &F, Function &NewF) {
   DSGraph &G = BU->getDSGraph(F);
 
-  std::vector<DSNode*> &Nodes = G.getNodes();
-  if (Nodes.empty()) return;     // Quick exit if nothing to do...
+  if (G.node_begin() == G.node_end()) return;  // Quick exit if nothing to do...
   
   FuncInfo &FI = FunctionInfo[&F];   // Get FuncInfo for F
   hash_set<DSNode*> &MarkedNodes = FI.MarkedNodes;
@@ -580,18 +578,18 @@ void PoolAllocate::ProcessFunctionBody(Function &F, Function &NewF) {
   // Loop over all of the nodes which are non-escaping, adding pool-allocatable
   // ones to the NodesToPA vector.
   std::vector<DSNode*> NodesToPA;
-  for (unsigned i = 0, e = Nodes.size(); i != e; ++i)
+  for (DSGraph::node_iterator I = G.node_begin(), E = G.node_end(); I != E; ++I)
     // We only need to make a pool if there is a heap object in it...
-    if (Nodes[i]->isHeapNode())
-      if (GlobalsGraphNodeMapping.count(Nodes[i])) {
+    if ((*I)->isHeapNode())
+      if (GlobalsGraphNodeMapping.count(*I)) {
         // If it is a global pool, set up the pool descriptor appropriately.
-        DSNode *GGN = GlobalsGraphNodeMapping[Nodes[i]].getNode();
+        DSNode *GGN = GlobalsGraphNodeMapping[*I].getNode();
         assert(GGN && GlobalNodes[GGN] && "No global node found??");
-        FI.PoolDescriptors[Nodes[i]] = GlobalNodes[GGN];
-      } else if (!MarkedNodes.count(Nodes[i])) {
+        FI.PoolDescriptors[*I] = GlobalNodes[GGN];
+      } else if (!MarkedNodes.count(*I)) {
         // Otherwise, if it was not passed in from outside the function, it must
         // be a local pool!
-        NodesToPA.push_back(Nodes[i]);
+        NodesToPA.push_back(*I);
       }
   
   DEBUG(std::cerr << NodesToPA.size() << " nodes to pool allocate\n");
