@@ -491,13 +491,12 @@ InstructionRewriter::~InstructionRewriter() {
     if (Instruction *Inst = dyn_cast<Instruction>(I->first)) {
       Inst->eraseFromParent();
       ValueRemoved(Inst);
-    }
-    else if (Argument *Arg = dyn_cast<Argument>(I->first)) {
+    } else if (Argument *Arg = dyn_cast<Argument>(I->first)) {
       assert(Arg->getParent() == 0 && "Unexpected argument type here!");
       delete Arg;  // Marker node used when cloning.
     } else {
       assert(0 && "Unknown entry in this map!");
-    }      
+    }
   }
 }
 
@@ -512,7 +511,14 @@ void InstructionRewriter::visitReturnInst(ReturnInst &RI) {
 
 
 void InstructionRewriter::visitCastInst(CastInst &CI) {
-  if (!isa<PointerType>(CI.getType())) return;
+  if (!isa<PointerType>(CI.getType())) {
+    // If this is a pointer -> integer cast, turn this into an idx -> integer
+    // cast.
+    if (isa<PointerType>(CI.getOperand(0)->getType()) &&
+        getPoolInfo(CI.getOperand(0)))
+      CI.setOperand(0, getTransformedValue(CI.getOperand(0)));
+    return;
+  }
 
   const CompressedPoolInfo *PI = getPoolInfo(&CI);
   if (!PI) return;
