@@ -79,7 +79,7 @@ namespace PA {
 
 /// PoolAllocate - The main pool allocation pass
 ///
-class PoolAllocate : public Pass {
+class PoolAllocate : public ModulePass {
   Module *CurModule;
   PA::EquivClassGraphs *ECGraphs;
 
@@ -96,7 +96,7 @@ class PoolAllocate : public Pass {
   std::map<DSNode*, Value*> GlobalNodes;
 
  public:
-  bool run(Module &M);
+  bool runOnModule(Module &M);
   
   virtual void getAnalysisUsage(AnalysisUsage &AU) const;
   

@@ -82,7 +82,7 @@ void PoolAllocate::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.addRequired<TargetData>();
 }
 
-bool PoolAllocate::run(Module &M) {
+bool PoolAllocate::runOnModule(Module &M) {
   if (M.begin() == M.end()) return false;
   CurModule = &M;
   ECGraphs = &getAnalysis<EquivClassGraphs>();   // folded inlined CBU graphs
