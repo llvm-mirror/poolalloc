@@ -15,7 +15,6 @@
 #include "PoolAllocate.h"
 #include "llvm/Analysis/DataStructure/DataStructure.h"
 #include "llvm/Analysis/DataStructure/DSGraph.h"
-#include "llvm/Analysis/DataStructure/EquivClassGraphs.h"
 #include "llvm/Module.h"
 #include "llvm/DerivedTypes.h"
 #include "llvm/Constants.h"
