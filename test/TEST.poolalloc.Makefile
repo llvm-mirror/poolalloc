@@ -9,9 +9,13 @@ CURDIR  := $(shell cd .; pwd)
 PROGDIR := $(shell cd $(LEVEL)/test/Programs; pwd)/
 RELDIR  := $(subst $(PROGDIR),,$(CURDIR))
 
-# Pool allocator shared object and runtime library...
-PA_SO  := $(PROJECT_DIR)/lib/Debug/libpoolalloc.so
-PA_RT  := $(PROJECT_DIR)/lib/Bytecode/libpoolalloc.bc
+# Pool allocator pass shared object
+PA_SO    := $(PROJECT_DIR)/lib/Debug/libpoolalloc.so
+
+# Pool allocator runtime library
+PA_RT    := $(PROJECT_DIR)/lib/Bytecode/libpoolalloc_rt.bc
+PA_RT_O  := $(PROJECT_DIR)/lib/Release/poolalloc_rt.o
+
 
 # Command to run opt with the pool allocator pass loaded
 OPT_PA := $(LOPT) -load $(PA_SO)
@@ -28,13 +32,13 @@ Output/%.$(TEST).transformed.bc: Output/%.llvm.bc $(PA_SO)
 
 # This rule compiles the new .bc file into a .c file using CBE
 $(PROGRAMS_TO_TEST:%=Output/%.poolalloc.cbe.c): \
-Output/%.poolalloc.cbe.c: Output/%.llvm.bc $(LDIS)
+Output/%.poolalloc.cbe.c: Output/%.$(TEST).transformed.bc $(LDIS)
 	-$(LDIS) -c -f $< -o $@
 
 # This rule compiles the .c file into an executable using $CC
 $(PROGRAMS_TO_TEST:%=Output/%.poolalloc.cbe): \
-Output/%.poolalloc.cbe: Output/%.poolalloc.cbe.c
-	-$(CC) $(CFLAGS) $< $(LLCLIBS) $(LDFLAGS) -o $@
+Output/%.poolalloc.cbe: Output/%.poolalloc.cbe.c $(PA_RT_O)
+	-$(CC) $(CFLAGS) $< $(PA_RT_O) $(LLCLIBS) $(LDFLAGS) -o $@
 
 # This rule runs the generated executable, generating timing information
 $(PROGRAMS_TO_TEST:%=Output/%.poolalloc.out-cbe): \
