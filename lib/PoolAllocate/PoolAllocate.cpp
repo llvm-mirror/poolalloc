@@ -135,8 +135,11 @@ bool PoolAllocate::runOnModule(Module &M) {
 // AddPoolPrototypes - Add prototypes for the pool functions to the specified
 // module and update the Pool* instance variables to point to them.
 //
+// NOTE: If these are changed, make sure to update PoolOptimize.cpp as well!
+//
 void PoolAllocate::AddPoolPrototypes() {
   if (VoidPtrTy == 0) {
+    // NOTE: If these are changed, make sure to update PoolOptimize.cpp as well!
     VoidPtrTy = PointerType::get(Type::SByteTy);
     PoolDescType = ArrayType::get(VoidPtrTy, 16);
     PoolDescPtrTy = PointerType::get(PoolDescType);
@@ -207,20 +210,10 @@ void PoolAllocate::MicroOptimizePoolCalls() {
     // poolalloc never returns null.  Loop over all uses of the call looking for
     // set(eq|ne) X, null.
     OptimizePointerNotNull(CI);
-
-    // poolalloc(null, X) -> malloc(X)
-    if (isa<Constant>(CI->getOperand(0)) && 
-        cast<Constant>(CI->getOperand(0))->isNullValue())
-      std::cerr << "Could turn into malloc: " << *CI;
   }
 
   // TODO: poolfree accepts a null pointer, so remove any check above it, like
   // 'if (P) poolfree(P)'
-
-  // poolfree(null) -> noop
-
-  // poolrealloc(null, X) -> malloc(X)
-
 }
 
 
