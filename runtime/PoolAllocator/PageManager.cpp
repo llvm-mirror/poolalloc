@@ -25,7 +25,8 @@ unsigned PageSize = 0;
 
 // Explicitly use the malloc allocator here, to avoid depending on the C++
 // runtime library.
-static std::vector<void*, MallocAllocator<void*> > *FreePages = 0;
+typedef std::vector<void*, MallocAllocator<void*> > FreePagesListType;
+static FreePagesListType *FreePages = 0;
 
 void InitializePageManager() {
   if (!PageSize) PageSize = sysconf(_SC_PAGESIZE);
@@ -70,7 +71,12 @@ void *AllocatePage() {
   unsigned NumToAllocate = 10;
   char *Ptr = (char*)GetPages(NumToAllocate);
 
-  if (!FreePages) FreePages = new std::vector<void*, MallocAllocator<void*> >();
+  if (!FreePages) {
+    // Avoid using operator new!
+    FreePages = (FreePagesListType*)malloc(sizeof(FreePagesListType));
+    // Use placement new now.
+    new (FreePages) std::vector<void*, MallocAllocator<void*> >();
+  }
   for (unsigned i = 1; i != NumToAllocate; ++i)
     FreePages->push_back(Ptr+i*PageSize);
   return Ptr;
