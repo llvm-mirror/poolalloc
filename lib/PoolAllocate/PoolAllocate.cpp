@@ -146,7 +146,8 @@ void PoolAllocate::AddPoolPrototypes() {
   
   // Get poolinit function.
   PoolInit = CurModule->getOrInsertFunction("poolinit", Type::VoidTy,
-                                            PoolDescPtrTy, Type::UIntTy, 0);
+                                            PoolDescPtrTy, Type::UIntTy,
+                                            Type::UIntTy, 0);
 
   // Get pooldestroy function.
   PoolDestroy = CurModule->getOrInsertFunction("pooldestroy", Type::VoidTy,
@@ -406,8 +407,13 @@ bool PoolAllocate::SetupGlobalPools(Module &M) {
   for (unsigned i = 0, e = ResultPools.size(); i != e; ++i) {
     Heuristic::OnePool &Pool = ResultPools[i];
     Value *PoolDesc = Pool.PoolDesc;
-    if (PoolDesc == 0)
+    if (PoolDesc == 0) {
       PoolDesc = CreateGlobalPool(Pool.PoolSize);
+
+      if (Pool.NodesInPool.size() == 1 &&
+          !Pool.NodesInPool[0]->isNodeCompletelyFolded())
+        ++NumTSPools;
+    }
     for (unsigned N = 0, e = Pool.NodesInPool.size(); N != e; ++N) {
       GlobalNodes[Pool.NodesInPool[N]] = PoolDesc;
       GlobalHeapNodes.erase(Pool.NodesInPool[N]);  // Handled!
@@ -436,8 +442,11 @@ GlobalVariable *PoolAllocate::CreateGlobalPool(unsigned RecSize) {
   BasicBlock::iterator InsertPt = MainFunc->getEntryBlock().begin();
   while (isa<AllocaInst>(InsertPt)) ++InsertPt;
 
+  unsigned Alignment = 0;
   Value *ElSize = ConstantUInt::get(Type::UIntTy, RecSize);
-  new CallInst(PoolInit, make_vector((Value*)GV, ElSize, 0), "", InsertPt);
+  Value *Align = ConstantUInt::get(Type::UIntTy, Alignment);
+  new CallInst(PoolInit, make_vector((Value*)GV, ElSize, Align, 0),
+               "", InsertPt);
   ++NumPools;
   return GV;
 }
@@ -767,15 +776,13 @@ void PoolAllocate::InitializeAndDestroyPools(Function &F,
     DEBUG(std::cerr << "\n  Init in blocks: ");
 
     // Insert the calls to initialize the pool.
-    unsigned ElSizeV = 0;
-    if (!Node->isArray() && Node->getType()->isSized())
-      ElSizeV = TD.getTypeSize(Node->getType());
-    if (ElSizeV == 1) ElSizeV = 0;
+    unsigned ElSizeV = Heuristic::getRecommendedSize(Node);
     Value *ElSize = ConstantUInt::get(Type::UIntTy, ElSizeV);
+    Value *Align  = ConstantUInt::get(Type::UIntTy, 0);
 
     for (unsigned i = 0, e = PoolInitPoints.size(); i != e; ++i) {
-      new CallInst(PoolInit, make_vector((Value*)PD, ElSize, 0), "",
-                   PoolInitPoints[i]);
+      new CallInst(PoolInit, make_vector((Value*)PD, ElSize, Align, 0),
+                   "", PoolInitPoints[i]);
       DEBUG(std::cerr << PoolInitPoints[i]->getParent()->getName() << " ");
     }
     if (!DisableInitDestroyOpt)

@@ -86,15 +86,23 @@ struct AllButUnreachableFromMemoryHeuristic : public Heuristic {
                      Function *F, DSGraph &G,
                      std::vector<OnePool> &ResultPools) {
     // Build a set of all nodes that are reachable from another node in the
-    // graph.
+    // graph.  Here we ignore scalar nodes that are only globals as they are
+    // often global pointers to big arrays.
     std::set<const DSNode*> ReachableFromMemory;
     for (DSGraph::node_iterator I = G.node_begin(), E = G.node_end();
          I != E; ++I) {
       DSNode *N = *I;
-      for (DSNode::iterator NI = N->begin(), E = N->end(); NI != E; ++NI)
-        for (df_ext_iterator<const DSNode*>
-               DI = df_ext_begin(*NI, ReachableFromMemory),
-               E = df_ext_end(*NI, ReachableFromMemory); DI != E; ++DI)
+      // Ignore nodes that are just globals and not arrays.
+      /*
+      if (N->isArray() || N->isHeapNode() || N->isAllocaNode() ||
+          N->isUnknownNode())
+      */
+      // If a node is marked, all children are too.
+      if (!ReachableFromMemory.count(N))
+        for (DSNode::iterator NI = N->begin(), E = N->end(); NI != E; ++NI)
+          for (df_ext_iterator<const DSNode*>
+                 DI = df_ext_begin(*NI, ReachableFromMemory),
+                 E = df_ext_end(*NI, ReachableFromMemory); DI != E; ++DI)
           /*empty*/;
     }
 
