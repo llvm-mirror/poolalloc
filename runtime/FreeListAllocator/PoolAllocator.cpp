@@ -331,6 +331,7 @@ poolallocarray(PoolTy* Pool, unsigned ArraySize)
   // Check to see if we have an array slab that has extra space that we
   // can use.
   //
+#if 0
   if ((Slabp != NULL) &&
       ((Pool->MaxNodesPerPage - Slabp->NextFreeData) >= ArraySize))
   {
@@ -343,9 +344,10 @@ poolallocarray(PoolTy* Pool, unsigned ArraySize)
     // Return the data to the caller.
     //
     void * Data = (Slabp->Data + (Pool->NodeSize * Slabp->NextFreeData));
-    (Slabp->NextFreeData)++;
+    (Slabp->NextFreeData) += ArraySize;
     return (Data);
   }
+#endif /* 0 */
 
   //
   // Scan through all the free array slabs to see if they are large
@@ -356,7 +358,7 @@ poolallocarray(PoolTy* Pool, unsigned ArraySize)
     //
     // Check to see if this slab has enough room.
     //
-    if (Slabp->NodesPerSlab >= ArraySize)
+    if ((Slabp->NodesPerSlab >= ArraySize) && (Slabp->LiveNodes == 0))
     {
       //
       // Make the previous node point to the next node.
@@ -396,11 +398,13 @@ poolallocarray(PoolTy* Pool, unsigned ArraySize)
   //
   // If the array has some space, link it into the array "free" list.
   //
-  if ((Slabp->IsManaged == 0) && (Slabp->NextFreeData != Pool->MaxNodesPerPage))
+#if 0
+  if ((Slabp->IsManaged == 1) && (Slabp->NextFreeData != Pool->MaxNodesPerPage))
   {
     Slabp->Next = Pool->ArraySlabs;
     Pool->ArraySlabs = Slabp;
   }
+#endif /* 0 */
 
   //
   // Return the list of blocks to the caller.
