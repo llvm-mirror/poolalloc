@@ -20,15 +20,14 @@
 #include "Support/CommandLine.h"
 #include "Support/Debug.h"
 #include "Support/DepthFirstIterator.h"
-#include "Support/VectorExtras.h"
 #include "Support/Statistic.h"
+using namespace llvm;
 using namespace PA;
 
 // PASS_ALL_ARGUMENTS - If this is set to true, pass in pool descriptors for all
 // DSNodes in a function, even if there are no allocations or frees in it.  This
 // is useful for SafeCode.
 #define PASS_ALL_ARGUMENTS 0
-
 
 const Type *PoolAllocate::PoolDescPtrTy = 0;
 
@@ -64,17 +63,20 @@ bool PoolAllocate::run(Module &M) {
   if (M.begin() == M.end()) return false;
   CurModule = &M;
   BU = &getAnalysis<BUDataStructures>();
+  TDDS = &getAnalysis<TDDataStructures>();
 
+  // Add the pool* prototypes to the module
   AddPoolPrototypes();
+
+  // Figure out what the equivalence classes are for indirectly called functions
   BuildIndirectFunctionSets(M);
 
+  // Create the pools for memory objects reachable by global variables.
   if (SetupGlobalPools(M))
     return true;
 
   // Loop over the functions in the original program finding the pool desc.
   // arguments necessary for each function that is indirectly callable.
-  // For each equivalence class, make a list of pool arguments and update
-  // the PoolArgFirst and PoolArgLast values for each function.
   for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I)
     if (!I->isExternal())
       FindFunctionPoolArgs(*I);
@@ -147,18 +149,6 @@ void PoolAllocate::AddPoolPrototypes() {
 }
 
 
-// Prints out the functions mapped to the leader of the equivalence class they
-// belong to.
-void PoolAllocate::printFuncECs() {
-  std::map<Function*, Function*> &leaderMap = FuncECs.getLeaderMap();
-  std::cerr << "Indirect Function Map \n";
-  for (std::map<Function*, Function*>::iterator LI = leaderMap.begin(),
-	 LE = leaderMap.end(); LI != LE; ++LI) {
-    std::cerr << LI->first->getName() << ": leader is "
-	      << LI->second->getName() << "\n";
-  }
-}
-
 static void printNTOMap(std::map<Value*, const Value*> &NTOM) {
   std::cerr << "NTOM MAP\n";
   for (std::map<Value*, const Value *>::iterator I = NTOM.begin(), 
@@ -168,57 +158,231 @@ static void printNTOMap(std::map<Value*, const Value*> &NTOM) {
   }
 }
 
-// BuildIndirectFunctionSets - Iterate over the module looking for indirect
-// calls to functions
-void PoolAllocate::BuildIndirectFunctionSets(Module &M) {
-  // Get top down DSGraph for the functions
-  TDDS = &getAnalysis<TDDataStructures>();
-  
-  for (Module::iterator MI = M.begin(), ME = M.end(); MI != ME; ++MI) {
-    DEBUG(std::cerr << "Processing indirect calls function:" <<  MI->getName()
-                    << "\n");
+static void MarkNodesWhichMustBePassedIn(hash_set<DSNode*> &MarkedNodes,
+                                         Function &F, DSGraph &G) {
+  // Mark globals and incomplete nodes as live... (this handles arguments)
+  if (F.getName() != "main") {
+    // All DSNodes reachable from arguments must be passed in.
+    for (Function::aiterator I = F.abegin(), E = F.aend(); I != E; ++I) {
+      DSGraph::ScalarMapTy::iterator AI = G.getScalarMap().find(I);
+      if (AI != G.getScalarMap().end())
+        if (DSNode *N = AI->second.getNode())
+          N->markReachableNodes(MarkedNodes);
+    }
+  }
 
-    if (MI->isExternal())
-      continue;
+  // Marked the returned node as alive...
+  if (DSNode *RetNode = G.getReturnNodeFor(F).getNode())
+    RetNode->markReachableNodes(MarkedNodes);
+
+  // Calculate which DSNodes are reachable from globals.  If a node is reachable
+  // from a global, we will create a global pool for it, so no argument passage
+  // is required.
+  hash_set<DSNode*> NodesFromGlobals;
+  GetNodesReachableFromGlobals(G, NodesFromGlobals);
+
+  // Remove any nodes reachable from a global.  These nodes will be put into
+  // global pools, which do not require arguments to be passed in.  Also, erase
+  // any marked node that is not a heap node.  Since no allocations or frees
+  // will be done with it, it needs no argument.
+  for (hash_set<DSNode*>::iterator I = MarkedNodes.begin(),
+         E = MarkedNodes.end(); I != E; ) {
+    DSNode *N = *I++;
+    if ((!N->isHeapNode() && !PASS_ALL_ARGUMENTS) || NodesFromGlobals.count(N))
+      MarkedNodes.erase(N);
+  }
+}
+
+const PA::EquivClassInfo &PoolAllocate::getECIForIndirectCallSite(CallSite CS) {
+  Instruction *I = CS.getInstruction();
+  assert(I && "Not a call site?");
+  assert(OneCalledFunction.count(I) && "No targets for indcall?");
+  Function *Called = OneCalledFunction[I];
+  Function *Leader = FuncECs.findClass(Called);
+  assert(Leader && "Leader not found for indirect call target!");
+  assert(ECInfoForLeadersMap.count(Leader) && "No ECI for indirect call site!");
+  return ECInfoForLeadersMap[Leader];
+}
+
+// BuildIndirectFunctionSets - Iterate over the module looking for indirect
+// calls to functions.  If a call site can invoke any functions [F1, F2... FN],
+// unify the N functions together in the FuncECs set.
+//
+void PoolAllocate::BuildIndirectFunctionSets(Module &M) {
+  const BUDataStructures::ActualCalleesTy AC = BU->getActualCallees();
+
+#if 0  // THIS SHOULD WORK, but doesn't because DSA is buggy.  FIXME!
+
+  // Loop over all of the indirect calls in the program.  If a call site can
+  // call multiple different functions, we need to unify all of the callees into
+  // the same equivalence class.
+  Instruction *LastInst = 0;
+  Function *FirstFunc = 0;
+  for (BUDataStructures::ActualCalleesTy::const_iterator I = AC.begin(),
+         E = AC.end(); I != E; ++I) {
+    CallSite CS = CallSite::get(I->first);
+    if (!CS.getCalledFunction() &&    // Ignore direct calls
+        !I->second->isExternal()) {   // Ignore functions we cannot modify
+      //std::cerr << "CALLEE: " << I->second->getName() << " from : " <<
+      //I->first;
+      if (I->first != LastInst) {
+        // This is the first callee from this call site.
+        LastInst = I->first;
+        FirstFunc = I->second;
+        OneCalledFunction[LastInst] = FirstFunc;
+        FuncECs.addElement(I->second);
+      } else {
+        // This is not the first possible callee from a particular call site.
+        // Union the callee in with the other functions.
+        FuncECs.unionSetsWith(FirstFunc, I->second);
+      }
+    }
+  }
+#else
+
+  for (Module::iterator MI = M.begin(), ME = M.end(); MI != ME; ++MI) {
+    if (MI->isExternal()) continue;
+    DEBUG(std::cerr << "Processing indirect calls function:" <<  MI->getName()
+          << "\n");
 
     DSGraph &TDG = TDDS->getDSGraph(*MI);
-
     const std::vector<DSCallSite> &callSites = TDG.getFunctionCalls();
 
     // For each call site in the function
     // All the functions that can be called at the call site are put in the
     // same equivalence class.
     for (std::vector<DSCallSite>::const_iterator CSI = callSites.begin(), 
-	   CSE = callSites.end(); CSI != CSE ; ++CSI) {
+           CSE = callSites.end(); CSI != CSE ; ++CSI)
       if (CSI->isIndirectCall()) {
-	DSNode *DSN = CSI->getCalleeNode();
-	if (DSN->isIncomplete())
-	  std::cerr << "Incomplete node: "
-                    << *CSI->getCallSite().getInstruction();
-	// assert(DSN->isGlobalNode());
-	const std::vector<GlobalValue*> &Callees = DSN->getGlobals();
-	if (Callees.empty())
-	  std::cerr << "No targets: " << *CSI->getCallSite().getInstruction();
+        Instruction *TheCall = CSI->getCallSite().getInstruction();
+        DSNode *DSN = CSI->getCalleeNode();
+        std::cerr << "INDCALL: " << *TheCall;
+        if (DSN->isIncomplete())
+          std::cerr << "Incomplete node: " << *TheCall;
+        // assert(DSN->isGlobalNode());
+        const std::vector<GlobalValue*> &Callees = DSN->getGlobals();
+        if (Callees.empty())
+          std::cerr << "No targets: " << *TheCall;
         Function *RunningClass = 0;
-        for (std::vector<GlobalValue*>::const_iterator CalleesI = 
-               Callees.begin(), CalleesE = Callees.end(); 
-             CalleesI != CalleesE; ++CalleesI)
-          if (Function *calledF = dyn_cast<Function>(*CalleesI)) {
-            CallSiteTargets.insert(std::make_pair(CSI->getCallSite(), calledF));
-            if (RunningClass == 0) {
-              RunningClass = calledF;
-              FuncECs.addElement(RunningClass);
-            } else {
-              FuncECs.unionSetsWith(RunningClass, calledF);
-            }
+        for (unsigned i = 0, e = Callees.size(); i != e; ++i)
+          if (Function *F = dyn_cast<Function>(Callees[i])) {
+            OneCalledFunction[TheCall] = F;
+            if (RunningClass == 0)
+              FuncECs.addElement(RunningClass = F);
+            else
+              FuncECs.unionSetsWith(RunningClass, F);
           }
       }
-    }
   }
-  
-  // Print the equivalence classes
-  DEBUG(printFuncECs());
+#endif
+
+  // Now that all of the equivalences have been built, turn the union-find data
+  // structure into a simple map from each function in the equiv class to the
+  // DSGraph used to represent the union of graphs.
+  //
+  std::map<Function*, Function*> &leaderMap = FuncECs.getLeaderMap();
+  DEBUG(std::cerr << "Indirect Function Equivalence Map:\n");
+  for (std::map<Function*, Function*>::iterator LI = leaderMap.begin(),
+	 LE = leaderMap.end(); LI != LE; ++LI) {
+    DEBUG(std::cerr << "  " << LI->first->getName() << ": leader is "
+                    << LI->second->getName() << "\n");
+
+    // Now the we have the equiv class info for this object, merge the DSGraph
+    // for this function into the composite DSGraph.
+    EquivClassInfo &ECI = ECInfoForLeadersMap[LI->second];
+
+    // If this is the first function in this equiv class, create the graph now.
+    if (ECI.G == 0)
+      ECI.G = new DSGraph(BU->getGlobalsGraph().getTargetData());
+
+    // Clone this member of the equivalence class into ECI.
+    DSGraph::NodeMapTy NodeMap;    
+    ECI.G->cloneInto(BU->getDSGraph(*LI->first), ECI.G->getScalarMap(),
+                     ECI.G->getReturnNodes(), NodeMap, 0);
+
+    // This is N^2 with the number of functions in this equiv class, but I don't
+    // really care right now.  FIXME!
+    for (unsigned i = 0, e = ECI.FuncsInClass.size(); i != e; ++i) {
+      Function *F = ECI.FuncsInClass[i];
+      // Merge the return nodes together.
+      ECI.G->getReturnNodes()[F].mergeWith(ECI.G->getReturnNodes()[LI->first]);
+
+      // Merge the arguments of the functions together.
+      Function::aiterator AI1 = F->abegin();
+      Function::aiterator AI2 = LI->first->abegin();
+      for (; AI1 != F->aend() && AI2 != LI->first->aend(); ++AI1,++AI2)
+        ECI.G->getNodeForValue(AI1).mergeWith(ECI.G->getNodeForValue(AI2));
+    }
+    ECI.FuncsInClass.push_back(LI->first);
+  }
+  DEBUG(std::cerr << "\n");
+
+  // Now that we have created the graphs for each of the equivalence sets, we
+  // have to figure out which pool descriptors to pass into the functions.  We
+  // must pass arguments for any pool descriptor that is needed by any function
+  // in the equiv. class.
+  for (ECInfoForLeadersMapTy::iterator ECII = ECInfoForLeadersMap.begin(),
+         E = ECInfoForLeadersMap.end(); ECII != E; ++ECII) {
+    EquivClassInfo &ECI = ECII->second;
+
+    // Traverse part of the graph to provoke most of the node forwardings to
+    // occur.
+    DSGraph::ScalarMapTy &SM = ECI.G->getScalarMap();
+    for (DSGraph::ScalarMapTy::iterator I = SM.begin(), E = SM.end(); I!=E; ++I)
+      I->second.getNode();   // Collapse forward references...
+
+    // Remove breadcrumbs from merging nodes.
+    ECI.G->removeTriviallyDeadNodes();
+
+    // Loop over all of the functions in this equiv class, figuring out which
+    // pools must be passed in for each function.
+    for (unsigned i = 0, e = ECI.FuncsInClass.size(); i != e; ++i) {
+      Function *F = ECI.FuncsInClass[i];
+      DSGraph &FG = BU->getDSGraph(*F);
+
+      // Figure out which nodes need to be passed in for this function (if any)
+      hash_set<DSNode*> &MarkedNodes = FunctionInfo[F].MarkedNodes;
+      MarkNodesWhichMustBePassedIn(MarkedNodes, *F, FG);
+
+      if (!MarkedNodes.empty()) {
+        // If any nodes need to be passed in, figure out which nodes these are
+        // in the unified graph for this equivalence class.
+        DSGraph::NodeMapTy NodeMapping;
+        for (Function::aiterator I = F->abegin(), E = F->aend(); I != E; ++I)
+          DSGraph::computeNodeMapping(FG.getNodeForValue(I),
+                                      ECI.G->getNodeForValue(I), NodeMapping);
+        DSGraph::computeNodeMapping(FG.getReturnNodeFor(*F),
+                                    ECI.G->getReturnNodeFor(*F), NodeMapping);
+        
+        // Loop through all of the nodes which must be passed through for this
+        // callee, and add them to the arguments list.
+        for (hash_set<DSNode*>::iterator I = MarkedNodes.begin(),
+               E = MarkedNodes.end(); I != E; ++I) {
+          DSNode *LocGraphNode = *I, *ECIGraphNode = NodeMapping[*I].getNode();
+
+          // Remember the mapping of this node
+          ECI.ECGraphToPrivateMap[std::make_pair(F,ECIGraphNode)] =LocGraphNode;
+
+          // Add this argument to be passed in.  Don't worry about duplicates,
+          // they will be eliminated soon.
+          ECI.ArgNodes.push_back(ECIGraphNode);
+        }
+      }
+    }
+
+    // Okay, all of the functions have had their required nodes added to the
+    // ECI.ArgNodes list, but there might be duplicates.  Eliminate the dups
+    // now.
+    std::sort(ECI.ArgNodes.begin(), ECI.ArgNodes.end());
+    ECI.ArgNodes.erase(std::unique(ECI.ArgNodes.begin(), ECI.ArgNodes.end()),
+                       ECI.ArgNodes.end());
+    
+    // Uncomment this if you want to see the aggregate graph result
+    //ECI.G->viewGraph();
+  }
 }
+
+
 
 // SetupGlobalPools - Create global pools for all DSNodes in the globals graph
 // which contain heap objects.  If a global variable points to a piece of memory
@@ -282,132 +446,37 @@ bool PoolAllocate::SetupGlobalPools(Module &M) {
   return false;
 }
 
-
-
-
-// Inline the DSGraphs of functions corresponding to the potential targets at
-// indirect call sites into the DS Graph of the callee.
-// This is required to know what pools to create/pass at the call site in the 
-// caller
-//
-void PoolAllocate::InlineIndirectCalls(Function &F, DSGraph &G, 
-                                       hash_set<Function*> &visited) {
-  const std::vector<DSCallSite> &callSites = G.getFunctionCalls();
-  
-  visited.insert(&F);
-
-  // For each indirect call site in the function, inline all the potential
-  // targets
-  for (std::vector<DSCallSite>::const_iterator CSI = callSites.begin(),
-         CSE = callSites.end(); CSI != CSE; ++CSI) {
-    if (CSI->isIndirectCall()) {
-      CallSite CS = CSI->getCallSite();
-      std::pair<std::multimap<CallSite, Function*>::iterator,
-        std::multimap<CallSite, Function*>::iterator> Targets =
-        CallSiteTargets.equal_range(CS);
-      for (std::multimap<CallSite, Function*>::iterator TFI = Targets.first,
-             TFE = Targets.second; TFI != TFE; ++TFI)
-        if (!TFI->second->isExternal()) {
-          DSGraph &TargetG = BU->getDSGraph(*TFI->second);
-          // Call the function recursively if the callee is not yet inlined and
-          // if it hasn't been visited in this sequence of calls The latter is
-          // dependent on the fact that the graphs of all functions in an SCC
-          // are actually the same
-          if (InlinedFuncs.find(TFI->second) == InlinedFuncs.end() && 
-              visited.find(TFI->second) == visited.end()) {
-            InlineIndirectCalls(*TFI->second, TargetG, visited);
-          }
-          G.mergeInGraph(*CSI, *TFI->second, TargetG, DSGraph::KeepModRefBits | 
-                         DSGraph::KeepAllocaBit | DSGraph::DontCloneCallNodes |
-                         DSGraph::DontCloneAuxCallNodes); 
-        }
-    }
-  }
-  
-  // Mark this function as one whose graph is inlined with its indirect 
-  // function targets' DS Graphs.  This ensures that every function is inlined
-  // exactly once
-  InlinedFuncs.insert(&F);
-}
-
 void PoolAllocate::FindFunctionPoolArgs(Function &F) {
   DSGraph &G = BU->getDSGraph(F);
- 
-  // Inline the potential targets of indirect calls
-  hash_set<Function*> visitedFuncs;
-  InlineIndirectCalls(F, G, visitedFuncs);
-
-  // At this point the DS Graphs have been modified in place including
-  // information about indirect calls, making it useful for pool allocation.
-  std::vector<DSNode*> &Nodes = G.getNodes();
-  if (Nodes.empty()) return;  // No memory activity, nothing is required
 
   FuncInfo &FI = FunctionInfo[&F];   // Create a new entry for F
-  
-  FI.Clone = 0;
-  
-  // Initialize the PoolArgFirst and PoolArgLast for the function depending on
-  // whether there have been other functions in the equivalence class that have
-  // pool arguments so far in the analysis.
-  if (!FuncECs.findClass(&F)) {
-    FI.PoolArgFirst = FI.PoolArgLast = 0;
-  } else {
-    if (EqClass2LastPoolArg.find(FuncECs.findClass(&F)) != 
-	EqClass2LastPoolArg.end())
-      FI.PoolArgFirst = FI.PoolArgLast = 
-	EqClass2LastPoolArg[FuncECs.findClass(&F)] + 1;
-    else
-      FI.PoolArgFirst = FI.PoolArgLast = 0;
+  hash_set<DSNode*> &MarkedNodes = FI.MarkedNodes;
+
+  // If this function is part of an indirectly called function equivalence
+  // class, we have to handle it specially.
+  if (Function *Leader = FuncECs.findClass(&F)) {
+    EquivClassInfo &ECI = ECInfoForLeadersMap[Leader];
+
+    // The arguments passed in will be the ones specified by the ArgNodes list.
+    for (unsigned i = 0, e = ECI.ArgNodes.size(); i != e; ++i) {
+      DSNode *ArgNode =
+        ECI.ECGraphToPrivateMap[std::make_pair(&F, ECI.ArgNodes[i])];
+      FI.ArgNodes.push_back(ArgNode);
+      MarkedNodes.insert(ArgNode);
+    }
+
+    return;
   }
-  
+
+  if (G.getNodes().empty())
+    return;  // No memory activity, nothing is required
+
   // Find DataStructure nodes which are allocated in pools non-local to the
   // current function.  This set will contain all of the DSNodes which require
   // pools to be passed in from outside of the function.
-  hash_set<DSNode*> &MarkedNodes = FI.MarkedNodes;
+  MarkNodesWhichMustBePassedIn(MarkedNodes, F, G);
   
-  // Mark globals and incomplete nodes as live... (this handles arguments)
-  if (F.getName() != "main") {
-    // All DSNodes reachable from arguments must be passed in.
-    for (Function::aiterator I = F.abegin(), E = F.aend(); I != E; ++I) {
-      DSGraph::ScalarMapTy::iterator AI = G.getScalarMap().find(I);
-      if (AI != G.getScalarMap().end())
-        if (DSNode *N = AI->second.getNode())
-          N->markReachableNodes(MarkedNodes);
-    }
-  }
-
-  // Marked the returned node as alive...
-  if (DSNode *RetNode = G.getReturnNodeFor(F).getNode())
-    RetNode->markReachableNodes(MarkedNodes);
-
-  // Calculate which DSNodes are reachable from globals.  If a node is reachable
-  // from a global, we will create a global pool for it, so no argument passage
-  // is required.
-  hash_set<DSNode*> NodesFromGlobals;
-  GetNodesReachableFromGlobals(G, NodesFromGlobals);
-
-  // Remove any nodes reachable from a global.  These nodes will be put into
-  // global pools, which do not require arguments to be passed in.  Also, erase
-  // any marked node that is not a heap node.  Since no allocations or frees
-  // will be done with it, it needs no argument.
-  for (hash_set<DSNode*>::iterator I = MarkedNodes.begin(),
-         E = MarkedNodes.end(); I != E; ) {
-    DSNode *N = *I++;
-    if ((!N->isHeapNode() && !PASS_ALL_ARGUMENTS) || NodesFromGlobals.count(N))
-      MarkedNodes.erase(N);
-  }
-
-  if (MarkedNodes.empty())   // We don't need to clone the function if there
-    return;                  // are no incoming arguments to be added.
-
-  FI.PoolArgLast += MarkedNodes.size();
-
-  // Update the equivalence class last pool argument information
-  // only if there actually were pool arguments to the function.
-  // Also, there is no entry for the Eq. class in EqClass2LastPoolArg
-  // if there are no functions in the equivalence class with pool arguments.
-  if (FuncECs.findClass(&F) && FI.PoolArgLast != FI.PoolArgFirst)
-    EqClass2LastPoolArg[FuncECs.findClass(&F)] = FI.PoolArgLast - 1;
+  FI.ArgNodes.insert(FI.ArgNodes.end(), MarkedNodes.begin(), MarkedNodes.end());
 }
 
 // MakeFunctionClone - If the specified function needs to be modified for pool
@@ -420,56 +489,18 @@ Function *PoolAllocate::MakeFunctionClone(Function &F) {
   if (Nodes.empty()) return 0;
     
   FuncInfo &FI = FunctionInfo[&F];
-  
-  hash_set<DSNode*> &MarkedNodes = FI.MarkedNodes;
-  
-  if (!FuncECs.findClass(&F)) {
-    // Not in any equivalence class
-    if (MarkedNodes.empty())
-      return 0;
-  } else {
-    // No need to clone if there are no pool arguments in any function in the
-    // equivalence class
-    if (!EqClass2LastPoolArg.count(FuncECs.findClass(&F)))
-      return 0;
-  }
+  if (FI.ArgNodes.empty())
+    return 0;           // No need to clone if no pools need to be passed in!
+
+  // Update statistics..
+  NumArgsAdded += FI.ArgNodes.size();
+  ++NumCloned;
+ 
       
   // Figure out what the arguments are to be for the new version of the function
   const FunctionType *OldFuncTy = F.getFunctionType();
-  std::vector<const Type*> ArgTys;
-  if (!FuncECs.findClass(&F)) {
-    ArgTys.reserve(OldFuncTy->getParamTypes().size() + MarkedNodes.size());
-    FI.ArgNodes.reserve(MarkedNodes.size());
-    for (hash_set<DSNode*>::iterator I = MarkedNodes.begin(),
-	   E = MarkedNodes.end(); I != E; ++I) {
-      ArgTys.push_back(PoolDescPtrTy);    // Add the appropriate # of pool descs
-      FI.ArgNodes.push_back(*I);
-    }
-    if (FI.ArgNodes.empty()) return 0;      // No nodes to be pool allocated!
-
-  } else {
-    // This function is a member of an equivalence class and needs to be cloned 
-    ArgTys.reserve(OldFuncTy->getParamTypes().size() + 
-		   EqClass2LastPoolArg[FuncECs.findClass(&F)] + 1);
-    FI.ArgNodes.reserve(EqClass2LastPoolArg[FuncECs.findClass(&F)] + 1);
-    
-    for (int i = 0; i <= EqClass2LastPoolArg[FuncECs.findClass(&F)]; ++i)
-      ArgTys.push_back(PoolDescPtrTy);    // Add the appropriate # of pool descs
-
-    for (hash_set<DSNode*>::iterator I = MarkedNodes.begin(),
-	   E = MarkedNodes.end(); I != E; ++I) {
-      FI.ArgNodes.push_back(*I);
-    }
-
-    assert((FI.ArgNodes.size() == (unsigned)(FI.PoolArgLast-FI.PoolArgFirst)) &&
-           "Number of ArgNodes equal to the number of pool arguments used by "
-           "this function");
-
-    if (FI.ArgNodes.empty()) return 0;
-  }
-      
-  NumArgsAdded += ArgTys.size();
-  ++NumCloned;
+  std::vector<const Type*> ArgTys(FI.ArgNodes.size(), PoolDescPtrTy);
+  ArgTys.reserve(OldFuncTy->getParamTypes().size() + FI.ArgNodes.size());
 
   ArgTys.insert(ArgTys.end(), OldFuncTy->getParamTypes().begin(),
                 OldFuncTy->getParamTypes().end());
@@ -487,44 +518,18 @@ Function *PoolAllocate::MakeFunctionClone(Function &F) {
   std::map<DSNode*, Value*> &PoolDescriptors = FI.PoolDescriptors;
   Function::aiterator NI = New->abegin();
   
-  if (FuncECs.findClass(&F)) {
-    // If the function belongs to an equivalence class
-    for (int i = 0; i <= EqClass2LastPoolArg[FuncECs.findClass(&F)]; ++i, ++NI)
-      NI->setName("PDa");
-    
-    NI = New->abegin();
-    if (FI.PoolArgFirst > 0)
-      for (int i = 0; i < FI.PoolArgFirst; ++NI, ++i)
-	;
-
-    for (unsigned i = 0, e = FI.ArgNodes.size(); i != e; ++i, ++NI)
-      PoolDescriptors.insert(std::make_pair(FI.ArgNodes[i], NI));
-
-    NI = New->abegin();
-    if (EqClass2LastPoolArg.count(FuncECs.findClass(&F)))
-      for (int i = 0; i <= EqClass2LastPoolArg[FuncECs.findClass(&F)]; ++i,++NI)
-	;
-  } else {
-    // If the function does not belong to an equivalence class
-    if (FI.ArgNodes.size())
-      for (unsigned i = 0, e = FI.ArgNodes.size(); i != e; ++i, ++NI) {
-	NI->setName("PDa");  // Add pd entry
-	PoolDescriptors.insert(std::make_pair(FI.ArgNodes[i], NI));
-      }
-    NI = New->abegin();
-    if (FI.ArgNodes.size())
-      for (unsigned i = 0; i < FI.ArgNodes.size(); ++NI, ++i)
-	;
+  for (unsigned i = 0, e = FI.ArgNodes.size(); i != e; ++i, ++NI) {
+    NI->setName("PDa");
+    PoolDescriptors[FI.ArgNodes[i]] = NI;
   }
 
   // Map the existing arguments of the old function to the corresponding
-  // arguments of the new function.
+  // arguments of the new function, and copy over the names.
   std::map<const Value*, Value*> ValueMap;
-  if (NI != New->aend()) 
-    for (Function::aiterator I = F.abegin(), E = F.aend(); I != E; ++I, ++NI) {
-      ValueMap[I] = NI;
-      NI->setName(I->getName());
-    }
+  for (Function::aiterator I = F.abegin(); NI != New->aend(); ++I, ++NI) {
+    ValueMap[I] = NI;
+    NI->setName(I->getName());
+  }
 
   // Populate the value map with all of the globals in the program.
   // FIXME: This should be unnecessary!
