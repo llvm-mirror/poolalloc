@@ -376,7 +376,7 @@ TryAgain:
     void *Result = BumpPtr;
     // Update bump ptr.
     Pool->ObjFreeList = (FreedNodeHeader<NormalPoolTraits>*)(BumpPtr+NumBytes);
-    DO_IF_TRACE(fprintf(stderr, "0x%X\n", Result));
+    DO_IF_TRACE(fprintf(stderr, "%p\n", Result));
     return Result;
   }
   
@@ -392,7 +392,7 @@ LargeObject:
   LAH->Size = NumBytes;
   LAH->Marker = ~0U;
   LAH->LinkIntoList(&Pool->LargeArrays);
-  DO_IF_TRACE(fprintf(stderr, "0x%X  [large]\n", LAH+1));
+  DO_IF_TRACE(fprintf(stderr, "%p  [large]\n", LAH+1));
   return LAH+1;
 }
 
@@ -639,7 +639,7 @@ LargeObject:
 template<typename PoolTraits>
 static void poolfree_internal(PoolTy<PoolTraits> *Pool, void *Node) {
   if (Node == 0) return;
-  DO_IF_TRACE(fprintf(stderr, "[%d] poolfree%s(0x%X) ",
+  DO_IF_TRACE(fprintf(stderr, "[%d] poolfree%s(%p) ",
                       getPoolNumber(Pool), PoolTraits::getSuffix(), Node));
 
   // If a null pool descriptor is passed in, this is not a pool allocated data
