@@ -400,7 +400,7 @@ bool PoolAllocate::SetupGlobalPools(Module &M) {
 
     Value *ElSize =
       ConstantUInt::get(Type::UIntTy, (*I)->getType()->isSized() ? 
-                        TD.getTypeSize((*I)->getType()) : 4);
+                        TD.getTypeSize((*I)->getType()) : 0);
     new CallInst(PoolInit, make_vector((Value*)GV, ElSize, 0), "", InsertPt);
 
     ++NumPools;
@@ -685,7 +685,7 @@ void PoolAllocate::InitializeAndDestroyPools(Function &F,
     
     Value *ElSize =
       ConstantUInt::get(Type::UIntTy, Node->getType()->isSized() ? 
-                        TD.getTypeSize(Node->getType()) : 4);
+                        TD.getTypeSize(Node->getType()) : 0);
     
     AllocaInst *PD = cast<AllocaInst>(PoolDescriptors[Node]);
 
