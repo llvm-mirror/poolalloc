@@ -113,9 +113,6 @@ void PoolAllocate::TransformBody(DSGraph &g, PA::FuncInfo &fi,
 // Returns the clone if  V is a static function (not a pointer) and belongs 
 // to an equivalence class i.e. is pool allocated
 Function* FuncTransform::retCloneIfFunc(Value *V) {
-  if (ConstantPointerRef *CPR = dyn_cast<ConstantPointerRef>(V))
-    V = CPR->getValue();
-  
   if (Function *F = dyn_cast<Function>(V))
     if (FuncInfo *FI = PAInfo.getFuncInfo(*F))
       return FI->Clone;
@@ -313,9 +310,7 @@ void FuncTransform::visitCallSite(CallSite CS) {
 	CF = dyn_cast<Function>(CastI->getOperand(0));
     } else if (ConstantExpr *CE = dyn_cast<ConstantExpr>(CV)) {
       if (CE->getOpcode() == Instruction::Cast)
-	if (ConstantPointerRef *CPR
-            = dyn_cast<ConstantPointerRef>(CE->getOperand(0)))
-          CF = dyn_cast<Function>(CPR->getValue());
+        CF = dyn_cast<Function>(CE->getOperand(0));
     }
   }
 
@@ -516,7 +511,7 @@ void FuncTransform::visitCallSite(CallSite CS) {
 void FuncTransform::visitInstruction(Instruction &I) {
   for (unsigned i = 0, e = I.getNumOperands(); i != e; ++i)
     if (Function *clonedFunc = retCloneIfFunc(I.getOperand(i))) {
-      Constant *CF = ConstantPointerRef::get(clonedFunc);
+      Constant *CF = clonedFunc;
       I.setOperand(i, ConstantExpr::getCast(CF, I.getOperand(i)->getType()));
     }
 }
