@@ -133,7 +133,7 @@ progcputrack::
 test::
 	(cd $(LLVM_OBJ_ROOT)/projects/llvm-test/$(SUBDIR); \
                PROJECT_DIR=$(BUILD_OBJ_ROOT) $(MAKE) -j1 TEST=poolalloc \
-                   report report.html)
+                   GET_STABLE_NUMBERS=1 report report.html)
 	@printf "\a"; sleep 1; printf "\a"; sleep 1; printf "\a"
 
 vtl::
