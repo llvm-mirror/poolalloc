@@ -18,26 +18,83 @@
 #include <stdio.h>
 #include <string.h>
 
-//#define DEBUG(X) X
-
-#ifndef DEBUG
-#define DEBUG(X)
-#endif
-
+// Configuration macros.
+//#define PRINT_POOL_TRACE
 //#define PRINT_NUM_POOLS
+
+
+//===----------------------------------------------------------------------===//
+// Pool Debugging stuff.
+//===----------------------------------------------------------------------===//
+
+#ifdef PRINT_POOL_TRACE
+#define PRINT_NUM_POOLS
+
+struct PoolID {
+  PoolTy *PD;
+  unsigned ID;
+};
+
+struct PoolID *PoolIDs = 0;
+static unsigned NumLivePools = 0;
+static unsigned NumPoolIDsAllocated = 0;
+static unsigned CurPoolID = 0;
+
+static unsigned addPoolNumber(PoolTy *PD) {
+  if (NumLivePools == NumPoolIDsAllocated) {
+    NumPoolIDsAllocated = (10+NumPoolIDsAllocated)*2;
+    PoolIDs = (PoolID*)realloc(PoolIDs, sizeof(PoolID)*NumPoolIDsAllocated);
+  }
+  
+  PoolIDs[NumLivePools].PD = PD;
+  PoolIDs[NumLivePools].ID = ++CurPoolID;
+  NumLivePools++;
+  return CurPoolID;
+}
+
+static unsigned getPoolNumber(PoolTy *PD) {
+  if (PD == 0) return 1234567;
+  for (unsigned i = 0; i != NumLivePools; ++i)
+    if (PoolIDs[i].PD == PD)
+      return PoolIDs[i].ID;
+  fprintf(stderr, "INVALID/UNKNOWN POOL DESCRIPTOR: 0x%X\n", (unsigned)PD);
+  return 0;
+}
+
+static unsigned removePoolNumber(PoolTy *PD) {
+  for (unsigned i = 0; i != NumLivePools; ++i)
+    if (PoolIDs[i].PD == PD) {
+      unsigned PN = PoolIDs[i].ID;
+      memmove(&PoolIDs[i], &PoolIDs[i+1], sizeof(PoolID)*(NumLivePools-i-1));
+      --NumLivePools;
+      return PN;
+    }
+  fprintf(stderr, "INVALID/UNKNOWN POOL DESCRIPTOR: 0x%X\n", (unsigned)PD);
+  return 0;
+}
+
+#define DO_IF_TRACE(X) X
+#else
+#define DO_IF_TRACE(X)
+#endif
 
 #ifdef PRINT_NUM_POOLS
 static unsigned PoolCounter = 0;
+static unsigned PoolsInited = 0;
 static void PoolCountPrinter() {
-  fprintf(stderr, "\n\n*** %d DYNAMIC POOLS ***\n\n", PoolCounter);
+  fprintf(stderr, "\n\n"
+          "*** %d DYNAMIC POOLS INITIALIZED ***\n\n"
+          "*** %d DYNAMIC POOLS ALLOCATED FROM ***\n\n",
+          PoolsInited, PoolCounter);
 }
 
+#define DO_IF_PNP(X) X
+#else
+#define DO_IF_PNP(X)
 #endif
 
 //===----------------------------------------------------------------------===//
-//
 //  PoolSlab implementation
-//
 //===----------------------------------------------------------------------===//
 
 #define PageSize (4*1024U)
@@ -121,17 +178,18 @@ void poolinit(PoolTy *Pool, unsigned DeclaredSize) {
   memset(Pool, 0, sizeof(PoolTy));
   Pool->AllocSize = PageSize;
   Pool->DeclaredSize = DeclaredSize;
-  DEBUG(printf("init pool 0x%X\n", Pool));
 
+  DO_IF_TRACE(fprintf(stderr, "[%d] poolinit(0x%X, %d)\n", addPoolNumber(Pool),
+                      Pool, DeclaredSize));
+  DO_IF_PNP(++PoolsInited);  // Track # pools initialized
+
+#ifdef PRINT_NUM_POOLS
   static bool Initialized = 0;
   if (!Initialized) {
     Initialized = 1;
-
-#ifdef PRINT_NUM_POOLS
     atexit(PoolCountPrinter);
-#endif
   }
-
+#endif
 }
 
 // pooldestroy - Release all memory allocated for a pool
@@ -139,9 +197,12 @@ void poolinit(PoolTy *Pool, unsigned DeclaredSize) {
 void pooldestroy(PoolTy *Pool) {
   assert(Pool && "Null pool pointer passed in to pooldestroy!\n");
 
-  DEBUG(printf("destroy pool 0x%X  NextAllocSize = %d AvgObjSize = %d\n", Pool,
-               Pool->AllocSize,
-               Pool->NumObjects ? Pool->BytesAllocated/Pool->NumObjects : 0));
+  DO_IF_TRACE(fprintf(stderr, "[%d] pooldestroy(0x%X) BytesAlloc=%d  NumObjs=%d"
+                      " AvgObjSize=%d  NextAllocSize=%d\n",
+                      removePoolNumber(Pool), Pool, Pool->BytesAllocated,
+                      Pool->NumObjects,
+                   Pool->NumObjects ? Pool->BytesAllocated/Pool->NumObjects : 0,
+                      Pool->AllocSize));
 
   // Free all allocated slabs.
   PoolSlab *PS = Pool->Slabs;
@@ -161,6 +222,9 @@ void pooldestroy(PoolTy *Pool) {
 }
 
 void *poolalloc(PoolTy *Pool, unsigned NumBytes) {
+  DO_IF_TRACE(fprintf(stderr, "[%d] poolalloc(%d) -> ",
+                      getPoolNumber(Pool), NumBytes));
+
   // If a null pool descriptor is passed in, this is not a pool allocated data
   // structure.  Hand off to the system malloc.
   if (Pool == 0) return malloc(NumBytes);
@@ -173,9 +237,8 @@ void *poolalloc(PoolTy *Pool, unsigned NumBytes) {
   if (NumBytes < (sizeof(FreedNodeHeader)-sizeof(NodeHeader)))
     NumBytes = sizeof(FreedNodeHeader)-sizeof(NodeHeader);
 
-#ifdef PRINT_NUM_POOLS
-  if (Pool->NumObjects == 0) ++PoolCounter;  // Track # pools.
-#endif
+  DO_IF_PNP(if (Pool->NumObjects == 0) ++PoolCounter);  // Track # pools.
+
   ++Pool->NumObjects;
   Pool->BytesAllocated += NumBytes;
 
@@ -207,8 +270,7 @@ void *poolalloc(PoolTy *Pool, unsigned NumBytes) {
         NumBytes = FirstNodeSize;
       }
       FirstNode->Header.Size = NumBytes|1;   // Mark as allocated
-      DEBUG(printf("alloc Pool:0x%X Bytes:%d -> 0x%X\n", Pool, NumBytes, 
-                   &FirstNode->Header+1));
+      DO_IF_TRACE(fprintf(stderr, "0x%X\n", &FirstNode->Header+1));
       return &FirstNode->Header+1;
     }
   }
@@ -241,8 +303,7 @@ void *poolalloc(PoolTy *Pool, unsigned NumBytes) {
           NumBytes = FNN->Header.Size;
         }
         FNN->Header.Size = NumBytes|1;   // Mark as allocated
-        DEBUG(printf("alloc Pool:0x%X Bytes:%d -> 0x%X\n", Pool, NumBytes, 
-                     &FNN->Header+1));
+        DO_IF_TRACE(fprintf(stderr, "0x%X\n", &FNN->Header+1));
         return &FNN->Header+1;
       }
 
@@ -267,12 +328,14 @@ void *poolalloc(PoolTy *Pool, unsigned NumBytes) {
   LAH->Prev = &Pool->LargeArrays;
   LAH->Size = NumBytes;
   LAH->Marker = ~0U;
-  DEBUG(printf("alloc large Pool:0x%X NumBytes:%d -> 0x%X\n", Pool,
-               NumBytes, LAH+1));
+  DO_IF_TRACE(fprintf(stderr, "0x%X  [large]\n", LAH+1));
   return LAH+1;
 }
 
 void poolfree(PoolTy *Pool, void *Node) {
+  DO_IF_TRACE(fprintf(stderr, "[%d] poolfree(0x%X) ",
+                      getPoolNumber(Pool), Node));
+
   // If a null pool descriptor is passed in, this is not a pool allocated data
   // structure.  Hand off to the system free.
   if (Pool == 0) { free(Node); return; }
@@ -282,7 +345,7 @@ void poolfree(PoolTy *Pool, void *Node) {
   FreedNodeHeader *FNH = (FreedNodeHeader*)((char*)Node-sizeof(NodeHeader));
   assert((FNH->Header.Size & 1) && "Node not allocated!");
   unsigned Size = FNH->Header.Size & ~1;
-  DEBUG(printf("free  Pool:0x%X <- 0x%X  Size:%d\n", Pool, Node, Size));
+  DO_IF_TRACE(fprintf(stderr, "%d bytes\n", Size));
 
   if (Size == ~1U) goto LargeArrayCase;
   
@@ -325,6 +388,9 @@ LargeArrayCase:
 }
 
 void *poolrealloc(PoolTy *Pool, void *Node, unsigned NumBytes) {
+  DO_IF_TRACE(fprintf(stderr, "[%d] poolrealloc(0x%X, %d)\n",
+                      getPoolNumber(Pool), Node, NumBytes));
+
   // If a null pool descriptor is passed in, this is not a pool allocated data
   // structure.  Hand off to the system realloc.
   if (Pool == 0) return realloc(Node, NumBytes);
