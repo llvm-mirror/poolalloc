@@ -220,25 +220,28 @@ Output/%.$(TEST).report.txt: Output/%.nonpa.diff-cbe         \
 			     Output/%.onlyoverhead.diff-cbe  \
                              Output/%.LOC.txt
 	@echo > $@
-	@-if test -f Output/$*.poolalloc.diff-cbe; then \
+	@-if test -f Output/$*.nonpa.diff-cbe; then \
 	  printf "CBE-RUN-TIME-NORMAL: " >> $@;\
 	  grep "^program" Output/$*.nonpa.out-cbe.time >> $@;\
-		\
+        fi
+	@-if test -f Output/$*.mallocrepl.diff-cbe; then \
 	  printf "CBE-RUN-TIME-MALLOCREPL: " >> $@;\
 	  grep "^program" Output/$*.mallocrepl.out-cbe.time >> $@;\
-		\
+        fi
+	@-if test -f Output/$*.onlyoverhead.diff-cbe; then \
 	  printf "CBE-RUN-TIME-ONLYOVERHEAD: " >> $@;\
 	  grep "^program" Output/$*.onlyoverhead.out-cbe.time >> $@;\
-		\
+        fi
+	@-if test -f Output/$*.allnodes.diff-cbe; then \
 	  printf "CBE-RUN-TIME-ALLNODES: " >> $@;\
 	  grep "^program" Output/$*.allnodes.out-cbe.time >> $@;\
-		\
+        fi
+	@-if test -f Output/$*.poolalloc.diff-cbe; then \
 	  printf "CBE-RUN-TIME-POOLALLOC: " >> $@;\
 	  grep "^program" Output/$*.poolalloc.out-cbe.time >> $@;\
-	  printf "LOC: " >> $@;\
-	  cat Output/$*.LOC.txt >> $@;\
 	fi
-
+	printf "LOC: " >> $@
+	cat Output/$*.LOC.txt >> $@
 	@cat Output/$*.$(TEST).allnodes.bc.info >> $@
 	@#cat Output/$*.$(TEST).allnodes.bc.out  >> $@
 
