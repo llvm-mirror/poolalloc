@@ -18,9 +18,14 @@
 #include "llvm/Support/InstVisitor.h"
 #include "Support/Debug.h"
 #include "Support/VectorExtras.h"
+#include "Support/Statistic.h"
 using namespace PA;
 
 namespace {
+  Statistic<> NumArgsAdded("poolalloc", "Number of function arguments added");
+  Statistic<> NumCloned   ("poolalloc", "Number of functions cloned");
+  Statistic<> NumPools    ("poolalloc", "Number of poolinit's inserted");
+
   const Type *VoidPtrTy;
 
   // The type to allocate for a pool descriptor: { sbyte*, uint, uint }
@@ -120,8 +125,8 @@ void PoolAllocate::buildIndirectFunctionSets(Module &M) {
 }
 
 bool PoolAllocate::run(Module &M) {
-  if (M.begin() == M.end()) return false;
   CurModule = &M;
+  BU = &getAnalysis<BUDataStructures>();
 
   if (VoidPtrTy == 0) {
     VoidPtrTy = PointerType::get(Type::SByteTy);
@@ -130,11 +135,8 @@ bool PoolAllocate::run(Module &M) {
                                                Type::UIntTy, 0));
     PoolDescPtr = PointerType::get(PoolDescType);
   }
-
   
   AddPoolPrototypes();
-  BU = &getAnalysis<BUDataStructures>();
-
   buildIndirectFunctionSets(M);
 
   std::map<Function*, Function*> FuncMap;
@@ -172,8 +174,8 @@ bool PoolAllocate::run(Module &M) {
     }
 
   if (CollapseFlag)
-    std::cerr << "Pool Allocation successful! However all data structures may not be pool allocated\n";
-
+    std::cerr << "Pool Allocation successful!"
+              << " However all data structures may not be pool allocated\n";
   return true;
 }
 
@@ -358,15 +360,12 @@ void PoolAllocate::FindFunctionPoolArgs(Function &F) {
 
 // MakeFunctionClone - If the specified function needs to be modified for pool
 // allocation support, make a clone of it, adding additional arguments as
-// neccesary, and return it.  If not, just return null.
+// necessary, and return it.  If not, just return null.
 //
 Function *PoolAllocate::MakeFunctionClone(Function &F) {
-  
   DSGraph &G = BU->getDSGraph(F);
-
   std::vector<DSNode*> &Nodes = G.getNodes();
-  if (Nodes.empty())
-    return 0;
+  if (Nodes.empty()) return 0;
     
   FuncInfo &FI = FunctionInfo[&F];
   
@@ -413,14 +412,16 @@ Function *PoolAllocate::MakeFunctionClone(Function &F) {
       FI.ArgNodes.push_back(*I);
     }
 
-    assert ((FI.ArgNodes.size() == (unsigned) (FI.PoolArgLast - 
-					       FI.PoolArgFirst)) && 
-	    "Number of ArgNodes equal to the number of pool arguments used by this function");
+    assert((FI.ArgNodes.size() == (unsigned)(FI.PoolArgLast-FI.PoolArgFirst)) &&
+           "Number of ArgNodes equal to the number of pool arguments used by "
+           "this function");
 
     if (FI.ArgNodes.empty()) return 0;
   }
       
-      
+  NumArgsAdded += ArgTys.size();
+  ++NumCloned;
+
   ArgTys.insert(ArgTys.end(), OldFuncTy->getParamTypes().begin(),
                 OldFuncTy->getParamTypes().end());
 
@@ -453,7 +454,7 @@ Function *PoolAllocate::MakeFunctionClone(Function &F) {
 
     NI = New->abegin();
     if (EqClass2LastPoolArg.count(FuncECs.findClass(&F)))
-      for (int i = 0; i <= EqClass2LastPoolArg[FuncECs.findClass(&F)]; ++i, ++NI)
+      for (int i = 0; i <= EqClass2LastPoolArg[FuncECs.findClass(&F)]; ++i,++NI)
 	;
   } else {
     // If the function does not belong to an equivalence class
@@ -478,7 +479,7 @@ Function *PoolAllocate::MakeFunctionClone(Function &F) {
     }
 
   // Populate the value map with all of the globals in the program.
-  // FIXME: This should be unneccesary!
+  // FIXME: This should be unnecessary!
   Module &M = *F.getParent();
   for (Module::iterator I = M.begin(), E=M.end(); I!=E; ++I)    ValueMap[I] = I;
   for (Module::giterator I = M.gbegin(), E=M.gend(); I!=E; ++I) ValueMap[I] = I;
@@ -570,6 +571,7 @@ void PoolAllocate::CreatePools(Function &F,
 	
     // Insert the call to initialize the pool...
     new CallInst(PoolInit, make_vector(AI, ElSize, 0), "", InsertPoint);
+    ++NumPools;
       
     // Update the PoolDescriptors map
     PoolDescriptors.insert(std::make_pair(Node, AI));
