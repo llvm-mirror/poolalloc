@@ -77,7 +77,6 @@ namespace {
 }
 
 void PoolAllocate::getAnalysisUsage(AnalysisUsage &AU) const {
-  AU.addRequired<CompleteBUDataStructures>();
   AU.addRequired<EquivClassGraphs>();
   AU.addRequired<TargetData>();
 }
@@ -613,12 +612,12 @@ void PoolAllocate::CreatePools(Function &F,
 }
 
 // processFunction - Pool allocate any data structures which are contained in
-// the specified function...
+// the specified function.
 //
 void PoolAllocate::ProcessFunctionBody(Function &F, Function &NewF) {
   DSGraph &G = ECGraphs->getDSGraph(F);
 
-  if (G.node_begin() == G.node_end()) return;  // Quick exit if nothing to do...
+  if (G.node_begin() == G.node_end()) return;  // Quick exit if nothing to do.
   
   FuncInfo &FI = FunctionInfo[&F];   // Get FuncInfo for F
   hash_set<DSNode*> &MarkedNodes = FI.MarkedNodes;
@@ -627,6 +626,7 @@ void PoolAllocate::ProcessFunctionBody(Function &F, Function &NewF) {
   // from a global, we will create a global pool for it, so no argument passage
   // is required.
   DSGraph &GG = ECGraphs->getGlobalsGraph();
+
   DSGraph::NodeMapTy GlobalsGraphNodeMapping;
   for (DSScalarMap::global_iterator I = G.getScalarMap().global_begin(),
          E = G.getScalarMap().global_end(); I != E; ++I) {
