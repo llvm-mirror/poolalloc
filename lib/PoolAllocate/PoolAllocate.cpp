@@ -185,35 +185,21 @@ void PoolAllocate::AddPoolPrototypes() {
   CurModule->addTypeName("PoolDescriptor", PoolDescType);
   
   // Get poolinit function...
-  FunctionType *PoolInitTy =
-    FunctionType::get(Type::VoidTy,
-                      make_vector<const Type*>(PoolDescPtr, Type::UIntTy, 0),
-                      false);
-  PoolInit = CurModule->getOrInsertFunction("poolinit", PoolInitTy);
+  PoolInit = CurModule->getOrInsertFunction("poolinit", Type::VoidTy,
+                                            PoolDescPtr, Type::UIntTy, 0);
 
   // Get pooldestroy function...
-  std::vector<const Type*> PDArgs(1, PoolDescPtr);
-  FunctionType *PoolDestroyTy =
-    FunctionType::get(Type::VoidTy, PDArgs, false);
-  PoolDestroy = CurModule->getOrInsertFunction("pooldestroy", PoolDestroyTy);
+  PoolDestroy = CurModule->getOrInsertFunction("pooldestroy", Type::VoidTy,
+                                               PoolDescPtr, 0);
   
-  // Get the poolalloc function...
-  FunctionType *PoolAllocTy = FunctionType::get(VoidPtrTy, PDArgs, false);
-  PoolAlloc = CurModule->getOrInsertFunction("poolalloc", PoolAllocTy);
+  // The poolalloc function
+  PoolAlloc = CurModule->getOrInsertFunction("poolalloc", 
+                                             VoidPtrTy, PoolDescPtr,
+                                             Type::UIntTy, 0);
   
   // Get the poolfree function...
-  PDArgs.push_back(VoidPtrTy);       // Pointer to free
-  FunctionType *PoolFreeTy = FunctionType::get(Type::VoidTy, PDArgs, false);
-  PoolFree = CurModule->getOrInsertFunction("poolfree", PoolFreeTy);
-  
-  // The poolallocarray function
-  FunctionType *PoolAllocArrayTy =
-    FunctionType::get(VoidPtrTy,
-                      make_vector<const Type*>(PoolDescPtr, Type::UIntTy, 0),
-                      false);
-  PoolAllocArray = CurModule->getOrInsertFunction("poolallocarray", 
-						  PoolAllocArrayTy);
-  
+  PoolFree = CurModule->getOrInsertFunction("poolfree", Type::VoidTy,
+                                            PoolDescPtr, VoidPtrTy, 0);  
 }
 
 // Inline the DSGraphs of functions corresponding to the potential targets at
@@ -572,7 +558,7 @@ void PoolAllocate::CreatePools(Function &F,
 		<< ". All Data Structures may not be pool allocated\n");
       ElSize = ConstantUInt::get(Type::UIntTy, 0);
     }
-	
+    
     // Insert the call to initialize the pool...
     new CallInst(PoolInit, make_vector(AI, ElSize, 0), "", InsertPoint);
     ++NumPools;
@@ -838,20 +824,22 @@ void FuncTransform::visitMallocInst(MallocInst &MI) {
   std::string Name = MI.getName(); MI.setName("");
 
   // Insert a call to poolalloc
-  Value *V;
-  if (MI.isArrayAllocation()) 
-    V = new CallInst(PAInfo.PoolAllocArray, make_vector(PH, MI.getOperand(0),0),
-		     Name, &MI);
-  else
-    V = new CallInst(PAInfo.PoolAlloc, make_vector(PH, 0), Name, &MI);
+  TargetData &TD = PAInfo.getAnalysis<TargetData>();
+  Value *AllocSize =
+    ConstantUInt::get(Type::UIntTy, TD.getTypeSize(MI.getAllocatedType()));
+
+  if (MI.isArrayAllocation())
+    AllocSize = BinaryOperator::create(Instruction::Mul, AllocSize,
+                                       MI.getOperand(0), "sizetmp", &MI);
+
+  Value *V = new CallInst(PAInfo.PoolAlloc, make_vector(PH, AllocSize, 0),
+                          Name, &MI);
 
   const Type *phtype = MI.getType()->getElementType();
   std::map<const Value*, const Type*> &PoolDescType = FI.PoolDescType;
   if (!PoolDescType.count(PH))
     PoolDescType[PH] = phtype;
 
-  MI.setName("");  // Nuke MIs name
-  
   Value *Casted = V;
 
   // Cast to the appropriate type if necessary
