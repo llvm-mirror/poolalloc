@@ -18,13 +18,15 @@
 #include <stdio.h>
 #include <string.h>
 
-// Configuration macros.
-//#define PRINT_POOL_TRACE
-//#define PRINT_NUM_POOLS
-
-
+// Performance tweaking macros.
 #define INITIAL_SLAB_SIZE 4096
 #define LARGE_SLAB_SIZE   4096
+
+
+// Configuration macros.  Define up to one of these.
+//#define PRINT_NUM_POOLS          // Print use dynamic # pools info
+//#define PRINT_POOLDESTROY_STATS  // When pools are destroyed, print stats
+//#define PRINT_POOL_TRACE         // Print a full trace
 
 
 //===----------------------------------------------------------------------===//
@@ -32,7 +34,7 @@
 //===----------------------------------------------------------------------===//
 
 #ifdef PRINT_POOL_TRACE
-#define PRINT_NUM_POOLS
+#define DO_IF_POOLDESTROY_STATS
 
 struct PoolID {
   PoolTy *PD;
@@ -80,6 +82,13 @@ static unsigned removePoolNumber(PoolTy *PD) {
 #define DO_IF_TRACE(X) X
 #else
 #define DO_IF_TRACE(X)
+#endif
+
+#ifdef PRINT_POOLDESTROY_STATS
+#define DO_IF_POOLDESTROY_STATS(X) X
+#define PRINT_NUM_POOLS
+#else
+#define DO_IF_POOLDESTROY_STATS(X)
 #endif
 
 #ifdef PRINT_NUM_POOLS
@@ -200,12 +209,14 @@ void poolinit(PoolTy *Pool, unsigned DeclaredSize) {
 void pooldestroy(PoolTy *Pool) {
   assert(Pool && "Null pool pointer passed in to pooldestroy!\n");
 
-  DO_IF_TRACE(fprintf(stderr, "[%d] pooldestroy(0x%X) BytesAlloc=%d  NumObjs=%d"
-                      " AvgObjSize=%d  NextAllocSize=%d\n",
-                      removePoolNumber(Pool), Pool, Pool->BytesAllocated,
-                      Pool->NumObjects,
-                   Pool->NumObjects ? Pool->BytesAllocated/Pool->NumObjects : 0,
-                      Pool->AllocSize));
+  DO_IF_TRACE(fprintf(stderr, "[%d] ", removePoolNumber(Pool)));
+  DO_IF_POOLDESTROY_STATS(fprintf(stderr,
+                 "pooldestroy(0x%X) BytesAlloc=%d  NumObjs=%d"
+                 " AvgObjSize=%d  NextAllocSize=%d\n",
+                 Pool, Pool->BytesAllocated, Pool->NumObjects,
+                 Pool->NumObjects ? Pool->BytesAllocated/Pool->NumObjects : 0,
+                 Pool->AllocSize));
+
 
   // Free all allocated slabs.
   PoolSlab *PS = Pool->Slabs;
@@ -231,7 +242,7 @@ void *poolalloc(PoolTy *Pool, unsigned NumBytes) {
   // If a null pool descriptor is passed in, this is not a pool allocated data
   // structure.  Hand off to the system malloc.
   if (Pool == 0) return malloc(NumBytes);
-  if (NumBytes == 0) return 0;
+  if (NumBytes == 0) NumBytes = 1;
   unsigned PtrSize = sizeof(int*);
   NumBytes = (NumBytes+(PtrSize-1)) & ~(PtrSize-1);  // Round up to 4/8 bytes...
 
