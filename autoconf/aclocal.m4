@@ -6165,4 +6165,25 @@ AC_DEFUN([AC_CONFIG_MAKEFILE],
 [AC_CONFIG_COMMANDS($1,${SHELL} ${srcdir}/autoconf/install-sh -c ${srcdir}/$1 $1,${srcdir}/autoconf/mkinstalldirs `dirname $1`)
 ])
 
+#
+# When allocating RWX memory, check whether we need to use /dev/zero
+# as the file descriptor or not.
+#
+# Note:
+#   Originally from llvm/autoconf/m4/need_dev_zero_for_mmap.m4, written by
+#   Reid Spencer.
+#
+AC_DEFUN([AC_NEED_DEV_ZERO_FOR_MMAP],
+[AC_CACHE_CHECK([if /dev/zero is needed for mmap],
+ac_cv_need_dev_zero_for_mmap,
+[if test "$llvm_cv_os_type" = "Interix" ; then
+   ac_cv_need_dev_zero_for_mmap=yes
+ else
+   ac_cv_need_dev_zero_for_mmap=no
+ fi
+])
+if test "$ac_cv_need_dev_zero_for_mmap" = yes; then
+  AC_DEFINE([NEED_DEV_ZERO_FOR_MMAP],[1],
+   [Define if /dev/zero should be used when mapping RWX memory, or undefine if its not necessary])
+fi])
 

@@ -12,9 +12,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-/// FIXME: This isn't installed, add copies of the configure checks to the pool
-/// allocator project configure script.
-#include "llvm/Config/config.h"
+#include "poolalloc/Config/config.h"
 #include <cstdlib>
 #include <cassert>
 

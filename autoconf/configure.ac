@@ -59,6 +59,9 @@ dnl *
 dnl *	So, we'll be gracious, give it a chance, and try to go on without
 dnl *	them.
 dnl **************************************************************************
+AC_HEADER_MMAP_ANONYMOUS
+AC_HEADER_STAT
+AC_CHECK_HEADERS([fcntl.h sys/mman.h])
 
 dnl **************************************************************************
 dnl * Checks for typedefs, structures, and compiler characteristics.
@@ -67,6 +70,9 @@ dnl **************************************************************************
 dnl **************************************************************************
 dnl * Checks for library functions.
 dnl **************************************************************************
+AC_FUNC_MMAP
+AC_FUNC_MMAP_FILE
+AC_NEED_DEV_ZERO_FOR_MMAP
 
 dnl **************************************************************************
 dnl * Enable various compile-time options
@@ -85,4 +91,5 @@ AC_ARG_WITH(llvmobj,AC_HELP_STRING([--with-llvmobj],[Location of LLVM Object Cod
 dnl **************************************************************************
 dnl * Create the output files
 dnl **************************************************************************
+AC_CONFIG_HEADERS(include/poolalloc/Config/config.h)
 AC_OUTPUT(Makefile.common)
