@@ -38,7 +38,6 @@ following steps:
 
 USING THE POOL ALLOCATOR:
 =========================
-
 To use the Automatic Pool Allocator optimization pass, you will need to
 explicitly load it into the opt program:
 
@@ -58,6 +57,17 @@ To link a bytecode file once it has been optimized, you can do the following:
 ...where llvmgcc is an alias to the GCC C front end.
 
 This will generate a bytecode file that can be executed.
+
+CHANGES:
+========
+This pre-release has the following changes:
+
+	- Correctly handles indirect calls
+	- Correctly handles globals
+	- Accepts partially pool allocatable programs
+	- Fixed a large number of bugs
+	- Tested on a number of benchmarks including Olden, Ptrdist, and a few
+	  SPEC codes.
 
 BUGS:
 =====
