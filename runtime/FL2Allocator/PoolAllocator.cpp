@@ -13,6 +13,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "PoolAllocator.h"
+#include "poolalloc/MMAPSupport.h"
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -833,7 +834,7 @@ void *poolrealloc(PoolTy<NormalPoolTraits> *Pool, void *Node,
 // around the normal pool routines.
 //===----------------------------------------------------------------------===//
 
-#include <sys/mman.h>
+// For now, use address space reservation of 256MB.
 #define POOLSIZE (256*1024*1024)
 
 // Pools - When we are done with a pool, don't munmap it, keep it around for
@@ -849,7 +850,7 @@ void *poolinit_pc(PoolTy<CompressedPoolTraits> *Pool,
   // allocation), because code may want to eagerly copy the pool base into a
   // register.
 
-  // If we already have a pool mmap'd, reuse it.
+  // If we already have a pool mapped, reuse it.
   for (unsigned i = 0; i != 4; ++i)
     if (Pools[i]) {
       Pool->Slabs = Pools[i];
@@ -857,13 +858,10 @@ void *poolinit_pc(PoolTy<CompressedPoolTraits> *Pool,
       break;
     }
 
-
-
   if (Pool->Slabs == 0) {
     // Didn't find an existing pool, create one.
     Pool->Slabs = (PoolSlab<CompressedPoolTraits>*)
-                     mmap(0, POOLSIZE, PROT_READ|PROT_WRITE,
-                          MAP_PRIVATE|MAP_NORESERVE|MAP_ANONYMOUS, -1, 0);
+                      AllocateSpaceWithMMAP(POOLSIZE, true);
     DO_IF_TRACE(fprintf(stderr, "RESERVED ADDR SPACE: %p -> %p\n",
                         Pool->Slabs, (char*)Pool->Slabs+POOLSIZE));
   }
