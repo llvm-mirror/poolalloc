@@ -24,7 +24,7 @@ OPT_PA_STATS = $(OPT_PA) -info-output-file=$(CURDIR)/$@.info -stats -time-passes
 # file
 $(PROGRAMS_TO_TEST:%=Output/%.$(TEST).transformed.bc): \
 Output/%.$(TEST).transformed.bc: Output/%.llvm.bc $(PA_SO)
-	-$(OPT_PA_STATS) -q -poolalloc $< -o $@ -f 2>&1 > $@.out
+	-$(OPT_PA_STATS) -q -poolalloc -deadargelim  -globaldce $< -o $@ -f 2>&1 > $@.out
 
 # This rule compiles the new .bc file into a .c file using CBE
 $(PROGRAMS_TO_TEST:%=Output/%.poolalloc.cbe.c): \
