@@ -44,12 +44,12 @@ OPTZN_PASSES := -globaldce -ipconstprop -deadargelim -adce -instcombine -simplif
 $(PROGRAMS_TO_TEST:%=Output/%.$(TEST).poolalloc.bc): \
 Output/%.$(TEST).poolalloc.bc: Output/%.llvm.bc $(PA_SO) $(LOPT)
 	-@rm -f $(CURDIR)/$@.info
-	-$(OPT_PA_STATS) -poolalloc $(EXTRA_PA_FLAGS) $(OPTZN_PASSES) $< -o $@ -f 2>&1 > $@.out
+	-$(OPT_PA_STATS) -poolalloc $(EXTRA_PA_FLAGS) $(OPTZN_PASSES) -pooloptimize $< -o $@ -f 2>&1 > $@.out
 
 $(PROGRAMS_TO_TEST:%=Output/%.$(TEST).allnodes.bc): \
 Output/%.$(TEST).allnodes.bc: Output/%.llvm.bc $(PA_SO) $(LOPT)
 	-@rm -f $(CURDIR)/$@.info
-	-$(OPT_PA_STATS) -poolalloc -poolalloc-heuristic=AllNodes $(OPTZN_PASSES) $< -o $@ -f 2>&1 > $@.out
+	-$(OPT_PA_STATS) -poolalloc -poolalloc-heuristic=AllNodes -pooloptimize  $(OPTZN_PASSES) $< -o $@ -f 2>&1 > $@.out
 
 
 $(PROGRAMS_TO_TEST:%=Output/%.$(TEST).mallocrepl.bc): \
