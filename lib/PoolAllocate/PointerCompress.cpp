@@ -80,8 +80,8 @@ namespace {
 
     /// ClonedFunctionMap - Every time we clone a function to compress its
     /// arguments, keep track of the clone and which arguments are compressed.
-    std::map<std::pair<Function*, std::vector<unsigned> >,
-             Function *> ClonedFunctionMap;
+    typedef std::pair<Function*, std::vector<unsigned> > CloneID;
+    std::map<CloneID, Function *> ClonedFunctionMap;
 
     /// ClonedFunctionInfoMap - This identifies the pool allocated function that
     /// a clone came from.
@@ -372,7 +372,8 @@ namespace {
       // If this is a pool allocator clone, map the value to the REAL original
       // function.
       if (!PAFuncInfo.NewToOldValueMap.empty())
-        V = PAFuncInfo.MapValueToOriginal(V);
+        if ((V = PAFuncInfo.MapValueToOriginal(V)) == 0)
+          return 0; // Value didn't exist in the orig program (pool desc?)
 
       DSNode *N = DSG.getNodeForValue(V).getNode();
       return PoolInfo.count(N) ? N : 0;
@@ -901,7 +902,6 @@ GetFunctionClone(Function *F, const std::vector<unsigned> &OpsToCompress) {
   // Recursively transform the function.
   CompressPoolsInFunction(*Clone, &RemappedArgs);
 
-  Clone->dump();
   return Clone;
 }
 
@@ -949,8 +949,12 @@ bool PointerCompress::runOnModule(Module &M) {
   // Iterate over all functions in the module, looking for compressible data
   // structures.
   bool Changed = false;
-  for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I)
-    Changed |= CompressPoolsInFunction(*I);
+  for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I) {
+    // If this function is not a pointer-compressed clone, compress any pools in
+    // it now.
+    if (!ClonedFunctionInfoMap.count(I))
+      Changed |= CompressPoolsInFunction(*I);
+  }
 
   ClonedFunctionMap.clear();
   return Changed;
