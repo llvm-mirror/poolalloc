@@ -92,13 +92,12 @@ bool PoolAllocate::runOnModule(Module &M) {
   if (SetupGlobalPools(M))
     return true;
 
-{TIME_REGION(X, "FindFunctionPoolArgs");
   // Loop over the functions in the original program finding the pool desc.
   // arguments necessary for each function that is indirectly callable.
   for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I)
     if (!I->isExternal() && ECGraphs->ContainsDSGraphFor(*I))
       FindFunctionPoolArgs(*I);
-}
+
   std::map<Function*, Function*> FuncMap;
 
   // Now clone a function using the pool arg list obtained in the previous pass
@@ -351,17 +350,15 @@ Function *PoolAllocate::MakeFunctionClone(Function &F) {
 
   // Perform the cloning.
   std::vector<ReturnInst*> Returns;
-{TIME_REGION(X, "CFI");
+{TIME_REGION(X, "CloneFunctionInto");
   CloneFunctionInto(New, &F, ValueMap, Returns);
 }
   // Invert the ValueMap into the NewToOldValueMap
   std::map<Value*, const Value*> &NewToOldValueMap = FI.NewToOldValueMap;
 
-{TIME_REGION(X, "N2O Map Construct");
   for (std::map<const Value*, Value*>::iterator I = ValueMap.begin(),
          E = ValueMap.end(); I != E; ++I)
     NewToOldValueMap.insert(std::make_pair(I->second, I->first));
-}  
   return FI.Clone = New;
 }
 
@@ -482,6 +479,7 @@ void PoolAllocate::CreatePools(Function &F, DSGraph &DSG,
                                std::map<const DSNode*,
                                         Value*> &PoolDescriptors) {
   if (NodesToPA.empty()) return;
+  TIME_REGION(X, "CreatePools");
 
   std::vector<Heuristic::OnePool> ResultPools;
   CurHeuristic->AssignToPools(NodesToPA, &F, *NodesToPA[0]->getParentGraph(),
