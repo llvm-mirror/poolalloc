@@ -50,7 +50,7 @@ namespace {
   X("poolalloc", "Pool allocate disjoint data structures");
 
   cl::opt<bool> DisableInitDestroyOpt("poolalloc-force-simple-pool-init",
-                                      cl::desc("Always insert poolinit/pooldestroy calls at start and exit of functions"));
+                                      cl::desc("Always insert poolinit/pooldestroy calls at start and exit of functions"), cl::init(true));
 }
 
 void PoolAllocate::getAnalysisUsage(AnalysisUsage &AU) const {
