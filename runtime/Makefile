@@ -6,6 +6,6 @@ LEVEL=..
 #
 # List all of the subdirectories that we will compile.
 #
-DIRS=PoolAllocator FreeListAllocator FL2Allocator
+DIRS=PoolAllocator FreeListAllocator FL2Allocator PtrCompAllocator
 
 include $(LEVEL)/Makefile.common
