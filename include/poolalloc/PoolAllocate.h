@@ -23,6 +23,7 @@ class TDDataStructures;
 class DSNode;
 class DSGraph;
 class Type;
+class AllocaInst;
 
 namespace PA {
   /// FuncInfo - Represent the pool allocation information for one function in
@@ -180,8 +181,8 @@ class PoolAllocate : public Pass {
 			   hash_set<Function*> &visited);
 
   void TransformBody(DSGraph &g, DSGraph &tdg, PA::FuncInfo &fi,
-                     std::set<Value*, BasicBlock*> &poolUses,
-                     std::set<Value*, CallInst*> &poolFrees,
+                     std::set<std::pair<AllocaInst*, BasicBlock*> > &poolUses,
+                     std::set<std::pair<AllocaInst*, CallInst*> > &poolFrees,
                      Function &F);
 };
 

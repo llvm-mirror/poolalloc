@@ -29,16 +29,17 @@ namespace {
 
     // PoolUses - For each pool (identified by the pool descriptor) keep track
     // of which blocks require the memory in the pool to not be freed.  This
-    // does not include poolfree's.
-    std::set<Value*, BasicBlock*> &PoolUses;
+    // does not include poolfree's.  Note that this is only tracked for pools
+    // which this is the home of, ie, they are Alloca instructions.
+    std::set<std::pair<AllocaInst*, BasicBlock*> > &PoolUses;
 
     // PoolDestroys - For each pool, keep track of the actual poolfree calls
     // inserted into the code.  This is seperated out from PoolUses.
-    std::set<Value*, CallInst*>   &PoolFrees;
+    std::set<std::pair<AllocaInst*, CallInst*> > &PoolFrees;
 
     FuncTransform(PoolAllocate &P, DSGraph &g, DSGraph &tdg, FuncInfo &fi,
-                  std::set<Value*, BasicBlock*> &poolUses,
-                  std::set<Value*, CallInst*> &poolFrees)
+                  std::set<std::pair<AllocaInst*, BasicBlock*> > &poolUses,
+                  std::set<std::pair<AllocaInst*, CallInst*> > &poolFrees)
       : PAInfo(P), G(g), TDG(tdg), FI(fi),
         PoolUses(poolUses), PoolFrees(poolFrees) {
     }
@@ -125,8 +126,8 @@ namespace {
 }
 
 void PoolAllocate::TransformBody(DSGraph &g, DSGraph &tdg, PA::FuncInfo &fi,
-                                 std::set<Value*, BasicBlock*> &poolUses,
-                                 std::set<Value*, CallInst*> &poolFrees,
+                       std::set<std::pair<AllocaInst*, BasicBlock*> > &poolUses,
+                       std::set<std::pair<AllocaInst*, CallInst*> > &poolFrees,
                                  Function &F) {
   FuncTransform(*this, g, tdg, fi, poolUses, poolFrees).visit(F);
 }
