@@ -322,7 +322,7 @@ poolallocarray(PoolTy* Pool, unsigned ArraySize)
   // Scan the list of array slabs to see if there is one that fits.
   //
   struct SlabHeader * Slabp = Pool->ArraySlabs;
-  struct SlabHeader * Prevp = NULL;
+  struct SlabHeader ** Prevp = &(Pool->ArraySlabs);
 
   //
   // Check to see if we have an array slab that has extra space that we
@@ -348,30 +348,38 @@ poolallocarray(PoolTy* Pool, unsigned ArraySize)
   // Scan through all the free array slabs to see if they are large
   // enough.
   //
-  for (; Slabp != NULL; Prevp = Slabp, Slabp=Slabp->Next)
+  for (; Slabp != NULL; Slabp=Slabp->Next)
   {
     //
     // Check to see if this slab has enough room.
     //
     if (Slabp->NodesPerSlab >= ArraySize)
     {
-      if (Prevp == NULL)
-      {
-        //
-        // This is the first item.  Change the head of the list.
-        //
-        Pool->ArraySlabs = Slabp->Next;
-      }
-      else
-      {
-        //
-        // This is some other item.  Modify the preceding item.
-        //
-        Prevp->Next = Slabp->Next;
-      }
+      //
+      // Make the previous node point to the next node.
+      //
+      (*Prevp)->Next = Slabp->Next;
+
+      //
+      // Increase the reference count of the slab.
+      //
       ++(Slabp->LiveNodes);
+
+      //
+      // Adjust the slab's index of data blocks.
+      //
+      Slabp->NextFreeData = ArraySize;
+
+      //
+      // Return the slab's data.
+      //
       return (Slabp->Data);
     }
+
+    //
+    // Move on to the next node.
+    //
+    Prevp = &(Slabp->Next);
   }
 
   //
