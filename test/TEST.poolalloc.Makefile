@@ -17,7 +17,7 @@ endif
 
 
 CURDIR  := $(shell cd .; pwd)
-PROGDIR := $(shell cd $(LEVEL)/test/Programs; pwd)/
+PROGDIR := $(shell cd $(LEVEL)/projects/llvm-test; pwd)/
 RELDIR  := $(subst $(PROGDIR),,$(CURDIR))
 
 # Pool allocator pass shared object

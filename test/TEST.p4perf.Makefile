@@ -1,4 +1,4 @@
-##===- test/Programs/TEST.vtl.Makefile ---------------------*- Makefile -*-===##
+##===- poolalloc/TEST.vtl.Makefile -------------------------*- Makefile -*-===##
 #
 # Makefile for getting performance metrics using Intel's VTune.
 #
@@ -6,7 +6,7 @@
 
 TESTNAME = $*
 CURDIR  := $(shell cd .; pwd)
-PROGDIR := $(shell cd $(LEVEL)/test/Programs; pwd)/
+PROGDIR := $(shell cd $(LEVEL)/projects/llvm-test; pwd)/
 RELDIR  := $(subst $(PROGDIR),,$(CURDIR))
 
 PERFEX := /home/vadve/criswell/local/Linux/bin/perfex
