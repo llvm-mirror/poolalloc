@@ -126,7 +126,7 @@ namespace {
                                  std::vector<std::pair<Value*,
                                               Value*> > *PremappedVals = 0);
 
-    void FindPoolsToCompress(std::vector<const DSNode*> &Pools, Function &F,
+    void FindPoolsToCompress(std::set<const DSNode*> &Pools, Function &F,
                              DSGraph &DSG, PA::FuncInfo *FI);
   };
 
@@ -283,8 +283,8 @@ static bool PoolIsCompressible(const DSNode *N, Function &F) {
 
 /// FindPoolsToCompress - Inspect the specified function and find pools that are
 /// compressible that are homed in that function.  Return those pools in the
-/// Pools vector.
-void PointerCompress::FindPoolsToCompress(std::vector<const DSNode*> &Pools,
+/// Pools set.
+void PointerCompress::FindPoolsToCompress(std::set<const DSNode*> &Pools,
                                           Function &F, DSGraph &DSG,
                                           PA::FuncInfo *FI) {
   DEBUG(std::cerr << "In function '" << F.getName() << "':\n");
@@ -292,7 +292,7 @@ void PointerCompress::FindPoolsToCompress(std::vector<const DSNode*> &Pools,
     const DSNode *N = FI->NodesToPA[i];
 
     if (PoolIsCompressible(N, F)) {
-      Pools.push_back(N);
+      Pools.insert(N);
       ++NumCompressed;
     } else {
       DEBUG(std::cerr << "PCF: "; N->dump());
@@ -925,11 +925,11 @@ CompressPoolsInFunction(Function &F,
   // Get the DSGraph for this function.
   DSGraph &DSG = ECG->getDSGraph(FI->F);
 
-  std::vector<const DSNode*> PoolsToCompressList;
+  std::set<const DSNode*> PoolsToCompressSet;
 
   // Compute the set of compressible pools in this function that are hosted
   // here.
-  FindPoolsToCompress(PoolsToCompressList, F, DSG, FI);
+  FindPoolsToCompress(PoolsToCompressSet, F, DSG, FI);
 
   // Handle pools that are passed into the function through arguments or
   // returned by the function.  If this occurs, we must be dealing with a ptr
@@ -937,34 +937,33 @@ CompressPoolsInFunction(Function &F,
   if (FCR) {
     // Compressed the return value?
     if (F.getReturnType() != FCR->PAFn->getReturnType())
-      PoolsToCompressList.push_back(DSG.getReturnNodeFor(FI->F).getNode());
+      PoolsToCompressSet.insert(DSG.getReturnNodeFor(FI->F).getNode());
 
     for (Function::aiterator CI = F.abegin(), OI = CloneSource->abegin(),
            E = F.aend(); CI != E; ++CI, ++OI)
       if (CI->getType() != OI->getType()) {  // Compressed this argument?
         Value *OrigVal = FI->MapValueToOriginal(OI);
-        PoolsToCompressList.push_back(DSG.getNodeForValue(OrigVal).getNode());
+        PoolsToCompressSet.insert(DSG.getNodeForValue(OrigVal).getNode());
       }
   }
 
   // If there is nothing that we can compress, exit now.
-  if (PoolsToCompressList.empty()) return false;
+  if (PoolsToCompressSet.empty()) return false;
 
   // Compute the initial collection of compressed pointer infos.
   std::map<const DSNode*, CompressedPoolInfo> PoolsToCompress;
 
-  for (unsigned i = 0, e = PoolsToCompressList.size(); i != e; ++i)
-    if (PoolsToCompress.count(PoolsToCompressList[i]) == 0) {
-      const DSNode *N = PoolsToCompressList[i];
-      Value *PD;
-      if (FCR)
-        PD = FCR->PoolDescriptors.find(N)->second;
-      else
-        PD = FI->PoolDescriptors[N];
-      assert(PD && "No pool descriptor available for this pool???");
+  for (std::set<const DSNode*>::iterator I = PoolsToCompressSet.begin(),
+         E = PoolsToCompressSet.end(); I != E; ++I) {
+    Value *PD;
+    if (FCR)
+      PD = FCR->PoolDescriptors.find(*I)->second;
+    else
+      PD = FI->PoolDescriptors[*I];
+    assert(PD && "No pool descriptor available for this pool???");
 
-      PoolsToCompress.insert(std::make_pair(N, CompressedPoolInfo(N, PD)));
-    }
+    PoolsToCompress.insert(std::make_pair(*I, CompressedPoolInfo(*I, PD)));
+  }
 
   // Use these to compute the closure of compression information.  In
   // particular, if one pool points to another, we need to know if the outgoing
