@@ -133,8 +133,8 @@ bool PoolAllocate::run(Module &M) {
   if (VoidPtrTy == 0) {
     VoidPtrTy = PointerType::get(Type::SByteTy);
     PoolDescType =
-      StructType::get(make_vector<const Type*>(VoidPtrTy, Type::UIntTy, 
-                                               Type::UIntTy, 0));
+      StructType::get(make_vector<const Type*>(VoidPtrTy, VoidPtrTy,
+                                               Type::UIntTy, Type::UIntTy, 0));
     PoolDescPtr = PointerType::get(PoolDescType);
   }
   
