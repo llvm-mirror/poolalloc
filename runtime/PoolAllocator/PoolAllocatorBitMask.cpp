@@ -168,11 +168,12 @@ int PoolSlab::allocateSingle() {
   // Check to see if there are empty entries at the end of the slab...
   if (UsedEnd < NodesPerSlab) {
     // Mark the returned entry used
-    markNodeAllocated(UsedEnd);
-    setStartBit(UsedEnd);
+    unsigned short UE = UsedEnd;
+    markNodeAllocated(UE);
+    setStartBit(UE);
     
     // If we are allocating out the first unused field, bump its index also
-    if (FirstUnused == UsedEnd)
+    if (FirstUnused == UE)
       FirstUnused++;
     
     // Return the entry, increment UsedEnd field.
@@ -185,15 +186,16 @@ int PoolSlab::allocateSingle() {
   if (FirstUnused < NodesPerSlab) {
     // Successfully allocate out the first unused node
     unsigned Idx = FirstUnused;
-    
     markNodeAllocated(Idx);
     setStartBit(Idx);
     
     // Increment FirstUnused to point to the new first unused value...
     // FIXME: this should be optimized
+    unsigned short FU = FirstUnused;
     do {
-      ++FirstUnused;
-    } while (FirstUnused != NodesPerSlab && isNodeAllocated(FirstUnused));
+      ++FU;
+    } while (FU != NodesPerSlab && isNodeAllocated(FU));
+    FirstUnused = FU;
     
     return Idx;
   }
@@ -211,19 +213,20 @@ int PoolSlab::allocateMultiple(unsigned Size) {
   // end of the slab...
   if (UsedEnd+Size <= NodesPerSlab) {
     // Mark the returned entry used and set the start bit
-    setStartBit(UsedEnd);
-    for (unsigned i = UsedEnd; i != UsedEnd + Size; ++i)
+    unsigned UE = UsedEnd;
+    setStartBit(UE);
+    for (unsigned i = UE; i != UE+Size; ++i)
       markNodeAllocated(i);
     
     // If we are allocating out the first unused field, bump its index also
-    if (FirstUnused == UsedEnd)
+    if (FirstUnused == UE)
       FirstUnused += Size;
 
     // Increment UsedEnd
     UsedEnd += Size;
 
     // Return the entry
-    return UsedEnd - Size;
+    return UE;
   }
 
   // If not, check to see if this node has a declared "FirstUnused" value
@@ -311,7 +314,9 @@ void PoolSlab::freeElement(unsigned ElementIdx) {
 
   // FIXME: This should use manual strength reduction if GCC isn't producing
   // decent code (which is almost certainly isn't).
-  while (ElementEndIdx != UsedEnd && !isStartOfAllocation(ElementEndIdx) && 
+  unsigned UE = UsedEnd;
+  while (ElementEndIdx != UE &&
+         !isStartOfAllocation(ElementEndIdx) && 
          isNodeAllocated(ElementEndIdx)) {
     markNodeFree(ElementEndIdx);
     ++ElementEndIdx;
@@ -322,13 +327,14 @@ void PoolSlab::freeElement(unsigned ElementIdx) {
   
   // If we are freeing the last element in a slab, shrink the UsedEnd marker
   // down to the last used node.
-  if (ElementEndIdx == UsedEnd) {
-    UsedEnd = ElementIdx;
+  if (ElementEndIdx == UE) {
+    UE = ElementIdx;
     do {
-      --UsedEnd;
+      --UE;
       // FIXME, this should scan the allocated array an entire byte at a time 
       // for performance when skipping large empty blocks!
-    } while (UsedEnd && !isNodeAllocated(UsedEnd-1));
+    } while (UE && !isNodeAllocated(UE-1));
+    UsedEnd = UE;
     
     assert(FirstUnused <= UsedEnd &&
            "FirstUnused field was out of date!");
