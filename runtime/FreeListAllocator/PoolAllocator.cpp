@@ -65,7 +65,8 @@ createSlab (PoolTy * Pool, unsigned int NodesPerSlab = 0)
   //
   if (NodesPerSlab > MaxNodesPerPage)
   {
-    NewSlab = (struct SlabHeader *) GetPages ((NodeSize * NodesPerSlab / PageSize) + 1);
+    unsigned NumBytes = sizeof(SlabHeader) + NodeSize * NodesPerSlab;
+    NewSlab = (struct SlabHeader *)GetPages((NumBytes+PageSize-1)/PageSize);
     if (NewSlab == NULL)
     {
       fprintf (stderr, "Failed large allocation\n");
