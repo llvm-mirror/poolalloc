@@ -5,7 +5,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#define DEBUG_TYPE "PoolAllocation"
+#define DEBUG_TYPE "PoolAllocator"
 #include "poolalloc/PoolAllocate.h"
 #include "llvm/Constants.h"
 #include "llvm/DerivedTypes.h"

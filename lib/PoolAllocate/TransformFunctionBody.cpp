@@ -4,7 +4,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#define DEBUG_TYPE "PoolAllocation"
+#define DEBUG_TYPE "PoolAllocator"
 #include "poolalloc/PoolAllocate.h"
 #include "llvm/Analysis/DataStructure.h"
 #include "llvm/Analysis/DSGraph.h"
