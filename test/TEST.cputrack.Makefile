@@ -6,7 +6,7 @@
 
 TESTNAME = $*
 CURDIR  := $(shell cd .; pwd)
-PROGDIR := $(shell cd $(LLVM_OBJ_ROOT)/projects/llvm-test; pwd)/
+PROGDIR := $(shell cd $(LLVM_SRC_ROOT)/projects/llvm-test; pwd)/
 RELDIR  := $(subst $(PROGDIR),,$(CURDIR))
 
 

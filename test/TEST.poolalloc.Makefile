@@ -17,7 +17,7 @@ endif
 
 
 CURDIR  := $(shell cd .; pwd)
-PROGDIR := $(shell cd $(LLVM_OBJ_ROOT)/projects/llvm-test; pwd)/
+PROGDIR := $(shell cd $(LLVM_SRC_ROOT)/projects/llvm-test; pwd)/
 RELDIR  := $(subst $(PROGDIR),,$(CURDIR))
 
 # Pool allocator pass shared object
@@ -25,6 +25,7 @@ PA_SO    := $(PROJECT_DIR)/lib/Debug/libpoolalloc$(SHLIBEXT)
 
 # Pool allocator runtime library
 #PA_RT    := $(PROJECT_DIR)/lib/Bytecode/libpoolalloc_fl_rt.bc
+#PA_RT_O  := $(PROJECT_DIR)/lib/$(CONFIGURATION)/poolalloc_rt.o
 PA_RT_O  := $(PROJECT_DIR)/lib/Release/poolalloc_rt.o
 #PA_RT_O  := $(PROJECT_DIR)/lib/Release/poolalloc_fl_rt.o
 
