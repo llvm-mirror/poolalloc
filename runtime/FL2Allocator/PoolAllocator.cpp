@@ -104,7 +104,9 @@ void pooldestroy(PoolTy *Pool) {
 
 
 void *poolalloc(PoolTy *Pool, unsigned NumBytes) {
-  assert(Pool && "Null pool pointer passed in to poolalloc!\n");
+  // If a null pool descriptor is passed in, this is not a pool allocated data
+  // structure.  Hand off to the system malloc.
+  if (Pool == 0) return malloc(NumBytes);
   if (NumBytes == 0) return 0;
   NumBytes = (NumBytes+3) & ~3;  // Round up to 4 bytes...
 
@@ -186,7 +188,9 @@ void *poolalloc(PoolTy *Pool, unsigned NumBytes) {
 
 
 void poolfree(PoolTy *Pool, void *Node) {
-  assert(Pool && "Null pool pointer passed in to poolfree!\n");
+  // If a null pool descriptor is passed in, this is not a pool allocated data
+  // structure.  Hand off to the system free.
+  if (Pool == 0) { free(Node); return; }
   if (Node == 0) return;
 
   //printf("free 0x%X <- 0x%X\n", Pool, Node);
