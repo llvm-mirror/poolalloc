@@ -19,6 +19,8 @@
 #include <stdlib.h>
 #include <stdio.h>
 
+#include "llvm/Support/DataTypes.h"
+
 //===----------------------------------------------------------------------===//
 //
 //  PoolSlab implementation
@@ -117,7 +119,7 @@ BlockOwner (unsigned int PageSize, NodePointer p)
   //
   // Convert the node pointer into a slab pointer.
   //
-  return reinterpret_cast<struct SlabHeader *>(reinterpret_cast<unsigned int>(p.Next) & ~(PageSize - 1));
+  return reinterpret_cast<struct SlabHeader *>(reinterpret_cast<intptr_t>(p.Next) & ~(PageSize - 1));
 }
 
 //
@@ -129,7 +131,7 @@ BlockOwner (unsigned int PageSize, NodePointer p)
 inline struct SlabHeader *
 DataOwner (unsigned int PageSize, void * p)
 {
-  return reinterpret_cast<struct SlabHeader *>(reinterpret_cast<unsigned int>(p) & ~(PageSize - 1));
+  return reinterpret_cast<struct SlabHeader *>(reinterpret_cast<intptr_t>(p) & ~(PageSize - 1));
 }
 
 //===----------------------------------------------------------------------===//
