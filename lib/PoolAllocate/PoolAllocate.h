@@ -49,14 +49,14 @@ namespace PA {
     /// MarkedNodes - The set of nodes which are not locally pool allocatable in
     /// the current function.
     ///
-    hash_set<DSNode*> MarkedNodes;
+    hash_set<const DSNode*> MarkedNodes;
 
     /// Clone - The cloned version of the function, if applicable.
     Function *Clone;
 
     /// ArgNodes - The list of DSNodes which have pools passed in as arguments.
     /// 
-    std::vector<DSNode*> ArgNodes;
+    std::vector<const DSNode*> ArgNodes;
 
     /// PoolDescriptors - The Value* (either an argument or an alloca) which
     /// defines the pool descriptor for this DSNode.  Pools are mapped one to
@@ -68,7 +68,7 @@ namespace PA {
     /// not.
     /// Note: Does not include pool arguments that are passed in because of
     /// indirect function calls that are not used in the function.
-    std::map<DSNode*, Value*> PoolDescriptors;
+    std::map<const DSNode*, Value*> PoolDescriptors;
 
     //This is a map from Old to New Value Map reverse of the one above
     //Useful in SAFECode for check insertion
@@ -104,7 +104,7 @@ class PoolAllocate : public ModulePass {
   /// GlobalNodes - For each node (with an H marker) in the globals graph, this
   /// map contains the global variable that holds the pool descriptor for the
   /// node.
-  std::map<DSNode*, Value*> GlobalNodes;
+  std::map<const DSNode*, Value*> GlobalNodes;
 
  public:
   bool runOnModule(Module &M);
@@ -183,8 +183,8 @@ class PoolAllocate : public ModulePass {
   /// pools specified in the NodesToPA list.  This adds an entry to the
   /// PoolDescriptors map for each DSNode.
   ///
-  void CreatePools(Function &F, const std::vector<DSNode*> &NodesToPA,
-                   std::map<DSNode*, Value*> &PoolDescriptors);
+  void CreatePools(Function &F, const std::vector<const DSNode*> &NodesToPA,
+                   std::map<const DSNode*, Value*> &PoolDescriptors);
   
   void TransformBody(DSGraph &g, PA::FuncInfo &fi,
                      std::multimap<AllocaInst*, Instruction*> &poolUses,
@@ -195,13 +195,13 @@ class PoolAllocate : public ModulePass {
   /// into the function to initialize and destroy the pools in the NodesToPA
   /// list.
   void InitializeAndDestroyPools(Function &F,
-                                 const std::vector<DSNode*> &NodesToPA,
-                                 std::map<DSNode*, Value*> &PoolDescriptors,
+                                 const std::vector<const DSNode*> &NodesToPA,
+                      std::map<const DSNode*, Value*> &PoolDescriptors,
                       std::multimap<AllocaInst*, Instruction*> &PoolUses,
                       std::multimap<AllocaInst*, CallInst*> &PoolFrees);
 
-  void InitializeAndDestroyPool(Function &F, DSNode *Pool,
-                                std::map<DSNode*, Value*> &PoolDescriptors,
+  void InitializeAndDestroyPool(Function &F, const DSNode *Pool,
+                            std::map<const DSNode*, Value*> &PoolDescriptors,
                             std::multimap<AllocaInst*, Instruction*> &PoolUses,
                             std::multimap<AllocaInst*, CallInst*> &PoolFrees);
 

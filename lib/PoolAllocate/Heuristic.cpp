@@ -49,7 +49,7 @@ namespace {
 
 Heuristic::~Heuristic() {}
 
-unsigned Heuristic::getRecommendedSize(DSNode *N) {
+unsigned Heuristic::getRecommendedSize(const DSNode *N) {
   unsigned PoolSize = 0;
   if (!N->isArray() && N->getType()->isSized()) {
     PoolSize = N->getParentGraph()->getTargetData().getTypeSize(N->getType());
@@ -87,7 +87,7 @@ static bool Wants8ByteAlignment(const Type *Ty, unsigned Offs,
 /// getRecommendedAlignment - Return the recommended object alignment for this
 /// DSNode.
 ///
-unsigned Heuristic::getRecommendedAlignment(DSNode *N) {
+unsigned Heuristic::getRecommendedAlignment(const DSNode *N) {
   if (N->getType() == Type::VoidTy)  // Is this void or collapsed?
     return 0;  // No known alignment, let runtime decide.
   
@@ -105,7 +105,7 @@ unsigned Heuristic::getRecommendedAlignment(DSNode *N) {
 //
 struct AllNodesHeuristic : public Heuristic {
 
-  void AssignToPools(const std::vector<DSNode*> &NodesToPA,
+  void AssignToPools(const std::vector<const DSNode*> &NodesToPA,
                      Function *F, DSGraph &G,
                      std::vector<OnePool> &ResultPools) {
     for (unsigned i = 0, e = NodesToPA.size(); i != e; ++i)
@@ -123,7 +123,7 @@ struct AllNodesHeuristic : public Heuristic {
 //
 struct AllButUnreachableFromMemoryHeuristic : public Heuristic {
 
-  void AssignToPools(const std::vector<DSNode*> &NodesToPA,
+  void AssignToPools(const std::vector<const DSNode*> &NodesToPA,
                      Function *F, DSGraph &G,
                      std::vector<OnePool> &ResultPools) {
     // Build a set of all nodes that are reachable from another node in the
@@ -161,19 +161,20 @@ struct AllButUnreachableFromMemoryHeuristic : public Heuristic {
 //
 struct CyclicNodesHeuristic : public Heuristic {
 
-  void AssignToPools(const std::vector<DSNode*> &NodesToPA,
+  void AssignToPools(const std::vector<const DSNode*> &NodesToPA,
                      Function *F, DSGraph &G,
                      std::vector<OnePool> &ResultPools);
 };
 
-static bool NodeExistsInCycle(DSNode *N) {
-  for (DSNode::iterator I = N->begin(), E = N->end(); I != E; ++I)
+static bool NodeExistsInCycle(const DSNode *N) {
+  for (DSNode::const_iterator I = N->begin(), E = N->end(); I != E; ++I)
     if (*I && std::find(df_begin(*I), df_end(*I), N) != df_end(*I))
       return true;
   return false;
 }
 
-void CyclicNodesHeuristic::AssignToPools(const std::vector<DSNode*> &NodesToPA,
+void CyclicNodesHeuristic::AssignToPools(const std::vector<const 
+                                                           DSNode*> &NodesToPA,
                                          Function *F, DSGraph &G,
                                          std::vector<OnePool> &ResultPools) {
   for (unsigned i = 0, e = NodesToPA.size(); i != e; ++i)
@@ -189,14 +190,14 @@ void CyclicNodesHeuristic::AssignToPools(const std::vector<DSNode*> &NodesToPA,
 //
 struct SmartCoallesceNodesHeuristic : public Heuristic {
 
-  void AssignToPools(const std::vector<DSNode*> &NodesToPA,
+  void AssignToPools(const std::vector<const DSNode*> &NodesToPA,
                     Function *F, DSGraph &G,
                     std::vector<OnePool> &ResultPools) {
     // For globals, do not pool allocate unless the node is cyclic and not an
     // array (unless it's collapsed).
     if (F == 0) {
       for (unsigned i = 0, e = NodesToPA.size(); i != e; ++i) {
-        DSNode *Node = NodesToPA[i];
+        const DSNode *Node = NodesToPA[i];
         if ((Node->isNodeCompletelyFolded() || !Node->isArray()) &&
             NodeExistsInCycle(Node))
           ResultPools.push_back(OnePool(Node));
@@ -374,7 +375,7 @@ struct AllInOneGlobalPoolHeuristic : public Heuristic {
 
   virtual bool IsRealHeuristic() { return false; }
 
-  void AssignToPools(const std::vector<DSNode*> &NodesToPA,
+  void AssignToPools(const std::vector<const DSNode*> &NodesToPA,
                     Function *F, DSGraph &G,
                     std::vector<OnePool> &ResultPools) {
     if (TheGlobalPD == 0)
@@ -398,7 +399,7 @@ struct AllInOneGlobalPoolHeuristic : public Heuristic {
 struct OnlyOverheadHeuristic : public Heuristic {
   virtual bool IsRealHeuristic() { return false; }
 
-  void AssignToPools(const std::vector<DSNode*> &NodesToPA,
+  void AssignToPools(const std::vector<const DSNode*> &NodesToPA,
                     Function *F, DSGraph &G,
                     std::vector<OnePool> &ResultPools) {
     // For this heuristic, we assign everything possible to its own pool.
@@ -461,7 +462,7 @@ void OnlyOverheadHeuristic::HackFunctionBody(Function &F,
 struct NoNodesHeuristic : public Heuristic {
   virtual bool IsRealHeuristic() { return false; }
 
-  void AssignToPools(const std::vector<DSNode*> &NodesToPA,
+  void AssignToPools(const std::vector<const DSNode*> &NodesToPA,
                     Function *F, DSGraph &G,
                     std::vector<OnePool> &ResultPools) {
     // Nothing to pool allocate here.

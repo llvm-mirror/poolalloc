@@ -102,7 +102,8 @@ namespace {
     Value *getPoolHandle(Value *V) {
       DSNode *Node = getDSNodeHFor(V).getNode();
       // Get the pool handle for this DSNode...
-      std::map<DSNode*, Value*>::iterator I = FI.PoolDescriptors.find(Node);
+      std::map<const DSNode*, Value*>::iterator I =
+        FI.PoolDescriptors.find(Node);
       return I != FI.PoolDescriptors.end() ? I->second : 0;
     }
     
@@ -422,7 +423,7 @@ void FuncTransform::visitCallSite(CallSite CS) {
   DSGraph::NodeMapTy NodeMapping;
   Instruction *NewCall;
   Value *NewCallee;
-  std::vector<DSNode*> ArgNodes;
+  std::vector<const DSNode*> ArgNodes;
   DSGraph *CalleeGraph;  // The callee graph
 
   // For indirect callees find any callee since all DS graphs have been merged.

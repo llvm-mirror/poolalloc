@@ -48,7 +48,7 @@ namespace PA {
     struct OnePool {
       // NodesInPool - The DS nodes to be allocated to this pool.  There may be
       // multiple here if they are being coallesced into the same pool.
-      std::vector<DSNode*> NodesInPool;
+      std::vector<const DSNode*> NodesInPool;
 
       // PoolDesc - If the heuristic wants the nodes allocated to a specific
       // pool descriptor, it can specify it here, otherwise a new pool is
@@ -62,12 +62,12 @@ namespace PA {
 
       OnePool() : PoolDesc(0), PoolSize(0), PoolAlignment(0) {}
 
-      OnePool(DSNode *N) : PoolDesc(0), PoolSize(getRecommendedSize(N)), 
-                           PoolAlignment(getRecommendedAlignment(N)) {
+      OnePool(const DSNode *N) : PoolDesc(0), PoolSize(getRecommendedSize(N)), 
+                                 PoolAlignment(getRecommendedAlignment(N)) {
         NodesInPool.push_back(N);
       }
-      OnePool(DSNode *N, Value *PD) : PoolDesc(PD), PoolSize(0),
-                                      PoolAlignment(0) {
+      OnePool(const DSNode *N, Value *PD) : PoolDesc(PD), PoolSize(0),
+                                            PoolAlignment(0) {
         NodesInPool.push_back(N);
       }
     };
@@ -75,21 +75,22 @@ namespace PA {
     /// AssignToPools - Partition NodesToPA into a set of disjoint pools,
     /// returning the result in ResultPools.  If this is a function being pool
     /// allocated, F will not be null.
-    virtual void AssignToPools(const std::vector<DSNode*> &NodesToPA,
+    virtual void AssignToPools(const std::vector<const DSNode*> &NodesToPA,
                                Function *F, DSGraph &G,
                                std::vector<OnePool> &ResultPools) = 0;
 
     // Hacks for the OnlyOverhead heuristic.
-    virtual void HackFunctionBody(Function &F, std::map<DSNode*, Value*> &PDs){}
+    virtual void HackFunctionBody(Function &F,
+                                  std::map<const DSNode*, Value*> &PDs) {}
 
     /// getRecommendedSize - Return the recommended pool size for this DSNode.
     ///
-    static unsigned getRecommendedSize(DSNode *N);
+    static unsigned getRecommendedSize(const DSNode *N);
 
     /// getRecommendedAlignment - Return the recommended object alignment for
     /// this DSNode.
     ///
-    static unsigned getRecommendedAlignment(DSNode *N);
+    static unsigned getRecommendedAlignment(const DSNode *N);
     
     /// create - This static ctor creates the heuristic, based on the command
     /// line argument to choose the heuristic.
