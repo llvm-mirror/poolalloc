@@ -83,8 +83,8 @@ ifeq ($(RUN_OPTIONS),)
 else
 	$(VERB) cat $(STDIN_FILENAME) | $(VTL) activity $* -d 50 -c sampling -o "$(EVENTS)" -app $<,"$(RUN_OPTIONS)"
 endif
-	-$(VERB) $(VTL) run $*
-	-$(VERB) $(VTL) view > $@
+	$(VERB) $(VTL) run $*
+	$(VERB) $(VTL) view > $@
 	$(VERB)  $(VTL) delete $* -f
 
 #
@@ -99,8 +99,8 @@ ifeq ($(RUN_OPTIONS),)
 else
 	$(VERB) cat $(STDIN_FILENAME) | $(VTL) activity $* -d 50 -c sampling -o "$(EVENTS)" -app $<,"$(RUN_OPTIONS)"
 endif
-	-$(VERB) $(VTL) run $*
-	-$(VERB) $(VTL) view > $@
+	$(VERB) $(VTL) run $*
+	$(VERB) $(VTL) view > $@
 	$(VERB)  $(VTL) delete $* -f
 
 
