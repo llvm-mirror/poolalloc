@@ -67,16 +67,10 @@ namespace PA {
     /// this function.  This only includes heap nodes.
     std::vector<const DSNode*> NodesToPA;
 
-    /// PoolDescriptors - The Value* (either an argument or an alloca) which
-    /// defines the pool descriptor for this DSNode.  Pools are mapped one to
-    /// one with nodes in the DSGraph, so this contains a pointer to the node it
-    /// corresponds to.  In addition, the pool is initialized by calling the
-    /// "poolinit" library function with a chunk of memory allocated with an
-    /// alloca instruction.  This entry contains a pointer to that alloca if the
-    /// pool is locally allocated or the argument it is passed in through if
-    /// not.
-    /// Note: Does not include pool arguments that are passed in because of
-    /// indirect function calls that are not used in the function.
+    /// PoolDescriptors - The Value* which defines the pool descriptor for this
+    /// DSNode.  Note: This does not necessarily include pool arguments that are
+    /// passed in because of indirect function calls that are not used in the
+    /// function.
     std::map<const DSNode*, Value*> PoolDescriptors;
 
     /// NewToOldValueMap - When and if a function needs to be cloned, this map
