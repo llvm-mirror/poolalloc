@@ -18,11 +18,13 @@
 //===----------------------------------------------------------------------===//
 
 #include "PoolAllocator.h"
+#include "PageManager.h"
 #include <assert.h>
 #include <stdlib.h>
+#include <stdio.h>
 
-//#undef assert
-//#define assert(X)
+#undef assert
+#define assert(X)
 
 //===----------------------------------------------------------------------===//
 //
@@ -35,15 +37,8 @@
 // Invariants: FirstUnused <= UsedEnd
 //
 struct PoolSlab {
-  // In the current implementation, each slab in the pool has NodesPerSlab
-  // nodes unless the isSingleArray flag is set in which case it contains a
-  // single array of size ArraySize. Small arrays (size <= NodesPerSlab) are
-  // still allocated in the slabs of size NodesPerSlab
-  //
-  static const unsigned NodesPerSlab = 4096;
-
-  PoolSlab *Next;
-  unsigned isSingleArray;   // If this slab is used for exactly one array
+  PoolSlab **PrevPtr, *Next;
+  bool isSingleArray;   // If this slab is used for exactly one array
 
 private:
   // FirstUnused - First empty node in slab
@@ -52,36 +47,42 @@ private:
   // UsedEnd - 1 past the last allocated node in slab. 0 if slab is empty
   unsigned short UsedEnd;
 
+  // NumNodesInSlab - This contains the number of nodes in this slab, which
+  // effects the size of the NodeFlags vector, and indicates the number of nodes
+  // which are in the slab.
+  unsigned short NumNodesInSlab;
+
   // NodeFlagsVector - This array contains two bits for each node in this pool
   // slab.  The first (low address) bit indicates whether this node has been
   // allocated, and the second (next higher) bit indicates whether this is the
   // start of an allocation.
-  unsigned char NodeFlagsVector[NodesPerSlab/4];
-
-  char Data[1];   // Buffer to hold data in this slab... VARIABLE SIZED
-
+  //
+  // This is a variable sized array, which has 2*NumNodesInSlab bits (rounded up
+  // to 4 bytes).
+  unsigned NodeFlagsVector[];
+  
   bool isNodeAllocated(unsigned NodeNum) {
-    return NodeFlagsVector[NodeNum >> 2] & (1 << (NodeNum & 3));
+    return NodeFlagsVector[NodeNum/16] & (1 << (NodeNum & 15));
   }
 
   void markNodeAllocated(unsigned NodeNum) {
-    NodeFlagsVector[NodeNum >> 2] |= 1 << (NodeNum & 3);
+    NodeFlagsVector[NodeNum/16] |= 1 << (NodeNum & 15);
   }
 
   void markNodeFree(unsigned NodeNum) {
-    NodeFlagsVector[NodeNum >> 2] &= ~(1 << (NodeNum & 3));
+    NodeFlagsVector[NodeNum/16] &= ~(1 << (NodeNum & 15));
   }
 
   void setStartBit(unsigned NodeNum) {
-    NodeFlagsVector[NodeNum >> 2] |= 1 << ((NodeNum & 3)+4);
+    NodeFlagsVector[NodeNum/16] |= 1 << ((NodeNum & 15)+16);
   }
 
   bool isStartOfAllocation(unsigned NodeNum) {
-    return NodeFlagsVector[NodeNum >> 2] & (1 << ((NodeNum & 3)+4));
+    return NodeFlagsVector[NodeNum/16] & (1 << ((NodeNum & 15)+16));
   }
   
   void clearStartBit(unsigned NodeNum) {
-    NodeFlagsVector[NodeNum >> 2] &= ~(1 << ((NodeNum & 3)+4));
+    NodeFlagsVector[NodeNum/16] &= ~(1 << ((NodeNum & 15)+16));
   }
 
 public:
@@ -94,17 +95,28 @@ public:
 
   // getSlabSize - Return the number of nodes that each slab should contain.
   static unsigned getSlabSize(PoolTy *Pool) {
-    return NodesPerSlab;
+    return 325;
+  }
+
+  void addToList(PoolSlab **PrevPtrPtr) {
+    PoolSlab *InsertBefore = *PrevPtrPtr;
+    *PrevPtrPtr = this;
+    PrevPtr = PrevPtrPtr;
+    Next = InsertBefore;
+    if (InsertBefore) InsertBefore->PrevPtr = &Next;
+  }
+
+  void unlinkFromList() {
+    *PrevPtr = Next;
+    if (Next) Next->PrevPtr = PrevPtr;
   }
 
   unsigned getSlabSize() const {
-    return NodesPerSlab;
+    return NumNodesInSlab;
   }
 
   // destroy - Release the memory for the current object.
-  void destroy() {
-    free(this);
-  }
+  void destroy();
 
   // isEmpty - This is a quick check to see if this slab is completely empty or
   // not.
@@ -124,6 +136,12 @@ public:
 
   // getElementAddress - Return the address of the specified element.
   void *getElementAddress(unsigned ElementNum, unsigned ElementSize) {
+    char *Data = (char*)&NodeFlagsVector[((unsigned)NumNodesInSlab+15)/16];
+    return &Data[ElementNum*ElementSize];
+  }
+  const void *getElementAddress(unsigned ElementNum, unsigned ElementSize)const{
+    const char *Data =
+      (const char *)&NodeFlagsVector[(unsigned)(NumNodesInSlab+15)/16];
     return &Data[ElementNum*ElementSize];
   }
 
@@ -133,39 +151,55 @@ public:
 
   // freeElement - Free the single node, small array, or entire array indicated.
   void freeElement(unsigned ElementIdx);
+  
+  // lastNodeAllocated - Return one past the last node in the pool which is
+  // before ScanIdx, that is allocated.  If there are no allocated nodes in this
+  // slab before ScanIdx, return 0.
+  unsigned lastNodeAllocated(unsigned ScanIdx);
 };
 
 // create - Create a new (empty) slab and add it to the end of the Pools list.
 PoolSlab *PoolSlab::create(PoolTy *Pool) {
-  PoolSlab *PS = (PoolSlab*)malloc(sizeof(PoolSlab) +
-                                   Pool->NodeSize*getSlabSize(Pool)-1);
-  assert(PS && "poolalloc: Could not allocate memory!");
+  unsigned NodesPerSlab = getSlabSize(Pool);
 
+  unsigned Size = sizeof(PoolSlab) + 4*((NodesPerSlab+15)/16) +
+                  Pool->NodeSize*getSlabSize(Pool);
+  assert(Size < PageSize && "Trying to allocate a slab larger than a page!");
+  PoolSlab *PS = (PoolSlab*)AllocatePage();
+
+  PS->NumNodesInSlab = NodesPerSlab;
   PS->isSingleArray = 0;  // Not a single array!
   PS->FirstUnused = 0;    // Nothing allocated.
   PS->UsedEnd     = 0;    // Nothing allocated.
 
   // Add the slab to the list...
-  PS->Next = (PoolSlab*)Pool->Ptr1;
-  Pool->Ptr1 = PS;
+  PS->addToList((PoolSlab**)&Pool->Ptr1);
   return PS;
 }
 
 void *PoolSlab::createSingleArray(PoolTy *Pool, unsigned NumNodes) {
-  PoolSlab *PS = (PoolSlab*)malloc(sizeof(PoolSlab) +
-                                   Pool->NodeSize*NumNodes-1);
-  assert(NumNodes > getSlabSize(Pool) && "No need to create a single array!");
+  if (0) {
+    printf("PoolSlab::createSingleArray has not been tested and is probably broken!");
+    abort();
+  }
+  unsigned NodesPerSlab = getSlabSize(Pool);
+  assert(NumNodes > NodesPerSlab && "No need to create a single array!");
+  PoolSlab *PS = (PoolSlab*)malloc(sizeof(PoolSlab) + 4*((NodesPerSlab+15)/16) +
+                                   Pool->NodeSize*NumNodes);
   assert(PS && "poolalloc: Could not allocate memory!");
 
+  PS->NumNodesInSlab = NodesPerSlab;  // FIXME: Calculate right.
   PS->isSingleArray = 1;  // Not a single array!
   PS->markNodeAllocated(0);
 
-  // Add the slab to the list of completely allocated slabs...
-  PS->Next = (PoolSlab*)Pool->Ptr2;
-  Pool->Ptr2 = PS;
-  return &PS->Data[0];
+  // Add the slab to the list...
+  PS->addToList((PoolSlab**)&Pool->Ptr1);
+  return PS->getElementAddress(0, 0);
 }
 
+void PoolSlab::destroy() {
+  FreePage(this);
+}
 
 // allocateSingle - Allocate a single element from this pool, returning -1 if
 // there is no space.
@@ -174,8 +208,10 @@ int PoolSlab::allocateSingle() {
   // single nodes in a SingleArray slab.
   if (isSingleArray) return -1;
 
+  unsigned SlabSize = getSlabSize();
+
   // Check to see if there are empty entries at the end of the slab...
-  if (UsedEnd < getSlabSize()) {
+  if (UsedEnd < SlabSize) {
     // Mark the returned entry used
     unsigned short UE = UsedEnd;
     markNodeAllocated(UE);
@@ -192,7 +228,7 @@ int PoolSlab::allocateSingle() {
   // If not, check to see if this node has a declared "FirstUnused" value that
   // is less than the number of nodes allocated...
   //
-  if (FirstUnused < getSlabSize()) {
+  if (FirstUnused < SlabSize) {
     // Successfully allocate out the first unused node
     unsigned Idx = FirstUnused;
     markNodeAllocated(Idx);
@@ -203,7 +239,7 @@ int PoolSlab::allocateSingle() {
     unsigned short FU = FirstUnused;
     do {
       ++FU;
-    } while (FU != getSlabSize() && isNodeAllocated(FU));
+    } while (FU != SlabSize && isNodeAllocated(FU));
     FirstUnused = FU;
     
     return Idx;
@@ -282,10 +318,12 @@ int PoolSlab::allocateMultiple(unsigned Size) {
 // containsElement - Return the element number of the specified address in
 // this slab.  If the address is not in slab, return -1.
 int PoolSlab::containsElement(void *Ptr, unsigned ElementSize) const {
-  if (&Data[0] > Ptr || &Data[ElementSize*getSlabSize()-1] < Ptr)
+  const void *FirstElement = getElementAddress(0, 0);
+  if (FirstElement > Ptr || 
+      (char*)getElementAddress(ElementSize, getSlabSize())-1 < Ptr)
     return -1;
 
-  unsigned Index = (char*)Ptr-(char*)&Data[0];
+  unsigned Index = (char*)Ptr-(char*)FirstElement;
   assert(Index % ElementSize == 0 &&
          "Freeing pointer into the middle of an element!");
   Index /= ElementSize;
@@ -321,8 +359,7 @@ void PoolSlab::freeElement(unsigned ElementIdx) {
   // Free all nodes if this was a small array allocation.
   unsigned ElementEndIdx = ElementIdx + 1;
 
-  // FIXME: This should use manual strength reduction if GCC isn't producing
-  // decent code (which is almost certainly isn't).
+  // FIXME: This should use manual strength reduction to produce decent code.
   unsigned UE = UsedEnd;
   while (ElementEndIdx != UE &&
          !isStartOfAllocation(ElementEndIdx) && 
@@ -337,17 +374,45 @@ void PoolSlab::freeElement(unsigned ElementIdx) {
   // If we are freeing the last element in a slab, shrink the UsedEnd marker
   // down to the last used node.
   if (ElementEndIdx == UE) {
-    UE = ElementIdx;
-    do {
-      --UE;
-      // FIXME, this should scan the allocated array an entire byte at a time 
-      // for performance when skipping large empty blocks!
-    } while (UE && !isNodeAllocated(UE-1));
-    UsedEnd = UE;
-    
+    UsedEnd = lastNodeAllocated(ElementIdx);
     assert(FirstUnused <= UsedEnd &&
            "FirstUnused field was out of date!");
   }
+}
+
+unsigned PoolSlab::lastNodeAllocated(unsigned ScanIdx) {
+  // Check the last few nodes in the current word of flags...
+  unsigned CurWord = ScanIdx/16;
+  unsigned short Flags = NodeFlagsVector[CurWord] & 0xFFFF;
+  if (Flags) {
+    // Mask off nodes above this one
+    Flags &= (1 << (ScanIdx & 15))-1;
+    if (Flags) {
+      // If there is still something in the flags vector, then there is a node
+      // allocated in this part.  The goto is a hack to get the uncommonly
+      // executed code away from the common code path.
+      goto ContainsAllocatedNode;
+    }
+  }
+
+  // Ok, the top word doesn't contain anything, scan the whole flag words now.
+  ScanIdx &= ~15;
+  --CurWord;
+  while (CurWord != ~0U) {
+    if (NodeFlagsVector[CurWord] & 0xFFFF)
+      goto ContainsAllocatedNode;
+    CurWord--;
+    ScanIdx -= 16;
+  }
+  return 0;
+
+ContainsAllocatedNode:
+  // Figure out exactly which node is allocated in this word now.
+  // FIXME: this could be made to be more efficient!
+  do {
+    --ScanIdx;
+  } while (ScanIdx && !isNodeAllocated(ScanIdx-1));
+  return ScanIdx;
 }
 
 
@@ -361,6 +426,9 @@ void PoolSlab::freeElement(unsigned ElementIdx) {
 //
 void poolinit(PoolTy *Pool, unsigned NodeSize) {
   assert(Pool && "Null pool pointer passed into poolinit!\n");
+
+  // Ensure the page manager is initialized
+  InitializePageManager();
 
   // We must alway return unique pointers, even if they asked for 0 bytes
   Pool->NodeSize = NodeSize ? NodeSize : 1;
@@ -398,23 +466,34 @@ void pooldestroy(PoolTy *Pool) {
 void *poolalloc(PoolTy *Pool) {
   assert(Pool && "Null pool pointer passed in to poolalloc!\n");
 
-  unsigned NodeSize = Pool->NodeSize;
   PoolSlab *PS = (PoolSlab*)Pool->Ptr1;
-  PoolSlab **PPS = (PoolSlab**)&Pool->Ptr1;
 
-  // Loop through all of the slabs looking for one with an opening
-  for (; PS; PPS = &PS->Next, PS = PS->Next) {
+  if (__builtin_expect(PS != 0, 1)) {
     int Element = PS->allocateSingle();
-    if (Element != -1) {
-      // We allocated an element.  Check to see if this slab has been completely
-      // filled up.  If so, move it to the Ptr2 list.
-      if (PS->isFull()) {
-        *PPS = PS->Next;                    // Unlink it from the current list
-        PS->Next = (PoolSlab*)Pool->Ptr2;   // Link it into the filled list
-        Pool->Ptr2 = PS;
+    if (__builtin_expect(Element != -1, 1)) {
+      // We allocated an element.  Check to see if this slab has been
+      // completely filled up.  If so, move it to the Ptr2 list.
+      if (__builtin_expect(PS->isFull(), false)) {
+        PS->unlinkFromList();
+        PS->addToList((PoolSlab**)&Pool->Ptr2);
       }
+      
+      return PS->getElementAddress(Element, Pool->NodeSize);
+    }
 
-      return PS->getElementAddress(Element, NodeSize);
+    // Loop through all of the slabs looking for one with an opening
+    for (PS = PS->Next; PS; PS = PS->Next) {
+      int Element = PS->allocateSingle();
+      if (Element != -1) {
+        // We allocated an element.  Check to see if this slab has been
+        // completely filled up.  If so, move it to the Ptr2 list.
+        if (PS->isFull()) {
+          PS->unlinkFromList();
+          PS->addToList((PoolSlab**)&Pool->Ptr2);
+        }
+        
+        return PS->getElementAddress(Element, Pool->NodeSize);
+      }
     }
   }
 
@@ -428,22 +507,23 @@ void *poolalloc(PoolTy *Pool) {
 void *poolallocarray(PoolTy* Pool, unsigned Size) {
   assert(Pool && "Null pool pointer passed into poolallocarray!\n");
 
+  // Special case size=1, because poolalloc is much faster than this function.
+  if (Size == 1 || Size == 0)
+    return poolalloc(Pool);
   if (Size > PoolSlab::getSlabSize(Pool))
     return PoolSlab::createSingleArray(Pool, Size);    
 
   PoolSlab *PS = (PoolSlab*)Pool->Ptr1;
-  PoolSlab **PPS = (PoolSlab**)&Pool->Ptr1;
 
   // Loop through all of the slabs looking for one with an opening
-  for (; PS; PPS = &PS->Next, PS = PS->Next) {
+  for (; PS; PS = PS->Next) {
     int Element = PS->allocateMultiple(Size);
     if (Element != -1) {
       // We allocated an element.  Check to see if this slab has been completely
       // filled up.  If so, move it to the Ptr2 list.
       if (PS->isFull()) {
-        *PPS = PS->Next;                    // Unlink it from the current list
-        PS->Next = (PoolSlab*)Pool->Ptr2;   // Link it into the filled list
-        Pool->Ptr2 = PS;
+        PS->unlinkFromList();
+        PS->addToList((PoolSlab**)&Pool->Ptr2);
       }
       return PS->getElementAddress(Element, Pool->NodeSize);
     }
@@ -455,19 +535,19 @@ void *poolallocarray(PoolTy* Pool, unsigned Size) {
   return New->getElementAddress(0, 0);
 }
 
-void poolfree(PoolTy *Pool, void *Node) {
-  assert(Pool && "Null pool pointer passed in to poolfree!\n");
-  unsigned NodeSize = Pool->NodeSize;
-
+// SearchForContainingSlab - Do a brute force search through the list of
+// allocated slabs for the node in question.
+//
+static PoolSlab *SearchForContainingSlab(PoolTy *Pool, void *Node,
+                                         unsigned &TheIndex) {
   PoolSlab *PS = (PoolSlab*)Pool->Ptr1;
-  PoolSlab **PPS;
+  unsigned NodeSize = Pool->NodeSize;
 
   // Search the partially allocated slab list for the slab that contains this
   // node.
   int Idx = -1;
   if (PS) {               // Pool->Ptr1 could be null if Ptr2 isn't
-    PPS = (PoolSlab**)&Pool->Ptr1;
-    for (; PS; PPS = &PS->Next, PS = PS->Next) {
+    for (; PS; PS = PS->Next) {
       Idx = PS->containsElement(Node, NodeSize);
       if (Idx != -1) break;
     }
@@ -477,7 +557,6 @@ void poolfree(PoolTy *Pool, void *Node) {
   // completely allocated list does.
   if (PS == 0) {
     PS = (PoolSlab*)Pool->Ptr2;
-    PPS = (PoolSlab**)&Pool->Ptr2;
     assert(Idx == -1 && "Found node but don't have PS?");
     
     while (1) {
@@ -485,14 +564,40 @@ void poolfree(PoolTy *Pool, void *Node) {
              " pool specified!\n");
       Idx = PS->containsElement(Node, NodeSize);
       if (Idx != -1) break;
-      PPS = &PS->Next;
       PS = PS->Next;
     }
+  }
+  TheIndex = Idx;
+  return PS;
+}
 
+void poolfree(PoolTy *Pool, void *Node) {
+  assert(Pool && "Null pool pointer passed in to poolfree!\n");
+
+  PoolSlab *PS;
+  unsigned Idx;
+  if (0) {                  // THIS SHOULD BE SET FOR SAFECODE!
+    unsigned TheIndex;
+    PS = SearchForContainingSlab(Pool, Node, TheIndex);
+    Idx = TheIndex;
+  } else {
+    // Since it is undefined behavior to free a node which has not been
+    // allocated, we know that the pointer coming in has to be a valid node
+    // pointer in the pool.  Mask off some bits of the address to find the base
+    // of the pool.
+    assert((PageSize & PageSize-1) == 0 && "Page size is not a power of 2??");
+    PS = (PoolSlab*)((long)Node & ~(PageSize-1));
+    Idx = PS->containsElement(Node, Pool->NodeSize);
+    assert((int)Idx != -1 && "Node not contained in slab??");
+  }
+
+  // If PS was full, it must have been in list #2.  Unlink it and move it to
+  // list #1.
+  if (PS->isFull()) {
     // Now that we found the node, we are about to free an element from it.
     // This will make the slab no longer completely full, so we must move it to
     // the other list!
-    *PPS = PS->Next;      // Remove it from the Ptr2 list.
+    PS->unlinkFromList(); // Remove it from the Ptr2 list.
 
     PoolSlab **InsertPosPtr = (PoolSlab**)&Pool->Ptr1;
 
@@ -500,10 +605,8 @@ void poolfree(PoolTy *Pool, void *Node) {
     // list, insert right after it.
     if ((*InsertPosPtr)->isEmpty())
       InsertPosPtr = &(*InsertPosPtr)->Next;
-    
-    // Insert it now in the Ptr1 list.
-    PS->Next = *InsertPosPtr;
-    *InsertPosPtr = PS;
+
+    PS->addToList(InsertPosPtr);     // Insert it now in the Ptr1 list.
   }
 
   // Free the actual element now!
@@ -517,7 +620,7 @@ void poolfree(PoolTy *Pool, void *Node) {
     if (PS->isSingleArray)
       if (Pool->FreeablePool) {
         // If it is a SingleArray, just free it
-        *PPS = PS->Next;
+        PS->unlinkFromList();
         PS->destroy();
         return;
       } else {
@@ -529,23 +632,21 @@ void poolfree(PoolTy *Pool, void *Node) {
     // No more singlearray objects exist at this point.
     assert(!PS->isSingleArray);
 
-    *PPS = PS->Next;   // Unlink from the list of slabs...
-    PoolSlab *FirstSlab = (PoolSlab*)Pool->Ptr1;
+    PS->unlinkFromList();   // Unlink from the list of slabs...
     
     // If we can free this pool, check to see if there are any empty slabs at
     // the start of this list.  If so, delete the FirstSlab!
+    PoolSlab *FirstSlab = (PoolSlab*)Pool->Ptr1;
     if (Pool->FreeablePool && FirstSlab->isEmpty()) {
       // Here we choose to delete FirstSlab instead of the pool we just freed
       // from because the pool we just freed from is more likely to be in the
       // processor cache.
-      PoolSlab *NextSlab = FirstSlab->Next;
+      FirstSlab->unlinkFromList();
       FirstSlab->destroy();
-      FirstSlab = NextSlab;
     }
 
     // Link our slab onto the head of the list so that allocations will find it
     // efficiently.    
-    PS->Next = FirstSlab;
-    Pool->Ptr1 = PS;
+    PS->addToList((PoolSlab**)&Pool->Ptr1);
   }
 }
