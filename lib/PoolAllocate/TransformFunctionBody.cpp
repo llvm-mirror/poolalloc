@@ -202,9 +202,11 @@ Instruction *FuncTransform::InsertPoolFreeInstr(Value *Arg, Instruction *Where){
 
   // Insert a cast and a call to poolfree...
   Value *Casted = Arg;
-  if (Arg->getType() != PointerType::get(Type::SByteTy))
+  if (Arg->getType() != PointerType::get(Type::SByteTy)) {
     Casted = new CastInst(Arg, PointerType::get(Type::SByteTy),
 				 Arg->getName()+".casted", Where);
+    G.getScalarMap()[Casted] = G.getScalarMap()[Arg];
+  }
 
   CallInst *FreeI = new CallInst(PAInfo.PoolFree, make_vector(PH, Casted, 0), 
 				 "", Where);
