@@ -127,7 +127,8 @@ Output/%.nonpa.diff-cbe: Output/%.out-nat Output/%.nonpa.out-cbe
 $(PROGRAMS_TO_TEST:%=Output/%.$(TEST).report.txt): \
 Output/%.$(TEST).report.txt: Output/%.$(TEST).transformed.bc \
 			     Output/%.nonpa.diff-cbe         \
-			     Output/%.poolalloc.diff-cbe
+			     Output/%.poolalloc.diff-cbe     \
+                             Output/%.LOC.txt
 	@echo > $@
 	@-if test -f Output/$*.poolalloc.diff-cbe; then \
 	  printf "CBE-RUN-TIME-NORMAL-USER: " >> $@;\
@@ -138,6 +139,8 @@ Output/%.$(TEST).report.txt: Output/%.$(TEST).transformed.bc \
 	  grep "^user" Output/$*.poolalloc.out-cbe.time >> $@;\
 	  printf "CBE-RUN-TIME-POOLALLOC-SYS: " >> $@;\
 	  grep "^sys" Output/$*.poolalloc.out-cbe.time >> $@;\
+	  printf "LOC: " >> $@;\
+	  cat Output/$*.LOC.txt >> $@;\
 	fi
 
 	@cat Output/$*.$(TEST).transformed.bc.info >> $@

@@ -76,6 +76,7 @@ my $PTRDIST   = 'MultiSource/Benchmarks/Ptrdist';
 (
 # Name
  ["Name:" , '\'([^\']+)\' Program'],
+ ["LOC"   , 'LOC:\s*([0-9]+)'],
  [],
 # Times
  ["NormalUser",    'CBE-RUN-TIME-NORMAL-USER: user\s*([.0-9m:]+)',    \&FormatTime],
