@@ -16,8 +16,12 @@
 #define PTRCOMP_ALLOCATOR_H
 
 struct PoolTy {
-  char *PoolBase;   // The actual pool.
-  unsigned long *BitVector;// Bitvector of bits.  This stores two bits per node.
+  // PoolBase - The actual pool.  Note that this MUST stay as the first element
+  // of this structure.
+  char *PoolBase;
+
+  // BitVector - Bitvector of bits.  This stores two bits per node.
+  unsigned long *BitVector;
 
   // OrigSize - The size of the nodes in a non-compressed pool.
   unsigned OrigSize;
@@ -35,7 +39,7 @@ struct PoolTy {
   unsigned long NumUsed;
 
 
-  // These fields are only used in debug mode.
+  // These fields are only used in debug mode to build stats, keep at end.
   unsigned BytesAllocated, NumObjects;
 };
 
