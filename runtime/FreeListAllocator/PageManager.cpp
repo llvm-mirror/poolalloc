@@ -20,6 +20,7 @@
 #include "llvm/Config/sys/mman.h"
 #include <cassert>
 #include <vector>
+#include <iostream>
 
 // Define this if we want to use memalign instead of mmap to get pages.
 // Empirically, this slows down the pool allocator a LOT.
