@@ -1,4 +1,4 @@
-//===- FreeListAllocator.cpp - Simple linked-list based pool allocator ----===//
+//===- PoolAllocator.cpp - Simple free-list based pool allocator ----------===//
 // 
 //                       The LLVM Compiler Infrastructure
 //
