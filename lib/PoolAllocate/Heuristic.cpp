@@ -19,6 +19,7 @@
 #include "llvm/ADT/DepthFirstIterator.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Target/TargetData.h"
+#include <iostream>
 using namespace llvm;
 using namespace PA;
 
@@ -51,12 +52,52 @@ Heuristic::~Heuristic() {}
 unsigned Heuristic::getRecommendedSize(DSNode *N) {
   unsigned PoolSize = 0;
   if (!N->isArray() && N->getType()->isSized()) {
-    DSGraph *G = N->getParentGraph();
-    PoolSize = G->getTargetData().getTypeSize(N->getType());
+    PoolSize = N->getParentGraph()->getTargetData().getTypeSize(N->getType());
   }
   if (PoolSize == 1) PoolSize = 0;
   return PoolSize;
 }
+
+/// Wants8ByteAlignment - FIXME: this is a complete hack for X86 right now.
+static bool Wants8ByteAlignment(const Type *Ty, unsigned Offs,
+                                const TargetData &TD) {
+  if (Ty == Type::DoubleTy && (Offs & 7) == 0)
+    return true;
+  if (Ty->isPrimitiveType() || isa<PointerType>(Ty))
+    return false;
+
+  if (const StructType *STy = dyn_cast<StructType>(Ty)) {
+    const StructLayout *SL = TD.getStructLayout(STy);
+    for (unsigned i = 0, e = STy->getNumElements(); i != e; ++i) {
+      if (Wants8ByteAlignment(STy->getElementType(i),
+                              Offs+SL->MemberOffsets[i], TD))
+        return true;
+    }
+  } else if (const SequentialType *STy = dyn_cast<SequentialType>(Ty)) {
+    return Wants8ByteAlignment(STy->getElementType(), Offs, TD);
+  } else {
+    std::cerr << *Ty << "\n";
+    assert(0 && "Unknown type!");
+  }
+  return false;
+}
+
+
+
+/// getRecommendedAlignment - Return the recommended object alignment for this
+/// DSNode.
+///
+unsigned Heuristic::getRecommendedAlignment(DSNode *N) {
+  if (N->getType() == Type::VoidTy)  // Is this void or collapsed?
+    return 0;  // No known alignment, let runtime decide.
+  
+  const TargetData &TD = N->getParentGraph()->getTargetData();
+
+  // If there are no doubles on an 8-byte boundary in this structure, there is
+  // no reason to 8-byte align objects in the pool.
+  return Wants8ByteAlignment(N->getType(), 0, TD) ? 8 : 4;
+}
+ 
 
 //===-- AllNodes Heuristic ------------------------------------------------===//
 //
@@ -337,7 +378,7 @@ struct AllInOneGlobalPoolHeuristic : public Heuristic {
                     Function *F, DSGraph &G,
                     std::vector<OnePool> &ResultPools) {
     if (TheGlobalPD == 0)
-      TheGlobalPD = PA->CreateGlobalPool(0);
+      TheGlobalPD = PA->CreateGlobalPool(0, 0);
 
     // All nodes allocate from the same global pool.
     OnePool Pool;

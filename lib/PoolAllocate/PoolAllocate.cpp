@@ -407,7 +407,7 @@ bool PoolAllocate::SetupGlobalPools(Module &M) {
     Heuristic::OnePool &Pool = ResultPools[i];
     Value *PoolDesc = Pool.PoolDesc;
     if (PoolDesc == 0) {
-      PoolDesc = CreateGlobalPool(Pool.PoolSize, InsertPt);
+      PoolDesc = CreateGlobalPool(Pool.PoolSize, Pool.PoolAlignment, InsertPt);
 
       if (Pool.NodesInPool.size() == 1 &&
           !Pool.NodesInPool[0]->isNodeCompletelyFolded())
@@ -429,7 +429,7 @@ bool PoolAllocate::SetupGlobalPools(Module &M) {
   return false;
 }
 
-GlobalVariable *PoolAllocate::CreateGlobalPool(unsigned RecSize,
+GlobalVariable *PoolAllocate::CreateGlobalPool(unsigned RecSize, unsigned Align,
                                                Instruction *IPHint) {
   GlobalVariable *GV =
     new GlobalVariable(PoolDescType, false, GlobalValue::InternalLinkage, 
@@ -447,10 +447,9 @@ GlobalVariable *PoolAllocate::CreateGlobalPool(unsigned RecSize,
     while (isa<AllocaInst>(InsertPt)) ++InsertPt;
   }
 
-  unsigned Alignment = 0;
   Value *ElSize = ConstantUInt::get(Type::UIntTy, RecSize);
-  Value *Align = ConstantUInt::get(Type::UIntTy, Alignment);
-  new CallInst(PoolInit, make_vector((Value*)GV, ElSize, Align, 0),
+  Value *AlignV = ConstantUInt::get(Type::UIntTy, Align);
+  new CallInst(PoolInit, make_vector((Value*)GV, ElSize, AlignV, 0),
                "", InsertPt);
   ++NumPools;
   return GV;
@@ -783,7 +782,8 @@ void PoolAllocate::InitializeAndDestroyPools(Function &F,
     // Insert the calls to initialize the pool.
     unsigned ElSizeV = Heuristic::getRecommendedSize(Node);
     Value *ElSize = ConstantUInt::get(Type::UIntTy, ElSizeV);
-    Value *Align  = ConstantUInt::get(Type::UIntTy, 0);
+    unsigned AlignV = Heuristic::getRecommendedAlignment(Node);
+    Value *Align  = ConstantUInt::get(Type::UIntTy, AlignV);
 
     for (unsigned i = 0, e = PoolInitPoints.size(); i != e; ++i) {
       new CallInst(PoolInit, make_vector((Value*)PD, ElSize, Align, 0),

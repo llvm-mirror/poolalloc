@@ -137,7 +137,8 @@ class PoolAllocate : public ModulePass {
 
   /// CreateGlobalPool - Create a global pool descriptor, initialize it in main,
   /// and return a pointer to the global for it.
-  GlobalVariable *CreateGlobalPool(unsigned RecSize, Instruction *IPHint = 0);
+  GlobalVariable *CreateGlobalPool(unsigned RecSize, unsigned Alignment,
+                                   Instruction *IPHint = 0);
 
  private:
   

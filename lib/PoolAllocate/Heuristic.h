@@ -58,13 +58,16 @@ namespace PA {
       // PoolSize - If the pool is to be created, indicate the "recommended
       // size" for the pool here.  This gets passed into poolinit.
       unsigned PoolSize;
+      unsigned PoolAlignment;
 
-      OnePool() : PoolDesc(0), PoolSize(0) {}
+      OnePool() : PoolDesc(0), PoolSize(0), PoolAlignment(0) {}
 
-      OnePool(DSNode *N) : PoolDesc(0), PoolSize(getRecommendedSize(N)) {
+      OnePool(DSNode *N) : PoolDesc(0), PoolSize(getRecommendedSize(N)), 
+                           PoolAlignment(getRecommendedAlignment(N)) {
         NodesInPool.push_back(N);
       }
-      OnePool(DSNode *N, Value *PD) : PoolDesc(PD), PoolSize(0) {
+      OnePool(DSNode *N, Value *PD) : PoolDesc(PD), PoolSize(0),
+                                      PoolAlignment(0) {
         NodesInPool.push_back(N);
       }
     };
@@ -83,6 +86,11 @@ namespace PA {
     ///
     static unsigned getRecommendedSize(DSNode *N);
 
+    /// getRecommendedAlignment - Return the recommended object alignment for
+    /// this DSNode.
+    ///
+    static unsigned getRecommendedAlignment(DSNode *N);
+    
     /// create - This static ctor creates the heuristic, based on the command
     /// line argument to choose the heuristic.
     static Heuristic *create();
