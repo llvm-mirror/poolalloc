@@ -100,10 +100,10 @@ static void PrintLivePoolInfo() {
 static void PrintPoolStats(PoolTy *Pool) {
   fprintf(stderr,
           "(0x%X) BytesAlloc=%d  NumObjs=%d"
-          " bitvectorsize=%d  numused=%d  OrigSize=%d NewSize=%d\n",
+          " bitvectorsize=%d  numused=%d  NodeSize=%d\n",
           Pool, Pool->BytesAllocated, Pool->NumObjects,
-          Pool->NumNodesInBitVector, Pool->NumUsed, Pool->OrigSize,
-          Pool->NewSize);
+          Pool->NumNodesInBitVector, Pool->NumUsed, 
+          Pool->NodeSize);
 }
 
 #else
@@ -141,16 +141,14 @@ static void InitPrintNumPools() {
 
 // poolinit_pc - Initialize a pool descriptor to empty
 //
-void poolinit_pc(PoolTy *Pool, unsigned NewSize, unsigned OldSize,
-                 unsigned ObjAlignment) {
-  assert(Pool && OldSize && NewSize && ObjAlignment);
+void poolinit_pc(PoolTy *Pool, unsigned NodeSize, unsigned ObjAlignment) {
+  assert(Pool && NodeSize && ObjAlignment);
   assert((ObjAlignment & (ObjAlignment-1)) == 0 && "Alignment not 2^k!");
 
   DO_IF_PNP(memset(Pool, 0, sizeof(PoolTy)));
-  Pool->OrigSize = OldSize;
 
   // Round up to the next alignment boundary.
-  Pool->NewSize = (NewSize+ObjAlignment-1) & ~(ObjAlignment-1);
+  Pool->NodeSize = (NodeSize+ObjAlignment-1) & ~(ObjAlignment-1);
 
   Pool->PoolBase = 0;
   Pool->BitVector = 0;
@@ -202,12 +200,12 @@ unsigned long poolalloc_pc(PoolTy *Pool, unsigned NumBytes) {
 
   DO_IF_PNP(if (Pool->NumObjects == 0) ++PoolCounter);  // Track # pools.
 
-  unsigned OrigSize = Pool->OrigSize;
+  unsigned NodeSize = Pool->NodeSize;
   unsigned NodesToAllocate;
-  if (NumBytes == OrigSize)
+  if (NumBytes == NodeSize)
     NodesToAllocate = 1;     // Common case.
   else
-    NodesToAllocate = (NumBytes+OrigSize-1)/OrigSize;
+    NodesToAllocate = (NumBytes+NodeSize-1)/NodeSize;
 
   DO_IF_TRACE(fprintf(stderr, "[%d] poolalloc_pc(%d [%d node%s]) -> ",
                       getPoolNumber(Pool), NumBytes, NodesToAllocate,
@@ -229,8 +227,8 @@ AllocNode:
     unsigned long Result = Pool->NumUsed++;
     MarkNodeAllocated(Pool, Result);
     DO_IF_TRACE(fprintf(stderr, "Node %ld: 0x%lX byte from poolbase\n", Result,
-                        Result*Pool->NewSize));
-    return Result*Pool->NewSize;
+                        Result*Pool->NodeSize));
+    return Result*Pool->NodeSize;
   }
 
   // Otherwise, we need to grow the bitvector.  Double its size.
@@ -242,9 +240,9 @@ AllocNode:
 
 void poolfree_pc(PoolTy *Pool, unsigned long Node) {
   if (Node == 0) return;
-  assert(Pool && (Node % Pool->NewSize == 0) && 
-         (Node/Pool->NewSize < Pool->NumUsed) && "Node or pool incorrect!");
-  Node /= Pool->NewSize;
+  assert(Pool && (Node % Pool->NodeSize == 0) && 
+         (Node/Pool->NodeSize < Pool->NumUsed) && "Node or pool incorrect!");
+  Node /= Pool->NodeSize;
   DO_IF_TRACE(fprintf(stderr, "[%d] poolfree_pc(0x%X) ",
                       getPoolNumber(Pool), (unsigned)Node));
 

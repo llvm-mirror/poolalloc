@@ -23,12 +23,9 @@ struct PoolTy {
   // BitVector - Bitvector of bits.  This stores two bits per node.
   unsigned long *BitVector;
 
-  // OrigSize - The size of the nodes in a non-compressed pool.
-  unsigned OrigSize;
-
-  // NewSize - The size of the nodes to actually allocate out of the pool.  This
-  // size already considers object padding due to alignment.
-  unsigned NewSize;
+  // NodeSize - The size of the nodes to actually allocate out of the pool.
+  // This size already considers object padding due to alignment.
+  unsigned NodeSize;
 
   // NumNodesInBitVector - This indicates the amount of space we have for nodes
   // in the bitvector.  We actually have space for 2* this number of bits.
@@ -44,8 +41,7 @@ struct PoolTy {
 };
 
 extern "C" {
-  void poolinit_pc(PoolTy *Pool, unsigned NewSize, unsigned OldSize,
-                   unsigned ObjAlignment);
+  void poolinit_pc(PoolTy *Pool, unsigned NodeSize, unsigned ObjAlignment);
   void pooldestroy_pc(PoolTy *Pool);
   unsigned long poolalloc_pc(PoolTy *Pool, unsigned NumBytes);
   void poolfree_pc(PoolTy *Pool, unsigned long Node);
