@@ -672,10 +672,11 @@ void PoolAllocate::InitializeAndDestroyPools(Function &F,
       /*empty*/;
     PoolInitPoints.push_back(InsertPoint);
 
-    for (Function::iterator BB = F.begin(), E = F.end(); BB != E; ++BB)
-      if (isa<ReturnInst>(BB->getTerminator()) ||
-          isa<UnwindInst>(BB->getTerminator()))
-        PoolDestroyPoints.push_back(BB->getTerminator());
+    if (F.getName() != "main")
+      for (Function::iterator BB = F.begin(), E = F.end(); BB != E; ++BB)
+        if (isa<ReturnInst>(BB->getTerminator()) ||
+            isa<UnwindInst>(BB->getTerminator()))
+          PoolDestroyPoints.push_back(BB->getTerminator());
   }
 
   // Insert all of the poolalloc calls in the start of the function.
