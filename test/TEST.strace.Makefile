@@ -16,23 +16,6 @@ STRACE := strace -c -f
 # piece of performance information.
 #
 
-# AMD Events
-$(PROGRAMS_TO_TEST:%=Output/$(TEST).L2cachemisses.%): \
-Output/$(TEST).L2cachemisses.%: Output/test.$(TEST).%
-	grep "Output/$*.cbe" $< | grep "Cache Read Misses" | awk '{print $$(NF-1)}' > $@
-
-$(PROGRAMS_TO_TEST:%=Output/$(TEST).L2cachemisses.pa.%): \
-Output/$(TEST).L2cachemisses.pa.%: Output/test.$(TEST).pa.%
-	grep "Output/$*.poolalloc.cbe" $< | grep "Cache Read Misses" | awk '{print $$(NF-1)}' > $@
-
-$(PROGRAMS_TO_TEST:%=Output/$(TEST).L2cacherefs.%): \
-Output/$(TEST).L2cacherefs.%: Output/test.$(TEST).%
-	grep "Output/$*.cbe" $< | grep "Cache Read References" | awk '{print $$(NF-1)}' > $@
-
-$(PROGRAMS_TO_TEST:%=Output/$(TEST).L2cacherefs.pa.%): \
-Output/$(TEST).L2cacherefs.pa.%: Output/test.$(TEST).pa.%
-	grep "Output/$*.poolalloc.cbe" $< | grep "Cache Read References" | awk '{print $$(NF-1)}' > $@
-
 #
 # Generate events for Pool Allocated CBE
 #
@@ -61,16 +44,8 @@ endif
 
 
 $(PROGRAMS_TO_TEST:%=Output/%.$(TEST).report.txt): \
-Output/%.$(TEST).report.txt: $(PROGRAMS_TO_TEST:%=Output/$(TEST).L2cachemisses.%)     \
-                     $(PROGRAMS_TO_TEST:%=Output/$(TEST).L2cachemisses.pa.%)  \
-                     $(PROGRAMS_TO_TEST:%=Output/$(TEST).L2cacherefs.%)       \
-                     $(PROGRAMS_TO_TEST:%=Output/$(TEST).L2cacherefs.pa.%)
-	@echo > $@
-	@echo CBE-PA-L2-Misses `cat Output/$(TEST).L2cachemisses.pa.$*`
-	@echo CBE-PA-L2-Refs   `cat Output/$(TEST).L2cacherefs.pa.$*`
-	@echo CBE-L2-Misses    `cat Output/$(TEST).L2cachemisses.$*`
-	@echo CBE-L2-Refs      `cat Output/$(TEST).L2cacherefs.$*`
-
+Output/%.$(TEST).report.txt:
+	touch $@
 
 $(PROGRAMS_TO_TEST:%=test.$(TEST).%): \
 test.$(TEST).%: Output/%.$(TEST).report.txt
