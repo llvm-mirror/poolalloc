@@ -502,9 +502,7 @@ void PoolAllocate::CreatePools(Function &F,
 
     // Void types in DS graph are never used
     if (Node->getType() == Type::VoidTy)
-      std::cerr << "Node collapsing in '" << F.getName() 
-		<< "'. All Data Structures may not be pool allocated\n";
-    
+      std::cerr << "Node collapsing in '" << F.getName() << "'\n";
     ++NumPools;
       
     // Update the PoolDescriptors map
@@ -649,13 +647,13 @@ void PoolAllocate::InitializeAndDestroyPools(Function &F,
     // Keep track of the blocks we have inserted poolinit/destroy in
     std::set<BasicBlock*> PoolInitInsertedBlocks, PoolDestroyInsertedBlocks;
 
-    std::cerr << "POOL: " << PD->getName() << " information:\n";
-    std::cerr << "  Live in blocks: ";
+    DEBUG(std::cerr << "POOL: " << PD->getName() << " information:\n");
+    DEBUG(std::cerr << "  Live in blocks: ");
     for (std::set<BasicBlock*>::iterator I = LiveBlocks.begin(),
            E = LiveBlocks.end(); I != E; ++I) {
       BasicBlock *BB = *I;
       TerminatorInst *Term = BB->getTerminator();
-      std::cerr << BB->getName() << " ";
+      DEBUG(std::cerr << BB->getName() << " ");
       
       // Check the predecessors of this block.  If any preds are not in the
       // set, or if there are no preds, insert a pool init.
@@ -718,27 +716,27 @@ void PoolAllocate::InitializeAndDestroyPools(Function &F,
           }
       }
     }
-    std::cerr << "\n  Init in blocks: ";
+    DEBUG(std::cerr << "\n  Init in blocks: ");
 
     // Insert the calls to initialize the pool...
     for (unsigned i = 0, e = PoolInitPoints.size(); i != e; ++i) {
       new CallInst(PoolInit, make_vector((Value*)PD, ElSize, 0), "",
                    PoolInitPoints[i]);
-      std::cerr << PoolInitPoints[i]->getParent()->getName() << " ";
+      DEBUG(std::cerr << PoolInitPoints[i]->getParent()->getName() << " ");
     }
     PoolInitPoints.clear();
 
-    std::cerr << "\n  Destroy in blocks: ";
+    DEBUG(std::cerr << "\n  Destroy in blocks: ");
 
     // Loop over all of the places to insert pooldestroy's...
     for (unsigned i = 0, e = PoolDestroyPoints.size(); i != e; ++i) {
       // Insert the pooldestroy call for this pool.
       new CallInst(PoolDestroy, make_vector((Value*)PD, 0), "",
                    PoolDestroyPoints[i]);
-      std::cerr << PoolDestroyPoints[i]->getParent()->getName() << " ";
+      DEBUG(std::cerr << PoolDestroyPoints[i]->getParent()->getName() << " ");
     }
     PoolDestroyPoints.clear();
-    std::cerr << "\n\n";
+    DEBUG(std::cerr << "\n\n");
 
     // Delete any pool frees which are not in live blocks.
     std::set<std::pair<AllocaInst*, CallInst*> >::iterator PFI =
