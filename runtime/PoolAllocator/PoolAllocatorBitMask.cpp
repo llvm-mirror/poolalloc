@@ -645,7 +645,7 @@ void poolfree(PoolTy *Pool, void *Node) {
     // If we can free this pool, check to see if there are any empty slabs at
     // the start of this list.  If so, delete the FirstSlab!
     PoolSlab *FirstSlab = (PoolSlab*)Pool->Ptr1;
-    if (Pool->FreeablePool && FirstSlab->isEmpty()) {
+    if (Pool->FreeablePool && FirstSlab && FirstSlab->isEmpty()) {
       // Here we choose to delete FirstSlab instead of the pool we just freed
       // from because the pool we just freed from is more likely to be in the
       // processor cache.
