@@ -17,7 +17,7 @@
 #include "PoolSlab.h"
 #include <assert.h>
 #include <stdlib.h>
-#include <iostream>
+#include <stdio.h>
 
 #undef assert
 #define assert(X)
@@ -53,7 +53,7 @@ createSlab (unsigned int NodeSize, unsigned int NodesPerSlab = 0)
   //
   if (MaxNodesPerPage == 0)
   {
-    std::cerr << "Node size is too large" << std::endl;
+    fprintf (stderr, "Node size is too large\n");
     abort();
   }
 
@@ -65,7 +65,7 @@ createSlab (unsigned int NodeSize, unsigned int NodesPerSlab = 0)
     NewSlab = (struct SlabHeader *) GetPages ((NodeSize * NodesPerSlab / PageSize) + 1);
     if (NewSlab == NULL)
     {
-      std::cerr << "Failed large allocation" << std::endl;
+      fprintf (stderr, "Failed large allocation\n");
       abort();
     }
     NewSlab->IsArray = 1;
@@ -75,7 +75,7 @@ createSlab (unsigned int NodeSize, unsigned int NodesPerSlab = 0)
     NewSlab = (struct SlabHeader *) AllocatePage ();
     if (NewSlab == NULL)
     {
-      std::cerr << "Failed regular allocation" << std::endl;
+      fprintf (stderr, "Failed regular allocation");
       abort();
     }
     NewSlab->IsArray = 0;
