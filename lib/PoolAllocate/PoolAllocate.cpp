@@ -624,7 +624,8 @@ void PoolAllocate::InitializeAndDestroyPools(Function &F,
   for (unsigned i = 0, e = NodesToPA.size(); i != e; ++i) {
     DSNode *Node = NodesToPA[i];
 
-    if (isa<GlobalVariable>(PoolDescriptors[Node]))
+    if (isa<GlobalVariable>(PoolDescriptors[Node]) ||
+        isa<ConstantPointerNull>(PoolDescriptors[Node]))
       continue;
 
     assert(isa<AllocaInst>(PoolDescriptors[Node]) && "Why pool allocate this?");
