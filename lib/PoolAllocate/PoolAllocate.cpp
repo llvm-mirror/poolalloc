@@ -389,11 +389,7 @@ bool PoolAllocate::SetupGlobalPools(Module &M) {
     return true;
   }
 
-  BasicBlock::iterator InsertPt = MainFunc->getEntryBlock().begin();
-  while (isa<AllocaInst>(InsertPt)) ++InsertPt;
-  
   TargetData &TD = getAnalysis<TargetData>();
-
 
   std::cerr << "Pool allocating " << GlobalHeapNodes.size()
             << " global nodes!\n";
@@ -403,12 +399,15 @@ bool PoolAllocate::SetupGlobalPools(Module &M) {
   std::vector<Heuristic::OnePool> ResultPools;
   CurHeuristic->AssignToPools(NodesToPA, 0, GG, ResultPools);
 
+  BasicBlock::iterator InsertPt = MainFunc->getEntryBlock().begin();
+  while (isa<AllocaInst>(InsertPt)) ++InsertPt;
+
   // Perform all global assignments as specified.
   for (unsigned i = 0, e = ResultPools.size(); i != e; ++i) {
     Heuristic::OnePool &Pool = ResultPools[i];
     Value *PoolDesc = Pool.PoolDesc;
     if (PoolDesc == 0) {
-      PoolDesc = CreateGlobalPool(Pool.PoolSize);
+      PoolDesc = CreateGlobalPool(Pool.PoolSize, InsertPt);
 
       if (Pool.NodesInPool.size() == 1 &&
           !Pool.NodesInPool[0]->isNodeCompletelyFolded())
@@ -430,7 +429,8 @@ bool PoolAllocate::SetupGlobalPools(Module &M) {
   return false;
 }
 
-GlobalVariable *PoolAllocate::CreateGlobalPool(unsigned RecSize) {
+GlobalVariable *PoolAllocate::CreateGlobalPool(unsigned RecSize,
+                                               Instruction *IPHint) {
   GlobalVariable *GV =
     new GlobalVariable(PoolDescType, false, GlobalValue::InternalLinkage, 
                        Constant::getNullValue(PoolDescType), "GlobalPool",
@@ -439,8 +439,13 @@ GlobalVariable *PoolAllocate::CreateGlobalPool(unsigned RecSize) {
   Function *MainFunc = CurModule->getMainFunction();
   assert(MainFunc && "No main in program??");
 
-  BasicBlock::iterator InsertPt = MainFunc->getEntryBlock().begin();
-  while (isa<AllocaInst>(InsertPt)) ++InsertPt;
+  BasicBlock::iterator InsertPt;
+  if (IPHint)
+    InsertPt = IPHint;
+  else {
+    InsertPt = MainFunc->getEntryBlock().begin();
+    while (isa<AllocaInst>(InsertPt)) ++InsertPt;
+  }
 
   unsigned Alignment = 0;
   Value *ElSize = ConstantUInt::get(Type::UIntTy, RecSize);
