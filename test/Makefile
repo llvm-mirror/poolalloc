@@ -135,3 +135,10 @@ strace::
                PROJECT_DIR=$(BUILD_OBJ_ROOT) $(MAKE) -j1 TEST=strace \
                    test)
 	@printf "\a"; sleep 1; printf "\a"; sleep 1; printf "\a"
+
+cputrack::
+	(cd $(LLVM_OBJ_ROOT)/projects/llvm-test/$(SUBDIR); \
+               PROJECT_DIR=$(BUILD_OBJ_ROOT) $(MAKE) -j1 TEST=cputrack \
+                   test)
+	@printf "\a"; sleep 1; printf "\a"; sleep 1; printf "\a"
+
