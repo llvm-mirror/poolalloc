@@ -133,8 +133,7 @@ bool PoolAllocate::run(Module &M) {
     Function *origF = fmI->first;
     Function *cloneF = fmI->second;
 
-    ConstantPointerRef *Ref = ConstantPointerRef::get(cloneF);
-    Constant *expr = ConstantExpr::getCast(Ref, origF->getType());
+    Constant *expr = ConstantExpr::getCast(cloneF, origF->getType());
     origF->replaceAllUsesWith(expr);
   }
   return true;
