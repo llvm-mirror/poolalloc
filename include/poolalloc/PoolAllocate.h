@@ -183,6 +183,8 @@ class PoolAllocate : public Pass {
                                  std::map<DSNode*, Value*> &PoolDescriptors,
                       std::set<std::pair<AllocaInst*, Instruction*> > &PoolUses,
                       std::set<std::pair<AllocaInst*, CallInst*> > &PoolFrees);
+
+  void CalculateLivePoolFreeBlocks(std::set<BasicBlock*> &LiveBlocks,Value *PD);
 };
 
 #endif
