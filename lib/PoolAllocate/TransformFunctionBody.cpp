@@ -165,7 +165,7 @@ Instruction *FuncTransform::TransformAllocationInstr(Instruction *I,
   }
 
   // Remove old allocation instruction.
-  I->getParent()->getInstList().erase(I);
+  I->eraseFromParent();
   return Casted;
 }
 
@@ -261,37 +261,42 @@ void FuncTransform::visitCallocCall(CallSite CS) {
 
 
 void FuncTransform::visitReallocCall(CallSite CS) {
-  Module *M = CS.getInstruction()->getParent()->getParent()->getParent();
   assert(CS.arg_end()-CS.arg_begin() == 2 && "realloc takes two arguments!");
+  Instruction *I = CS.getInstruction();
+  Value *PH = getPoolHandle(I);
   Value *OldPtr = *CS.arg_begin();
   Value *Size = *(CS.arg_begin()+1);
 
-  BasicBlock::iterator BBI =
-    TransformAllocationInstr(CS.getInstruction(), Size);
-  Value *NewPtr = BBI++;
-
-  // We just turned the call of 'realloc' into the equivalent of malloc.  To
-  // finish realloc, we need to copy the memory from the old block to the new,
-  // then free the old block.
-  const Type *SBPtr = PointerType::get(Type::SByteTy);
-  Function *MemCpy = M->getOrInsertFunction("llvm.memcpy",
-                                            Type::VoidTy, SBPtr, SBPtr,
-                                            Type::UIntTy, Type::UIntTy, 0);
-
-  if (NewPtr->getType() != SBPtr)
-    NewPtr = new CastInst(NewPtr, SBPtr, NewPtr->getName(), BBI);
-  if (OldPtr->getType() != SBPtr)
-    OldPtr = new CastInst(OldPtr, SBPtr, OldPtr->getName(), BBI);
   if (Size->getType() != Type::UIntTy)
-    Size = new CastInst(Size, Type::UIntTy, Size->getName(), BBI);
-  
-  // We know that the memory returned by poolalloc is at least 4 byte aligned.
-  new CallInst(MemCpy, make_vector(NewPtr, OldPtr, Size, 
-                                   ConstantUInt::get(Type::UIntTy, 4), 0),
-               "", BBI);
+    Size = new CastInst(Size, Type::UIntTy, Size->getName(), I);
 
-  // Free the old memory now.
-  InsertPoolFreeInstr(OldPtr, BBI);
+  static Type *VoidPtrTy = PointerType::get(Type::SByteTy);
+  if (OldPtr->getType() != VoidPtrTy)
+    OldPtr = new CastInst(OldPtr, VoidPtrTy, OldPtr->getName(), I);
+
+  std::string Name = I->getName(); I->setName("");
+  Instruction *V = new CallInst(PAInfo.PoolRealloc, make_vector(PH, OldPtr,
+                                                                Size, 0),
+                                Name, I);
+  Instruction *Casted = V;
+  if (V->getType() != I->getType())
+    Casted = new CastInst(V, I->getType(), V->getName(), I);
+
+  // Update def-use info
+  I->replaceAllUsesWith(Casted);
+
+  // If we are modifying the original function, update the DSGraph.
+  if (!FI.Clone) {
+    // V and Casted now point to whatever the original allocation did.
+    G.getScalarMap().replaceScalar(I, V);
+    if (V != Casted)
+      G.getScalarMap()[Casted] = G.getScalarMap()[V];
+  } else {             // Otherwise, update the NewToOldValueMap
+    UpdateNewToOldValueMap(I, V, V != Casted ? Casted : 0);
+  }
+
+  // Remove old allocation instruction.
+  I->eraseFromParent();
 }
 
 
