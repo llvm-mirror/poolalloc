@@ -11,6 +11,7 @@
 #include "llvm/DerivedTypes.h"
 #include "llvm/Instructions.h"
 #include "llvm/Module.h"
+#include "llvm/Constants.h"
 #include "llvm/Analysis/DataStructure.h"
 #include "llvm/Analysis/DSGraph.h"
 #include "llvm/Analysis/DSGraphTraits.h"
@@ -124,6 +125,19 @@ bool PoolAllocate::run(Module &M) {
       ProcessFunctionBody(*I, FI != FuncMap.end() ? *FI->second : *I);
     }
 
+  //Loop to replace all uses of original functions with new values
+  // create a new ConstantPtrRef
+  //create a new ConstantExpr cast
+  std::map<Function *, Function *>::iterator fmI = FuncMap.begin(),
+    fmE = FuncMap.end();
+  for (; fmI != fmE; ++fmI) {
+    Function *origF = fmI->first;
+    Function *cloneF = fmI->second;
+
+    ConstantPointerRef *Ref = ConstantPointerRef::get(cloneF);
+    Constant *expr = ConstantExpr::getCast(Ref, origF->getType());
+    origF->replaceAllUsesWith(expr);
+  }
   return true;
 }
 
@@ -212,10 +226,11 @@ static void MarkNodesWhichMustBePassedIn(hash_set<DSNode*> &MarkedNodes,
 const PA::EquivClassInfo &PoolAllocate::getECIForIndirectCallSite(CallSite CS) {
   Instruction *I = CS.getInstruction();
   assert(I && "Not a call site?");
-
-  if (!OneCalledFunction.count(I))
+  Function *thisFunc = I->getParent()->getParent();
+  DSNode *calleeNode = BU->getDSGraph(*thisFunc).getNodeForValue(CS.getCalledValue()).getNode();
+  if (!OneCalledFunction.count(calleeNode))
     return ECInfoForLeadersMap[0];    // Special null function for empty graphs
-  Function *Called = OneCalledFunction[I];
+  Function *Called = OneCalledFunction[calleeNode];
   Function *Leader = FuncECs.findClass(Called);
   assert(Leader && "Leader not found for indirect call target!");
   assert(ECInfoForLeadersMap.count(Leader) && "No ECI for indirect call site!");
@@ -245,7 +260,11 @@ void PoolAllocate::BuildIndirectFunctionSets(Module &M) {
         // This is the first callee from this call site.
         LastInst = I->first;
         FirstFunc = I->second;
-        OneCalledFunction[LastInst] = FirstFunc;
+	//Instead of storing the lastInst For Indirection call Sites we store the
+	//DSNode for the function ptr arguemnt
+	Function *thisFunc = LastInst->getParent()->getParent();
+	DSNode *calleeNode = BU->getDSGraph(*thisFunc).getNodeForValue(CS.getCalledValue()).getNode();
+        OneCalledFunction[calleeNode] = FirstFunc;
         FuncECs.addElement(I->second);
       } else {
         // This is not the first possible callee from a particular call site.
@@ -935,7 +954,6 @@ void PoolAllocate::InitializeAndDestroyPools(Function &F,
                  DE = idf_ext_end(*I, DestroyedAfter); DI != DE; ++DI)
             /* empty */;
         }
-
         // Now that we have created the sets, intersect them.
         std::set<BasicBlock*> LiveBlocks;
         std::set_intersection(InitializedBefore.begin(),InitializedBefore.end(),
@@ -988,7 +1006,6 @@ void PoolAllocate::InitializeAndDestroyPools(Function &F,
                 PoolInitInsertedBlocks.insert(*PI);
               }
           }
-
           // Check the successors of this block.  If some succs are not in the
           // set, insert destroys on those successor edges.  If all succs are
           // not in the set, insert a destroy in this block.
