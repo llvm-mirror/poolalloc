@@ -205,7 +205,7 @@ static void MarkNodesWhichMustBePassedIn(hash_set<DSNode*> &MarkedNodes,
     }
   }
 
-  // Marked the returned node as alive...
+  // Marked the returned node as needing to be passed in.
   if (DSNode *RetNode = G.getReturnNodeFor(F).getNode())
     RetNode->markReachableNodes(MarkedNodes);
 
@@ -754,176 +754,191 @@ void PoolAllocate::InitializeAndDestroyPools(Function &F,
 
   std::set<AllocaInst*> AllocasHandled;
 
-  // Insert all of the poolalloc calls in the start of the function.
+  // Insert all of the poolinit/destroy calls into the function.
   for (unsigned i = 0, e = NodesToPA.size(); i != e; ++i) {
     DSNode *Node = NodesToPA[i];
-    if (AllocaInst *PD = dyn_cast<AllocaInst>(PoolDescriptors[Node]))
-      if (AllocasHandled.insert(PD).second) {
-        // Convert the PoolUses/PoolFrees sets into something specific to this
-        // pool.
-        std::set<BasicBlock*> UsingBlocks;
+    assert(isa<AllocaInst>(PoolDescriptors[Node]) && "Why pool allocate this?");
+    AllocaInst *PD = cast<AllocaInst>(PoolDescriptors[Node]);
+    
+    bool HasUse = false;
+    std::set<std::pair<AllocaInst*, Instruction*> >::iterator XUI =
+      PoolUses.lower_bound(std::make_pair(PD, (Instruction*)0));
+    HasUse |= XUI != PoolUses.end() && XUI->first == PD;
 
-        std::set<std::pair<AllocaInst*, Instruction*> >::iterator PUI =
-          PoolUses.lower_bound(std::make_pair(PD, (Instruction*)0));
-        if (PUI != PoolUses.end() && PUI->first < PD) ++PUI;
-        for (; PUI != PoolUses.end() && PUI->first == PD; ++PUI)
-          UsingBlocks.insert(PUI->second->getParent());
+    std::set<std::pair<AllocaInst*, CallInst*> >::iterator XUI2 =
+      PoolFrees.lower_bound(std::make_pair(PD, (CallInst*)0));
+    HasUse |= XUI2 != PoolFrees.end() && XUI2->first == PD;
 
-        // To calculate all of the basic blocks which require the pool to be
-        // initialized before, do a depth first search on the CFG from the using
-        // blocks.
-        std::set<BasicBlock*> InitializedBefore;
-        std::set<BasicBlock*> DestroyedAfter;
-        for (std::set<BasicBlock*>::iterator I = UsingBlocks.begin(),
-               E = UsingBlocks.end(); I != E; ++I) {
-          for (df_ext_iterator<BasicBlock*, std::set<BasicBlock*> >
-                 DI = df_ext_begin(*I, InitializedBefore),
-                 DE = df_ext_end(*I, InitializedBefore); DI != DE; ++DI)
-            /* empty */;
+    // FIXME: Turn this into an assert and fix the problem!!
+    //assert(HasUse && "Pool is not used, but is marked heap?!");
+    if (!HasUse) continue;
+           
+    if (!AllocasHandled.insert(PD).second) continue;
 
-          for (idf_ext_iterator<BasicBlock*, std::set<BasicBlock*> >
-                 DI = idf_ext_begin(*I, DestroyedAfter),
-                 DE = idf_ext_end(*I, DestroyedAfter); DI != DE; ++DI)
-            /* empty */;
-        }
-        // Now that we have created the sets, intersect them.
-        std::set<BasicBlock*> LiveBlocks;
-        std::set_intersection(InitializedBefore.begin(),InitializedBefore.end(),
-                              DestroyedAfter.begin(), DestroyedAfter.end(),
-                              std::inserter(LiveBlocks, LiveBlocks.end()));
-        InitializedBefore.clear();
-        DestroyedAfter.clear();
+    // Convert the PoolUses/PoolFrees sets into something specific to this
+    // pool.
+    std::set<BasicBlock*> UsingBlocks;
 
-        // Keep track of the blocks we have inserted poolinit/destroy in
-        std::set<BasicBlock*> PoolInitInsertedBlocks, PoolDestroyInsertedBlocks;
+    std::set<std::pair<AllocaInst*, Instruction*> >::iterator PUI =
+      PoolUses.lower_bound(std::make_pair(PD, (Instruction*)0));
+    if (PUI != PoolUses.end() && PUI->first < PD) ++PUI;
+    for (; PUI != PoolUses.end() && PUI->first == PD; ++PUI)
+      UsingBlocks.insert(PUI->second->getParent());
 
-        DEBUG(std::cerr << "POOL: " << PD->getName() << " information:\n");
-        DEBUG(std::cerr << "  Live in blocks: ");
-        for (std::set<BasicBlock*>::iterator I = LiveBlocks.begin(),
-               E = LiveBlocks.end(); I != E; ++I) {
-          BasicBlock *BB = *I;
-          TerminatorInst *Term = BB->getTerminator();
-          DEBUG(std::cerr << BB->getName() << " ");
+    // To calculate all of the basic blocks which require the pool to be
+    // initialized before, do a depth first search on the CFG from the using
+    // blocks.
+    std::set<BasicBlock*> InitializedBefore;
+    std::set<BasicBlock*> DestroyedAfter;
+    for (std::set<BasicBlock*>::iterator I = UsingBlocks.begin(),
+           E = UsingBlocks.end(); I != E; ++I) {
+      for (df_ext_iterator<BasicBlock*, std::set<BasicBlock*> >
+             DI = df_ext_begin(*I, InitializedBefore),
+             DE = df_ext_end(*I, InitializedBefore); DI != DE; ++DI)
+        /* empty */;
+
+      for (idf_ext_iterator<BasicBlock*, std::set<BasicBlock*> >
+             DI = idf_ext_begin(*I, DestroyedAfter),
+             DE = idf_ext_end(*I, DestroyedAfter); DI != DE; ++DI)
+        /* empty */;
+    }
+    // Now that we have created the sets, intersect them.
+    std::set<BasicBlock*> LiveBlocks;
+    std::set_intersection(InitializedBefore.begin(),InitializedBefore.end(),
+                          DestroyedAfter.begin(), DestroyedAfter.end(),
+                          std::inserter(LiveBlocks, LiveBlocks.end()));
+    InitializedBefore.clear();
+    DestroyedAfter.clear();
+
+    // Keep track of the blocks we have inserted poolinit/destroy in
+    std::set<BasicBlock*> PoolInitInsertedBlocks, PoolDestroyInsertedBlocks;
+
+    DEBUG(std::cerr << "POOL: " << PD->getName() << " information:\n");
+    DEBUG(std::cerr << "  Live in blocks: ");
+    for (std::set<BasicBlock*>::iterator I = LiveBlocks.begin(),
+           E = LiveBlocks.end(); I != E; ++I) {
+      BasicBlock *BB = *I;
+      TerminatorInst *Term = BB->getTerminator();
+      DEBUG(std::cerr << BB->getName() << " ");
       
-          // Check the predecessors of this block.  If any preds are not in the
-          // set, or if there are no preds, insert a pool init.
-          bool AllIn, NoneIn;
-          AllOrNoneInSet(pred_begin(BB), pred_end(BB), LiveBlocks, AllIn,
-                         NoneIn);
+      // Check the predecessors of this block.  If any preds are not in the
+      // set, or if there are no preds, insert a pool init.
+      bool AllIn, NoneIn;
+      AllOrNoneInSet(pred_begin(BB), pred_end(BB), LiveBlocks, AllIn,
+                     NoneIn);
 
-          if (NoneIn) {
-            if (!PoolInitInsertedBlocks.count(BB)) {
-              BasicBlock::iterator It = BB->begin();
-              // Move through all of the instructions not in the pool
-              while (!PoolUses.count(std::make_pair(PD, It)))
-                // Advance past non-users deleting any pool frees that we run
-                // across.
-                DeleteIfIsPoolFree(It++, PD, PoolFrees);
-              if (!DisableInitDestroyOpt)
-                PoolInitPoints.push_back(It);
-              PoolInitInsertedBlocks.insert(BB);
-            }
-          } else if (!AllIn) {
-          TryAgainPred:
-            for (pred_iterator PI = pred_begin(BB), E = pred_end(BB); PI != E;
-                 ++PI)
-              if (!LiveBlocks.count(*PI) && !PoolInitInsertedBlocks.count(*PI)){
-                if (SplitCriticalEdge(BB, PI))
-                  // If the critical edge was split, *PI was invalidated
-                  goto TryAgainPred;
+      if (NoneIn) {
+        if (!PoolInitInsertedBlocks.count(BB)) {
+          BasicBlock::iterator It = BB->begin();
+          // Move through all of the instructions not in the pool
+          while (!PoolUses.count(std::make_pair(PD, It)))
+            // Advance past non-users deleting any pool frees that we run
+            // across.
+            DeleteIfIsPoolFree(It++, PD, PoolFrees);
+          if (!DisableInitDestroyOpt)
+            PoolInitPoints.push_back(It);
+          PoolInitInsertedBlocks.insert(BB);
+        }
+      } else if (!AllIn) {
+      TryAgainPred:
+        for (pred_iterator PI = pred_begin(BB), E = pred_end(BB); PI != E;
+             ++PI)
+          if (!LiveBlocks.count(*PI) && !PoolInitInsertedBlocks.count(*PI)){
+            if (SplitCriticalEdge(BB, PI))
+              // If the critical edge was split, *PI was invalidated
+              goto TryAgainPred;
 
-                // Insert at the end of the predecessor, before the terminator.
-                if (!DisableInitDestroyOpt)
-                  PoolInitPoints.push_back((*PI)->getTerminator());
-                PoolInitInsertedBlocks.insert(*PI);
-              }
+            // Insert at the end of the predecessor, before the terminator.
+            if (!DisableInitDestroyOpt)
+              PoolInitPoints.push_back((*PI)->getTerminator());
+            PoolInitInsertedBlocks.insert(*PI);
           }
-          // Check the successors of this block.  If some succs are not in the
-          // set, insert destroys on those successor edges.  If all succs are
-          // not in the set, insert a destroy in this block.
-          AllOrNoneInSet(succ_begin(BB), succ_end(BB), LiveBlocks,
-                         AllIn, NoneIn);
-
-          if (NoneIn) {
-            // Insert before the terminator.
-            if (!PoolDestroyInsertedBlocks.count(BB)) {
-              BasicBlock::iterator It = Term;
-          
-              // Rewind to the first using insruction
-              while (!PoolUses.count(std::make_pair(PD, It)))
-                DeleteIfIsPoolFree(It--, PD, PoolFrees);
-
-              // Insert after the first using instruction
-              if (!DisableInitDestroyOpt)
-                PoolDestroyPoints.push_back(++It);
-              PoolDestroyInsertedBlocks.insert(BB);
-            }
-          } else if (!AllIn) {
-            for (succ_iterator SI = succ_begin(BB), E = succ_end(BB);
-                 SI != E; ++SI)
-              if (!LiveBlocks.count(*SI) &&
-                  !PoolDestroyInsertedBlocks.count(*SI)) {
-                // If this edge is critical, split it.
-                SplitCriticalEdge(BB, SI);
-
-                // Insert at entry to the successor, but after any PHI nodes.
-                BasicBlock::iterator It = (*SI)->begin();
-                while (isa<PHINode>(It)) ++It;
-                if (!DisableInitDestroyOpt)
-                  PoolDestroyPoints.push_back(It);
-                PoolDestroyInsertedBlocks.insert(*SI);
-              }
-          }
-        }
-        DEBUG(std::cerr << "\n  Init in blocks: ");
-
-        // Insert the calls to initialize the pool.
-        unsigned ElSizeV = 0;
-        if (Node->getType()->isSized())
-          ElSizeV = TD.getTypeSize(Node->getType());
-        Value *ElSize = ConstantUInt::get(Type::UIntTy, ElSizeV);
-
-        for (unsigned i = 0, e = PoolInitPoints.size(); i != e; ++i) {
-          new CallInst(PoolInit, make_vector((Value*)PD, ElSize, 0), "",
-                       PoolInitPoints[i]);
-          DEBUG(std::cerr << PoolInitPoints[i]->getParent()->getName() << " ");
-        }
-        if (!DisableInitDestroyOpt)
-          PoolInitPoints.clear();
-
-        DEBUG(std::cerr << "\n  Destroy in blocks: ");
-
-        // Loop over all of the places to insert pooldestroy's...
-        for (unsigned i = 0, e = PoolDestroyPoints.size(); i != e; ++i) {
-          // Insert the pooldestroy call for this pool.
-          new CallInst(PoolDestroy, make_vector((Value*)PD, 0), "",
-                       PoolDestroyPoints[i]);
-          DEBUG(std::cerr << PoolDestroyPoints[i]->getParent()->getName()<<" ");
-        }
-        DEBUG(std::cerr << "\n\n");
-
-        // We are allowed to delete any poolfree's which occur between the last
-        // call to poolalloc, and the call to pooldestroy.  Figure out which
-        // basic blocks have this property for this pool.
-        std::set<BasicBlock*> PoolFreeLiveBlocks;
-        if (!DisablePoolFreeOpt)
-          CalculateLivePoolFreeBlocks(PoolFreeLiveBlocks, PD);
-        else
-          PoolFreeLiveBlocks = LiveBlocks;
-
-        if (!DisableInitDestroyOpt)
-          PoolDestroyPoints.clear();
-
-        // Delete any pool frees which are not in live blocks, for correctness.
-        std::set<std::pair<AllocaInst*, CallInst*> >::iterator PFI =
-          PoolFrees.lower_bound(std::make_pair(PD, (CallInst*)0));
-        if (PFI != PoolFrees.end() && PFI->first < PD) ++PFI;
-        for (; PFI != PoolFrees.end() && PFI->first == PD; ) {
-          CallInst *PoolFree = (PFI++)->second;
-          if (!LiveBlocks.count(PoolFree->getParent()) ||
-              !PoolFreeLiveBlocks.count(PoolFree->getParent()))
-            DeleteIfIsPoolFree(PoolFree, PD, PoolFrees);
-        }
       }
+      // Check the successors of this block.  If some succs are not in the
+      // set, insert destroys on those successor edges.  If all succs are
+      // not in the set, insert a destroy in this block.
+      AllOrNoneInSet(succ_begin(BB), succ_end(BB), LiveBlocks,
+                     AllIn, NoneIn);
+
+      if (NoneIn) {
+        // Insert before the terminator.
+        if (!PoolDestroyInsertedBlocks.count(BB)) {
+          BasicBlock::iterator It = Term;
+          
+          // Rewind to the first using insruction
+          while (!PoolUses.count(std::make_pair(PD, It)))
+            DeleteIfIsPoolFree(It--, PD, PoolFrees);
+
+          // Insert after the first using instruction
+          if (!DisableInitDestroyOpt)
+            PoolDestroyPoints.push_back(++It);
+          PoolDestroyInsertedBlocks.insert(BB);
+        }
+      } else if (!AllIn) {
+        for (succ_iterator SI = succ_begin(BB), E = succ_end(BB);
+             SI != E; ++SI)
+          if (!LiveBlocks.count(*SI) &&
+              !PoolDestroyInsertedBlocks.count(*SI)) {
+            // If this edge is critical, split it.
+            SplitCriticalEdge(BB, SI);
+
+            // Insert at entry to the successor, but after any PHI nodes.
+            BasicBlock::iterator It = (*SI)->begin();
+            while (isa<PHINode>(It)) ++It;
+            if (!DisableInitDestroyOpt)
+              PoolDestroyPoints.push_back(It);
+            PoolDestroyInsertedBlocks.insert(*SI);
+          }
+      }
+    }
+    DEBUG(std::cerr << "\n  Init in blocks: ");
+
+    // Insert the calls to initialize the pool.
+    unsigned ElSizeV = 0;
+    if (Node->getType()->isSized())
+      ElSizeV = TD.getTypeSize(Node->getType());
+    Value *ElSize = ConstantUInt::get(Type::UIntTy, ElSizeV);
+
+    for (unsigned i = 0, e = PoolInitPoints.size(); i != e; ++i) {
+      new CallInst(PoolInit, make_vector((Value*)PD, ElSize, 0), "",
+                   PoolInitPoints[i]);
+      DEBUG(std::cerr << PoolInitPoints[i]->getParent()->getName() << " ");
+    }
+    if (!DisableInitDestroyOpt)
+      PoolInitPoints.clear();
+
+    DEBUG(std::cerr << "\n  Destroy in blocks: ");
+
+    // Loop over all of the places to insert pooldestroy's...
+    for (unsigned i = 0, e = PoolDestroyPoints.size(); i != e; ++i) {
+      // Insert the pooldestroy call for this pool.
+      new CallInst(PoolDestroy, make_vector((Value*)PD, 0), "",
+                   PoolDestroyPoints[i]);
+      DEBUG(std::cerr << PoolDestroyPoints[i]->getParent()->getName()<<" ");
+    }
+    DEBUG(std::cerr << "\n\n");
+
+    // We are allowed to delete any poolfree's which occur between the last
+    // call to poolalloc, and the call to pooldestroy.  Figure out which
+    // basic blocks have this property for this pool.
+    std::set<BasicBlock*> PoolFreeLiveBlocks;
+    if (!DisablePoolFreeOpt)
+      CalculateLivePoolFreeBlocks(PoolFreeLiveBlocks, PD);
+    else
+      PoolFreeLiveBlocks = LiveBlocks;
+
+    if (!DisableInitDestroyOpt)
+      PoolDestroyPoints.clear();
+
+    // Delete any pool frees which are not in live blocks, for correctness.
+    std::set<std::pair<AllocaInst*, CallInst*> >::iterator PFI =
+      PoolFrees.lower_bound(std::make_pair(PD, (CallInst*)0));
+    if (PFI != PoolFrees.end() && PFI->first < PD) ++PFI;
+    for (; PFI != PoolFrees.end() && PFI->first == PD; ) {
+      CallInst *PoolFree = (PFI++)->second;
+      if (!LiveBlocks.count(PoolFree->getParent()) ||
+          !PoolFreeLiveBlocks.count(PoolFree->getParent()))
+        DeleteIfIsPoolFree(PoolFree, PD, PoolFrees);
+    }
   }
 }
