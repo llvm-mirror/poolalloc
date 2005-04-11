@@ -138,7 +138,7 @@ bool PoolOptimize::runOnModule(Module &M) {
   }
 
   // Optimize poolmemaligns
-  getCallsOf(PoolFree, Calls);
+  getCallsOf(PoolMemAlign, Calls);
   for (unsigned i = 0, e = Calls.size(); i != e; ++i) {
     CallInst *CI = Calls[i];
     // poolmemalign(null, X, Y) -> memalign(X, Y)
