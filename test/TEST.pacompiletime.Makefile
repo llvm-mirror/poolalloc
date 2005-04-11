@@ -14,7 +14,7 @@ PROGDIR := $(shell cd $(LLVM_SRC_ROOT)/projects/llvm-test; pwd)/
 RELDIR  := $(subst $(PROGDIR),,$(CURDIR))
 
 # Pool allocator pass shared object
-PA_SO    := $(PROJECT_DIR)/Debug/lib/libpoolalloc$(SHLIBEXT)
+PA_SO    := $(PROJECT_DIR)/Release/lib/libpoolalloc$(SHLIBEXT)
 
 # Command to run opt with the pool allocator pass loaded
 OPT_PA := $(LOPT) -load $(PA_SO)
