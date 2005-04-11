@@ -421,7 +421,7 @@ struct OnlyOverheadHeuristic : public Heuristic {
       ResultPools.push_back(OnePool(NodesToPA[i]));
   }
 
-  void HackFunctionBody(Function &F, std::map<DSNode*, Value*> &PDs);
+  void HackFunctionBody(Function &F, std::map<const DSNode*, Value*> &PDs);
 };
 
 /// getDynamicallyNullPool - Return a PoolDescriptor* that is always dynamically
@@ -447,13 +447,14 @@ static Value *getDynamicallyNullPool(BasicBlock::iterator I) {
 // Basically it replaces all uses of real pool descriptors with dynamically null
 // values.  However, it leaves pool init/destroy alone.
 void OnlyOverheadHeuristic::HackFunctionBody(Function &F,
-                                             std::map<DSNode*, Value*> &PDs) {
+                                             std::map<const DSNode*,
+                                             Value*> &PDs) {
   Function *PoolInit = PA->PoolInit;
   Function *PoolDestroy = PA->PoolDestroy;
 
   Value *NullPD = getDynamicallyNullPool(F.front().begin());
-  for (std::map<DSNode*, Value*>::iterator PDI = PDs.begin(), E = PDs.end();
-       PDI != E; ++PDI) {
+  for (std::map<const DSNode*, Value*>::iterator PDI = PDs.begin(),
+         E = PDs.end(); PDI != E; ++PDI) {
     Value *OldPD = PDI->second;
     std::vector<User*> OldPDUsers(OldPD->use_begin(), OldPD->use_end());
     for (unsigned i = 0, e = OldPDUsers.size(); i != e; ++i) {
