@@ -172,6 +172,12 @@ Instruction *FuncTransform::TransformAllocationInstr(Instruction *I,
     UpdateNewToOldValueMap(I, V, V != Casted ? Casted : 0);
   }
 
+  // If this was an invoke, fix up the CFG.
+  if (InvokeInst *II = dyn_cast<InvokeInst>(I)) {
+    new BranchInst(II->getNormalDest(), I);
+    II->getUnwindDest()->removePredecessor(II->getParent(), true);
+  }
+
   // Remove old allocation instruction.
   I->eraseFromParent();
   return Casted;
@@ -305,6 +311,12 @@ void FuncTransform::visitReallocCall(CallSite CS) {
     UpdateNewToOldValueMap(I, V, V != Casted ? Casted : 0);
   }
 
+  // If this was an invoke, fix up the CFG.
+  if (InvokeInst *II = dyn_cast<InvokeInst>(I)) {
+    new BranchInst(II->getNormalDest(), I);
+    II->getUnwindDest()->removePredecessor(II->getParent(), true);
+  }
+
   // Remove old allocation instruction.
   I->eraseFromParent();
 }
@@ -368,6 +380,12 @@ void FuncTransform::visitMemAlignCall(CallSite CS) {
       G.getScalarMap()[Casted] = G.getScalarMap()[V];
   } else {             // Otherwise, update the NewToOldValueMap
     UpdateNewToOldValueMap(I, V, V != Casted ? Casted : 0);
+  }
+
+  // If this was an invoke, fix up the CFG.
+  if (InvokeInst *II = dyn_cast<InvokeInst>(I)) {
+    new BranchInst(II->getNormalDest(), I);
+    II->getUnwindDest()->removePredecessor(II->getParent(), true);
   }
 
   // Remove old allocation instruction.
