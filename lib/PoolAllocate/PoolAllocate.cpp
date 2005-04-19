@@ -51,6 +51,7 @@ namespace {
   Y("poolalloc-passing-all-pools", "Pool allocate disjoint data structures");
 
   Statistic<> NumArgsAdded("poolalloc", "Number of function arguments added");
+  Statistic<> MaxArgsAdded("poolalloc", "Maximum function arguments added to one function");
   Statistic<> NumCloned   ("poolalloc", "Number of functions cloned");
   Statistic<> NumPools    ("poolalloc", "Number of pools allocated");
   Statistic<> NumTSPools  ("poolalloc", "Number of typesafe pools");
@@ -311,6 +312,7 @@ Function *PoolAllocate::MakeFunctionClone(Function &F) {
 
   // Update statistics..
   NumArgsAdded += FI.ArgNodes.size();
+  if (MaxArgsAdded < FI.ArgNodes.size()) MaxArgsAdded = FI.ArgNodes.size();
   ++NumCloned;
  
       
