@@ -45,6 +45,10 @@ namespace {
                clEnumVal(NoNodes, "  Do not pool allocate anything"),
                clEnumValEnd),
     cl::init(AllButUnreachableFromMemory)); 
+
+  cl::opt<bool>
+  DisableAlignOpt("poolalloc-disable-alignopt",
+                  cl::desc("Force all pool alignment to 8 bytes"));
 }
 
 Heuristic::~Heuristic() {}
@@ -61,6 +65,8 @@ unsigned Heuristic::getRecommendedSize(const DSNode *N) {
 /// Wants8ByteAlignment - FIXME: this is a complete hack for X86 right now.
 static bool Wants8ByteAlignment(const Type *Ty, unsigned Offs,
                                 const TargetData &TD) {
+  if (DisableAlignOpt) return true;
+
   if ((Offs & 7) == 0) {
     // Doubles always want to be 8-byte aligned.
     if (Ty == Type::DoubleTy) return true;
