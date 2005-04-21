@@ -11,6 +11,13 @@ test::
 LEVEL = ..
 include $(LEVEL)/Makefile.common
 
+ifndef NO_STABLE_NUMBERS
+STABLERUN := GET_STABLE_NUMBERS=1
+else
+STABLERUN :=
+endif
+
+
 LARGE_PROBLEM_SIZE_DIRS := \
    MultiSource/Benchmarks/llubenchmark \
    MultiSource/Benchmarks/FreeBench \
@@ -143,7 +150,7 @@ progcputrack::
 test::
 	(cd $(LLVM_OBJ_ROOT)/projects/llvm-test/$(SUBDIR); \
                PROJECT_DIR=$(PROJ_OBJ_ROOT) $(MAKE) -j1 TEST=poolalloc \
-                   GET_STABLE_NUMBERS=1 report report.html)
+                   $(STABLERUN) report report.html)
 	@printf "\a"; sleep 1; printf "\a"; sleep 1; printf "\a"
 
 pacompiletime::
@@ -155,7 +162,7 @@ pacompiletime::
 ptrcomp::
 	(cd $(LLVM_OBJ_ROOT)/projects/llvm-test/$(SUBDIR); \
                PROJECT_DIR=$(PROJ_OBJ_ROOT) $(MAKE) -j1 TEST=ptrcomp \
-                   GET_STABLE_NUMBERS=1 report report.html)
+                   $(STABLERUN) report report.html)
 	@printf "\a"; sleep 1; printf "\a"; sleep 1; printf "\a"
 
 vtl::
@@ -173,7 +180,7 @@ perf::
 optzn::
 	(cd $(LLVM_OBJ_ROOT)/projects/llvm-test/$(SUBDIR); \
                PROJECT_DIR=$(PROJ_OBJ_ROOT) $(MAKE) -j1 TEST=optzn \
-                   GET_STABLE_NUMBERS=1 test report report.csv)
+                   $(STABLERUN) test report report.csv)
 	@printf "\a"; sleep 1; printf "\a"; sleep 1; printf "\a"
 
 p4perf::
