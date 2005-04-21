@@ -65,10 +65,10 @@ my $PTRDIST   = 'MultiSource/Benchmarks/Ptrdist';
  [],
 # Times
  ["BasePA",         'CBE-RUN-TIME-BASEPA: program\s*([.0-9m:]+)', \&FormatTime],
- [],
  ["NoSelectivePA",  'CBE-RUN-TIME-SELECTIVEPA: program\s*([.0-9m:]+)', \&FormatTime],
  ["NoFreeElim",     'CBE-RUN-TIME-FREEELIM: program\s*([.0-9m:]+)', \&FormatTime],
  ["NoBumpPtr",      'CBE-RUN-TIME-BUMPPTR: program\s*([.0-9m:]+)', \&FormatTime],
+ ["NoAlign",        'CBE-RUN-TIME-ALIGN: program\s*([.0-9m:]+)', \&FormatTime],
  []
 );
 

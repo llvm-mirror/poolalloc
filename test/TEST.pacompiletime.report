@@ -49,9 +49,11 @@ my $USERSYSTTIME = '([0-9.]+)[ 0-9.]+\([^)]+\)[ 0-9.]+\([^)]+\) +';
  ["LOC",            "${USERSYSTTIME}Local"],
  ["BU",             "${USERSYSTTIME}Bottom-up"],
  ["TD",             "${USERSYSTTIME}Top-down"],
+ ["DSASUM",         sub { return SumCols(@_, 3); }],
+ [],
  ["COM",            "${USERSYSTTIME}'Complete'"],
  ["EQ",             "${USERSYSTTIME}Equivalence"],
- ["DSASUM",         sub { return SumCols(@_, 5); }],
+ ["EBUSUM",         sub { return SumCols(@_, 2); }],
  [],
  ["PA Time",        "${USERSYSTTIME}Pool allocate"],
  []

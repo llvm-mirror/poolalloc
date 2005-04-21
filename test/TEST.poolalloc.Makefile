@@ -46,10 +46,10 @@ Output/%.$(TEST).poolalloc.bc: Output/%.llvm.bc $(PA_SO) $(LOPT)
 	-@rm -f $(CURDIR)/$@.info
 	-$(OPT_PA_STATS) -poolalloc $(EXTRA_PA_FLAGS) $(OPTZN_PASSES) -pooloptimize $< -o $@ -f 2>&1 > $@.out
 
-$(PROGRAMS_TO_TEST:%=Output/%.$(TEST).allnodes.bc): \
-Output/%.$(TEST).allnodes.bc: Output/%.llvm.bc $(PA_SO) $(LOPT)
+$(PROGRAMS_TO_TEST:%=Output/%.$(TEST).basepa.bc): \
+Output/%.$(TEST).basepa.bc: Output/%.llvm.bc $(PA_SO) $(LOPT)
 	-@rm -f $(CURDIR)/$@.info
-	-$(OPT_PA_STATS) -poolalloc -poolalloc-heuristic=AllNodes $(OPTZN_PASSES) -pooloptimize $< -o $@ -f 2>&1 > $@.out
+	-$(OPT_PA_STATS) -poolalloc -poolalloc-disable-alignopt -poolalloc-force-all-poolfrees -poolalloc-heuristic=AllNodes $(OPTZN_PASSES) $< -o $@ -f 2>&1 > $@.out
 
 
 $(PROGRAMS_TO_TEST:%=Output/%.$(TEST).mallocrepl.bc): \
@@ -72,8 +72,8 @@ $(PROGRAMS_TO_TEST:%=Output/%.poolalloc.cbe.c): \
 Output/%.poolalloc.cbe.c: Output/%.$(TEST).poolalloc.bc $(LLC)
 	-$(LLC) -march=c -f $< -o $@
 
-$(PROGRAMS_TO_TEST:%=Output/%.allnodes.cbe.c): \
-Output/%.allnodes.cbe.c: Output/%.$(TEST).allnodes.bc $(LLC)
+$(PROGRAMS_TO_TEST:%=Output/%.basepa.cbe.c): \
+Output/%.basepa.cbe.c: Output/%.$(TEST).basepa.bc $(LLC)
 	-$(LLC) -march=c -f $< -o $@
 
 $(PROGRAMS_TO_TEST:%=Output/%.mallocrepl.cbe.c): \
@@ -94,8 +94,8 @@ $(PROGRAMS_TO_TEST:%=Output/%.poolalloc.cbe): \
 Output/%.poolalloc.cbe: Output/%.poolalloc.cbe.c $(PA_RT_O)
 	-$(CC) $(CFLAGS) $< $(PA_RT_O) $(LLCLIBS) $(LDFLAGS) -o $@
 
-$(PROGRAMS_TO_TEST:%=Output/%.allnodes.cbe): \
-Output/%.allnodes.cbe: Output/%.allnodes.cbe.c $(PA_RT_O)
+$(PROGRAMS_TO_TEST:%=Output/%.basepa.cbe): \
+Output/%.basepa.cbe: Output/%.basepa.cbe.c $(PA_RT_O)
 	-$(CC) $(CFLAGS) $< $(PA_RT_O) $(LLCLIBS) $(LDFLAGS) -o $@
 
 $(PROGRAMS_TO_TEST:%=Output/%.mallocrepl.cbe): \
@@ -120,8 +120,8 @@ $(PROGRAMS_TO_TEST:%=Output/%.poolalloc.out-cbe): \
 Output/%.poolalloc.out-cbe: Output/%.poolalloc.cbe
 	-$(RUNSAFELY) $(STDIN_FILENAME) $@ $< $(RUN_OPTIONS)
 
-$(PROGRAMS_TO_TEST:%=Output/%.allnodes.out-cbe): \
-Output/%.allnodes.out-cbe: Output/%.allnodes.cbe
+$(PROGRAMS_TO_TEST:%=Output/%.basepa.out-cbe): \
+Output/%.basepa.out-cbe: Output/%.basepa.cbe
 	-$(RUNSAFELY) $(STDIN_FILENAME) $@ $< $(RUN_OPTIONS)
 
 $(PROGRAMS_TO_TEST:%=Output/%.mallocrepl.out-cbe): \
@@ -147,13 +147,13 @@ Output/%.poolalloc.out-cbe: Output/%.poolalloc.cbe
 	-(cd Output/poolalloccbe-$(RUN_TYPE); cat $(LOCAL_OUTPUTS)) > $@
 	-cp Output/poolalloccbe-$(RUN_TYPE)/$(STDOUT_FILENAME).time $@.time
 
-$(PROGRAMS_TO_TEST:%=Output/%.allnodes.out-cbe): \
-Output/%.allnodes.out-cbe: Output/%.allnodes.cbe
-	-$(SPEC_SANDBOX) allnodescbe-$(RUN_TYPE) $@ $(REF_IN_DIR) \
+$(PROGRAMS_TO_TEST:%=Output/%.basepa.out-cbe): \
+Output/%.basepa.out-cbe: Output/%.basepa.cbe
+	-$(SPEC_SANDBOX) basepacbe-$(RUN_TYPE) $@ $(REF_IN_DIR) \
              $(RUNSAFELY) $(STDIN_FILENAME) $(STDOUT_FILENAME) \
                   ../../$< $(RUN_OPTIONS)
-	-(cd Output/allnodescbe-$(RUN_TYPE); cat $(LOCAL_OUTPUTS)) > $@
-	-cp Output/allnodescbe-$(RUN_TYPE)/$(STDOUT_FILENAME).time $@.time
+	-(cd Output/basepacbe-$(RUN_TYPE); cat $(LOCAL_OUTPUTS)) > $@
+	-cp Output/basepacbe-$(RUN_TYPE)/$(STDOUT_FILENAME).time $@.time
 
 $(PROGRAMS_TO_TEST:%=Output/%.mallocrepl.out-cbe): \
 Output/%.mallocrepl.out-cbe: Output/%.mallocrepl.cbe
@@ -189,10 +189,10 @@ Output/%.poolalloc.diff-cbe: Output/%.out-nat Output/%.poolalloc.out-cbe
 	@cp Output/$*.out-nat Output/$*.poolalloc.out-nat
 	-$(DIFFPROG) cbe $*.poolalloc $(HIDEDIFF)
 
-$(PROGRAMS_TO_TEST:%=Output/%.allnodes.diff-cbe): \
-Output/%.allnodes.diff-cbe: Output/%.out-nat Output/%.allnodes.out-cbe
-	@cp Output/$*.out-nat Output/$*.allnodes.out-nat
-	-$(DIFFPROG) cbe $*.allnodes $(HIDEDIFF)
+$(PROGRAMS_TO_TEST:%=Output/%.basepa.diff-cbe): \
+Output/%.basepa.diff-cbe: Output/%.out-nat Output/%.basepa.out-cbe
+	@cp Output/$*.out-nat Output/$*.basepa.out-nat
+	-$(DIFFPROG) cbe $*.basepa $(HIDEDIFF)
 
 $(PROGRAMS_TO_TEST:%=Output/%.mallocrepl.diff-cbe): \
 Output/%.mallocrepl.diff-cbe: Output/%.out-nat Output/%.mallocrepl.out-cbe
@@ -216,7 +216,7 @@ $(PROGRAMS_TO_TEST:%=Output/%.$(TEST).report.txt): \
 Output/%.$(TEST).report.txt: Output/%.out-nat                \
                              Output/%.nonpa.diff-cbe         \
 			     Output/%.poolalloc.diff-cbe     \
-			     Output/%.allnodes.diff-cbe      \
+			     Output/%.basepa.diff-cbe      \
 			     Output/%.mallocrepl.diff-cbe    \
 			     Output/%.onlyoverhead.diff-cbe  \
                              Output/%.LOC.txt
@@ -237,9 +237,9 @@ Output/%.$(TEST).report.txt: Output/%.out-nat                \
 	  printf "CBE-RUN-TIME-ONLYOVERHEAD: " >> $@;\
 	  grep "^program" Output/$*.onlyoverhead.out-cbe.time >> $@;\
         fi
-	@-if test -f Output/$*.allnodes.diff-cbe; then \
-	  printf "CBE-RUN-TIME-ALLNODES: " >> $@;\
-	  grep "^program" Output/$*.allnodes.out-cbe.time >> $@;\
+	@-if test -f Output/$*.basepa.diff-cbe; then \
+	  printf "CBE-RUN-TIME-BASEPA: " >> $@;\
+	  grep "^program" Output/$*.basepa.out-cbe.time >> $@;\
         fi
 	@-if test -f Output/$*.poolalloc.diff-cbe; then \
 	  printf "CBE-RUN-TIME-POOLALLOC: " >> $@;\
@@ -247,8 +247,8 @@ Output/%.$(TEST).report.txt: Output/%.out-nat                \
 	fi
 	printf "LOC: " >> $@
 	cat Output/$*.LOC.txt >> $@
-	@cat Output/$*.$(TEST).allnodes.bc.info >> $@
-	@#cat Output/$*.$(TEST).allnodes.bc.out  >> $@
+	@cat Output/$*.$(TEST).poolalloc.bc.info >> $@
+	@#cat Output/$*.$(TEST).basepa.bc.out  >> $@
 
 
 $(PROGRAMS_TO_TEST:%=test.$(TEST).%): \
