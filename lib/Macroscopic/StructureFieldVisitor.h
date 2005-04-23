@@ -66,6 +66,7 @@ public:
 
   /// getFieldOffset - Get the byte offset of this field from the start of the
   /// node.
+  ///
   unsigned getFieldOffset() const;
 
   /// dump - Print debugging information about this class.
@@ -76,6 +77,7 @@ public:
   /// guaranteed to be the same dynamic type as 'this') into this lattice value.
   /// If the resultant value hits bottom, return true.  This is used for
   /// interprocedural analysis.
+  ///
   virtual bool mergeInValue(const LatticeValue *RHS) {
     return true;
   }
@@ -92,6 +94,7 @@ public:
   /// visitRecognizedCall - The node for this lattice value is passed into some
   /// external function that is "known" by the Local analysis pass (e.g. atoi).
   /// By default, this stops any analysis of the node.
+  ///
   virtual bool visitRecognizedCall(Instruction &I) {
     return true;
   }

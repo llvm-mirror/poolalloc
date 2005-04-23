@@ -1,4 +1,4 @@
-//===-- StructureFieldVisitation.cpp - Implement StructureFieldVisitor ----===//
+//===-- StructureFieldVisitor.cpp - Implement StructureFieldVisitor -------===//
 // 
 //                     The LLVM Compiler Infrastructure
 //
@@ -35,6 +35,7 @@ DSGraph &LatticeValue::getParentGraph() const {
 }
 
 /// getFieldOffset - Return the offset of this field from the start of the node.
+///
 unsigned LatticeValue::getFieldOffset() const {
   const TargetData &TD = getNode()->getParentGraph()->getTargetData();
 
@@ -94,6 +95,7 @@ bool LatticeValue::visitGlobalInit(Constant *) {
 namespace {
   /// SFVInstVisitor - This visitor is used to do the actual visitation of
   /// memory instructions in the program.
+  ///
   struct SFVInstVisitor : public InstVisitor<SFVInstVisitor, bool> {
     DSGraph &DSG;
     const unsigned Callbacks;
@@ -208,6 +210,7 @@ LatticeValue *SFVInstVisitor::getLatticeValueForField(Value *Ptr) {
 /// RemoveLatticeValueAtBottom - When analysis determines that LV hit bottom,
 /// this method is used to remove it from the NodeLVs map.  This method always
 /// returns true to simplify caller code.
+///
 bool SFVInstVisitor::RemoveLatticeValueAtBottom(LatticeValue *LV) {
   for (std::multimap<DSNode*, LatticeValue*>::iterator I
          = NodeLVs.find(LV->getNode());; ++I) {
@@ -297,6 +300,7 @@ visitNodes(const std::set<DSNode*> &Nodes) {
 /// VisitGlobalInit - The specified lattice value corresponds to a field (or
 /// several) in the specified global.  Merge all of the overlapping initializer
 /// values into LV (up-to and until it becomes overdefined).
+///
 static bool VisitGlobalInit(LatticeValue *LV, Constant *Init,
                             unsigned FieldOffset) {
   const TargetData &TD = LV->getParentGraph().getTargetData();
@@ -347,6 +351,7 @@ NextStep:  // Manual tail recursion
 
 /// visitFields - Visit all uses of the specified fields, updating the lattice
 /// values as appropriate.
+///
 void StructureFieldVisitorBase::visitFields(std::set<LatticeValue*> &Fields) {
   // Now that we added all of the initial nodes, find out what graphs these
   // nodes are rooted in.  For efficiency, handle batches of nodes in the same
@@ -424,6 +429,7 @@ void StructureFieldVisitorBase::visitFields(std::set<LatticeValue*> &Fields) {
 
 /// ComputeInverseGraphFrom - Perform a simple depth-first search of the
 /// DSGraph, recording the inverse of all of the edges in the graph.
+///
 static void ComputeInverseGraphFrom(DSNode *N,
                          std::set<std::pair<DSNode*,DSNode*> > &InverseGraph) {
   for (DSNode::edge_iterator I = N->edge_begin(), E = N->edge_end(); I != E;++I)
@@ -436,6 +442,7 @@ static void ComputeInverseGraphFrom(DSNode *N,
 /// ComputeNodesReacahbleFrom - Compute the set of nodes in the specified
 /// inverse graph that are reachable from N.  This is a simple depth first
 /// search.
+///
 static void ComputeNodesReachableFrom(DSNode *N,
                             std::set<std::pair<DSNode*,DSNode*> > &InverseGraph,
                                       hash_set<const DSNode*> &Reachable) {
@@ -451,6 +458,7 @@ static void ComputeNodesReachableFrom(DSNode *N,
 /// reachable from globals, we have to make sure that we incorporate data for
 /// all graphs that include those globals due to the nature of the globals
 /// graph.
+///
 void StructureFieldVisitorBase::
 ProcessNodesReachableFromGlobals(DSGraph &DSG,
                                  std::multimap<DSNode*,LatticeValue*> &NodeLVs){
@@ -638,6 +646,7 @@ ProcessNodesReachableFromGlobals(DSGraph &DSG,
 /// getCalleeFacts - Compute the data flow effect that calling one of the
 /// functions in this graph has on the caller.  This information is cached after
 /// it is computed for a function the first time.
+///
 std::multimap<DSNode*, LatticeValue*> &
 StructureFieldVisitorBase::getCalleeFacts(DSGraph &DSG) {
   // Already computed?
@@ -669,6 +678,7 @@ StructureFieldVisitorBase::getCalleeFacts(DSGraph &DSG) {
 /// VisitFlags events.  This is used to reduce the cost of interprocedural
 /// analysis by not traversing the call graph through portions that the DSGraph
 /// can answer immediately.
+///
 static bool NodeCanPossiblyBeInteresting(const DSNode *N, unsigned VisitFlags) {
   // No fields are accessed in this context.
   if (N->getType() == Type::VoidTy) return false;
@@ -687,6 +697,7 @@ static bool NodeCanPossiblyBeInteresting(const DSNode *N, unsigned VisitFlags) {
 
 /// visitGraph - Visit the functions in the specified graph, updating the
 /// specified lattice values for all of their uses.
+///
 void StructureFieldVisitorBase::
 visitGraph(DSGraph &DSG, std::multimap<DSNode*, LatticeValue*> &NodeLVs) {
   assert(!NodeLVs.empty() && "No lattice values to compute!");
