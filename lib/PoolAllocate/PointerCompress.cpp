@@ -415,7 +415,7 @@ namespace {
     const DSNode *getNodeIfCompressed(Value *V) {
       if (!isa<PointerType>(V->getType()) || isa<ConstantPointerNull>(V) ||
           isa<Function>(V))
-        return false;
+        return 0;
 
       DSNode *N = getMappedNodeHandle(V).getNode();
       return PoolInfo.count(N) ? N : 0;
