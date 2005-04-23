@@ -30,15 +30,35 @@ typedef unsigned long uintptr_t;
 #define PRINT_NUM_POOLS          // Print use dynamic # pools info
 //#define PRINT_POOLDESTROY_STATS  // When pools are destroyed, print stats
 //#define PRINT_POOL_TRACE         // Print a full trace
+#define ENABLE_POOL_IDS            // PID for access/pool traces
+
+
+// ALWAYS_USE_MALLOC_FREE - Make poolalloc/free always call malloc/free.  Note
+// that if the poolfree optimization is in use that this will cause memory
+// leaks!
+//#define ALWAYS_USE_MALLOC_FREE
 #endif
 
 //===----------------------------------------------------------------------===//
 // Pool Debugging stuff.
 //===----------------------------------------------------------------------===//
 
-#ifdef PRINT_POOL_TRACE
-#define PRINT_POOLDESTROY_STATS
+#if defined(ALWAYS_USE_MALLOC_FREE)
+#define DO_IF_FORCE_MALLOCFREE(x) x
+#else
+#define DO_IF_FORCE_MALLOCFREE(x)
+#endif
 
+
+#if !defined(PRINT_POOL_TRACE)
+#define DO_IF_TRACE(X)
+#else
+#define ENABLE_POOL_IDS
+#define DO_IF_TRACE(X) X
+#define PRINT_POOLDESTROY_STATS
+#endif
+
+#if defined(ENABLE_POOL_IDS)
 struct PoolID {
   void *PD;
   unsigned ID;
@@ -62,7 +82,7 @@ static unsigned addPoolNumber(void *PD) {
 }
 
 static unsigned getPoolNumber(void *PD) {
-  if (PD == 0) return 1234567;
+  if (PD == 0) return ~0;
   for (unsigned i = 0; i != NumLivePools; ++i)
     if (PoolIDs[i].PD == PD)
       return PoolIDs[i].ID;
@@ -90,10 +110,6 @@ static void PrintLivePoolInfo() {
     PrintPoolStats((PoolTy<PoolTraits>*)PoolIDs[i].PD);
   }
 }
-
-#define DO_IF_TRACE(X) X
-#else
-#define DO_IF_TRACE(X)
 #endif
 
 #ifdef PRINT_POOLDESTROY_STATS
@@ -352,13 +368,19 @@ void poolinit_bp(PoolTy<NormalPoolTraits> *Pool, unsigned ObjAlignment) {
   Pool->ObjFreeList = 0;     // This is our bump pointer.
   Pool->OtherFreeList = 0;   // This is our end pointer.
 
+  unsigned PID;
+#ifdef ENABLE_POOL_IDS
+  PID = addPoolNumber(Pool);
+#endif
+
   DO_IF_TRACE(fprintf(stderr, "[%d] poolinit_bp(0x%X, %d)\n",
-                      addPoolNumber(Pool), Pool, ObjAlignment));
+                      PID, Pool, ObjAlignment));
   DO_IF_PNP(++PoolsInited);  // Track # pools initialized
   DO_IF_PNP(InitPrintNumPools<NormalPoolTraits>());
 }
 
 void *poolalloc_bp(PoolTy<NormalPoolTraits> *Pool, unsigned NumBytes) {
+  DO_IF_FORCE_MALLOCFREE(return malloc(NumBytes));
   assert(Pool && "Bump pointer pool does not support null PD!");
   DO_IF_TRACE(fprintf(stderr, "[%d] poolalloc_bp(%d) -> ",
                       getPoolNumber(Pool), NumBytes));
@@ -409,7 +431,11 @@ LargeObject:
 void pooldestroy_bp(PoolTy<NormalPoolTraits> *Pool) {
   assert(Pool && "Null pool pointer passed in to pooldestroy!\n");
 
-  DO_IF_TRACE(fprintf(stderr, "[%d] pooldestroy_bp", removePoolNumber(Pool)));
+  unsigned PID;
+#ifdef ENABLE_POOL_IDS
+  PID = removePoolNumber(Pool);
+#endif
+  DO_IF_TRACE(fprintf(stderr, "[%d] pooldestroy_bp", PID));
   DO_IF_POOLDESTROY_STATS(PrintPoolStats(Pool));
 
   // Free all allocated slabs.
@@ -464,8 +490,12 @@ static void poolinit_internal(PoolTy<PoolTraits> *Pool,
 
   Pool->DeclaredSize = DeclaredSize;
 
+  unsigned PID;
+#ifdef ENABLE_POOL_IDS
+  PID = addPoolNumber(Pool);
+#endif
   DO_IF_TRACE(fprintf(stderr, "[%d] poolinit%s(0x%X, %d, %d)\n",
-                      addPoolNumber(Pool), PoolTraits::getSuffix(),
+                      PID, PoolTraits::getSuffix(),
                       Pool, DeclaredSize, ObjAlignment));
   DO_IF_PNP(++PoolsInited);  // Track # pools initialized
   DO_IF_PNP(InitPrintNumPools<PoolTraits>());
@@ -481,7 +511,11 @@ void poolinit(PoolTy<NormalPoolTraits> *Pool,
 void pooldestroy(PoolTy<NormalPoolTraits> *Pool) {
   assert(Pool && "Null pool pointer passed in to pooldestroy!\n");
 
-  DO_IF_TRACE(fprintf(stderr, "[%d] pooldestroy", removePoolNumber(Pool)));
+  unsigned PID;
+#ifdef ENABLE_POOL_IDS
+  PID = removePoolNumber(Pool);
+#endif
+  DO_IF_TRACE(fprintf(stderr, "[%d] pooldestroy", PID));
   DO_IF_POOLDESTROY_STATS(PrintPoolStats(Pool));
 
   // Free all allocated slabs.
@@ -814,16 +848,19 @@ unsigned poolobjsize(PoolTy<NormalPoolTraits> *Pool, void *Node) {
 
 
 void *poolalloc(PoolTy<NormalPoolTraits> *Pool, unsigned NumBytes) {
+  DO_IF_FORCE_MALLOCFREE(return malloc(NumBytes));
   return poolalloc_internal(Pool, NumBytes);
 }
 
 
 void poolfree(PoolTy<NormalPoolTraits> *Pool, void *Node) {
+  DO_IF_FORCE_MALLOCFREE(free(Node); return);
   poolfree_internal(Pool, Node);
 }
 
 void *poolrealloc(PoolTy<NormalPoolTraits> *Pool, void *Node,
                   unsigned NumBytes) {
+  DO_IF_FORCE_MALLOCFREE(return realloc(Node, NumBytes));
   return poolrealloc_internal(Pool, Node, NumBytes);
 }
 
@@ -875,7 +912,11 @@ void pooldestroy_pc(PoolTy<CompressedPoolTraits> *Pool) {
   if (Pool->Slabs == 0)
     return;   // no memory allocated from this pool.
 
-  DO_IF_TRACE(fprintf(stderr, "[%d] pooldestroy_pc", removePoolNumber(Pool)));
+  unsigned PID;
+#ifdef ENABLE_POOL_IDS
+  PID = removePoolNumber(Pool);
+#endif
+  DO_IF_TRACE(fprintf(stderr, "[%d] pooldestroy_pc", PID));
   DO_IF_POOLDESTROY_STATS(PrintPoolStats(Pool));
 
   // If there is space to remember this pool, do so.
@@ -902,3 +943,61 @@ void poolfree_pc(PoolTy<CompressedPoolTraits> *Pool, unsigned long long Node) {
 }
 
 
+//===----------------------------------------------------------------------===//
+// Access Tracing Runtime Library Support
+//===----------------------------------------------------------------------===//
+
+static FILE *FD = 0;
+void poolaccesstraceinit() {
+#ifdef ALWAYS_USE_MALLOC_FREE
+  FD = fopen("trace.malloc.csv", "w");
+#else
+  FD = fopen("trace.pa.csv", "w");
+#endif
+}
+
+#define NUMLRU 2
+static void *LRUWindow[NUMLRU];
+
+void poolaccesstrace(void *Ptr, void *PD) {
+  static unsigned Time = ~0U;
+  static void *LastPtr = 0;
+
+  // Not pool memory?
+  if (PD == 0) return;
+  
+  // Filter out stuff that is not to the heap.
+  ++Time;
+  if ((uintptr_t)Ptr > 1000000000UL)
+    return;
+
+  Ptr = (void*)((intptr_t)Ptr & ~31L);
+
+#if 1
+  // Drop duplicate points.
+  for (unsigned i = 0; i != NUMLRU; ++i)
+    if (Ptr == LRUWindow[i]) {
+      memmove(LRUWindow+1, LRUWindow, sizeof(void*)*i);
+      LRUWindow[0] = Ptr;
+      return;
+    }
+
+  // Rotate LRU window.
+  memmove(LRUWindow+1, LRUWindow, sizeof(void*)*(NUMLRU-1));
+  LRUWindow[0] = Ptr;
+#endif
+
+  // Delete many points to reduce data.
+  static unsigned int Ctr;
+  if ((++Ctr & 31)) return;
+
+
+  fprintf(FD, "%d", Time);
+#if defined(ENABLE_POOL_IDS)
+  for (unsigned PID = getPoolNumber(PD)+1; PID; --PID)
+    fprintf(FD,"\t?");
+#else
+  fprintf(FD, "\t%p ", PD);
+#endif
+  fprintf(FD, "\t%lu\n", (intptr_t)Ptr);
+}

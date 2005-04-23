@@ -212,6 +212,11 @@ extern "C" {
                                   unsigned NumBytes);
   void poolfree_pc(PoolTy<CompressedPoolTraits> *Pool, unsigned long long Node);
   //void *poolmemalign_pc(PoolTy *Pool, unsigned Alignment, unsigned NumBytes);
+
+
+  // Access tracing runtime library support.
+  void poolaccesstraceinit(void);
+  void poolaccesstrace(void *Ptr, void *PD);
 }
 
 #endif
