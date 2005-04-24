@@ -32,6 +32,14 @@ namespace llvm {
 
 namespace Macroscopic {
 
+/// FindAllDataStructures - Inspect the program specified by ECG, adding to
+/// 'Nodes' all of the data structures node in the program that contain the
+/// "IncludeFlags" and do not contain "ExcludeFlags" node flags.  If
+/// OnlyHomogenous is true, only type-homogenous nodes are considered.
+void FindAllDataStructures(std::set<DSNode*> &Nodes, unsigned IncludeFlags,
+                           unsigned ExcludeFlags, bool OnlyHomogenous,
+                           EquivClassGraphs &ECG);
+
 //===----------------------------------------------------------------------===//
 /// Visit types - This describes an enum specifying which methods are
 /// overloaded in the concrete implementation of the LatticeValue class.

@@ -24,6 +24,32 @@
 using namespace llvm::Macroscopic;
 using namespace llvm;
 
+/// FindAllDataStructures - Inspect the program specified by ECG, adding to
+/// 'Nodes' all of the data structures node in the program that contain the
+/// "IncludeFlags" and do not contain "ExcludeFlags" node flags.  If
+/// OnlyHomogenous is true, only type-homogenous nodes are considered.
+void FindAllDataStructures(std::set<DSNode*> &Nodes, unsigned IncludeFlags,
+                           unsigned ExcludeFlags, bool OnlyHomogenous,
+                           EquivClassGraphs &ECG) {
+  // Loop over all of the graphs in ECG, finding nodes that are not incomplete
+  // and do not have any of the flags specified by Flags.
+  ExcludeFlags |= DSNode::Incomplete;
+
+  /// FIXME: nodes in the global graph should not be marked incomplete in main!!
+  for (hash_map<const Function*, DSGraph*>::iterator GI = ECG.DSInfo.begin(),
+         E = ECG.DSInfo.end(); GI != E; ++GI) {
+    assert(GI->second && "Null graph pointer?");
+    DSGraph &G = *GI->second;
+    for (DSGraph::node_iterator I = G.node_begin(), E = G.node_end();
+         I != E; ++I)
+      // If this node matches our constraints, include it.
+      if ((I->getNodeFlags() & IncludeFlags) == IncludeFlags &&
+          (I->getNodeFlags() & ExcludeFlags) == 0)
+        if (!OnlyHomogenous || !I->isNodeCompletelyFolded())
+          Nodes.insert(I);
+  }
+}
+
 //===----------------------------------------------------------------------===//
 // LatticeValue class implementation
 //
