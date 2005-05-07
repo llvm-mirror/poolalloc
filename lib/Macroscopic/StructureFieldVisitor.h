@@ -56,7 +56,6 @@ namespace Visit {
 //===----------------------------------------------------------------------===//
 /// LatticeValue - Describe.
 ///
-
 class LatticeValue {
   DSNode *Node;
   std::vector<unsigned> Idxs;  // The index path to get to this field.
