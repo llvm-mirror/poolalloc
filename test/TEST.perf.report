@@ -1,0 +1,94 @@
+##=== TEST.poolalloc.report - Report description for poolalloc -*- perl -*-===##
+#
+# This file defines a report to be generated for the pool allocator tests.
+#
+##===----------------------------------------------------------------------===##
+
+# Sort by program name
+$SortCol = 0;
+$TrimRepeatedPrefix = 1;
+
+sub Ratio {
+  my ($Cols, $Col) = @_;
+  if ($Cols->[$Col-1] ne "*" and $Cols->[$Col-4] ne "*" and
+      $Cols->[$Col-1] != "0") {
+    return sprintf "%1.3f", $Cols->[$Col-4]/$Cols->[$Col-1];
+  } else {
+    return "n/a";
+  }
+}
+
+sub Sum {
+  my ($Cols, $Col) = @_;
+  if ($Cols->[$Col-1] ne "*" and $Cols->[$Col-2] ne "*") {
+    return sprintf "%1.3f", $Cols->[$Col-2]+$Cols->[$Col-1];
+  } else {
+    return "n/a";
+  }
+}
+
+
+sub FormatTime {
+  my $Time = shift;
+  if ($Time =~ m/([0-9]+)[m:]([0-9.]+)/) {
+    $Time = sprintf("%7.3f", $1*60.0+$2);
+  }
+  return $Time;
+}
+
+@LatexColumns = (2, 3, 4, 5, 6, 7);
+
+my $OLDEN     = 'MultiSource/Benchmarks/Olden';
+my $FREEBENCH = 'MultiSource/Benchmarks/FreeBench';
+my $PTRDIST   = 'MultiSource/Benchmarks/Ptrdist';
+
+@LatexRowMapOrder = (
+                     "$OLDEN/bh/bh"           => 'bh',
+                     "$OLDEN/bisort/bisort"   => 'bisort',
+                     "$OLDEN/em3d/em3d"       => 'em3d',
+                     "$OLDEN/health/health"   => 'health',
+                     "$OLDEN/mst/mst"         => 'mst',
+                     "$OLDEN/perimeter/perimeter" => 'perimeter',
+                     "$OLDEN/power/power"     => 'power',
+                     "$OLDEN/treeadd/treeadd" => 'treeadd',
+                     "$OLDEN/tsp/tsp"         => 'tsp',
+                     "$OLDEN/voronoi/voronoi" => 'voronoi',
+                     '-' => '-',
+                     "$FREEBENCH/analyzer/analyzer"     => 'analyzer',
+#                     "$FREEBENCH/distray/distray"       => 'distray',
+#                     "$FREEBENCH/fourinarow/fourinarow" => 'fourinarow',
+#                     "$FREEBENCH/mason/mason"           => 'mason',
+                     "$FREEBENCH/neural/neural"         => 'neural',
+                     "$FREEBENCH/pcompress2/pcompress2" => 'pcompress2',
+                     "$FREEBENCH/pifft/pifft"           => 'pifft',
+                     '-' => '-',
+                     "$PTRDIST/anagram/anagram"       => 'anagram',
+                     "$PTRDIST/bc/bc"                 => 'bc',
+                     "$PTRDIST/ft/ft"                 => 'ft',
+                     "$PTRDIST/ks/ks"                 => 'ks',
+                     "$PTRDIST/yacr2/yacr2"           => 'yacr2',
+                  );
+
+
+# These are the columns for the report.  The first entry is the header for the
+# column, the second is the regex to use to match the value.  Empty list create
+# seperators, and closures may be put in for custom processing.
+(
+# Name
+ ["Name:" , '\'([^\']+)\' Program'],
+ [],
+# Times
+ ["Time",           'CBE-RUN-TIME: program\s*([0-9.m]+)'],
+ ["L1 Misses",      'CBE-L1-Cache-Misses: ([0-9]+)'],
+ ["L2 Misses",      'CBE-L2-Cache-Misses: ([.0-9]+)'],
+ ["TLBMisses",      'CBE-TLB-Misses: ([0-9]+)'],
+ ["Misaligned",     'CBE-Misaligned: ([0-9]+)'],
+ [],
+ ["PA Time",        'CBE-PA-RUN-TIME: program\s*([0-9.m]+)'],
+ ["PA L1 Misses",   'CBE-PA-L1-Cache-Misses: ([0-9]+)'],
+ ["PA L2 Misses",   'CBE-PA-L2-Cache-Misses: ([.0-9]+)'],
+ ["PA TLB Misses",  'CBE-PA-TLB-Misses: ([0-9]+)'],
+ ["PA Misaligned",  'CBE-PA-Misaligned: ([0-9]+)'],
+ []
+);
+
