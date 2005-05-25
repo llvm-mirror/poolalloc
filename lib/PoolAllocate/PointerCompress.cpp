@@ -993,7 +993,13 @@ void InstructionRewriter::visitCallInst(CallInst &CI) {
   }
 
   // If this function doesn't require compression, there is nothing to do!
-  if (PoolsToCompress.empty()) return;
+  // However, this function still needs to be transformed; it may just be
+  // using a global pool descriptor.
+  if (PoolsToCompress.empty()) {
+    PtrComp.NoArgFunctionsCalled.push_back(Callee);
+    return;
+  }
+    
     
   // Get the clone of this function that uses compressed pointers instead of
   // normal pointers.
