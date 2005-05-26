@@ -188,7 +188,7 @@ pacompiletime::
 ptrcomp::
 	(cd $(LLVM_OBJ_ROOT)/projects/llvm-test/$(SUBDIR); \
                PROJECT_DIR=$(PROJ_OBJ_ROOT) $(MAKE) -j1 TEST=ptrcomp \
-                   report)
+                   $(STABLERUN) report report.html)
 	@printf "\a"; sleep 1; printf "\a"; sleep 1; printf "\a"
 
 vtl::
