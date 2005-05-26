@@ -45,9 +45,9 @@ static void *AllocateSpaceWithMMAP(size_t Size, bool UseNoReserve = false) {
 #endif
 
   int Flags = MAP_PRIVATE | MAP_ANONYMOUS;
-#ifdef MMAP_NORESERVE
+#ifdef MAP_NORESERVE
   if (UseNoReserve)
-    Flags |= MMAP_NORESERVE;
+    Flags |= MAP_NORESERVE;
 #endif
 
   void *Mem = ::mmap(0, Size, PROT_READ|PROT_WRITE, Flags, FD, 0);
