@@ -48,6 +48,8 @@ NORMAL_PROBLEM_SIZE_DIRS := \
 ##############################################################################
 # Targets for gathering statistics for programs for papers
 ##############################################################################
+
+# Program tests for Pool Allocation
 progtest::
 	for dir in $(LARGE_PROBLEM_SIZE_DIRS); do \
             (cd $$dir; \
@@ -67,6 +69,30 @@ progtest::
 	@for dir in $(NORMAL_PROBLEM_SIZE_DIRS); do \
 	    (cd $$dir; \
                PROJECT_DIR=$(PROJ_OBJ_ROOT) $(MAKE) -s -j1 TEST=poolalloc \
+                   report) \
+        done
+	@printf "\a"; sleep 1; printf "\a"; sleep 1; printf "\a"
+
+# Program tests for Pointer Compression
+progpc::
+	for dir in $(LARGE_PROBLEM_SIZE_DIRS); do \
+            (cd $$dir; \
+               PROJECT_DIR=$(PROJ_OBJ_ROOT) $(MAKE) -j1 TEST=ptrcomp \
+                   LARGE_PROBLEM_SIZE=1 report.html) \
+        done
+	for dir in $(NORMAL_PROBLEM_SIZE_DIRS); do \
+	    (cd $$dir; \
+               PROJECT_DIR=$(PROJ_OBJ_ROOT) $(MAKE) -j1 TEST=ptrcomp \
+                   report.html) \
+        done
+	@for dir in $(LARGE_PROBLEM_SIZE_DIRS); do \
+            (cd $$dir; \
+               PROJECT_DIR=$(PROJ_OBJ_ROOT) $(MAKE) -s -j1 TEST=ptrcomp \
+                   LARGE_PROBLEM_SIZE=1 report) \
+        done
+	@for dir in $(NORMAL_PROBLEM_SIZE_DIRS); do \
+	    (cd $$dir; \
+               PROJECT_DIR=$(PROJ_OBJ_ROOT) $(MAKE) -s -j1 TEST=ptrcomp \
                    report) \
         done
 	@printf "\a"; sleep 1; printf "\a"; sleep 1; printf "\a"
@@ -162,7 +188,7 @@ pacompiletime::
 ptrcomp::
 	(cd $(LLVM_OBJ_ROOT)/projects/llvm-test/$(SUBDIR); \
                PROJECT_DIR=$(PROJ_OBJ_ROOT) $(MAKE) -j1 TEST=ptrcomp \
-                   $(STABLERUN) report report.html)
+                   report)
 	@printf "\a"; sleep 1; printf "\a"; sleep 1; printf "\a"
 
 vtl::
