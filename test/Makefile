@@ -17,6 +17,12 @@ else
 STABLERUN :=
 endif
 
+ifndef NO_LARGE_SIZE
+LARGESIZE := LARGE_PROBLEM_SIZE=1
+else
+LARGESIZE :=
+endif
+
 
 LARGE_PROBLEM_SIZE_DIRS := \
    MultiSource/Benchmarks/llubenchmark \
@@ -176,7 +182,7 @@ progcputrack::
 test::
 	(cd $(LLVM_OBJ_ROOT)/projects/llvm-test/$(SUBDIR); \
                PROJECT_DIR=$(PROJ_OBJ_ROOT) $(MAKE) -j1 TEST=poolalloc \
-                   $(STABLERUN) report report.html)
+                   $(LARGESIZE) $(STABLERUN) report report.html)
 	@printf "\a"; sleep 1; printf "\a"; sleep 1; printf "\a"
 
 pacompiletime::
@@ -188,7 +194,7 @@ pacompiletime::
 ptrcomp::
 	(cd $(LLVM_OBJ_ROOT)/projects/llvm-test/$(SUBDIR); \
                PROJECT_DIR=$(PROJ_OBJ_ROOT) $(MAKE) -j1 TEST=ptrcomp \
-                   $(STABLERUN) report report.html)
+                   $(LARGESIZE) $(STABLERUN) report report.html)
 	@printf "\a"; sleep 1; printf "\a"; sleep 1; printf "\a"
 
 vtl::
@@ -206,7 +212,7 @@ perf::
 optzn::
 	(cd $(LLVM_OBJ_ROOT)/projects/llvm-test/$(SUBDIR); \
                PROJECT_DIR=$(PROJ_OBJ_ROOT) $(MAKE) -j1 TEST=optzn \
-                   $(STABLERUN) test report report.csv)
+                   $(LARGESIZE) $(STABLERUN) test report report.csv)
 	@printf "\a"; sleep 1; printf "\a"; sleep 1; printf "\a"
 
 p4perf::
