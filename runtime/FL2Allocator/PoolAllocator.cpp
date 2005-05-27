@@ -10,6 +10,8 @@
 // This file is one possible implementation of the LLVM pool allocator runtime
 // library.
 //
+// FIXME:
+//  The pointer compression functions are not thread safe.
 //===----------------------------------------------------------------------===//
 
 #include "PoolAllocator.h"
@@ -883,7 +885,8 @@ void *poolinit_pc(PoolTy<CompressedPoolTraits> *Pool,
                   unsigned DeclaredSize, unsigned ObjAlignment) {
   poolinit_internal(Pool, DeclaredSize, ObjAlignment);
 
-  static int count=0;
+  // The number of nodes to stagger in the mmap'ed pool
+  static unsigned stagger=0;
 
   // Create the pool.  We have to do this eagerly (instead of on the first
   // allocation), because code may want to eagerly copy the pool base into a
@@ -897,14 +900,28 @@ void *poolinit_pc(PoolTy<CompressedPoolTraits> *Pool,
       break;
     }
 
+  //
+  // Wrap the stagger value back to zero if we're past the size of the pool.
+  // This way, we always reserve less than 2*POOLSIZE of the virtual address
+  // space.
+  //
+  if ((stagger * DeclaredSize) >= POOLSIZE)
+    stagger = 0;
+
   if (Pool->Slabs == 0) {
+    //
     // Didn't find an existing pool, create one.
+    //
+    // To create a pool, we stagger the beginning of the pool so that pools
+    // do not end up starting on the same page boundary (creating extra cache
+    // conflicts).
+    //
     Pool->Slabs = (PoolSlab<CompressedPoolTraits>*)
-                      AllocateSpaceWithMMAP(POOLSIZE + (DeclaredSize * count), true);
-    Pool->Slabs += (DeclaredSize * count);
-#if 1
-    count++;
-#endif
+                      AllocateSpaceWithMMAP(POOLSIZE + (DeclaredSize * stagger), true);
+    Pool->Slabs += (DeclaredSize * stagger);
+
+    // Increase the stagger amount by one node.
+    stagger++;
     DO_IF_TRACE(fprintf(stderr, "RESERVED ADDR SPACE: %p -> %p\n",
                         Pool->Slabs, (char*)Pool->Slabs+POOLSIZE));
   }
