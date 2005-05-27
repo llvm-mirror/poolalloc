@@ -883,6 +883,8 @@ void *poolinit_pc(PoolTy<CompressedPoolTraits> *Pool,
                   unsigned DeclaredSize, unsigned ObjAlignment) {
   poolinit_internal(Pool, DeclaredSize, ObjAlignment);
 
+  static int count=0;
+
   // Create the pool.  We have to do this eagerly (instead of on the first
   // allocation), because code may want to eagerly copy the pool base into a
   // register.
@@ -898,7 +900,11 @@ void *poolinit_pc(PoolTy<CompressedPoolTraits> *Pool,
   if (Pool->Slabs == 0) {
     // Didn't find an existing pool, create one.
     Pool->Slabs = (PoolSlab<CompressedPoolTraits>*)
-                      AllocateSpaceWithMMAP(POOLSIZE, true);
+                      AllocateSpaceWithMMAP(POOLSIZE + (DeclaredSize * count), true);
+    Pool->Slabs += (DeclaredSize * count);
+#if 1
+    count++;
+#endif
     DO_IF_TRACE(fprintf(stderr, "RESERVED ADDR SPACE: %p -> %p\n",
                         Pool->Slabs, (char*)Pool->Slabs+POOLSIZE));
   }
