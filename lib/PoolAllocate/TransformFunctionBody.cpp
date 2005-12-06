@@ -514,14 +514,18 @@ void FuncTransform::visitCallSite(CallSite CS) {
     DSGraph::computeNodeMapping(CalleeGraph->getReturnNodeFor(*CF),
                                 getDSNodeHFor(TheCall), NodeMapping, false);
 
-    // Map the nodes that are pointed to by globals.
-  DSScalarMap &CalleeSM = CalleeGraph->getScalarMap();
-  for (DSScalarMap::global_iterator GI = G.getScalarMap().global_begin(), 
-         E = G.getScalarMap().global_end(); GI != E; ++GI)
-    if (CalleeSM.count(*GI))
-      DSGraph::computeNodeMapping(CalleeGraph->getNodeForValue(*GI),
-                                  getDSNodeHFor(*GI),
-                                  NodeMapping, false);
+  // This code seems redundant (and crashes occasionally)
+  // There is no reason to map globals here, since they are not passed as
+  // arguments
+
+  // Map the nodes that are pointed to by globals.
+  //  DSScalarMap &CalleeSM = CalleeGraph->getScalarMap();
+  //  for (DSScalarMap::global_iterator GI = G.getScalarMap().global_begin(), 
+  //         E = G.getScalarMap().global_end(); GI != E; ++GI)
+  //    if (CalleeSM.count(*GI))
+  //      DSGraph::computeNodeMapping(CalleeGraph->getNodeForValue(*GI),
+  //                                  getDSNodeHFor(*GI),
+  //                                  NodeMapping, false);
 
   // Okay, now that we have established our mapping, we can figure out which
   // pool descriptors to pass in...
