@@ -5,7 +5,7 @@ The only fully maintained runtime library implementation is in the FL2Allocator
 directory.  This supports the pool allocator, the bump pointer optimization,
 and the pointer compression runtime.
 
-The implementation is the FreeListAllocator directory is much slower than
+The implementation in the FreeListAllocator directory is much slower than
 the FL2Allocator and has not been updated.
 
 The implementation in the PoolAllocator directory is also probably out of date,
