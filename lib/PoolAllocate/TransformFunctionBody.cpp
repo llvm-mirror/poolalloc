@@ -592,16 +592,14 @@ void FuncTransform::visitCallSite(CallSite CS) {
 #ifdef BOUNDS_CHECK
       if (ArgNodes[i]->isArray()) {
 #endif
-	if (1) {
-	//Dinakar we need pooldescriptors for allocas in the callee if it escapes
+	if (!isa<InvokeInst>(TheCall)) {
+	  //Dinakar we need pooldescriptors for allocas in the callee if it escapes
 	  BasicBlock::iterator InsertPt = TheCall->getParent()->getParent()->front().begin();
 	  Type *VoidPtrTy = PointerType::get(Type::SByteTy);
 	  ArgVal =  new AllocaInst(ArrayType::get(VoidPtrTy, 16), 0, "PD", InsertPt);
 	  Value *ElSize = ConstantUInt::get(Type::UIntTy,0);
 	  Value *Align  = ConstantUInt::get(Type::UIntTy,0);
 	  new CallInst(PAInfo.PoolInit, make_vector(ArgVal, ElSize, Align, 0),"", TheCall);
-	  //UGLY HACK this won't release some memory
-	  if (!isa<InvokeInst>(TheCall)) 
 	    new CallInst(PAInfo.PoolDestroy, make_vector(ArgVal, 0), "",
 		       TheCall->getNext());
 	}
