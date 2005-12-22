@@ -6,6 +6,6 @@ LEVEL=..
 #
 # List all of the subdirectories that we will compile.
 #
-DIRS=SafePoolAllocator PoolAllocator FreeListAllocator FL2Allocator
+DIRS=PoolAllocator FreeListAllocator FL2Allocator
 
 include $(LEVEL)/Makefile.common
