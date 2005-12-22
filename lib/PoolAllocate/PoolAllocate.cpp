@@ -34,6 +34,9 @@
 #include "llvm/Support/Timer.h"
 using namespace llvm;
 using namespace PA;
+#ifdef SAFECODE
+using namespace CUA;
+#endif
 
 const Type *PoolAllocate::PoolDescPtrTy = 0;
 
@@ -73,13 +76,27 @@ namespace {
 }
 
 void PoolAllocate::getAnalysisUsage(AnalysisUsage &AU) const {
+#ifdef SAFECODE
+  AU.addRequired<ConvertUnsafeAllocas>();
+#endif  
   AU.addRequired<EquivClassGraphs>();
   AU.addPreserved<EquivClassGraphs>();
+#ifdef SAFECODE  
+  //Dinakar for preserving the pool information across passes
+  AU.setPreservesAll();
+#endif  
+#ifdef BOUNDS_CHECK  
+  //Dinakar hack for preserving the pool information across passes
+  AU.setPreservesAll();
+#endif  
   AU.addRequired<TargetData>();
 }
 
 bool PoolAllocate::runOnModule(Module &M) {
   if (M.begin() == M.end()) return false;
+#ifdef SAFECODE  
+  CUAPass = &getAnalysis<ConvertUnsafeAllocas>();
+#endif  
   CurModule = &M;
   ECGraphs = &getAnalysis<EquivClassGraphs>();   // folded inlined CBU graphs
 
@@ -149,7 +166,11 @@ void PoolAllocate::AddPoolPrototypes() {
   if (VoidPtrTy == 0) {
     // NOTE: If these are changed, make sure to update PoolOptimize.cpp as well!
     VoidPtrTy = PointerType::get(Type::SByteTy);
+#ifdef SAFECODE    
+    PoolDescType = ArrayType::get(VoidPtrTy, 50);
+#else
     PoolDescType = ArrayType::get(VoidPtrTy, 16);
+#endif    
     PoolDescPtrTy = PointerType::get(PoolDescType);
   }
 
@@ -180,7 +201,16 @@ void PoolAllocate::AddPoolPrototypes() {
 
   // Get the poolfree function.
   PoolFree = CurModule->getOrInsertFunction("poolfree", Type::VoidTy,
-                                            PoolDescPtrTy, VoidPtrTy, 0);  
+                                            PoolDescPtrTy, VoidPtrTy, 0);
+#ifdef SAFECODE
+  //Get the poolregister function
+  PoolRegister = CurModule->getOrInsertFunction("poolregister", Type::VoidTy,
+                                   PoolDescPtrTy, Type::UIntTy, VoidPtrTy, 0);
+#endif
+#ifdef BOUNDS_CHECK
+  PoolRegister = CurModule->getOrInsertFunction("poolregister", Type::VoidTy,
+                                   PoolDescPtrTy, VoidPtrTy, Type::UIntTy, 0);
+#endif  
 }
 
 static void getCallsOf(Function *F, std::vector<CallInst*> &Calls) {
@@ -270,7 +300,7 @@ static void MarkNodesWhichMustBePassedIn(hash_set<const DSNode*> &MarkedNodes,
   for (hash_set<const DSNode*>::iterator I = MarkedNodes.begin(),
          E = MarkedNodes.end(); I != E; ) {
     const DSNode *N = *I++;
-    if ((!N->isHeapNode() && !PassAllArguments) || NodesFromGlobals.count(N))
+    if ((!(1 || N->isHeapNode()) && !PassAllArguments) || NodesFromGlobals.count(N))
       MarkedNodes.erase(N);
   }
 }
@@ -343,7 +373,11 @@ Function *PoolAllocate::MakeFunctionClone(Function &F) {
 
   // Map the existing arguments of the old function to the corresponding
   // arguments of the new function, and copy over the names.
+#ifdef SAFECODE  
+  std::map<const Value*, Value*> &ValueMap = FI.ValueMap;
+#else
   std::map<const Value*, Value*> ValueMap;
+#endif  
   for (Function::arg_iterator I = F.arg_begin();
        NI != New->arg_end(); ++I, ++NI) {
     ValueMap[I] = NI;
@@ -387,7 +421,15 @@ bool PoolAllocate::SetupGlobalPools(Module &M) {
   for (hash_set<const DSNode*>::iterator I = GlobalHeapNodes.begin(),
          E = GlobalHeapNodes.end(); I != E; ) {
     hash_set<const DSNode*>::iterator Last = I++;
-    if (!(*Last)->isHeapNode())
+#ifndef SAFECODE
+#ifndef BOUNDS_CHECK    
+    //    if (!(*Last)->isHeapNode());
+    //       GlobalHeapNodes.erase(Last);
+#endif       
+#endif
+    const DSNode *tmp = *Last;
+    //    std::cerr << "test \n";
+    if (!(tmp->isHeapNode() || tmp->isArray()))
       GlobalHeapNodes.erase(Last);
   }
   
@@ -409,8 +451,11 @@ bool PoolAllocate::SetupGlobalPools(Module &M) {
   CurHeuristic->AssignToPools(NodesToPA, 0, GG, ResultPools);
 
   BasicBlock::iterator InsertPt = MainFunc->getEntryBlock().begin();
+#ifndef SAFECODE
+#ifndef BOUNDS_CHECK  
   while (isa<AllocaInst>(InsertPt)) ++InsertPt;
-
+#endif  
+#endif
   // Perform all global assignments as specified.
   for (unsigned i = 0, e = ResultPools.size(); i != e; ++i) {
     Heuristic::OnePool &Pool = ResultPools[i];
@@ -490,8 +535,11 @@ void PoolAllocate::CreatePools(Function &F, DSGraph &DSG,
   std::set<const DSNode*> UnallocatedNodes(NodesToPA.begin(), NodesToPA.end());
 
   BasicBlock::iterator InsertPoint = F.front().begin();
+#ifndef SAFECODE
+#ifndef BOUNDS_CHECK  
   while (isa<AllocaInst>(InsertPoint)) ++InsertPoint;
-
+#endif
+#endif  
   // Is this main?  If so, make the pool descriptors globals, not automatic
   // vars.
   bool IsMain = F.getName() == "main" && F.hasExternalLinkage();
@@ -562,7 +610,11 @@ void PoolAllocate::ProcessFunctionBody(Function &F, Function &NewF) {
   for (DSGraph::node_iterator I = G.node_begin(), E = G.node_end(); I != E;++I){
     // We only need to make a pool if there is a heap object in it...
     DSNode *N = I;
-    if (N->isHeapNode())
+    if (
+#ifdef BOUNDS_CHECK
+  (N->isArray() ||
+#endif		 
+   (N->isHeapNode()))
       if (GlobalsGraphNodeMapping.count(N)) {
         // If it is a global pool, set up the pool descriptor appropriately.
         DSNode *GGN = GlobalsGraphNodeMapping[N].getNode();

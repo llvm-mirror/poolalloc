@@ -16,17 +16,28 @@
 
 #ifndef POOLALLOCATE_H
 #define POOLALLOCATE_H
-
+//#define SAFECODE 1
+//#define BOUNDS_CHECK 1
+//comment the above two for normal poolallocation
 #include "llvm/Pass.h"
 #include "llvm/DerivedTypes.h"
 #include "llvm/Support/CallSite.h"
 #include "llvm/ADT/EquivalenceClasses.h"
 #include "llvm/ADT/VectorExtras.h"
 #include "llvm/ADT/hash_set"
+
+#ifdef SAFECODE
+//FIXME : make this use some configuration options
+#include "/home/vadve/dhurjati/llvm/projects/safecode.typesafe/include/ConvertUnsafeAllocas.h"
+#endif
+
+
 #include <set>
 
 namespace llvm {
-
+#ifdef SAFECODE
+  using namespace CUA;
+#endif  
 class DSNode;
 class DSGraph;
 class Type;
@@ -73,6 +84,12 @@ namespace PA {
     /// function.
     std::map<const DSNode*, Value*> PoolDescriptors;
 
+#ifdef SAFECODE
+    //This is a map from Old to New Value Map reverse of the one above
+    //Useful in SAFECode for check insertion
+    std::map<const Value*, Value*> ValueMap;
+#endif
+    
     /// NewToOldValueMap - When and if a function needs to be cloned, this map
     /// contains a mapping from all of the values in the new function back to
     /// the values they correspond to in the old function.
@@ -105,13 +122,23 @@ class PoolAllocate : public ModulePass {
 
   Module *CurModule;
   EquivClassGraphs *ECGraphs;
-
+  
   std::map<Function*, PA::FuncInfo> FunctionInfo;
   std::map<Function*, Function*> CloneToOrigMap;
 public:
 
+#ifdef SAFECODE  
+  ConvertUnsafeAllocas *CUAPass;
+#endif  
   Function *PoolInit, *PoolDestroy, *PoolAlloc, *PoolRealloc, *PoolMemAlign;
   Function *PoolFree;
+#ifdef SAFECODE  
+  Function *PoolRegister;
+#endif
+#ifdef BOUNDS_CHECK  
+  Function *PoolRegister;
+#endif
+  
   static const Type *PoolDescPtrTy;
 
   PA::Heuristic *CurHeuristic;
@@ -122,9 +149,13 @@ public:
   std::map<const DSNode*, Value*> GlobalNodes;
 
  public:
+#ifdef SAFECODE  
+  PoolAllocate(bool passAllArguments = true) 
+    : PassAllArguments(passAllArguments) {}
+#else
   PoolAllocate(bool passAllArguments = false) 
     : PassAllArguments(passAllArguments) {}
-
+#endif
   bool runOnModule(Module &M);
   
   virtual void getAnalysisUsage(AnalysisUsage &AU) const;
