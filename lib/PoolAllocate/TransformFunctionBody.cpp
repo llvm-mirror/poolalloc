@@ -60,6 +60,7 @@ namespace {
 
     void visitInstruction(Instruction &I);
     void visitMallocInst(MallocInst &MI);
+    void visitAllocaInst(AllocaInst &MI);
     void visitCallocCall(CallSite CS);
     void visitReallocCall(CallSite CS);
     void visitMemAlignCall(CallSite CS);
@@ -149,6 +150,7 @@ Instruction *FuncTransform::TransformAllocationInstr(Instruction *I,
 
   // Insert a call to poolalloc
   Value *PH = getPoolHandle(I);
+  
   Instruction *V = new CallInst(PAInfo.PoolAlloc, make_vector(PH, Size, 0),
                                 Name, I);
 
@@ -187,6 +189,7 @@ Instruction *FuncTransform::TransformAllocationInstr(Instruction *I,
 void FuncTransform::visitMallocInst(MallocInst &MI) {
   // Get the pool handle for the node that this contributes to...
   Value *PH = getPoolHandle(&MI);
+  
   if (PH == 0 || isa<ConstantPointerNull>(PH)) return;
 
   TargetData &TD = PAInfo.getAnalysis<TargetData>();
@@ -196,8 +199,57 @@ void FuncTransform::visitMallocInst(MallocInst &MI) {
   if (MI.isArrayAllocation())
     AllocSize = BinaryOperator::create(Instruction::Mul, AllocSize,
                                        MI.getOperand(0), "sizetmp", &MI);
+#ifdef SAFECODE
+  const MallocInst *originalMalloc = &MI;
+  if (FI.NewToOldValueMap.count(&MI)) {
+    originalMalloc = cast<MallocInst>(FI.NewToOldValueMap[&MI]);
+  }
+  //Dinakar to test stack safety & array safety 
+  if (PAInfo.CUAPass->ArrayMallocs.find(originalMalloc) ==
+      PAInfo.CUAPass->ArrayMallocs.end()) {
+    TransformAllocationInstr(&MI, AllocSize);
+  } else {
+    AllocaInst *AI = new AllocaInst(MI.getType()->getElementType(), MI.getArraySize(), MI.getName(), MI.getNext());
+    MI.replaceAllUsesWith(AI);
+    MI.getParent()->getInstList().erase(&MI);
+    Value *Casted = AI;
+    Instruction *aiNext = AI->getNext();
+    if (AI->getType() != PointerType::get(Type::SByteTy))
+      Casted = new CastInst(AI, PointerType::get(Type::SByteTy),
+			      AI->getName()+".casted",aiNext);
+    
+    Instruction *V = new CallInst(PAInfo.PoolRegister,
+				  make_vector(PH, AllocSize, Casted, 0), "", aiNext);
+    AddPoolUse(*V, PH, PoolUses);
+  }
+#else
+  TransformAllocationInstr(&MI, AllocSize);  
+#endif
+}
 
-  TransformAllocationInstr(&MI, AllocSize);
+void FuncTransform::visitAllocaInst(AllocaInst &MI) {
+#ifdef BOUNDS_CHECK
+  // Get the pool handle for the node that this contributes to...
+  DSNode *Node = getDSNodeHFor(&MI).getNode();
+  if (Node->isArray()) {
+    Value *PH = getPoolHandle(&MI);
+    if (PH == 0 || isa<ConstantPointerNull>(PH)) return;
+    TargetData &TD = PAInfo.getAnalysis<TargetData>();
+    Value *AllocSize =
+      ConstantUInt::get(Type::UIntTy, TD.getTypeSize(MI.getAllocatedType()));
+    
+    if (MI.isArrayAllocation())
+      AllocSize = BinaryOperator::create(Instruction::Mul, AllocSize,
+					 MI.getOperand(0), "sizetmp", &MI);
+    
+    //  TransformAllocationInstr(&MI, AllocSize);
+    Instruction *Casted = new CastInst(&MI, PointerType::get(Type::SByteTy),
+				       MI.getName()+".casted", MI.getNext());
+    Instruction *V = new CallInst(PAInfo.PoolRegister,
+				  make_vector(PH, Casted, AllocSize, 0), "", Casted->getNext());
+    AddPoolUse(*V, PH, PoolUses);
+  }
+#endif  
 }
 
 
@@ -536,10 +588,29 @@ void FuncTransform::visitCallSite(CallSite CS) {
       if (DSNode *LocalNode = NodeMapping[ArgNodes[i]].getNode())
         if (FI.PoolDescriptors.count(LocalNode))
           ArgVal = FI.PoolDescriptors.find(LocalNode)->second;
-#if 0
-    if (isa<Constant>(ArgVal) && cast<Constant>(ArgVal)->isNullValue())
-      std::cerr << "WARNING: NULL POOL ARGUMENTS ARE PASSED IN!\n";
+    if (isa<Constant>(ArgVal) && cast<Constant>(ArgVal)->isNullValue()) {
+#ifdef BOUNDS_CHECK
+      if (ArgNodes[i]->isArray()) {
 #endif
+	if (1) {
+	//Dinakar we need pooldescriptors for allocas in the callee if it escapes
+	  BasicBlock::iterator InsertPt = TheCall->getParent()->getParent()->front().begin();
+	  Type *VoidPtrTy = PointerType::get(Type::SByteTy);
+	  ArgVal =  new AllocaInst(ArrayType::get(VoidPtrTy, 16), 0, "PD", InsertPt);
+	  Value *ElSize = ConstantUInt::get(Type::UIntTy,0);
+	  Value *Align  = ConstantUInt::get(Type::UIntTy,0);
+	  new CallInst(PAInfo.PoolInit, make_vector(ArgVal, ElSize, Align, 0),"", TheCall);
+	  //UGLY HACK this won't release some memory
+	  if (!isa<InvokeInst>(TheCall)) 
+	    new CallInst(PAInfo.PoolDestroy, make_vector(ArgVal, 0), "",
+		       TheCall->getNext());
+	}
+	//probably need to update DSG
+	//      std::cerr << "WARNING: NULL POOL ARGUMENTS ARE PASSED IN!\n";
+#ifdef BOUNDS_CHECK	
+      }
+#endif
+    }
     Args.push_back(ArgVal);
   }
 
