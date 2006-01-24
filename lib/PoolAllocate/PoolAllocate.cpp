@@ -32,6 +32,9 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/Timer.h"
+
+#include <iostream>
+
 using namespace llvm;
 using namespace PA;
 #ifdef SAFECODE

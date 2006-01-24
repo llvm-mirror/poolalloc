@@ -27,6 +27,9 @@
 #include "llvm/Support/InstVisitor.h"
 
 #include "llvm/Transforms/Utils/Cloning.h"
+
+#include <iostream>
+
 using namespace llvm;
 
 /// MEMUINTTYPE - This is the actual type we are compressing to.  This is really
