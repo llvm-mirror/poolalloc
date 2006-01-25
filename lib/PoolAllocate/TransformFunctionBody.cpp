@@ -315,7 +315,7 @@ void FuncTransform::visitCallocCall(CallSite CS) {
                                             Type::VoidTy,
                                             PointerType::get(Type::SByteTy),
                                             Type::UByteTy, Type::UIntTy,
-                                            Type::UIntTy, 0);
+                                            Type::UIntTy, NULL);
 
   if (Ptr->getType() != PointerType::get(Type::SByteTy))
     Ptr = new CastInst(Ptr, PointerType::get(Type::SByteTy), Ptr->getName(),

@@ -61,9 +61,9 @@ void PoolAccessTrace::InitializeLibraryFunctions(Module &M) {
   VoidPtrTy = PointerType::get(Type::SByteTy);
 
   AccessTraceInitFn = M.getOrInsertFunction("poolaccesstraceinit",
-                                            Type::VoidTy,0);
+                                            Type::VoidTy,NULL);
   PoolAccessTraceFn = M.getOrInsertFunction("poolaccesstrace", Type::VoidTy,
-                                            VoidPtrTy, VoidPtrTy, 0);
+                                            VoidPtrTy, VoidPtrTy, NULL);
 }
 
 void PoolAccessTrace::InstrumentAccess(Instruction *I, Value *Ptr, 

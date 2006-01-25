@@ -899,7 +899,7 @@ void InstructionRewriter::visitCallInst(CallInst &CI) {
   const DSGraph *CG = 0;
   Function *Callee = CI.getCalledFunction();
   if (Callee)
-    if (FI = PtrComp.getPoolAlloc()->getFuncInfoOrClone(*Callee))
+    if ((FI = PtrComp.getPoolAlloc()->getFuncInfoOrClone(*Callee)))
       CG = &PtrComp.getGraphForFunc(FI);
 
   if (!Callee) {
@@ -1415,11 +1415,11 @@ void PointerCompress::InitializePoolLibraryFunctions(Module &M) {
   const Type *PoolDescPtrTy = PointerType::get(ArrayType::get(VoidPtrTy, 16));
 
   PoolInitPC = M.getOrInsertFunction("poolinit_pc", VoidPtrTy, PoolDescPtrTy, 
-                                     Type::UIntTy, Type::UIntTy, 0);
+                                     Type::UIntTy, Type::UIntTy, NULL);
   PoolDestroyPC = M.getOrInsertFunction("pooldestroy_pc", Type::VoidTy,
-                                        PoolDescPtrTy, 0);
+                                        PoolDescPtrTy, NULL);
   PoolAllocPC = M.getOrInsertFunction("poolalloc_pc", SCALARUINTTYPE,
-                                      PoolDescPtrTy, Type::UIntTy, 0);
+                                      PoolDescPtrTy, Type::UIntTy, NULL);
   // FIXME: Need bumppointer versions as well as realloc??/memalign??
 }
 

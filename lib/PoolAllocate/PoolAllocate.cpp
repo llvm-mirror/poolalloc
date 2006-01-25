@@ -182,37 +182,38 @@ void PoolAllocate::AddPoolPrototypes() {
   // Get poolinit function.
   PoolInit = CurModule->getOrInsertFunction("poolinit", Type::VoidTy,
                                             PoolDescPtrTy, Type::UIntTy,
-                                            Type::UIntTy, 0);
+                                            Type::UIntTy, NULL);
 
   // Get pooldestroy function.
   PoolDestroy = CurModule->getOrInsertFunction("pooldestroy", Type::VoidTy,
-                                               PoolDescPtrTy, 0);
+                                               PoolDescPtrTy, NULL);
   
   // The poolalloc function.
   PoolAlloc = CurModule->getOrInsertFunction("poolalloc", 
                                              VoidPtrTy, PoolDescPtrTy,
-                                             Type::UIntTy, 0);
+                                             Type::UIntTy, NULL);
   
   // The poolrealloc function.
   PoolRealloc = CurModule->getOrInsertFunction("poolrealloc",
                                                VoidPtrTy, PoolDescPtrTy,
-                                               VoidPtrTy, Type::UIntTy, 0);
+                                               VoidPtrTy, Type::UIntTy, NULL);
   // The poolmemalign function.
   PoolMemAlign = CurModule->getOrInsertFunction("poolmemalign",
                                                 VoidPtrTy, PoolDescPtrTy,
-                                                Type::UIntTy, Type::UIntTy, 0);
+                                                Type::UIntTy, Type::UIntTy, 
+                                                NULL);
 
   // Get the poolfree function.
   PoolFree = CurModule->getOrInsertFunction("poolfree", Type::VoidTy,
-                                            PoolDescPtrTy, VoidPtrTy, 0);
+                                            PoolDescPtrTy, VoidPtrTy, NULL);
 #ifdef SAFECODE
   //Get the poolregister function
   PoolRegister = CurModule->getOrInsertFunction("poolregister", Type::VoidTy,
-                                   PoolDescPtrTy, Type::UIntTy, VoidPtrTy, 0);
+                                   PoolDescPtrTy, Type::UIntTy, VoidPtrTy, NULL);
 #endif
 #ifdef BOUNDS_CHECK
   PoolRegister = CurModule->getOrInsertFunction("poolregister", Type::VoidTy,
-                                   PoolDescPtrTy, VoidPtrTy, Type::UIntTy, 0);
+                                   PoolDescPtrTy, VoidPtrTy, Type::UIntTy, NULL);
 #endif  
 }
 

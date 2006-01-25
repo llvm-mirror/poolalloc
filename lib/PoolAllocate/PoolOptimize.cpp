@@ -44,50 +44,52 @@ bool PoolOptimize::runOnModule(Module &M) {
   // Get poolinit function.
   Function *PoolInit = M.getOrInsertFunction("poolinit", Type::VoidTy,
                                              PoolDescPtrTy, Type::UIntTy,
-                                             Type::UIntTy, 0);
+                                             Type::UIntTy, NULL);
 
   // Get pooldestroy function.
   Function *PoolDestroy = M.getOrInsertFunction("pooldestroy", Type::VoidTy,
-                                                PoolDescPtrTy, 0);
+                                                PoolDescPtrTy, NULL);
   
   // The poolalloc function.
   Function *PoolAlloc = M.getOrInsertFunction("poolalloc", 
                                               VoidPtrTy, PoolDescPtrTy,
-                                              Type::UIntTy, 0);
+                                              Type::UIntTy, NULL);
   
   // The poolrealloc function.
   Function *PoolRealloc = M.getOrInsertFunction("poolrealloc",
                                                 VoidPtrTy, PoolDescPtrTy,
-                                                VoidPtrTy, Type::UIntTy, 0);
+                                                VoidPtrTy, Type::UIntTy, NULL);
   // The poolmemalign function.
   Function *PoolMemAlign = M.getOrInsertFunction("poolmemalign",
                                                  VoidPtrTy, PoolDescPtrTy,
-                                                 Type::UIntTy, Type::UIntTy, 0);
+                                                 Type::UIntTy, Type::UIntTy, 
+                                                 NULL);
 
   // Get the poolfree function.
   Function *PoolFree = M.getOrInsertFunction("poolfree", Type::VoidTy,
-                                             PoolDescPtrTy, VoidPtrTy, 0);  
+                                             PoolDescPtrTy, VoidPtrTy, NULL);  
 
 
   // Get poolinit_bp function.
   Function *PoolInitBP = M.getOrInsertFunction("poolinit_bp", Type::VoidTy,
-                                               PoolDescPtrTy, Type::UIntTy, 0);
+                                               PoolDescPtrTy, Type::UIntTy, 
+                                               NULL);
   
   // Get pooldestroy_bp function.
   Function *PoolDestroyBP = M.getOrInsertFunction("pooldestroy_bp",Type::VoidTy,
-                                                 PoolDescPtrTy, 0);
+                                                 PoolDescPtrTy, NULL);
   
   // The poolalloc_bp function.
   Function *PoolAllocBP = M.getOrInsertFunction("poolalloc_bp", 
                                                 VoidPtrTy, PoolDescPtrTy,
-                                                Type::UIntTy, 0);
+                                                Type::UIntTy, NULL);
 
   Function *Realloc = M.getOrInsertFunction("realloc",
                                             VoidPtrTy, VoidPtrTy, Type::UIntTy,
-                                            0);
+                                            NULL);
   Function *MemAlign = M.getOrInsertFunction("memalign",
                                              VoidPtrTy, Type::UIntTy,
-                                             Type::UIntTy, 0);
+                                             Type::UIntTy, NULL);
 
 
   // Optimize poolreallocs
