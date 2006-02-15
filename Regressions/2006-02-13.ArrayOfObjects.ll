@@ -1,4 +1,4 @@
-; This causes a segfault
+; This causes a segfault in pointer compression
 ; The pool type is struct.DLL, but the result of malloc is an array of struct.DLL
 ; the GEP rewrite assumed that a pointer would have the pool type which isn't true here
 
