@@ -854,6 +854,13 @@ void *poolalloc(PoolTy<NormalPoolTraits> *Pool, unsigned NumBytes) {
   return poolalloc_internal(Pool, NumBytes);
 }
 
+void *poolmemalign(PoolTy<NormalPoolTraits> *Pool,
+                   unsigned Alignment, unsigned NumBytes) {
+  //punt and use pool alloc.
+  //I don't know if this is safe or breaks any assumptions in the runtime
+  intptr_t base = (intptr_t)poolalloc_internal(Pool, NumBytes + Alignment - 1);
+  return (void*)((base + (Alignment - 1)) & ~((intptr_t)Alignment -1));
+}
 
 void poolfree(PoolTy<NormalPoolTraits> *Pool, void *Node) {
   DO_IF_FORCE_MALLOCFREE(free(Node); return);
