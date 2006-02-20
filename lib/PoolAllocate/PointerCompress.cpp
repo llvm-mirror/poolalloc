@@ -654,6 +654,19 @@ void InstructionRewriter::visitGetElementPtrInst(GetElementPtrInst &GEPI) {
   // pointed to the start of a node!
   const Type *NTy = PointerType::get(PI->getNewType());
 
+  //Check if we have a pointer to an array of Original Types this happens if
+  //you do a malloc of [n x OrigTy] for a pool of Type OrigTy
+  if(isa<PointerType>(GEPI.getOperand(0)->getType())) {
+    const Type* PT =
+      cast<PointerType>(GEPI.getOperand(0)->getType())->getElementType();
+    if(isa<ArrayType>(PT)) {
+      if (cast<ArrayType>(PT)->getElementType() == PI->getNode()->getType())
+        NTy = PointerType::get(ArrayType::get(PI->getNewType(),
+                                              cast<ArrayType>(PT)->getNumElements()));
+    }
+  }
+
+
   gep_type_iterator GTI = gep_type_begin(GEPI), E = gep_type_end(GEPI);
   for (unsigned i = 1, e = GEPI.getNumOperands(); i != e; ++i, ++GTI) {
     Value *Idx = GEPI.getOperand(i);
