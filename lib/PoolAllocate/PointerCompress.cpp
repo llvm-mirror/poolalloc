@@ -944,6 +944,29 @@ void InstructionRewriter::visitCallInst(CallInst &CI) {
         CI.setOperand(1, SrcPtr);
         return;
       }
+    } else if (Callee->getName() == "llvm.memcpy") {
+      bool doret = false;
+      if (const CompressedPoolInfo *DestPI = getPoolInfo(CI.getOperand(1))) {
+        std::vector<Value*> Ops;
+        Ops.push_back(getTransformedValue(CI.getOperand(1)));
+        Value *BasePtr = DestPI->EmitPoolBaseLoad(CI);
+        Value *SrcPtr = new GetElementPtrInst(BasePtr, Ops,
+                                       CI.getOperand(1)->getName()+".pp", &CI);
+        SrcPtr = new CastInst(SrcPtr, CI.getOperand(1)->getType(), "", &CI);
+        CI.setOperand(1, SrcPtr);
+        doret = true;
+      }
+      if (const CompressedPoolInfo *DestPI = getPoolInfo(CI.getOperand(2))) {
+        std::vector<Value*> Ops;
+        Ops.push_back(getTransformedValue(CI.getOperand(2)));
+        Value *BasePtr = DestPI->EmitPoolBaseLoad(CI);
+        Value *SrcPtr = new GetElementPtrInst(BasePtr, Ops,
+                                       CI.getOperand(2)->getName()+".pp", &CI);
+        SrcPtr = new CastInst(SrcPtr, CI.getOperand(2)->getType(), "", &CI);
+        CI.setOperand(2, SrcPtr);
+        doret = true;
+      }
+      if (doret) return;
     }
 
 
