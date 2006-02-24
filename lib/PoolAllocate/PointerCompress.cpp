@@ -933,6 +933,17 @@ void InstructionRewriter::visitCallInst(CallInst &CI) {
             getPoolInfo(CI.getOperand(i)))
           CI.setOperand(i, getTransformedValue(CI.getOperand(i)));
       return;
+    } else if (Callee->getName() == "read") {
+      if (const CompressedPoolInfo *DestPI = getPoolInfo(CI.getOperand(2))) {
+        std::vector<Value*> Ops;
+        Ops.push_back(getTransformedValue(CI.getOperand(2)));
+        Value *BasePtr = DestPI->EmitPoolBaseLoad(CI);
+        Value *SrcPtr = new GetElementPtrInst(BasePtr, Ops,
+                                       CI.getOperand(2)->getName()+".pp", &CI);
+        SrcPtr = new CastInst(SrcPtr, CI.getOperand(2)->getType(), "", &CI);
+        CI.setOperand(2, SrcPtr);
+        return;
+      }
     } else if (Callee->getName() == "llvm.memset") {
       if (const CompressedPoolInfo *DestPI = getPoolInfo(CI.getOperand(1))) {
         std::vector<Value*> Ops;
