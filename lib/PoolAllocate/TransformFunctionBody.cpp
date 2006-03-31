@@ -509,6 +509,15 @@ void FuncTransform::visitCallSite(CallSite CS) {
       ECGraphs.getSomeCalleeForCallSite(cast<CallInst>(OrigInst)) :
       ECGraphs.getSomeCalleeForCallSite(cast<InvokeInst>(OrigInst));
 
+    if (!CF) 
+      for (EquivClassGraphs::callee_iterator I = ECGraphs.callee_begin(OrigInst), 
+	     E = ECGraphs.callee_end(OrigInst); I != E; ++I)
+	if (I->second) {
+	  CF = I->second;
+	  break;
+	}
+        
+
     if (!CF) {
       // FIXME: Unknown callees for a call-site. Warn and ignore.
       std::cerr << "\n***\n*** WARNING (FuncTransform::visitCallSite): "
