@@ -49,6 +49,10 @@ namespace {
   cl::opt<bool>
   DisablePoolBaseASR("disable-ptrcomp-poolbase-aggregation",
                      cl::desc("Don't optimize pool base loads"));
+  cl::opt<bool>
+  ADLFix("adl-pc",
+         cl::desc("Enable Andrew's fixes/hacks"));
+  
 
   Statistic<> NumCompressed("pointercompress",
                             "Number of pools pointer compressed");
@@ -231,6 +235,13 @@ const Type *CompressedPoolInfo::
 ComputeCompressedType(const Type *OrigTy, unsigned NodeOffset,
                       std::map<const DSNode*, CompressedPoolInfo> &Nodes) {
   if (const PointerType *PTY = dyn_cast<PointerType>(OrigTy)) {
+    if (ADLFix) {
+      DSNode *PointeeNode = getNode()->getLink(NodeOffset).getNode();
+      if (PointeeNode == getNode())
+        return MEMUINTTYPE;
+      return OrigTy;
+    }
+
     // Okay, we have a pointer.  Check to see if the node pointed to is actually
     // compressed!
     //DSNode *PointeeNode = getNode()->getLink(NodeOffset).getNode();
@@ -927,7 +938,7 @@ void InstructionRewriter::visitCallInst(CallInst &CI) {
 
     // If this is one of the functions we know about, just materialize the
     // compressed pointer as a real pointer, and pass it.
-    if (Callee->getName() == "printf") {
+    if (Callee->getName() == "printf" || Callee->getName() == "sprintf") {
       for (unsigned i = 1, e = CI.getNumOperands(); i != e; ++i)
         if (isa<PointerType>(CI.getOperand(i)->getType()) &&
             getPoolInfo(CI.getOperand(i)))
@@ -944,7 +955,7 @@ void InstructionRewriter::visitCallInst(CallInst &CI) {
         CI.setOperand(2, SrcPtr);
         return;
       }
-    } else if (Callee->getName() == "llvm.memset") {
+    } else if (Callee->getName() == "fwrite") {
       if (const CompressedPoolInfo *DestPI = getPoolInfo(CI.getOperand(1))) {
         std::vector<Value*> Ops;
         Ops.push_back(getTransformedValue(CI.getOperand(1)));
@@ -955,7 +966,22 @@ void InstructionRewriter::visitCallInst(CallInst &CI) {
         CI.setOperand(1, SrcPtr);
         return;
       }
-    } else if (Callee->getName() == "llvm.memcpy") {
+    } else if (Callee->getName() == "llvm.memset" ||
+               Callee->getName() == "llvm.memset.i32" ||
+               Callee->getName() == "llvm.memset.i64") {
+      if (const CompressedPoolInfo *DestPI = getPoolInfo(CI.getOperand(1))) {
+        std::vector<Value*> Ops;
+        Ops.push_back(getTransformedValue(CI.getOperand(1)));
+        Value *BasePtr = DestPI->EmitPoolBaseLoad(CI);
+        Value *SrcPtr = new GetElementPtrInst(BasePtr, Ops,
+                                       CI.getOperand(1)->getName()+".pp", &CI);
+        SrcPtr = new CastInst(SrcPtr, CI.getOperand(1)->getType(), "", &CI);
+        CI.setOperand(1, SrcPtr);
+        return;
+      }
+    } else if (Callee->getName() == "llvm.memcpy" ||
+               Callee->getName() == "llvm.memcpy.i32" ||
+               Callee->getName() == "llvm.memcpy.i64") {
       bool doret = false;
       if (const CompressedPoolInfo *DestPI = getPoolInfo(CI.getOperand(1))) {
         std::vector<Value*> Ops;
@@ -1022,7 +1048,10 @@ void InstructionRewriter::visitCallInst(CallInst &CI) {
     
   // Find the arguments we need to compress.
   unsigned NumPoolArgs = FI ? FI->ArgNodes.size() : 0;
-  for (unsigned i = 1, e = CI.getNumOperands(); i != e; ++i)
+  //only search non-vararg arguments
+  //FIXME: suspect hack to prevent crashing on user-defined vaarg functions
+  unsigned NumSearch = FI ? FI->F.arg_size() + 1: CI.getNumOperands();
+  for (unsigned i = 1, e = NumSearch; i != e; ++i)
     if (isa<PointerType>(CI.getOperand(i)->getType()) && i > NumPoolArgs) {
       Argument *FormalArg = next(FI->F.arg_begin(), i-1-NumPoolArgs);
         
