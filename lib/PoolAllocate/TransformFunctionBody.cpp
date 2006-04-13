@@ -291,19 +291,22 @@ void FuncTransform::visitFreeInst(FreeInst &FrI) {
 
 
 void FuncTransform::visitCallocCall(CallSite CS) {
+  TargetData& TD = PAInfo.getAnalysis<TargetData>();
+  bool useLong = TD.getTypeSize(PointerType::get(Type::SByteTy)) != 4;
+  
   Module *M = CS.getInstruction()->getParent()->getParent()->getParent();
   assert(CS.arg_end()-CS.arg_begin() == 2 && "calloc takes two arguments!");
   Value *V1 = CS.getArgument(0);
   Value *V2 = CS.getArgument(1);
   if (V1->getType() != V2->getType()) {
-    V1 = new CastInst(V1, Type::UIntTy, V1->getName(), CS.getInstruction());
-    V2 = new CastInst(V2, Type::UIntTy, V2->getName(), CS.getInstruction());
+    V1 = new CastInst(V1, useLong ? Type::ULongTy : Type::UIntTy, V1->getName(), CS.getInstruction());
+    V2 = new CastInst(V2, useLong ? Type::ULongTy : Type::UIntTy, V2->getName(), CS.getInstruction());
   }
 
   V2 = BinaryOperator::create(Instruction::Mul, V1, V2, "size",
                               CS.getInstruction());
-  if (V2->getType() != Type::UByteTy)
-    V2 = new CastInst(V2, Type::UIntTy, V2->getName(), CS.getInstruction());
+  if (V2->getType() != (useLong ? Type::ULongTy : Type::UIntTy))
+    V2 = new CastInst(V2, useLong ? Type::ULongTy : Type::UIntTy, V2->getName(), CS.getInstruction());
 
   BasicBlock::iterator BBI =
     TransformAllocationInstr(CS.getInstruction(), V2);
@@ -311,11 +314,11 @@ void FuncTransform::visitCallocCall(CallSite CS) {
 
   // We just turned the call of 'calloc' into the equivalent of malloc.  To
   // finish calloc, we need to zero out the memory.
-  Function *MemSet = M->getOrInsertFunction("llvm.memset",
-                                            Type::VoidTy,
-                                            PointerType::get(Type::SByteTy),
-                                            Type::UByteTy, Type::UIntTy,
-                                            Type::UIntTy, NULL);
+  Function *MemSet =  M->getOrInsertFunction((useLong ? "llvm.memset.i64" : "llvm.memset.i32"),
+                                             Type::VoidTy,
+                                             PointerType::get(Type::SByteTy),
+                                             Type::UByteTy, (useLong ? Type::ULongTy : Type::UIntTy),
+                                             Type::UIntTy, NULL);
 
   if (Ptr->getType() != PointerType::get(Type::SByteTy))
     Ptr = new CastInst(Ptr, PointerType::get(Type::SByteTy), Ptr->getName(),
@@ -579,14 +582,14 @@ void FuncTransform::visitCallSite(CallSite CS) {
   // There is no reason to map globals here, since they are not passed as
   // arguments
 
-  // Map the nodes that are pointed to by globals.
-  //  DSScalarMap &CalleeSM = CalleeGraph->getScalarMap();
-  //  for (DSScalarMap::global_iterator GI = G.getScalarMap().global_begin(), 
-  //         E = G.getScalarMap().global_end(); GI != E; ++GI)
-  //    if (CalleeSM.count(*GI))
-  //      DSGraph::computeNodeMapping(CalleeGraph->getNodeForValue(*GI),
-  //                                  getDSNodeHFor(*GI),
-  //                                  NodeMapping, false);
+//   // Map the nodes that are pointed to by globals.
+//    DSScalarMap &CalleeSM = CalleeGraph->getScalarMap();
+//    for (DSScalarMap::global_iterator GI = G.getScalarMap().global_begin(), 
+//           E = G.getScalarMap().global_end(); GI != E; ++GI)
+//      if (CalleeSM.count(*GI))
+//        DSGraph::computeNodeMapping(CalleeGraph->getNodeForValue(*GI),
+//                                    getDSNodeHFor(*GI),
+//                                    NodeMapping, false);
 
   // Okay, now that we have established our mapping, we can figure out which
   // pool descriptors to pass in...
