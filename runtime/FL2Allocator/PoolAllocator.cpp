@@ -538,9 +538,11 @@ void pooldestroy(PoolTy<NormalPoolTraits> *Pool) {
 }
 
 template<typename PoolTraits>
-static void *poolalloc_internal(PoolTy<PoolTraits> *Pool, unsigned NumBytes) {
+static void *poolalloc_internal(PoolTy<PoolTraits> *Pool, unsigned NumBytesA) {
   DO_IF_TRACE(fprintf(stderr, "[%d] poolalloc%s(%d) -> ",
-                      getPoolNumber(Pool), PoolTraits::getSuffix(), NumBytes));
+                      getPoolNumber(Pool), PoolTraits::getSuffix(), NumBytesA));
+
+  int NumBytes = NumBytesA;
 
   // If a null pool descriptor is passed in, this is not a pool allocated data
   // structure.  Hand off to the system malloc.
@@ -783,9 +785,9 @@ static void *poolrealloc_internal(PoolTy<PoolTraits> *Pool, void *Node,
     DO_IF_TRACE(fprintf(stderr, "0x%X (system realloc)\n", Result));
     return Result;
   }
-  if (Node == 0) return poolalloc(Pool, NumBytes);
+  if (Node == 0) return poolalloc_internal(Pool, NumBytes);
   if (NumBytes == 0) {
-    poolfree(Pool, Node);
+    poolfree_internal(Pool, Node);
     DO_IF_TRACE(fprintf(stderr, "freed\n"));
     return 0;
   }
@@ -797,12 +799,12 @@ static void *poolrealloc_internal(PoolTy<PoolTraits> *Pool, void *Node,
   if (Size != ~1U) {
     // FIXME: This is obviously much worse than it could be.  In particular, we
     // never try to expand something in a pool.  This might hurt some programs!
-    void *New = poolalloc(Pool, NumBytes);
+    void *New = poolalloc_internal(Pool, NumBytes);
     assert(New != 0 && "Our poolalloc doesn't ever return null for failure!");
     
     // Copy the min of the new and old sizes over.
     memcpy(New, Node, Size < NumBytes ? Size : NumBytes);
-    poolfree(Pool, Node);
+    poolfree_internal(Pool, Node);
     DO_IF_TRACE(fprintf(stderr, "0x%X (moved)\n", New));
     return New;
   }
@@ -970,6 +972,12 @@ unsigned long long poolalloc_pc(PoolTy<CompressedPoolTraits> *Pool,
 
 void poolfree_pc(PoolTy<CompressedPoolTraits> *Pool, unsigned long long Node) {
   poolfree_internal(Pool, (char*)Pool->Slabs+Node);
+}
+
+unsigned long long poolrealloc_pc(PoolTy<CompressedPoolTraits> *Pool,
+                                  unsigned long long Node, unsigned NumBytes) {
+  void *Result = poolrealloc_internal(Pool, (char*)Pool->Slabs+Node, NumBytes);
+  return (char*)Result-(char*)Pool->Slabs;
 }
 
 
