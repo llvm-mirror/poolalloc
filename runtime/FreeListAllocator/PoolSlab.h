@@ -73,7 +73,8 @@ struct SlabHeader
   unsigned char * Data;
 
   // Pointer to the list of nodes
-  NodePointer BlockList [];
+  //NodePointer* BlockList;
 };
+#define BlockList(x) ((NodePointer*)((char*)x + sizeof(SlabHeader)))
 
 #endif /* _POOLSLAB_H */

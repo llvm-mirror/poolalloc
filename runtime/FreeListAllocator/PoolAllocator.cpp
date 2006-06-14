@@ -99,7 +99,6 @@ createSlab (PoolTy * Pool, unsigned int NodesPerSlab = 0)
       NodesPerSlab = MaxNodesPerPage;
     }
   }
-
   NewSlab->NodesPerSlab = NodesPerSlab;
   NewSlab->NextFreeData = NewSlab->LiveNodes = 0;
   NewSlab->Next = NULL;
@@ -413,7 +412,7 @@ poolalloc(PoolTy *Pool, unsigned BytesWanted)
   //
   // Find the data block that corresponds with this pointer.
   //
-  Data = (Slabp->Data + (Pool->NodeSize * (Pool->FreeList.Next - &(Slabp->BlockList[0]))));
+  Data = (Slabp->Data + (Pool->NodeSize * (Pool->FreeList.Next - &(BlockList(Slabp)[0]))));
 
   //
   // Unlink the first block.
@@ -451,7 +450,7 @@ poolfree (PoolTy * Pool, void * Block)
   // Find the node pointer that corresponds to this data block.
   //
   NodePointer Node;
-  Node.Next = &(slabp->BlockList[((unsigned char *)Block - slabp->Data)/Pool->NodeSize]);
+  Node.Next = &(BlockList(slabp)[((unsigned char *)Block - slabp->Data)/Pool->NodeSize]);
 
   //
   // Add the node back to the free list.

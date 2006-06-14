@@ -107,7 +107,7 @@ namespace PA {
     }
   };
 
-}; // end PA namespace
+} // end PA namespace
 
 
 

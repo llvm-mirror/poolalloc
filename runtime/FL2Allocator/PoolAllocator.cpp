@@ -542,7 +542,7 @@ static void *poolalloc_internal(PoolTy<PoolTraits> *Pool, unsigned NumBytesA) {
   DO_IF_TRACE(fprintf(stderr, "[%d] poolalloc%s(%d) -> ",
                       getPoolNumber(Pool), PoolTraits::getSuffix(), NumBytesA));
 
-  int NumBytes = NumBytesA;
+  unsigned NumBytes = NumBytesA;
 
   // If a null pool descriptor is passed in, this is not a pool allocated data
   // structure.  Hand off to the system malloc.

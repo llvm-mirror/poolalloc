@@ -31,7 +31,7 @@ namespace {
     SmartCoallesceNodes,
     CyclicNodes,
     AllButUnreachableFromMemory,
-    AllNodes,
+    AllNodes
   };
   cl::opt<PoolAllocHeuristic>
   TheHeuristic("poolalloc-heuristic",
