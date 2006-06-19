@@ -43,6 +43,7 @@ class DSGraph;
 class Type;
 class AllocaInst;
 class EquivClassGraphs;
+class CallTargetFinder;
 
 namespace PA {
 
@@ -122,6 +123,7 @@ class PoolAllocate : public ModulePass {
 
   Module *CurModule;
   EquivClassGraphs *ECGraphs;
+  CallTargetFinder* CTF;
   
   std::map<Function*, PA::FuncInfo> FunctionInfo;
   std::map<Function*, Function*> CloneToOrigMap;

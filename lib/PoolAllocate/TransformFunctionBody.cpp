@@ -15,6 +15,7 @@
 #include "PoolAllocate.h"
 #include "llvm/Analysis/DataStructure/DataStructure.h"
 #include "llvm/Analysis/DataStructure/DSGraph.h"
+#include "llvm/Analysis/DataStructure/CallTargets.h"
 #include "llvm/Module.h"
 #include "llvm/DerivedTypes.h"
 #include "llvm/Constants.h"
@@ -34,6 +35,7 @@ namespace {
     PoolAllocate &PAInfo;
     DSGraph &G;      // The Bottom-up DS Graph
     FuncInfo &FI;
+    CallTargetFinder* CTF;
 
     // PoolUses - For each pool (identified by the pool descriptor) keep track
     // of which blocks require the memory in the pool to not be freed.  This
@@ -47,8 +49,9 @@ namespace {
 
     FuncTransform(PoolAllocate &P, DSGraph &g, FuncInfo &fi,
                   std::multimap<AllocaInst*, Instruction*> &poolUses,
-                  std::multimap<AllocaInst*, CallInst*> &poolFrees)
-      : PAInfo(P), G(g), FI(fi),
+                  std::multimap<AllocaInst*, CallInst*> &poolFrees,
+		  CallTargetFinder* ctf)
+      : PAInfo(P), G(g), FI(fi), CTF(ctf),
         PoolUses(poolUses), PoolFrees(poolFrees) {
     }
 
@@ -115,7 +118,7 @@ void PoolAllocate::TransformBody(DSGraph &g, PA::FuncInfo &fi,
                               std::multimap<AllocaInst*,Instruction*> &poolUses,
                               std::multimap<AllocaInst*, CallInst*> &poolFrees,
                                  Function &F) {
-  FuncTransform(*this, g, fi, poolUses, poolFrees).visit(F);
+  FuncTransform(*this, g, fi, poolUses, poolFrees, CTF).visit(F);
 }
 
 
@@ -519,11 +522,39 @@ void FuncTransform::visitCallSite(CallSite CS) {
 	  CF = I->second;
 	  break;
 	}
-        
+
+    // If we didn't find the callee in the constructed call graph, try
+    // checking in the DSNode itself.
+    // This isn't ideal as it means that this call site didn't have inlining
+    // happen.
+    if (!CF) {
+      DSGraph* dg = &ECGraphs.getDSGraph(*OrigInst->getParent()->getParent());
+      DSNode* d = dg->getNodeForValue(OrigInst->getOperand(0)).getNode();
+      const std::vector<GlobalValue*> &g = d->getGlobalsList();
+      for(std::vector<GlobalValue*>::const_iterator ii = g.begin(), ee = g.end();
+	  !CF && ii != ee; ++ii) {
+        EquivalenceClasses< GlobalValue *> & EC = ECGraphs.getGlobalECs();
+        for (EquivalenceClasses<GlobalValue *>::member_iterator MI = EC.findLeader(*ii);
+             MI != EC.member_end(); ++MI)   // Loop over members in this set.
+          if ((CF = dyn_cast<Function>(*MI))) {
+	    std::cerr << "\n***\nPA: *** WARNING (FuncTransform::visitCallSite): "
+		      << "Using DSNode for callees for call-site in function "
+		      << CS.getCaller()->getName() << "\n***\n";
+ 	    break;
+	  }
+      }
+    }
+
+    if (!CF && CTF) {
+      std::cerr << "\nPA: Last Resort TD Indirect Resolve in " << CS.getCaller()->getName() << "\n";
+      CF = *CTF->begin(isa<CallInst>(OrigInst)?CallSite(cast<CallInst>(OrigInst))
+		       :CallSite(cast<InvokeInst>(OrigInst)));
+      if (CF) std::cerr << "TD resolved to " << CF->getName() << "\n";
+    }
 
     if (!CF) {
       // FIXME: Unknown callees for a call-site. Warn and ignore.
-      std::cerr << "\n***\n*** WARNING (FuncTransform::visitCallSite): "
+      std::cerr << "\n***\nPA: *** WARNING (FuncTransform::visitCallSite): "
                 << "Unknown callees for call-site in function "
                 << CS.getCaller()->getName() << "\n***\n";
       return;

@@ -26,6 +26,7 @@
 #include "llvm/Target/TargetData.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/Transforms/Utils/Cloning.h"
+#include "llvm/Analysis/DataStructure/CallTargets.h"
 #include "llvm/ADT/DepthFirstIterator.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/ADT/STLExtras.h"
@@ -76,6 +77,10 @@ namespace {
   cl::opt<bool>
   DisablePoolFreeOpt("poolalloc-force-all-poolfrees",
                      cl::desc("Do not try to elide poolfree's where possible"));
+
+  cl::opt<bool>
+  UseTDResolve("poolalloc-usetd-resolve",
+	       cl::desc("Use Top-Down Graph as a resolve source"));
 }
 
 void PoolAllocate::getAnalysisUsage(AnalysisUsage &AU) const {
@@ -93,6 +98,8 @@ void PoolAllocate::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.setPreservesAll();
 #endif  
   AU.addRequired<TargetData>();
+  if (UseTDResolve)
+    AU.addRequired<CallTargetFinder>();
 }
 
 bool PoolAllocate::runOnModule(Module &M) {
@@ -102,6 +109,10 @@ bool PoolAllocate::runOnModule(Module &M) {
 #endif  
   CurModule = &M;
   ECGraphs = &getAnalysis<EquivClassGraphs>();   // folded inlined CBU graphs
+  if (UseTDResolve)
+    CTF = &getAnalysis<CallTargetFinder>();
+  else
+    CTF = 0;
 
   CurHeuristic = Heuristic::create();
   CurHeuristic->Initialize(M, ECGraphs->getGlobalsGraph(), *this);
