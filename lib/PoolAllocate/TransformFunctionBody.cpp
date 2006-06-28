@@ -456,6 +456,10 @@ void FuncTransform::visitCallSite(CallSite CS) {
   Function *CF = CS.getCalledFunction();
   Instruction *TheCall = CS.getInstruction();
 
+  if (ConstantExpr *CE = dyn_cast<ConstantExpr>(CS.getCalledValue()))
+    if (CE->getOpcode() == Instruction::Cast && isa<Function>(CE->getOperand(0)))
+      CF = cast<Function>(CE->getOperand(0));
+
   // If this function is one of the memory manipulating functions built into
   // libc, emulate it with pool calls as appropriate.
   if (CF && CF->isExternal())
