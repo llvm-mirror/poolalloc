@@ -460,6 +460,11 @@ void FuncTransform::visitCallSite(CallSite CS) {
     if (CE->getOpcode() == Instruction::Cast && isa<Function>(CE->getOperand(0)))
       CF = cast<Function>(CE->getOperand(0));
 
+  if (isa<InlineAsm>(TheCall->getOperand(0))) {
+    std::cerr << "INLINE ASM: ignoring.  Hoping that's safe.\n";
+    return;
+  }
+
   // If this function is one of the memory manipulating functions built into
   // libc, emulate it with pool calls as appropriate.
   if (CF && CF->isExternal())
