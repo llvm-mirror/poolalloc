@@ -215,6 +215,17 @@ extern "C" {
   unsigned long long poolrealloc_pc(PoolTy<CompressedPoolTraits> *Pool,
                                   unsigned long long Node, unsigned NumBytes);
 
+  // Alternate Pointer Compression runtime library.  Most of these are just 
+  // wrappers around the normal pool routines.
+  void *poolinit_pca(PoolTy<CompressedPoolTraits> *Pool, unsigned NodeSize,
+                    unsigned ObjAlignment);
+  void pooldestroy_pca(PoolTy<CompressedPoolTraits> *Pool);
+  void* poolalloc_pca(PoolTy<CompressedPoolTraits> *Pool,
+                                  unsigned NumBytes);
+  void poolfree_pca(PoolTy<CompressedPoolTraits> *Pool, void* Node);
+  void* poolrealloc_pca(PoolTy<CompressedPoolTraits> *Pool,
+                                  void* Node, unsigned NumBytes);
+
   // Access tracing runtime library support.
   void poolaccesstraceinit(void);
   void poolaccesstrace(void *Ptr, void *PD);

@@ -889,7 +889,6 @@ void *poolrealloc(PoolTy<NormalPoolTraits> *Pool, void *Node,
 // next time.
 static PoolSlab<CompressedPoolTraits> *Pools[4] = { 0, 0, 0, 0 };
 
-
 void *poolinit_pc(PoolTy<CompressedPoolTraits> *Pool,
                   unsigned DeclaredSize, unsigned ObjAlignment) {
   poolinit_internal(Pool, DeclaredSize, ObjAlignment);
@@ -980,6 +979,33 @@ unsigned long long poolrealloc_pc(PoolTy<CompressedPoolTraits> *Pool,
   return (char*)Result-(char*)Pool->Slabs;
 }
 
+// Alternate Pointer Compression
+void *poolinit_pca(PoolTy<CompressedPoolTraits> *Pool, unsigned NodeSize,
+		   unsigned ObjAlignment)
+{
+  return poolinit_pc(Pool, NodeSize, ObjAlignment);
+}
+
+void pooldestroy_pca(PoolTy<CompressedPoolTraits> *Pool)
+{
+  pooldestroy_pc(Pool);
+}
+
+void* poolalloc_pca(PoolTy<CompressedPoolTraits> *Pool, unsigned NumBytes)
+{
+  return poolalloc_internal(Pool, NumBytes);
+}
+
+void poolfree_pca(PoolTy<CompressedPoolTraits> *Pool, void* Node)
+{
+  poolfree_internal(Pool, Node);
+}
+
+void* poolrealloc_pca(PoolTy<CompressedPoolTraits> *Pool, void* Node, 
+		      unsigned NumBytes)
+{
+  return poolrealloc_internal(Pool, Node, NumBytes);
+}
 
 //===----------------------------------------------------------------------===//
 // Access Tracing Runtime Library Support
