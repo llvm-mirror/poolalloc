@@ -134,10 +134,7 @@ public:
 #endif  
   Function *PoolInit, *PoolDestroy, *PoolAlloc, *PoolRealloc, *PoolMemAlign;
   Function *PoolFree;
-#ifdef SAFECODE  
-  Function *PoolRegister;
-#endif
-#ifdef BOUNDS_CHECK  
+#if defined(SAFECODE) || defined(BOUNDS_CHECK)
   Function *PoolRegister;
 #endif
   
