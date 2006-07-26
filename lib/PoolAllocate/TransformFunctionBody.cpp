@@ -12,7 +12,7 @@
 //===----------------------------------------------------------------------===//
 
 #define DEBUG_TYPE "PoolAllocator"
-#include "PoolAllocate.h"
+#include "poolalloc/PoolAllocate.h"
 #include "llvm/Analysis/DataStructure/DataStructure.h"
 #include "llvm/Analysis/DataStructure/DSGraph.h"
 #include "llvm/Analysis/DataStructure/CallTargets.h"

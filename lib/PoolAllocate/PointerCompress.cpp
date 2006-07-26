@@ -12,7 +12,7 @@
 //===----------------------------------------------------------------------===//
 
 #define DEBUG_TYPE "pointercompress"
-#include "PoolAllocate.h"
+#include "poolalloc/PoolAllocate.h"
 #include "Heuristic.h"
 #include "llvm/Constants.h"
 #include "llvm/Instructions.h"

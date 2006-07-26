@@ -12,7 +12,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "Heuristic.h"
-#include "PoolAllocate.h"
+#include "poolalloc/PoolAllocate.h"
 #include "llvm/Instructions.h"
 #include "llvm/Module.h"
 #include "llvm/Analysis/DataStructure/DSGraphTraits.h"
