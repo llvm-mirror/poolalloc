@@ -666,6 +666,7 @@ static void *poolalloc_internal(PoolTy<PoolTraits> *Pool, unsigned NumBytesA) {
 
     // If we are not allowed to grow this pool, don't.
     if (!PoolTraits::CanGrowPool) {
+      DO_IF_TRACE(fprintf(stderr, "Pool Overflow, not growable\n"));
       abort();
       return 0;
     }
