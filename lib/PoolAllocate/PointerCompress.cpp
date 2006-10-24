@@ -163,7 +163,7 @@ namespace {
                              Function &F, DSGraph &DSG, PA::FuncInfo *FI);
   };
 
-  RegisterOpt<PointerCompress>
+  RegisterPass<PointerCompress>
   X("pointercompress", "Compress type-safe data structures");
 }
 
@@ -682,11 +682,11 @@ void InstructionRewriter::visitGetElementPtrInst(GetElementPtrInst &GEPI) {
   for (unsigned i = 1, e = GEPI.getNumOperands(); i != e; ++i, ++GTI) {
     Value *Idx = GEPI.getOperand(i);
     if (const StructType *STy = dyn_cast<StructType>(*GTI)) {
-      unsigned Field = (unsigned)cast<ConstantUInt>(Idx)->getValue();
+      uint64_t Field = (unsigned)cast<ConstantInt>(Idx)->getZExtValue();
       if (Field) {
         uint64_t FieldOffs = TD.getStructLayout(cast<StructType>(NTy))
                                         ->MemberOffsets[Field];
-        Constant *FieldOffsCst = ConstantUInt::get(SCALARUINTTYPE, FieldOffs);
+        Constant *FieldOffsCst = ConstantInt::get(SCALARUINTTYPE, FieldOffs);
         Val = BinaryOperator::createAdd(Val, FieldOffsCst,
                                         GEPI.getName(), &GEPI);
       }
@@ -705,7 +705,7 @@ void InstructionRewriter::visitGetElementPtrInst(GetElementPtrInst &GEPI) {
         if (Idx->getType() != SCALARUINTTYPE)
           Idx = new CastInst(Idx, SCALARUINTTYPE, Idx->getName(), &GEPI);
 
-        Constant *Scale = ConstantUInt::get(SCALARUINTTYPE,
+        Constant *Scale = ConstantInt::get(SCALARUINTTYPE,
                                             TD.getTypeSize(ElTy));
         Idx = BinaryOperator::createMul(Idx, Scale, "fieldidx", &GEPI);
         Val = BinaryOperator::createAdd(Val, Idx, GEPI.getName(), &GEPI);
@@ -836,11 +836,11 @@ void InstructionRewriter::visitPoolInit(CallInst &CI) {
   std::vector<Value*> Ops;
   Ops.push_back(CI.getOperand(1));
   // Transform to pass in the compressed size.
-  Ops.push_back(ConstantUInt::get(Type::UIntTy, PI->getNewSize()));
+  Ops.push_back(ConstantInt::get(Type::UIntTy, PI->getNewSize()));
 
   // Pointer compression can reduce the alignment restriction to 4 bytes from 8.
   // Reevaluate the desired alignment.
-  Ops.push_back(ConstantUInt::get(Type::UIntTy,
+  Ops.push_back(ConstantInt::get(Type::UIntTy,
              PA::Heuristic::getRecommendedAlignment(PI->getNewType(), TD)));
   // TODO: Compression could reduce the alignment restriction for the pool!
   Value *PB = new CallInst(PtrComp.PoolInitPC, Ops, "", &CI);
@@ -880,11 +880,11 @@ void InstructionRewriter::visitPoolAlloc(CallInst &CI) {
     if (OldSizeV != PI->getNewSize()) {
       // Emit code to scale the allocated size down by the old size then up by
       // the new size.  We actually compute (N+OS-1)/OS * NS.
-      Value *OldSize = ConstantUInt::get(Type::UIntTy, OldSizeV);
-      Value *NewSize = ConstantUInt::get(Type::UIntTy, PI->getNewSize());
+      Value *OldSize = ConstantInt::get(Type::UIntTy, OldSizeV);
+      Value *NewSize = ConstantInt::get(Type::UIntTy, PI->getNewSize());
 
       Size = BinaryOperator::createAdd(Size,
-                                  ConstantUInt::get(Type::UIntTy, OldSizeV-1),
+                                  ConstantInt::get(Type::UIntTy, OldSizeV-1),
                                        "roundup", &CI);
       Size = BinaryOperator::createDiv(Size, OldSize, "numnodes", &CI);
       Size = BinaryOperator::createMul(Size, NewSize, "newbytes", &CI);

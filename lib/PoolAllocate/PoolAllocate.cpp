@@ -52,9 +52,9 @@ const Type *PoolAllocate::PoolDescPtrTy = 0;
 #endif
 
 namespace {
-  RegisterOpt<PoolAllocate>
+  RegisterPass<PoolAllocate>
   X("poolalloc", "Pool allocate disjoint data structures");
-  RegisterOpt<PoolAllocatePassAllPools>
+  RegisterPass<PoolAllocatePassAllPools>
   Y("poolalloc-passing-all-pools", "Pool allocate disjoint data structures");
 
   Statistic<> NumArgsAdded("poolalloc", "Number of function arguments added");
@@ -523,8 +523,8 @@ GlobalVariable *PoolAllocate::CreateGlobalPool(unsigned RecSize, unsigned Align,
     while (isa<AllocaInst>(InsertPt)) ++InsertPt;
   }
 
-  Value *ElSize = ConstantUInt::get(Type::UIntTy, RecSize);
-  Value *AlignV = ConstantUInt::get(Type::UIntTy, Align);
+  Value *ElSize = ConstantInt::get(Type::UIntTy, RecSize);
+  Value *AlignV = ConstantInt::get(Type::UIntTy, Align);
   new CallInst(PoolInit, make_vector((Value*)GV, ElSize, AlignV, 0),
                "", InsertPt);
   ++NumPools;
@@ -861,9 +861,9 @@ void PoolAllocate::InitializeAndDestroyPool(Function &F, const DSNode *Node,
 
   // Insert the calls to initialize the pool.
   unsigned ElSizeV = Heuristic::getRecommendedSize(Node);
-  Value *ElSize = ConstantUInt::get(Type::UIntTy, ElSizeV);
+  Value *ElSize = ConstantInt::get(Type::UIntTy, ElSizeV);
   unsigned AlignV = Heuristic::getRecommendedAlignment(Node);
-  Value *Align  = ConstantUInt::get(Type::UIntTy, AlignV);
+  Value *Align  = ConstantInt::get(Type::UIntTy, AlignV);
 
   for (unsigned i = 0, e = PoolInitPoints.size(); i != e; ++i) {
     new CallInst(PoolInit, make_vector((Value*)PD, ElSize, Align, 0),

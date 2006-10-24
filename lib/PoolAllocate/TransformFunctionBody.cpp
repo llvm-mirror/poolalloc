@@ -197,7 +197,7 @@ void FuncTransform::visitMallocInst(MallocInst &MI) {
 
   TargetData &TD = PAInfo.getAnalysis<TargetData>();
   Value *AllocSize =
-    ConstantUInt::get(Type::UIntTy, TD.getTypeSize(MI.getAllocatedType()));
+    ConstantInt::get(Type::UIntTy, TD.getTypeSize(MI.getAllocatedType()));
 
   if (MI.isArrayAllocation())
     AllocSize = BinaryOperator::create(Instruction::Mul, AllocSize,
@@ -239,7 +239,7 @@ void FuncTransform::visitAllocaInst(AllocaInst &MI) {
     if (PH == 0 || isa<ConstantPointerNull>(PH)) return;
     TargetData &TD = PAInfo.getAnalysis<TargetData>();
     Value *AllocSize =
-      ConstantUInt::get(Type::UIntTy, TD.getTypeSize(MI.getAllocatedType()));
+      ConstantInt::get(Type::UIntTy, TD.getTypeSize(MI.getAllocatedType()));
     
     if (MI.isArrayAllocation())
       AllocSize = BinaryOperator::create(Instruction::Mul, AllocSize,
@@ -328,8 +328,8 @@ void FuncTransform::visitCallocCall(CallSite CS) {
                        BBI);
   
   // We know that the memory returned by poolalloc is at least 4 byte aligned.
-  new CallInst(MemSet, make_vector(Ptr, ConstantUInt::get(Type::UByteTy, 0),
-                                   V2,  ConstantUInt::get(Type::UIntTy, 4), 0),
+  new CallInst(MemSet, make_vector(Ptr, ConstantInt::get(Type::UByteTy, 0),
+                                   V2,  ConstantInt::get(Type::UIntTy, 4), 0),
                "", BBI);
 }
 
@@ -649,8 +649,8 @@ void FuncTransform::visitCallSite(CallSite CS) {
 	  BasicBlock::iterator InsertPt = TheCall->getParent()->getParent()->front().begin();
 	  Type *VoidPtrTy = PointerType::get(Type::SByteTy);
 	  ArgVal =  new AllocaInst(ArrayType::get(VoidPtrTy, 16), 0, "PD", InsertPt);
-	  Value *ElSize = ConstantUInt::get(Type::UIntTy,0);
-	  Value *Align  = ConstantUInt::get(Type::UIntTy,0);
+	  Value *ElSize = ConstantInt::get(Type::UIntTy,0);
+	  Value *Align  = ConstantInt::get(Type::UIntTy,0);
 	  new CallInst(PAInfo.PoolInit, make_vector(ArgVal, ElSize, Align, 0),"", TheCall);
 	    new CallInst(PAInfo.PoolDestroy, make_vector(ArgVal, 0), "",
 		       TheCall->getNext());

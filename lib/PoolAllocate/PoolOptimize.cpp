@@ -26,7 +26,7 @@ namespace {
     bool runOnModule(Module &M);
   };
 
-  RegisterOpt<PoolOptimize>
+  RegisterPass<PoolOptimize>
   X("pooloptimize", "Optimize a pool allocated program");
 }
 

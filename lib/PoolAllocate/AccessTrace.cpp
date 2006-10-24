@@ -45,7 +45,7 @@ namespace {
                           PA::FuncInfo *FI, DSGraph &DSG);
   };
 
-  RegisterOpt<PoolAccessTrace>
+  RegisterPass<PoolAccessTrace>
   X("poolaccesstrace", "Instrument program to print trace of accesses");
 }
 

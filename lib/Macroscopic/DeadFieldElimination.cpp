@@ -43,7 +43,7 @@ namespace {
       AU.addPreserved<EquivClassGraphs>();
     }
   };
-  RegisterOpt<DeadFieldElim>
+  RegisterPass<DeadFieldElim>
   X("rds-deadfieldelim", "Macroscopic Dead Field Elimination");
 }  // end anonymous namespace
 
