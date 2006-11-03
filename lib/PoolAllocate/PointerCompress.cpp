@@ -234,7 +234,7 @@ void CompressedPoolInfo::Initialize(std::map<const DSNode*,
 const Type *CompressedPoolInfo::
 ComputeCompressedType(const Type *OrigTy, unsigned NodeOffset,
                       std::map<const DSNode*, CompressedPoolInfo> &Nodes) {
-  if (const PointerType *PTY = dyn_cast<PointerType>(OrigTy)) {
+  if (dyn_cast<PointerType>(OrigTy)) {
     if (ADLFix) {
       DSNode *PointeeNode = getNode()->getLink(NodeOffset).getNode();
       if (PointeeNode == getNode())
@@ -792,7 +792,7 @@ void InstructionRewriter::visitStoreInst(StoreInst &SI) {
   //
   Value *SrcVal = SI.getOperand(0);
   if (!isa<ConstantPointerNull>(SrcVal)) {
-    if (const CompressedPoolInfo *SrcPI = getPoolInfo(SrcVal)) {
+    if (getPoolInfo(SrcVal)) {
       // If the stored value is compressed, get the xformed version
       SrcVal = getTransformedValue(SrcVal);
 
@@ -886,7 +886,7 @@ void InstructionRewriter::visitPoolAlloc(CallInst &CI) {
       Size = BinaryOperator::createAdd(Size,
                                   ConstantInt::get(Type::UIntTy, OldSizeV-1),
                                        "roundup", &CI);
-      Size = BinaryOperator::createDiv(Size, OldSize, "numnodes", &CI);
+      Size = BinaryOperator::createUDiv(Size, OldSize, "numnodes", &CI);
       Size = BinaryOperator::createMul(Size, NewSize, "newbytes", &CI);
     }
 
@@ -1194,7 +1194,7 @@ void PointerCompress::FindPoolsToCompress(std::set<const DSNode*> &Pools,
 
   // Calculate which DSNodes are reachable from globals.  If a node is reachable
   // from a global, we check to see if the global pool is compressed.
-  DSGraph &GG = ECG->getGlobalsGraph();
+  ECG->getGlobalsGraph();
 
   // Map all node reachable from this global to the corresponding nodes in the
   // globals graph.

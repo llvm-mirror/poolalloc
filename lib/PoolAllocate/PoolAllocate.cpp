@@ -613,7 +613,7 @@ void PoolAllocate::ProcessFunctionBody(Function &F, Function &NewF) {
   // Calculate which DSNodes are reachable from globals.  If a node is reachable
   // from a global, we will create a global pool for it, so no argument passage
   // is required.
-  DSGraph &GG = ECGraphs->getGlobalsGraph();
+  ECGraphs->getGlobalsGraph();
 
   // Map all node reachable from this global to the corresponding nodes in
   // the globals graph.
@@ -680,7 +680,7 @@ static void AllOrNoneInSet(IteratorTy S, IteratorTy E,
 static void DeleteIfIsPoolFree(Instruction *I, AllocaInst *PD,
                              std::multimap<AllocaInst*, CallInst*> &PoolFrees) {
   std::multimap<AllocaInst*, CallInst*>::iterator PFI, PFE;
-  if (CallInst *CI = dyn_cast<CallInst>(I))
+  if (dyn_cast<CallInst>(I))
     for (tie(PFI,PFE) = PoolFrees.equal_range(PD); PFI != PFE; ++PFI)
       if (PFI->second == I) {
         PoolFrees.erase(PFI);
