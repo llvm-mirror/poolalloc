@@ -225,12 +225,12 @@ bool PoolOptimize::runOnModule(Module &M) {
           } else if (CI->getCalledFunction() == PoolInit) {
             Args.assign(CI->op_begin()+1, CI->op_end());
             Args.erase(Args.begin()+1); // Drop the size argument.
-            Value *New = new CallInst(PoolInitBP, Args, "", CI);
+            new CallInst(PoolInitBP, Args, "", CI);
             CI->eraseFromParent();
           } else {
             assert(CI->getCalledFunction() == PoolDestroy);
             Args.assign(CI->op_begin()+1, CI->op_end());
-            Value *New = new CallInst(PoolDestroyBP, Args, "", CI);
+            new CallInst(PoolDestroyBP, Args, "", CI);
             CI->eraseFromParent();
           }
         }
