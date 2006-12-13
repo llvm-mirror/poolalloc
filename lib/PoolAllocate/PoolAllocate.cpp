@@ -57,14 +57,14 @@ namespace {
   RegisterPass<PoolAllocatePassAllPools>
   Y("poolalloc-passing-all-pools", "Pool allocate disjoint data structures");
 
-  Statistic<> NumArgsAdded("poolalloc", "Number of function arguments added");
-  Statistic<> MaxArgsAdded("poolalloc", "Maximum function arguments added to one function");
-  Statistic<> NumCloned   ("poolalloc", "Number of functions cloned");
-  Statistic<> NumPools    ("poolalloc", "Number of pools allocated");
-  Statistic<> NumTSPools  ("poolalloc", "Number of typesafe pools");
-  Statistic<> NumPoolFree ("poolalloc", "Number of poolfree's elided");
-  Statistic<> NumNonprofit("poolalloc", "Number of DSNodes not profitable");
-  Statistic<> NumColocated("poolalloc", "Number of DSNodes colocated");
+  Statistic NumArgsAdded("poolalloc", "Number of function arguments added");
+  Statistic MaxArgsAdded("poolalloc", "Maximum function arguments added to one function");
+  Statistic NumCloned   ("poolalloc", "Number of functions cloned");
+  Statistic NumPools    ("poolalloc", "Number of pools allocated");
+  Statistic NumTSPools  ("poolalloc", "Number of typesafe pools");
+  Statistic NumPoolFree ("poolalloc", "Number of poolfree's elided");
+  Statistic NumNonprofit("poolalloc", "Number of DSNodes not profitable");
+  Statistic NumColocated("poolalloc", "Number of DSNodes colocated");
 
   const Type *VoidPtrTy;
 
@@ -244,7 +244,18 @@ static void OptimizePointerNotNull(Value *V) {
         bool CondIsTrue = User->getOpcode() == Instruction::SetNE;
         User->replaceAllUsesWith(ConstantBool::get(CondIsTrue));
       }
-    } else if (User->getOpcode() == Instruction::Cast) {
+    } else if ((User->getOpcode() == Instruction::Trunc) ||
+               (User->getOpcode() == Instruction::ZExt) ||
+               (User->getOpcode() == Instruction::SExt) ||
+               (User->getOpcode() == Instruction::FPToUI) ||
+               (User->getOpcode() == Instruction::FPToSI) ||
+               (User->getOpcode() == Instruction::UIToFP) ||
+               (User->getOpcode() == Instruction::SIToFP) ||
+               (User->getOpcode() == Instruction::FPTrunc) ||
+               (User->getOpcode() == Instruction::FPExt) ||
+               (User->getOpcode() == Instruction::PtrToInt) ||
+               (User->getOpcode() == Instruction::IntToPtr) ||
+               (User->getOpcode() == Instruction::BitCast)) {
       // Casted pointers are also not null.
       if (isa<PointerType>(User->getType()))
         OptimizePointerNotNull(User);

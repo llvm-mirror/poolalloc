@@ -149,7 +149,7 @@ Instruction *FuncTransform::TransformAllocationInstr(Instruction *I,
   std::string Name = I->getName(); I->setName("");
 
   if (Size->getType() != Type::UIntTy)
-    Size = new CastInst(Size, Type::UIntTy, Size->getName(), I);
+    Size = CastInst::createZExtOrBitCast(Size, Type::UIntTy, Size->getName(), I);
 
   // Insert a call to poolalloc
   Value *PH = getPoolHandle(I);
@@ -162,7 +162,7 @@ Instruction *FuncTransform::TransformAllocationInstr(Instruction *I,
   // Cast to the appropriate type if necessary
   Instruction *Casted = V;
   if (V->getType() != I->getType())
-    Casted = new CastInst(V, I->getType(), V->getName(), I);
+    Casted = CastInst::createPointerCast(V, I->getType(), V->getName(), I);
     
   // Update def-use info
   I->replaceAllUsesWith(Casted);
@@ -218,7 +218,7 @@ void FuncTransform::visitMallocInst(MallocInst &MI) {
     Value *Casted = AI;
     Instruction *aiNext = AI->getNext();
     if (AI->getType() != PointerType::get(Type::SByteTy))
-      Casted = new CastInst(AI, PointerType::get(Type::SByteTy),
+      Casted = CastInst::createPointerCast(AI, PointerType::get(Type::SByteTy),
 			      AI->getName()+".casted",aiNext);
     
     Instruction *V = new CallInst(PAInfo.PoolRegister,
@@ -246,7 +246,7 @@ void FuncTransform::visitAllocaInst(AllocaInst &MI) {
 					 MI.getOperand(0), "sizetmp", &MI);
     
     //  TransformAllocationInstr(&MI, AllocSize);
-    Instruction *Casted = new CastInst(&MI, PointerType::get(Type::SByteTy),
+    Instruction *Casted = CastInst::createPointerCast(&MI, PointerType::get(Type::SByteTy),
 				       MI.getName()+".casted", MI.getNext());
     Instruction *V = new CallInst(PAInfo.PoolRegister,
 				  make_vector(PH, Casted, AllocSize, 0), "", Casted->getNext());
@@ -263,7 +263,7 @@ Instruction *FuncTransform::InsertPoolFreeInstr(Value *Arg, Instruction *Where){
   // Insert a cast and a call to poolfree...
   Value *Casted = Arg;
   if (Arg->getType() != PointerType::get(Type::SByteTy)) {
-    Casted = new CastInst(Arg, PointerType::get(Type::SByteTy),
+    Casted = CastInst::createPointerCast(Arg, PointerType::get(Type::SByteTy),
 				 Arg->getName()+".casted", Where);
     G.getScalarMap()[Casted] = G.getScalarMap()[Arg];
   }
@@ -302,14 +302,14 @@ void FuncTransform::visitCallocCall(CallSite CS) {
   Value *V1 = CS.getArgument(0);
   Value *V2 = CS.getArgument(1);
   if (V1->getType() != V2->getType()) {
-    V1 = new CastInst(V1, useLong ? Type::ULongTy : Type::UIntTy, V1->getName(), CS.getInstruction());
-    V2 = new CastInst(V2, useLong ? Type::ULongTy : Type::UIntTy, V2->getName(), CS.getInstruction());
+    V1 = CastInst::createZExtOrBitCast(V1, useLong ? Type::ULongTy : Type::UIntTy, V1->getName(), CS.getInstruction());
+    V2 = CastInst::createZExtOrBitCast(V2, useLong ? Type::ULongTy : Type::UIntTy, V2->getName(), CS.getInstruction());
   }
 
   V2 = BinaryOperator::create(Instruction::Mul, V1, V2, "size",
                               CS.getInstruction());
   if (V2->getType() != (useLong ? Type::ULongTy : Type::UIntTy))
-    V2 = new CastInst(V2, useLong ? Type::ULongTy : Type::UIntTy, V2->getName(), CS.getInstruction());
+    V2 = CastInst::createZExtOrBitCast(V2, useLong ? Type::ULongTy : Type::UIntTy, V2->getName(), CS.getInstruction());
 
   BasicBlock::iterator BBI =
     TransformAllocationInstr(CS.getInstruction(), V2);
@@ -324,7 +324,7 @@ void FuncTransform::visitCallocCall(CallSite CS) {
                                              Type::UIntTy, NULL);
 
   if (Ptr->getType() != PointerType::get(Type::SByteTy))
-    Ptr = new CastInst(Ptr, PointerType::get(Type::SByteTy), Ptr->getName(),
+    Ptr = CastInst::createPointerCast(Ptr, PointerType::get(Type::SByteTy), Ptr->getName(),
                        BBI);
   
   // We know that the memory returned by poolalloc is at least 4 byte aligned.
@@ -342,11 +342,11 @@ void FuncTransform::visitReallocCall(CallSite CS) {
   Value *Size = CS.getArgument(1);
 
   if (Size->getType() != Type::UIntTy)
-    Size = new CastInst(Size, Type::UIntTy, Size->getName(), I);
+    Size = CastInst::createZExtOrBitCast(Size, Type::UIntTy, Size->getName(), I);
 
   static Type *VoidPtrTy = PointerType::get(Type::SByteTy);
   if (OldPtr->getType() != VoidPtrTy)
-    OldPtr = new CastInst(OldPtr, VoidPtrTy, OldPtr->getName(), I);
+    OldPtr = CastInst::createPointerCast(OldPtr, VoidPtrTy, OldPtr->getName(), I);
 
   std::string Name = I->getName(); I->setName("");
   Instruction *V = new CallInst(PAInfo.PoolRealloc, make_vector(PH, OldPtr,
@@ -354,7 +354,7 @@ void FuncTransform::visitReallocCall(CallSite CS) {
                                 Name, I);
   Instruction *Casted = V;
   if (V->getType() != I->getType())
-    Casted = new CastInst(V, I->getType(), V->getName(), I);
+    Casted = CastInst::createPointerCast(V, I->getType(), V->getName(), I);
 
   // Update def-use info
   I->replaceAllUsesWith(Casted);
@@ -409,13 +409,13 @@ void FuncTransform::visitMemAlignCall(CallSite CS) {
 
     static const Type *PtrPtr=PointerType::get(PointerType::get(Type::SByteTy));
     if (ResultDest->getType() != PtrPtr)
-      ResultDest = new CastInst(ResultDest, PtrPtr, ResultDest->getName(), I);
+      ResultDest = CastInst::createPointerCast(ResultDest, PtrPtr, ResultDest->getName(), I);
   }
 
   if (Align->getType() != Type::UIntTy)
-    Align = new CastInst(Align, Type::UIntTy, Align->getName(), I);
+    Align = CastInst::createZExtOrBitCast(Align, Type::UIntTy, Align->getName(), I);
   if (Size->getType() != Type::UIntTy)
-    Size = new CastInst(Size, Type::UIntTy, Size->getName(), I);
+    Size = CastInst::createZExtOrBitCast(Size, Type::UIntTy, Size->getName(), I);
 
   std::string Name = I->getName(); I->setName("");
   Instruction *V = new CallInst(PAInfo.PoolMemAlign,
@@ -423,7 +423,7 @@ void FuncTransform::visitMemAlignCall(CallSite CS) {
 
   Instruction *Casted = V;
   if (V->getType() != I->getType())
-    Casted = new CastInst(V, I->getType(), V->getName(), I);
+    Casted = CastInst::createPointerCast(V, I->getType(), V->getName(), I);
 
   if (ResultDest)
     new StoreInst(V, ResultDest, I);
@@ -456,8 +456,11 @@ void FuncTransform::visitCallSite(CallSite CS) {
   Function *CF = CS.getCalledFunction();
   Instruction *TheCall = CS.getInstruction();
 
+  // If the called function is casted from one function type to another, peer
+  // into the cast instruction and pull out the actual function being called.
   if (ConstantExpr *CE = dyn_cast<ConstantExpr>(CS.getCalledValue()))
-    if (CE->getOpcode() == Instruction::Cast && isa<Function>(CE->getOperand(0)))
+    if (CE->getOpcode() == Instruction::BitCast &&
+        isa<Function>(CE->getOperand(0)))
       CF = cast<Function>(CE->getOperand(0));
 
   if (isa<InlineAsm>(TheCall->getOperand(0))) {
@@ -601,7 +604,7 @@ void FuncTransform::visitCallSite(CallSite CS) {
     PointerType *PFTy = PointerType::get(FTy);
     
     // If there are any pool arguments cast the func ptr to the right type.
-    NewCallee = new CastInst(CS.getCalledValue(), PFTy, "tmp", TheCall);
+    NewCallee = CastInst::createPointerCast(CS.getCalledValue(), PFTy, "tmp", TheCall);
   }
 
   Function::arg_iterator FAI = CF->arg_begin(), E = CF->arg_end();
