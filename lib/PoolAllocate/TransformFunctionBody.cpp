@@ -12,10 +12,11 @@
 //===----------------------------------------------------------------------===//
 
 #define DEBUG_TYPE "PoolAllocator"
+
+#include "dsa/DataStructure.h"
+#include "dsa/DSGraph.h"
+#include "dsa/CallTargets.h"
 #include "poolalloc/PoolAllocate.h"
-#include "llvm/Analysis/DataStructure/DataStructure.h"
-#include "llvm/Analysis/DataStructure/DSGraph.h"
-#include "llvm/Analysis/DataStructure/CallTargets.h"
 #include "llvm/Module.h"
 #include "llvm/DerivedTypes.h"
 #include "llvm/Constants.h"

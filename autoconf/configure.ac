@@ -1,26 +1,28 @@
-dnl Autoconf requirements
-dnl AC_INIT(package, version, bug-report-address)
-dnl information on the package
-dnl checks for programs
-dnl checks for libraries
-dnl checks for header files
-dnl checks for types
-dnl checks for structures
-dnl checks for compiler characteristics
-dnl checks for library functions
-dnl checks for system services
-dnl AC_CONFIG_FILES([file...])
-dnl AC_OUTPUT
-
 dnl **************************************************************************
 dnl * Initialize
 dnl **************************************************************************
 AC_INIT([[[Pool Allocation]]],[[[1.0]]],[llvmbugs@cs.uiuc.edu])
 
-dnl Place all of the extra autoconf files into the config subdirectory
-AC_CONFIG_AUX_DIR([autoconf])
+dnl Identify where LLVM source tree is
+LLVM_SRC_ROOT="`(cd $srcdir/../..; pwd)`"
+LLVM_OBJ_ROOT="`(cd ../..; pwd)`"
 
-dnl Configure Makefiles
+dnl Tell autoconf that the auxilliary files are actually located in
+dnl the LLVM autoconf directory, not here.
+AC_CONFIG_AUX_DIR($LLVM_SRC_ROOT/autoconf)
+
+dnl Tell autoconf that this is an LLVM project being configured
+dnl This provides the --with-llvmsrc and --with-llvmobj options
+LLVM_CONFIG_PROJECT($LLVM_SRC_ROOT,$LLVM_OBJ_ROOT)
+
+dnl Verify that the source directory is valid
+AC_CONFIG_SRCDIR(["Makefile.common.in"])
+
+dnl Configure a common Makefile
+AC_CONFIG_FILES(Makefile.common)
+
+dnl Configure project makefiles
+dnl List every Makefile that exists within your source tree
 AC_CONFIG_MAKEFILE(Makefile)
 AC_CONFIG_MAKEFILE(lib/Makefile)
 AC_CONFIG_MAKEFILE(lib/PoolAllocate/Makefile)
@@ -37,22 +39,12 @@ dnl **************************************************************************
 dnl * Check for programs.
 dnl **************************************************************************
 
-dnl Verify that the source directory is valid
-AC_CONFIG_SRCDIR(["Makefile.common.in"])
-
 dnl **************************************************************************
 dnl * Check for libraries.
 dnl **************************************************************************
 
 dnl **************************************************************************
 dnl * Checks for header files.
-dnl *	Chances are, if the standard C or POSIX type header files are missing,
-dnl *	then LLVM just isn't going to compile.  However, it is possible that
-dnl *	the necessary functions/macros will be included from other
-dnl *	(non-standard and non-obvious) header files.
-dnl *
-dnl *	So, we'll be gracious, give it a chance, and try to go on without
-dnl *	them.
 dnl **************************************************************************
 AC_HEADER_MMAP_ANONYMOUS
 AC_HEADER_STAT
@@ -73,18 +65,38 @@ dnl **************************************************************************
 dnl * Enable various compile-time options
 dnl **************************************************************************
 
+dnl --enable-safecode: Enable SAFECode functionality
+AC_ARG_ENABLE(safecode,
+  AS_HELP_STRING(--enable-safecode,
+                 [Enable SAFECode functionality (default is NO)]),
+                  AC_DEFINE(SAFECODE,[[1]]),
+                  )
+
+dnl --enable-boundscheck: Enable SAFECode Bounds Check functionality
+AC_ARG_ENABLE(boundscheck,
+  AS_HELP_STRING(--enable-boundschecks,
+                 [Enable SAFECode bounds checking (default is NO)]),
+                  AC_DEFINE(BOUNDS_CHECK,[[1]]),
+                  )
+
+dnl --enable-llva-kernel: Compile DSA for pool inference
+AC_ARG_ENABLE(kernel,
+  AS_HELP_STRING(--enable-kernel,
+                 [Use SAFECode for use with Linux Kernel (default is NO)]),
+                  AC_DEFINE(LLVA_KERNEL,[[1]]),
+                  )
+
 dnl **************************************************************************
 dnl * Set the location of various third-party software packages
 dnl **************************************************************************
 
-dnl Location of LLVM source code
-AC_ARG_WITH(llvmsrc,AC_HELP_STRING([--with-llvmsrc],[Location of LLVM Source Code]),AC_SUBST(LLVM_SRC,[$withval]),AC_SUBST(LLVM_SRC,[`cd ${srcdir}/../..; pwd`]))
-
-dnl Location of LLVM object code
-AC_ARG_WITH(llvmobj,AC_HELP_STRING([--with-llvmobj],[Location of LLVM Object Code]),AC_SUBST(LLVM_OBJ,[$withval]),AC_SUBST(LLVM_OBJ,[`cd ../..; pwd`]))
+dnl Location of SAFECode
+AC_ARG_WITH(safecodesrc,AS_HELP_STRING(--with-safecode,Location of SAFECode Source Code),AC_SUBST(SAFECODESRC,[$withval]),AC_SUBST(SAFECODESRC,[`cd ../safecode; pwd`]))
 
 dnl **************************************************************************
 dnl * Create the output files
 dnl **************************************************************************
 AC_CONFIG_HEADERS(include/poolalloc/Config/config.h)
-AC_OUTPUT(Makefile.common)
+
+dnl This must be last
+AC_OUTPUT

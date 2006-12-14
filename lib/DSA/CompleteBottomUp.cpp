@@ -14,9 +14,9 @@
 //===----------------------------------------------------------------------===//
 
 #define DEBUG_TYPE "cbudatastructure"
-#include "llvm/Analysis/DataStructure/DataStructure.h"
+#include "dsa/DataStructure.h"
 #include "llvm/Module.h"
-#include "llvm/Analysis/DataStructure/DSGraph.h"
+#include "dsa/DSGraph.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/ADT/SCCIterator.h"
 #include "llvm/ADT/Statistic.h"

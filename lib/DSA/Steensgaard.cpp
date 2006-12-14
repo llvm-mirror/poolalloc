@@ -14,8 +14,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "llvm/Analysis/DataStructure/DataStructure.h"
-#include "llvm/Analysis/DataStructure/DSGraph.h"
+#include "dsa/DataStructure.h"
+#include "dsa/DSGraph.h"
 #include "llvm/Analysis/AliasAnalysis.h"
 #include "llvm/Analysis/Passes.h"
 #include "llvm/Module.h"
@@ -28,6 +28,7 @@ namespace {
     DSGraph *ResultGraph;
 
     EquivalenceClasses<GlobalValue*> GlobalECs;  // Always empty
+    PoolDescriptorMapType PoolDescriptors; 
   public:
     Steens() : ResultGraph(0) {}
     ~Steens() {

@@ -14,7 +14,7 @@
 #ifndef LLVM_ANALYSIS_DSNODE_H
 #define LLVM_ANALYSIS_DSNODE_H
 
-#include "llvm/Analysis/DataStructure/DSSupport.h"
+#include "dsa/DSSupport.h"
 #include "llvm/ADT/hash_map"
 
 namespace llvm {
@@ -91,8 +91,9 @@ public:
     Read        = 1 << 6,   // This node is read in this context
 
     Array       = 1 << 7,   // This node is treated like an array
+    External    = 1 << 8,   // This node comes from an external source
     //#ifndef NDEBUG
-    DEAD        = 1 << 8,   // This node is dead and should not be pointed to
+    DEAD        = 1 << 9,   // This node is dead and should not be pointed to
     //#endif
 
     Composition = AllocaNode | HeapNode | GlobalNode | UnknownNode
@@ -118,10 +119,14 @@ public:
   ///
   DSNode(const DSNode &, DSGraph *G, bool NullLinks = false);
 
+#if 0
   ~DSNode() {
     dropAllReferences();
     assert(hasNoReferrers() && "Referrers to dead node exist!");
   }
+#else
+  ~DSNode();
+#endif
 
   // Iterator for graph interface... Defined in DSGraphTraits.h
   typedef DSNodeIterator<DSNode> iterator;
@@ -340,12 +345,14 @@ public:
   bool isIncomplete() const { return NodeType & Incomplete; }
   bool isComplete() const   { return !isIncomplete(); }
   bool isDeadNode() const   { return NodeType & DEAD; }
+  bool isExternalNode() const { return NodeType & External; }
 
   DSNode *setAllocaNodeMarker()  { NodeType |= AllocaNode;  return this; }
   DSNode *setHeapNodeMarker()    { NodeType |= HeapNode;    return this; }
   DSNode *setGlobalNodeMarker()  { NodeType |= GlobalNode;  return this; }
   DSNode *setUnknownNodeMarker() { NodeType |= UnknownNode; return this; }
 
+  DSNode *setExternalMarker() { NodeType |= External; return this; }
   DSNode *setIncompleteMarker() { NodeType |= Incomplete; return this; }
   DSNode *setModifiedMarker()   { NodeType |= Modified;   return this; }
   DSNode *setReadMarker()       { NodeType |= Read;       return this; }

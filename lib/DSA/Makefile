@@ -1,4 +1,4 @@
-##===- lib/Analysis/DataStructure/Makefile -----------------*- Makefile -*-===##
+##===- lib/DSA/Makefile ------------------------------------*- Makefile -*-===##
 # 
 #                     The LLVM Compiler Infrastructure
 #
@@ -7,7 +7,7 @@
 # 
 ##===----------------------------------------------------------------------===##
 
-LEVEL = ../../..
+LEVEL = ../..
 LIBRARYNAME = LLVMDataStructure
 
 include $(LEVEL)/Makefile.common

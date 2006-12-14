@@ -13,6 +13,10 @@
 //===----------------------------------------------------------------------===//
 
 #define DEBUG_TYPE "poolalloc"
+
+#include "dsa/DataStructure.h"
+#include "dsa/DSGraph.h"
+#include "dsa/CallTargets.h"
 #include "poolalloc/PoolAllocate.h"
 #include "Heuristic.h"
 #include "llvm/Constants.h"
@@ -20,13 +24,10 @@
 #include "llvm/Instructions.h"
 #include "llvm/Module.h"
 #include "llvm/Constants.h"
-#include "llvm/Analysis/DataStructure/DataStructure.h"
-#include "llvm/Analysis/DataStructure/DSGraph.h"
 #include "llvm/Support/CFG.h"
 #include "llvm/Target/TargetData.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/Transforms/Utils/Cloning.h"
-#include "llvm/Analysis/DataStructure/CallTargets.h"
 #include "llvm/ADT/DepthFirstIterator.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/ADT/STLExtras.h"

@@ -15,8 +15,8 @@
 //===----------------------------------------------------------------------===//
 
 #define DEBUG_TYPE "bu_dsa"
-#include "llvm/Analysis/DataStructure/DataStructure.h"
-#include "llvm/Analysis/DataStructure/DSGraph.h"
+#include "dsa/DataStructure.h"
+#include "dsa/DSGraph.h"
 #include "llvm/Module.h"
 #include "llvm/DerivedTypes.h"
 #include "llvm/ADT/Statistic.h"
@@ -588,11 +588,11 @@ void BUDataStructures::calculateGraph(DSGraph &Graph) {
         ++NumBUInlines;
       } else {
         if (!Printed)
-          cerr << "In Fns: " << Graph.getFunctionNames() << "\n";
-        cerr << "  calls " << CalledFuncs.size()
-             << " fns from site: " << CS.getCallSite().getInstruction()
-             << "  " << *CS.getCallSite().getInstruction();
-        cerr << "   Fns =";
+          DEBUG(std::cerr << "In Fns: " << Graph.getFunctionNames() << "\n");
+          DEBUG(std::cerr << "  calls " << CalledFuncs.size()
+                  << " fns from site: " << CS.getCallSite().getInstruction()
+                  << "  " << *CS.getCallSite().getInstruction());
+        DEBUG(std::cerr << "   Fns =");
         unsigned NumPrinted = 0;
 
         for (std::vector<Function*>::iterator I = CalledFuncs.begin(),

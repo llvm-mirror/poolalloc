@@ -1,3 +1,4 @@
+#define JTC 0
 //===- DataStructure.cpp - Implement the core data structure analysis -----===//
 //
 //                     The LLVM Compiler Infrastructure
@@ -11,7 +12,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "llvm/Analysis/DataStructure/DSGraphTraits.h"
+#include "dsa/DSGraphTraits.h"
+#include "dsa/DataStructure.h"
+#include "dsa/DSGraph.h"
 #include "llvm/Constants.h"
 #include "llvm/Function.h"
 #include "llvm/GlobalVariable.h"
@@ -26,11 +29,14 @@
 #include "llvm/ADT/SCCIterator.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Support/Timer.h"
+#include "llvm/ADT/hash_map"
+#include "poolalloc/Config/config.h"
+
+#include <iostream>
 #include <algorithm>
 using namespace llvm;
 
 #define COLLAPSE_ARRAYS_AGGRESSIVELY 0
-
 namespace {
   Statistic NumFolds          ("dsa", "Number of nodes completely folded");
   Statistic NumCallNodesMerged("dsa", "Number of call nodes merged");
@@ -38,6 +44,9 @@ namespace {
   Statistic NumDNE            ("dsa", "Number of nodes removed by reachability");
   Statistic NumTrivialDNE     ("dsa", "Number of nodes trivially removed");
   Statistic NumTrivialGlobalDNE("dsa", "Number of globals trivially removed");
+#ifdef LLVA_KERNEL
+  Statistic LostPools         ("dsa", "Number of pools lost to DSNode Merge");
+#endif
   static cl::opt<unsigned>
   DSAFieldLimit("dsa-field-limit", cl::Hidden,
                 cl::desc("Number of fields to track before collapsing a node"),
@@ -128,6 +137,9 @@ DSNode::DSNode(const Type *T, DSGraph *G)
   if (T) mergeTypeInfo(T, 0);
   if (G) G->addNode(this);
   ++NumNodeAllocated;
+#if JTC
+std::cerr << "LLVA: Creating (1) DSNode " << this << "\n";
+#endif
 }
 
 // DSNode copy constructor... do not copy over the referrers list!
@@ -140,6 +152,27 @@ DSNode::DSNode(const DSNode &N, DSGraph *G, bool NullLinks)
     Links.resize(N.Links.size()); // Create the appropriate number of null links
   G->addNode(this);
   ++NumNodeAllocated;
+#if JTC
+std::cerr << "LLVA: Creating (2) DSNode " << this << "\n";
+#endif
+}
+
+DSNode::~DSNode() {
+  dropAllReferences();
+  assert(hasNoReferrers() && "Referrers to dead node exist!");
+
+#ifdef LLVA_KERNEL
+  //
+  // Remove all references to this node from the Pool Descriptor Map.
+  //
+#if JTC
+  std::cerr << "LLVA: Removing " << this << "\n";
+#endif
+  if (ParentGraph) {
+    hash_map<const DSNode *, MetaPoolHandle*> &pdm=ParentGraph->getPoolDescriptorsMap();
+    pdm.erase (this);
+  }
+#endif
 }
 
 /// getTargetData - Get the target data object used to construct this node.
@@ -235,9 +268,25 @@ void DSNode::foldNodeCompletely() {
     DestNode->Ty = Type::VoidTy;
     DestNode->Size = 1;
     DestNode->Globals.swap(Globals);
+    
+#if JTC
+    std::cerr << "LLVA: foldNode: " << this << " becomes " << DestNode << "\n";
+#endif
+#ifdef LLVA_KERNEL
+    //Again we have created a new DSNode, we need to fill in the
+    // pool desc map appropriately
+    assert(ParentGraph && "parent graph is not null \n"); 
+    hash_map<const DSNode *, MetaPoolHandle*> &pdm = ParentGraph->getPoolDescriptorsMap();
+    if (pdm.count(this) > 0) {
+      pdm[DestNode] = pdm[this];
+    } else {
+      //do nothing 
+    }
+#endif    
 
     // Start forwarding to the destination node...
     forwardNode(DestNode, 0);
+
 
     if (!Links.empty()) {
       DestNode->Links.reserve(1);
@@ -833,7 +882,62 @@ void DSNode::MergeNodes(DSNodeHandle& CurNodeH, DSNodeHandle& NH) {
     }
 #endif
   }
-
+#ifdef LLVA_KERNEL
+  DSNode *currNode  = CurNodeH.getNode();
+  DSNode *NNode  = NH.getNode();
+  DSGraph *pGraph =  currNode->getParentGraph();
+  assert((pGraph == NNode->getParentGraph()) && "LLVA_KERNEL : merging nodes in two different graphs?");
+  //get the pooldescriptor map
+  hash_map<const DSNode *, MetaPoolHandle*> &pdm = pGraph->getPoolDescriptorsMap();
+  if (pdm.count(currNode) == 0) {
+    if (pdm.count(NNode) == 0) {
+      //do nothing  (common case)
+    } else {
+      if (pdm[NNode]) {
+#if JTC
+	std::cerr << "LLVA: 1: currNode (" << currNode << ") becomes " << pdm[NNode]->getName() << "(" << NNode << ")\n";
+#endif
+	pdm[currNode] = pdm[NNode];
+      }
+    }
+  } else {
+    if (pdm.count(NNode) == 0) {
+#if 1
+      //
+      // FIXME:
+      //  Verify that this is correct.  I believe it is; it seems to make sense
+      //  since either node can be used after the merge.
+      //
+#if JTC
+std::cerr << "LLVA: MergeNodes: currnode has something, newnode has nothing\n";
+	std::cerr << "LLVA: 2: currNode (" << currNode << ") becomes <no name>" << "(" << NNode << ")\n";
+#endif
+      pdm[NNode] = pdm[currNode];
+#endif
+      //do nothing 
+    } else {
+      if (pdm[currNode] != pdm[NNode]) {
+	//The following is commented because pdm[..] could be null!
+	//std::cerr << "LLVA: OldPool: " << pdm[currNode]->getName() << "("
+        //                       << pdm[currNode] << ") "
+	//          << " NewPool: "      << pdm[NNode]->getName() << "("
+	//                               << pdm[NNode] << ")" << std::endl;
+        pdm[NNode]->merge(pdm[currNode]);
+        /*
+        Value *currN = pdm[currNode]->getMetaPoolValue();
+        Value *NN = pdm[NNode]->getMetaPoolValue();
+        if (currN != NN) {
+          std::cerr << "LLVA: Two Pools for one DSNode\n";
+          currN->replaceAllUsesWith(NN);
+          pdm[currNode]->merge(pdm[NNode]);
+        } else {
+          //The nodes are same
+        }
+        */
+      }
+    }
+  }
+#endif  
   // Merge the type entries of the two nodes together...
   if (NH.getNode()->Ty != Type::VoidTy)
     CurNodeH.getNode()->mergeTypeInfo(NH.getNode()->Ty, NOffset);
@@ -912,6 +1016,9 @@ void DSNode::MergeNodes(DSNodeHandle& CurNodeH, DSNodeHandle& NH) {
 /// point to this node).
 ///
 void DSNode::mergeWith(const DSNodeHandle &NH, unsigned Offset) {
+#if JTC
+std::cerr << "LLVA: mergeWith: " << this << " becomes " << NH.getNode() << "\n";
+#endif
   DSNode *N = NH.getNode();
   if (N == this && NH.getOffset() == Offset)
     return;  // Noop
@@ -991,6 +1098,21 @@ DSNodeHandle ReachabilityCloner::getClonedNH(const DSNodeHandle &SrcNH) {
   DSNode *DN = new DSNode(*SN, &Dest, true /* Null out all links */);
   DN->maskNodeTypes(BitsToKeep);
   NH = DN;
+#if JTC
+std::cerr << "LLVA: getClonedNH: " << SN << " becomes " << DN << "\n";
+#endif
+#if 1
+#ifdef LLVA_KERNEL
+    //Again we have created a new DSNode, we need to fill in the
+    // pool desc map appropriately
+    hash_map<const DSNode *, MetaPoolHandle*> &pdm = Dest.getPoolDescriptorsMap();
+    if (pdm.count(SN) > 0) {
+      pdm[DN] = pdm[SN];
+    } else {
+      //do nothing 
+    }
+#endif    
+#endif
 
   // Next, recursively clone all outgoing links as necessary.  Note that
   // adding these links can cause the node to collapse itself at any time, and
@@ -1149,7 +1271,58 @@ void ReachabilityCloner::merge(const DSNodeHandle &NH,
     }
   }
 
+#if JTC
+std::cerr << "LLVA: mergeWith: " << SN << " becomes " << DN << "\n";
+#endif
 
+#ifdef LLVA_KERNEL
+  //Here some merge is going on just like in DSNode::merge
+  //I think because of the inplace merging we don't update the pool desc maps
+  //This is modification from DSNode::MergeNodes
+  //Here DN and SN may belong to different graphs
+ DN = NH.getNode(); 
+#if 0
+  DSGraph *destGraph =  DN->getParentGraph();
+  DSGraph *srcGraph =  SN->getParentGraph();
+#else
+  DSGraph *destGraph = NH.getNode()->getParentGraph();
+  DSGraph *srcGraph =  SN->getParentGraph();
+#endif
+  if (destGraph && srcGraph) {
+    //get the pooldescriptor map
+    hash_map<const DSNode *, MetaPoolHandle*> &destpdm = destGraph->getPoolDescriptorsMap();
+    hash_map<const DSNode *, MetaPoolHandle*> &srcpdm = srcGraph->getPoolDescriptorsMap();
+    if (destpdm.count(DN) == 0) {
+      if (srcpdm.count(SN) == 0) {
+        //do nothing  (common case)
+      } else {
+        if (srcpdm[SN]) {
+#if JTC
+          std::cerr << "LLVA: DN becomes " << srcpdm[SN]->getName() << std::endl;
+#endif
+          destpdm[DN] = srcpdm[SN];
+        }
+      }
+    } else {
+      if (srcpdm.count(SN) == 0) {
+        srcpdm[SN] = destpdm[DN];
+      } else {
+        if (destpdm[DN] != srcpdm[SN]) {
+          srcpdm[SN]->merge(destpdm[DN]);
+          /*
+          Value *dnv = destpdm[DN]->getMetaPoolValue();
+          Value *snv = srcpdm[SN]->getMetaPoolValue();
+          if (dnv != snv) {
+            DEBUG(std::cerr << "LLVA: Two Pools for one DSNode\n");
+            dnv->replaceAllUsesWith(snv);
+            destpdm[DN]->setMetaPoolValue(snv);
+          }
+          */
+        }
+      }
+    }
+  }
+#endif  
   // Next, recursively merge all outgoing links as necessary.  Note that
   // adding these links can cause the destination node to collapse itself at
   // any time, and the current node may be merged with arbitrary other nodes.
@@ -1218,6 +1391,53 @@ void DSCallSite::InitNH(DSNodeHandle &NH, const DSNodeHandle &Src,
   NH = RC.getClonedNH(Src);
 }
 
+#ifdef LLVA_KERNEL
+// MetaPoolHandle Implementation
+  //The following should go in a cpp file later
+   MetaPoolHandle::MetaPoolHandle(MetaPool *mp, Instruction * Maker) {
+    Rep = mp;
+    Rep->insert(this);
+    Creator = Maker;
+  }
+  const std::string& MetaPoolHandle::getName() {
+    assert(Rep != 0 && "Null meta pool ??\n");
+    return Rep->getName();
+  }
+  Value *MetaPoolHandle::getMetaPoolValue() {
+    assert(Rep != 0 && "Null meta pool ??\n");
+    return Rep->getMetaPoolValue();
+  }
+  void MetaPoolHandle::merge(MetaPoolHandle *other) {
+    //after this operation other points to what this points to .
+    //first replace all uses 
+     Value *dest = getMetaPoolValue();
+     Value *curr = other->getMetaPoolValue();
+     if (dest != curr) {
+       std::cerr << "LLVA: Merging metapools: " << this->Creator->getParent()->getParent()->getName() << " : " << other->Creator->getParent()->getParent()->getName() << "\n"
+                 << "LLVA:   " << *(this->Creator) << "\n"
+                 << "LLVA:   " << *(other->Creator) << "\n";
+       curr->replaceAllUsesWith(dest);
+     }
+   
+     //merge the hash sets in to other
+     hash_set<MetaPoolHandle *> &otherHandleSet = other->getMetaPool()->getHandleSet();
+     hash_set<MetaPoolHandle *>::iterator ohsI = otherHandleSet.begin(), ohsE = otherHandleSet.end();
+     for (; ohsI != ohsE; ++ohsI) {
+     MetaPoolHandle *omph = *ohsI;
+     //now make sure that this omph points to what we point to
+     omph->setMetaPool(Rep);
+     Rep->insert(omph);
+     }
+
+     //now delete others MetaPool
+     //gd     delete other->getMetaPool(); 
+
+     //Assign our metapool to other 
+     other->setMetaPool(Rep);
+}
+
+#endif
+
 //===----------------------------------------------------------------------===//
 // DSGraph Implementation
 //===----------------------------------------------------------------------===//
@@ -1239,7 +1459,7 @@ std::string DSGraph::getFunctionNames() const {
 }
 
 
-DSGraph::DSGraph(const DSGraph &G, EquivalenceClasses<GlobalValue*> &ECs,
+DSGraph::DSGraph(DSGraph &G, EquivalenceClasses<GlobalValue*> &ECs,
                  unsigned CloneFlags)
   : GlobalsGraph(0), ScalarMap(ECs), TD(G.TD) {
   PrintAuxCalls = false;
@@ -1251,7 +1471,9 @@ DSGraph::~DSGraph() {
   AuxFunctionCalls.clear();
   ScalarMap.clear();
   ReturnNodes.clear();
-
+#ifdef LLVA_KERNEL
+  PoolDescriptors.clear();
+#endif  
   // Drop all intra-node references, so that assertions don't fail...
   for (node_iterator NI = node_begin(), E = node_end(); NI != E; ++NI)
     NI->dropAllReferences();
@@ -1309,7 +1531,7 @@ DSNode *DSGraph::addObjectToGraph(Value *Ptr, bool UseDeclaredType) {
 ///
 /// The CloneFlags member controls various aspects of the cloning process.
 ///
-void DSGraph::cloneInto(const DSGraph &G, unsigned CloneFlags) {
+void DSGraph::cloneInto( DSGraph &G, unsigned CloneFlags) {
   TIME_REGION(X, "cloneInto");
   assert(&G != this && "Cannot clone graph into itself!");
 
@@ -1327,6 +1549,10 @@ void DSGraph::cloneInto(const DSGraph &G, unsigned CloneFlags) {
     DSNode *New = new DSNode(*I, this);
     New->maskNodeTypes(~BitsToClear);
     OldNodeMap[I] = New;
+#ifdef LLVA_KERNEL
+    if (G.getPoolForNode(&*I)) 
+      PoolDescriptors[New] = G.getPoolForNode(&*I);
+#endif    
   }
 
 #ifndef NDEBUG
@@ -1404,6 +1630,17 @@ void DSGraph::spliceFrom(DSGraph &RHS) {
 
   // Merge the scalar map in.
   ScalarMap.spliceFrom(RHS.ScalarMap);
+
+#ifdef LLVA_KERNEL
+  //Take all from the pooldescriptor map
+#if 0
+  PoolDescriptors.swap(RHS.getPoolDescriptorsMap());
+#else
+  hash_map<const DSNode *, MetaPoolHandle*>& rhsmap = RHS.getPoolDescriptorsMap();
+  PoolDescriptors.insert(rhsmap.begin(), rhsmap.end());
+#endif
+  RHS.getPoolDescriptorsMap().clear();
+#endif  
 }
 
 /// spliceFrom - Copy all entries from RHS, then clear RHS.

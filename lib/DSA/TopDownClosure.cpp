@@ -14,10 +14,11 @@
 //
 //===----------------------------------------------------------------------===//
 #define DEBUG_TYPE "td_dsa"
-#include "llvm/Analysis/DataStructure/DataStructure.h"
+
+#include "dsa/DataStructure.h"
 #include "llvm/Module.h"
 #include "llvm/DerivedTypes.h"
-#include "llvm/Analysis/DataStructure/DSGraph.h"
+#include "dsa/DSGraph.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/Timer.h"
 #include "llvm/ADT/Statistic.h"
@@ -372,7 +373,6 @@ void TDDataStructures::InlineCallersIntoGraph(DSGraph &DSG) {
     } else {
       // Otherwise, create a new DSGraph to represent this.
       IndCallGraph = new DSGraph(DSG.getGlobalECs(), DSG.getTargetData());
-
       // Make a nullary dummy call site, which will eventually get some content
       // merged into it.  The actual callee function doesn't matter here, so we
       // just pass it something to keep the ctor happy.

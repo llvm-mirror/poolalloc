@@ -16,19 +16,18 @@
 
 #ifndef POOLALLOCATE_H
 #define POOLALLOCATE_H
-//#define SAFECODE 1
-//#define BOUNDS_CHECK 1
-//comment the above two for normal poolallocation
+
 #include "llvm/Pass.h"
 #include "llvm/DerivedTypes.h"
 #include "llvm/Support/CallSite.h"
 #include "llvm/ADT/EquivalenceClasses.h"
 #include "llvm/ADT/VectorExtras.h"
 #include "llvm/ADT/hash_set"
+#include "poolalloc/Config/config.h"
 
 #ifdef SAFECODE
 //FIXME : make this use some configuration options
-#include "/home/vadve/dhurjati/llvm/projects/safecode.typesafe/include/ConvertUnsafeAllocas.h"
+#include "/home/vadve/criswell/src/latestllvm/projects/safecode/include/ConvertUnsafeAllocas.h"
 #endif
 
 

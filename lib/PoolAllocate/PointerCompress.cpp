@@ -12,13 +12,14 @@
 //===----------------------------------------------------------------------===//
 
 #define DEBUG_TYPE "pointercompress"
+
+#include "dsa/DataStructure.h"
+#include "dsa/DSGraph.h"
 #include "poolalloc/PoolAllocate.h"
 #include "Heuristic.h"
 #include "llvm/Constants.h"
 #include "llvm/Instructions.h"
 #include "llvm/Module.h"
-#include "llvm/Analysis/DataStructure/DataStructure.h"
-#include "llvm/Analysis/DataStructure/DSGraph.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/Support/CommandLine.h"

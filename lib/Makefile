@@ -6,6 +6,6 @@ LEVEL=..
 #
 # List all of the subdirectories that we will compile.
 #
-DIRS=PoolAllocate
+PARALLEL_DIRS=DSA PoolAllocate
 
 include $(LEVEL)/Makefile.common

@@ -17,11 +17,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "llvm/Analysis/DataStructure/CallTargets.h"
 #include "llvm/Module.h"
 #include "llvm/Instructions.h"
-#include "llvm/Analysis/DataStructure/DataStructure.h"
-#include "llvm/Analysis/DataStructure/DSGraph.h"
+#include "dsa/DataStructure.h"
+#include "dsa/DSGraph.h"
+#include "dsa/CallTargets.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Support/Streams.h"
 #include "llvm/Constants.h"

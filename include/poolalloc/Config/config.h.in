@@ -463,3 +463,13 @@
 
 /* Define to `unsigned' if <sys/types.h> does not define. */
 #undef size_t
+
+/* Define to 1 if enabling SAFECode */
+#undef SAFECODE
+
+/* Define to 1 if enabling SAFECode bounds checking */
+#undef BOUNDS_CHECK
+
+/* Define to 1 if compiling for pool inference */
+#undef LLVA_KERNEL
+

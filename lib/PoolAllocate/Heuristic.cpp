@@ -12,10 +12,11 @@
 //===----------------------------------------------------------------------===//
 
 #include "Heuristic.h"
+
+#include "dsa/DSGraphTraits.h"
 #include "poolalloc/PoolAllocate.h"
 #include "llvm/Instructions.h"
 #include "llvm/Module.h"
-#include "llvm/Analysis/DataStructure/DSGraphTraits.h"
 #include "llvm/ADT/DepthFirstIterator.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Target/TargetData.h"
