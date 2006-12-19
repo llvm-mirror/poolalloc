@@ -410,6 +410,7 @@
 /* Define if dlsym() requires a leading underscore in symbol names. */
 #undef NEED_USCORE
 
+#if 0
 /* Define to the address where bug reports for this package should be sent. */
 #undef PACKAGE_BUGREPORT
 
@@ -424,6 +425,7 @@
 
 /* Define to the version of this package. */
 #undef PACKAGE_VERSION
+#endif
 
 /* Define as the return type of signal handlers (`int' or `void'). */
 #undef RETSIGTYPE
