@@ -717,6 +717,6 @@ void FuncTransform::visitInstruction(Instruction &I) {
   for (unsigned i = 0, e = I.getNumOperands(); i != e; ++i)
     if (Function *clonedFunc = retCloneIfFunc(I.getOperand(i))) {
       Constant *CF = clonedFunc;
-      I.setOperand(i, ConstantExpr::getCast(CF, I.getOperand(i)->getType()));
+      I.setOperand(i, ConstantExpr::getPointerCast(CF, I.getOperand(i)->getType()));
     }
 }

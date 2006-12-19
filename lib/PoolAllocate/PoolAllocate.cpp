@@ -162,7 +162,7 @@ bool PoolAllocate::runOnModule(Module &M) {
   for (std::map<Function *, Function *>::iterator I = FuncMap.begin(),
          E = FuncMap.end(); I != E; ++I) {
     Function *F = I->first;
-    F->replaceAllUsesWith(ConstantExpr::getCast(I->second, F->getType()));
+    F->replaceAllUsesWith(ConstantExpr::getPointerCast(I->second, F->getType()));
   }
 
   if (CurHeuristic->IsRealHeuristic())
