@@ -23,6 +23,7 @@
 #include "dsa/DSGraph.h"
 #include "dsa/CallTargets.h"
 #include "llvm/ADT/Statistic.h"
+#include "llvm/Support/Debug.h"
 #include "llvm/Support/Streams.h"
 #include "llvm/Constants.h"
 #include <ostream>

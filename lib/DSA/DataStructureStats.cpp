@@ -19,6 +19,7 @@
 #include "llvm/Support/InstVisitor.h"
 #include "llvm/Support/Streams.h"
 #include "llvm/ADT/Statistic.h"
+#include "llvm/Support/Debug.h"
 #include <ostream>
 using namespace llvm;
 

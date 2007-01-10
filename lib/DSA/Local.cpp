@@ -171,7 +171,8 @@ std::cerr << "LLVA: Function " << f.getName() << "\n";
     void visitStoreInst(StoreInst &SI);
     void visitCallInst(CallInst &CI);
     void visitInvokeInst(InvokeInst &II);
-    void visitSetCondInst(SetCondInst &SCI);
+    void visitICmpInst(ICmpInst &I);
+    void visitFCmpInst(FCmpInst &I);
     void visitFreeInst(FreeInst &FI);
     void visitCastInst(CastInst &CI);
     void visitInstruction(Instruction &I);
@@ -378,7 +379,14 @@ void GraphBuilder::visitSelectInst(SelectInst &SI) {
   Dest.mergeWith(getValueDest(*SI.getOperand(2)));
 }
 
-void GraphBuilder::visitSetCondInst(SetCondInst &SCI) {
+void GraphBuilder::visitICmpInst(ICmpInst &SCI) {
+  if (!isPointerType(SCI.getOperand(0)->getType()) ||
+      isa<ConstantPointerNull>(SCI.getOperand(1))) return; // Only pointers
+  if(!IgnoreSetCC)
+    ScalarMap[SCI.getOperand(0)].mergeWith(getValueDest(*SCI.getOperand(1)));
+}
+
+void GraphBuilder::visitFCmpInst(FCmpInst &SCI) {
   if (!isPointerType(SCI.getOperand(0)->getType()) ||
       isa<ConstantPointerNull>(SCI.getOperand(1))) return; // Only pointers
   if(!IgnoreSetCC)
@@ -481,8 +489,12 @@ if (debug) std::cerr << "LLVA: GEP: All Zeros\n";
        I != E; ++I)
     if (const StructType *STy = dyn_cast<StructType>(*I)) {
       const ConstantInt* CUI = cast<ConstantInt>(I.getOperand());
+#if 0
       unsigned FieldNo = 
         CUI->getType()->isSigned() ? CUI->getSExtValue() : CUI->getZExtValue();
+#else
+      int FieldNo = CUI->getSExtValue();
+#endif
       Offset += (unsigned)TD.getStructLayout(STy)->MemberOffsets[FieldNo];
     } else if (isa<PointerType>(*I)) {
       if (!isa<Constant>(I.getOperand()) ||
@@ -768,7 +780,7 @@ bool GraphBuilder::visitExternal(CallSite CS, Function *F) {
       // argument node.
       const DSNodeHandle &EndPtrNH = getValueDest(**(CS.arg_begin()+1));
       if (DSNode *End = EndPtrNH.getNode()) {
-        End->mergeTypeInfo(PointerType::get(Type::SByteTy),
+        End->mergeTypeInfo(PointerType::get(Type::Int8Ty),
                            EndPtrNH.getOffset(), false);
         End->setModifiedMarker();
         DSNodeHandle &Link = getLink(EndPtrNH);
@@ -985,7 +997,7 @@ bool GraphBuilder::visitExternal(CallSite CS, Function *F) {
       const DSNodeHandle &VAList = getValueDest(**AI);
       if (DSNode *N = VAList.getNode()) {
         N->setReadMarker();
-        N->mergeTypeInfo(PointerType::get(Type::SByteTy),
+        N->mergeTypeInfo(PointerType::get(Type::Int8Ty),
         		 VAList.getOffset(), false);
 	
         DSNodeHandle &VAListObjs = getLink(VAList);
@@ -1133,7 +1145,7 @@ bool GraphBuilder::visitExternal(CallSite CS, Function *F) {
         //Get the Module first
         Module * M = F->getParent();
         //Now create a meta pool for this value, DSN Node
-        const Type * VoidPtrType = PointerType::get(Type::SByteTy);              
+        const Type * VoidPtrType = PointerType::get(Type::Int8Ty);              
         TheMetaPool = new GlobalVariable(
                                  /*type=*/ VoidPtrType,
                                  /*isConstant=*/ false,
@@ -1151,10 +1163,10 @@ bool GraphBuilder::visitExternal(CallSite CS, Function *F) {
       //Assumes AddPoolDescToMetaPool is in the module
       CastInst *CastMetaPool = 
         CastInst::createPointerCast (TheMetaPool, 
-                     PointerType::get(Type::SByteTy), "metapool.casted", InsertPoint);
+                     PointerType::get(Type::Int8Ty), "metapool.casted", InsertPoint);
       CastInst *CastActualPD = 
         CastInst::createPointerCast (actualPD, 
-                     PointerType::get(Type::SByteTy), "poolhandle.lscasted", InsertPoint);
+                     PointerType::get(Type::Int8Ty), "poolhandle.lscasted", InsertPoint);
       
       // Create the call to AddPoolDescToMetaPool 
       std::vector<Value *> args(1,CastMetaPool);
@@ -1196,7 +1208,7 @@ bool GraphBuilder::visitExternal(CallSite CS, Function *F) {
         //Get the Module first
         Module * M = F->getParent();
         //Now create a meta pool for this value, DSN Node
-        const Type * VoidPtrType = PointerType::get(Type::SByteTy);              
+        const Type * VoidPtrType = PointerType::get(Type::Int8Ty);              
         TheMetaPool = new GlobalVariable(
                                  /*type=*/ VoidPtrType,
                                  /*isConstant=*/ false,
@@ -1213,10 +1225,10 @@ bool GraphBuilder::visitExternal(CallSite CS, Function *F) {
       //Assumes AddPoolDescToMetaPool is in the module
       CastInst *CastMetaPool = 
         CastInst::createPointerCast (TheMetaPool, 
-                     PointerType::get(Type::SByteTy), "metapool.casted", InsertPoint);
+                     PointerType::get(Type::Int8Ty), "metapool.casted", InsertPoint);
       CastInst *CastActualPD = 
         CastInst::createPointerCast (actualPD, 
-                     PointerType::get(Type::SByteTy), "poolhandle.lscasted", InsertPoint);
+                     PointerType::get(Type::Int8Ty), "poolhandle.lscasted", InsertPoint);
       
       // Create the call to AddPoolDescToMetaPool 
       std::vector<Value *> args(1,CastMetaPool);
@@ -1290,7 +1302,7 @@ void GraphBuilder::visitCallSite(CallSite CS) {
         if (G.getPoolDescriptorsMap().count(N)== 0) {
           //Here we insert a global meta pool
           //Now create a meta pool for this value, DSN Node
-          const Type * VoidPtrType = PointerType::get(Type::SByteTy);              
+          const Type * VoidPtrType = PointerType::get(Type::Int8Ty);              
           TheMetaPool = new GlobalVariable(
                                            /*type=*/ VoidPtrType,
                                            /*isConstant=*/ false,
@@ -1312,14 +1324,14 @@ void GraphBuilder::visitCallSite(CallSite CS) {
         Instruction *InsertPoint = CS.getInstruction();
         
         //Assumes AddPoolDescToMetaPool is in the module
-        const Type * VoidPtrType = PointerType::get(Type::SByteTy);
+        const Type * VoidPtrType = PointerType::get(Type::Int8Ty);
         const Type * VoidPtrPtrType = PointerType::get(VoidPtrType);
         CastInst *CastMetaPool = 
           CastInst::createPointerCast (TheMetaPool, 
                        VoidPtrPtrType, "metapool.casted", InsertPoint);
         CastInst *CastActualPD = 
           CastInst::createPointerCast (actualPD, 
-                       PointerType::get(Type::SByteTy), "poolhandle.lscasted", InsertPoint);
+                       PointerType::get(Type::Int8Ty), "poolhandle.lscasted", InsertPoint);
         
         // Create the call to AddPoolDescToMetaPool 
         std::vector<Value *> args(1,CastMetaPool);
@@ -1376,7 +1388,7 @@ void GraphBuilder::visitCallSite(CallSite CS) {
           //Here we insert a global meta pool
           //Get the Module first
           //Now create a meta pool for this value, DSN Node
-          const Type * VoidPtrType = PointerType::get(Type::SByteTy);              
+          const Type * VoidPtrType = PointerType::get(Type::Int8Ty);              
           TheMetaPool = new GlobalVariable(
                                            /*type=*/ VoidPtrType,
                                            /*isConstant=*/ false,
@@ -1391,14 +1403,14 @@ void GraphBuilder::visitCallSite(CallSite CS) {
         Instruction *InsertPoint = CS.getInstruction();
         
         //Assumes AddPoolDescToMetaPool is in the module
-        const Type * VoidPtrType = PointerType::get(Type::SByteTy);
+        const Type * VoidPtrType = PointerType::get(Type::Int8Ty);
         const Type * VoidPtrPtrType = PointerType::get(VoidPtrType);
         CastInst *CastMetaPool = 
           CastInst::createPointerCast (TheMetaPool, 
                        VoidPtrPtrType, "metapool.casted", InsertPoint);
         CastInst *CastActualPD = 
           CastInst::createPointerCast (actualPD, 
-                       PointerType::get(Type::SByteTy), "poolhandle.lscasted", InsertPoint);
+                       PointerType::get(Type::Int8Ty), "poolhandle.lscasted", InsertPoint);
         
         // Create the call to AddPoolDescToMetaPool 
         std::vector<Value *> args(1,CastMetaPool);

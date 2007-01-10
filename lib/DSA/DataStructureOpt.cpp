@@ -19,6 +19,7 @@
 #include "llvm/Constant.h"
 #include "llvm/Type.h"
 #include "llvm/ADT/Statistic.h"
+#include "llvm/Support/Debug.h"
 using namespace llvm;
 
 namespace {
