@@ -31,9 +31,9 @@ using namespace llvm;
 namespace {
   RegisterPass<EquivClassGraphs> X("eqdatastructure",
                     "Equivalence-class Bottom-up Data Structure Analysis");
-  Statistic NumEquivBUInlines("equivdatastructures",
+  STATISTIC (NumEquivBUInlines,
                                 "Number of graphs inlined");
-  Statistic NumFoldGraphInlines("Inline equiv-class graphs bottom up",
+  STATISTIC (NumFoldGraphInlines,
                                   "Number of graphs inlined");
 }
 

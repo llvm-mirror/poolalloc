@@ -37,9 +37,9 @@
 using namespace llvm;
 
 #ifdef LLVA_KERNEL
-static Statistic CacheAllocs ("dsa", "Number of kmem_cache_alloc calls");
-static Statistic KMallocs    ("dsa", "Number of kmalloc calls");
-static Statistic GlobalPools ("dsa", "Number of global pools");
+static STATISTIC (CacheAllocs , "Number of kmem_cache_alloc calls");
+static STATISTIC (KMallocs    , "Number of kmalloc calls");
+static STATISTIC (GlobalPools , "Number of global pools");
 #endif
 
 static RegisterPass<LocalDataStructures>

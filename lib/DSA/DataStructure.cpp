@@ -38,14 +38,14 @@ using namespace llvm;
 
 #define COLLAPSE_ARRAYS_AGGRESSIVELY 0
 namespace {
-  Statistic NumFolds          ("dsa", "Number of nodes completely folded");
-  Statistic NumCallNodesMerged("dsa", "Number of call nodes merged");
-  Statistic NumNodeAllocated  ("dsa", "Number of nodes allocated");
-  Statistic NumDNE            ("dsa", "Number of nodes removed by reachability");
-  Statistic NumTrivialDNE     ("dsa", "Number of nodes trivially removed");
-  Statistic NumTrivialGlobalDNE("dsa", "Number of globals trivially removed");
+  STATISTIC (NumFolds, "Number of nodes completely folded");
+  STATISTIC (NumCallNodesMerged, "Number of call nodes merged");
+  STATISTIC (NumNodeAllocated  , "Number of nodes allocated");
+  STATISTIC (NumDNE            , "Number of nodes removed by reachability");
+  STATISTIC (NumTrivialDNE     , "Number of nodes trivially removed");
+  STATISTIC (NumTrivialGlobalDNE, "Number of globals trivially removed");
 #ifdef LLVA_KERNEL
-  Statistic LostPools         ("dsa", "Number of pools lost to DSNode Merge");
+  STATISTIC (LostPools         , "Number of pools lost to DSNode Merge");
 #endif
   static cl::opt<unsigned>
   DSAFieldLimit("dsa-field-limit", cl::Hidden,

@@ -58,14 +58,14 @@ namespace {
   RegisterPass<PoolAllocatePassAllPools>
   Y("poolalloc-passing-all-pools", "Pool allocate disjoint data structures");
 
-  Statistic NumArgsAdded("poolalloc", "Number of function arguments added");
-  Statistic MaxArgsAdded("poolalloc", "Maximum function arguments added to one function");
-  Statistic NumCloned   ("poolalloc", "Number of functions cloned");
-  Statistic NumPools    ("poolalloc", "Number of pools allocated");
-  Statistic NumTSPools  ("poolalloc", "Number of typesafe pools");
-  Statistic NumPoolFree ("poolalloc", "Number of poolfree's elided");
-  Statistic NumNonprofit("poolalloc", "Number of DSNodes not profitable");
-  Statistic NumColocated("poolalloc", "Number of DSNodes colocated");
+  STATISTIC (NumArgsAdded, "Number of function arguments added");
+  STATISTIC (MaxArgsAdded, "Maximum function arguments added to one function");
+  STATISTIC (NumCloned   , "Number of functions cloned");
+  STATISTIC (NumPools    , "Number of pools allocated");
+  STATISTIC (NumTSPools  , "Number of typesafe pools");
+  STATISTIC (NumPoolFree , "Number of poolfree's elided");
+  STATISTIC (NumNonprofit, "Number of DSNodes not profitable");
+  STATISTIC (NumColocated, "Number of DSNodes colocated");
 
   const Type *VoidPtrTy;
 

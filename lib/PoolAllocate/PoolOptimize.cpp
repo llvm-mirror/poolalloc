@@ -20,7 +20,7 @@
 using namespace llvm;
 
 namespace {
-  Statistic NumBumpPtr("poolalloc", "Number of bump pointer pools");
+  STATISTIC (NumBumpPtr, "Number of bump pointer pools");
 
   struct PoolOptimize : public ModulePass {
     bool runOnModule(Module &M);

@@ -35,7 +35,7 @@ namespace {
   RegisterPass<TDDataStructures>   // Register the pass
   Y("tddatastructure", "Top-down Data Structure Analysis");
 
-  Statistic NumTDInlines("tddatastructures", "Number of graphs inlined");
+  STATISTIC (NumTDInlines, "Number of graphs inlined");
 }
 
 void TDDataStructures::markReachableFunctionsExternallyAccessible(DSNode *N,

@@ -26,9 +26,9 @@
 using namespace llvm;
 
 namespace {
-  Statistic MaxSCC("budatastructure", "Maximum SCC Size in Call Graph");
-  Statistic NumBUInlines("budatastructures", "Number of graphs inlined");
-  Statistic NumCallEdges("budatastructures", "Number of 'actual' call edges");
+  STATISTIC (MaxSCC, "Maximum SCC Size in Call Graph");
+  STATISTIC (NumBUInlines, "Number of graphs inlined");
+  STATISTIC (NumCallEdges, "Number of 'actual' call edges");
 
   cl::opt<bool>
   AddGlobals("budatastructures-annotate-calls", cl::Hidden,

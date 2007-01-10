@@ -55,11 +55,9 @@ namespace {
          cl::desc("Enable Andrew's fixes/hacks"));
   
 
-  Statistic NumCompressed("pointercompress",
-                            "Number of pools pointer compressed");
-  Statistic NumNotCompressed("pointercompress",
-                               "Number of pools not compressible");
-  Statistic NumCloned    ("pointercompress", "Number of functions cloned");
+  STATISTIC (NumCompressed, "Number of pools pointer compressed");
+  STATISTIC (NumNotCompressed, "Number of pools not compressible");
+  STATISTIC (NumCloned    , "Number of functions cloned");
 
   class CompressedPoolInfo;
 

@@ -22,10 +22,8 @@
 using namespace llvm;
 
 namespace {
-  Statistic
-  NumGlobalsConstanted("ds-opt", "Number of globals marked constant");
-  Statistic
-  NumGlobalsIsolated("ds-opt", "Number of globals with references dropped");
+  STATISTIC (NumGlobalsConstanted, "Number of globals marked constant");
+  STATISTIC (NumGlobalsIsolated, "Number of globals with references dropped");
 
   class DSOpt : public ModulePass {
     TDDataStructures *TD;
