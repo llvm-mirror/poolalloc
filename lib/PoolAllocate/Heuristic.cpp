@@ -456,8 +456,8 @@ static Value *getDynamicallyNullPool(BasicBlock::iterator I) {
 void OnlyOverheadHeuristic::HackFunctionBody(Function &F,
                                              std::map<const DSNode*,
                                              Value*> &PDs) {
-  Function *PoolInit = PA->PoolInit;
-  Function *PoolDestroy = PA->PoolDestroy;
+  Constant *PoolInit = PA->PoolInit;
+  Constant *PoolDestroy = PA->PoolDestroy;
 
   Value *NullPD = getDynamicallyNullPool(F.front().begin());
   for (std::map<const DSNode*, Value*>::iterator PDI = PDs.begin(),

@@ -28,7 +28,7 @@ namespace {
   class PoolAccessTrace : public ModulePass {
     PoolAllocate *PoolAlloc;
     EquivClassGraphs *ECG;
-    Function *AccessTraceInitFn, *PoolAccessTraceFn;
+    Constant *AccessTraceInitFn, *PoolAccessTraceFn;
     const Type *VoidPtrTy;
   public:
 
@@ -59,7 +59,7 @@ void PoolAccessTrace::getAnalysisUsage(AnalysisUsage &AU) const {
 }
 
 void PoolAccessTrace::InitializeLibraryFunctions(Module &M) {
-  VoidPtrTy = PointerType::get(Type::SByteTy);
+  VoidPtrTy = PointerType::get(Type::Int8Ty);
 
   AccessTraceInitFn = M.getOrInsertFunction("poolaccesstraceinit",
                                             Type::VoidTy,NULL);
