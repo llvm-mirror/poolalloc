@@ -131,10 +131,10 @@ public:
 #ifdef SAFECODE  
   ConvertUnsafeAllocas *CUAPass;
 #endif  
-  Function *PoolInit, *PoolDestroy, *PoolAlloc, *PoolRealloc, *PoolMemAlign;
-  Function *PoolFree;
+  Constant *PoolInit, *PoolDestroy, *PoolAlloc, *PoolRealloc, *PoolMemAlign;
+  Constant *PoolFree;
 #if defined(SAFECODE) || defined(BOUNDS_CHECK)
-  Function *PoolRegister;
+  Constant *PoolRegister;
 #endif
   
   static const Type *PoolDescPtrTy;
