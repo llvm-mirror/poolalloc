@@ -72,7 +72,7 @@ namespace DS {
     if (isa<PointerType>(Ty))
       return true;
     else if (TrackIntegersAsPointers && Ty->isPrimitiveType() &&Ty->isInteger())
-      return Ty->getPrimitiveSize() >= PointerSize;
+      return Ty->getPrimitiveSizeInBits() >= PointerSize;
     return false;
   }
 }}
