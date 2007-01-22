@@ -1993,6 +1993,14 @@ void DSGraph::markIncompleteNodes(unsigned Flags) {
            E = AuxFunctionCalls.end(); I != E; ++I)
       markIncomplete(*I);
 
+  // Mark stuff passed into external functions as being incomplete.
+  // External functions may not appear in Aux during td, so process
+  // them specially
+  for (std::list<DSCallSite>::iterator I = FunctionCalls.begin(),
+         E = FunctionCalls.end(); I != E; ++I)
+    if(I->isDirectCall() && I->getCalleeFunc()->isExternal())
+      markIncomplete(*I);
+
   // Mark all global nodes as incomplete.
   for (DSScalarMap::global_iterator I = ScalarMap.global_begin(),
          E = ScalarMap.global_end(); I != E; ++I)
