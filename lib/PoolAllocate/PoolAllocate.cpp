@@ -251,7 +251,7 @@ static void OptimizePointerNotNull(Value *V) {
       if (isa<Constant>(User->getOperand(1)) && 
           cast<Constant>(User->getOperand(1))->isNullValue()) {
         bool CondIsTrue = ICI->getPredicate() == ICmpInst::ICMP_NE;
-        User->replaceAllUsesWith(ConstantBool::get(CondIsTrue));
+        User->replaceAllUsesWith(ConstantInt::get(Type::Int1Ty, CondIsTrue));
       }
     } else if ((User->getOpcode() == Instruction::Trunc) ||
                (User->getOpcode() == Instruction::ZExt) ||
