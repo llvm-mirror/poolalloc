@@ -392,7 +392,7 @@ namespace {
           if (SS.Idx != ST->getNumElements()) {
             const StructLayout *SL = TD.getStructLayout(ST);
             SS.Offset +=
-               unsigned(SL->MemberOffsets[SS.Idx]-SL->MemberOffsets[SS.Idx-1]);
+               unsigned(SL->getElementOffset(SS.Idx)-SL->getElementOffset(SS.Idx-1));
             return;
           }
           Stack.pop_back();  // At the end of the structure
@@ -423,7 +423,7 @@ namespace {
             assert(SS.Idx < ST->getNumElements());
             const StructLayout *SL = TD.getStructLayout(ST);
             Stack.push_back(StackState(ST->getElementType(SS.Idx),
-                            SS.Offset+unsigned(SL->MemberOffsets[SS.Idx])));
+                            SS.Offset+unsigned(SL->getElementOffset(SS.Idx))));
           }
         } else {
           const ArrayType *AT = cast<ArrayType>(SS.Ty);
@@ -576,7 +576,7 @@ bool DSNode::mergeTypeInfo(const Type *NewTy, unsigned Offset,
         const StructLayout &SL = *TD.getStructLayout(STy);
         unsigned i = SL.getElementContainingOffset(Offset);
         //Either we hit it exactly or give up
-        if (SL.MemberOffsets[i] != Offset) {
+        if (SL.getElementOffset(i) != Offset) {
           if (FoldIfIncompatible) foldNodeCompletely();
           return true;
         }
@@ -601,7 +601,7 @@ bool DSNode::mergeTypeInfo(const Type *NewTy, unsigned Offset,
         const StructLayout &SL = *TD.getStructLayout(STy);
         unsigned i = SL.getElementContainingOffset(Offset);
         //Either we hit it exactly or give up
-        if (SL.MemberOffsets[i] != Offset) {
+        if (SL.getElementOffset(i) != Offset) {
           if (FoldIfIncompatible) foldNodeCompletely();
           return true;
         }
@@ -665,7 +665,7 @@ bool DSNode::mergeTypeInfo(const Type *NewTy, unsigned Offset,
 
       // The offset we are looking for must be in the i'th element...
       SubType = STy->getElementType(i);
-      O += (unsigned)SL.MemberOffsets[i];
+      O += (unsigned)SL.getElementOffset(i);
       break;
     }
     case Type::ArrayTyID: {
@@ -715,8 +715,8 @@ bool DSNode::mergeTypeInfo(const Type *NewTy, unsigned Offset,
     case Type::StructTyID: {
       const StructType *STy = cast<StructType>(SubType);
       const StructLayout &SL = *TD.getStructLayout(STy);
-      if (SL.MemberOffsets.size() > 1)
-        NextPadSize = (unsigned)SL.MemberOffsets[1];
+      if (STy->getNumElements() > 1)
+        NextPadSize = (unsigned)SL.getElementOffset(1);
       else
         NextPadSize = SubTypeSize;
       NextSubType = STy->getElementType(0);
@@ -1998,7 +1998,7 @@ void DSGraph::markIncompleteNodes(unsigned Flags) {
   // them specially
   for (std::list<DSCallSite>::iterator I = FunctionCalls.begin(),
          E = FunctionCalls.end(); I != E; ++I)
-    if(I->isDirectCall() && I->getCalleeFunc()->isExternal())
+    if(I->isDirectCall() && I->getCalleeFunc()->isDeclaration())
       markIncomplete(*I);
 
   // Mark all global nodes as incomplete.
@@ -2023,7 +2023,7 @@ static inline bool nodeContainsExternalFunction(const DSNode *N) {
   std::vector<Function*> Funcs;
   N->addFullFunctionList(Funcs);
   for (unsigned i = 0, e = Funcs.size(); i != e; ++i)
-    if (Funcs[i]->isExternal()) return true;
+    if (Funcs[i]->isDeclaration()) return true;
   return false;
 }
 

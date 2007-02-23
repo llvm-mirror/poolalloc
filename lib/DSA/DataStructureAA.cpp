@@ -12,6 +12,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+
 #include "llvm/Constants.h"
 #include "llvm/DerivedTypes.h"
 #include "llvm/Module.h"
@@ -220,7 +221,7 @@ DSAA::getModRefInfo(CallSite CS, Value *P, unsigned Size) {
 
   if (!F) return AliasAnalysis::getModRefInfo(CS, P, Size);
 
-  if (F->isExternal()) {
+  if (F->isDeclaration()) {
     // If we are calling an external function, and if this global doesn't escape
     // the portion of the program we have analyzed, we can draw conclusions
     // based on whether the global escapes the program.

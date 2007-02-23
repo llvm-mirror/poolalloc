@@ -42,7 +42,7 @@ void CallTargetFinder::findIndTargets(Module &M)
 {
   TDDataStructures* T = &getAnalysis<TDDataStructures>();
   for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I)
-    if (!I->isExternal())
+    if (!I->isDeclaration())
       for (Function::iterator F = I->begin(), FE = I->end(); F != FE; ++F)
         for (BasicBlock::iterator B = F->begin(), BE = F->end(); B != BE; ++B)
           if (isa<CallInst>(B) || isa<InvokeInst>(B)) {

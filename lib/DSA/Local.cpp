@@ -246,7 +246,7 @@ DSGraph::DSGraph(EquivalenceClasses<GlobalValue*> &ECs, const TargetData &td,
     for (DSScalarMap::global_iterator I = ScalarMap.global_begin();
          I != ScalarMap.global_end(); ++I)
       if (GlobalVariable *GV = dyn_cast<GlobalVariable>(*I))
-        if (!GV->isExternal() && GV->isConstant())
+        if (!GV->isDeclaration() && GV->isConstant())
           RC.merge(ScalarMap[GV], GG->ScalarMap[GV]);
   }
 
@@ -495,7 +495,7 @@ if (debug) std::cerr << "LLVA: GEP: All Zeros\n";
 #else
       int FieldNo = CUI->getSExtValue();
 #endif
-      Offset += (unsigned)TD.getStructLayout(STy)->MemberOffsets[FieldNo];
+      Offset += (unsigned)TD.getStructLayout(STy)->getElementOffset(FieldNo);
     } else if (isa<PointerType>(*I)) {
       if (!isa<Constant>(I.getOperand()) ||
           !cast<Constant>(I.getOperand())->isNullValue())
@@ -1430,7 +1430,7 @@ void GraphBuilder::visitCallSite(CallSite CS) {
       return;
     }
 #endif
-    if (F->isExternal())
+    if (F->isDeclaration())
       if (F->isIntrinsic() && visitIntrinsic(CS, F))
         return;
       else {
@@ -1581,10 +1581,10 @@ void GraphBuilder::MergeConstantInitIntoNode(DSNodeHandle &NH, Constant *C) {
     for (unsigned i = 0, e = CS->getNumOperands(); i != e; ++i) {
       DSNode *NHN = NH.getNode();
       //Some programmers think ending a structure with a [0 x sbyte] is cute
-      if (SL->MemberOffsets[i] < SL->StructSize) {
-        DSNodeHandle NewNH(NHN, NH.getOffset()+(unsigned)SL->MemberOffsets[i]);
+      if (SL->getElementOffset(i) < SL->getSizeInBytes()) {
+        DSNodeHandle NewNH(NHN, NH.getOffset()+(unsigned)SL->getElementOffset(i));
         MergeConstantInitIntoNode(NewNH, cast<Constant>(CS->getOperand(i)));
-      } else if (SL->MemberOffsets[i] == SL->StructSize) {
+      } else if (SL->getElementOffset(i) == SL->getSizeInBytes()) {
         DOUT << "Zero size element at end of struct\n";
         NHN->foldNodeCompletely();
       } else {
@@ -1599,7 +1599,7 @@ void GraphBuilder::MergeConstantInitIntoNode(DSNodeHandle &NH, Constant *C) {
 }
 
 void GraphBuilder::mergeInGlobalInitializer(GlobalVariable *GV) {
-  assert(!GV->isExternal() && "Cannot merge in external global!");
+  assert(!GV->isDeclaration() && "Cannot merge in external global!");
   // Get a node handle to the global node and merge the initializer into it.
   DSNodeHandle NH = getValueDest(*GV);
   MergeConstantInitIntoNode(NH, GV->getInitializer());
@@ -1699,7 +1699,7 @@ bool LocalDataStructures::runOnModule(Module &M) {
     // Add initializers for all of the globals to the globals graph.
     for (Module::global_iterator I = M.global_begin(), E = M.global_end();
          I != E; ++I)
-      if (!I->isExternal())
+      if (!I->isDeclaration())
         GGB.mergeInGlobalInitializer(I);
   }
 
@@ -1712,7 +1712,7 @@ bool LocalDataStructures::runOnModule(Module &M) {
 
   // Calculate all of the graphs...
   for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I)
-    if (!I->isExternal())
+    if (!I->isDeclaration())
       DSInfo.insert(std::make_pair(I, new DSGraph(GlobalECs, TD, *I,
                                                   GlobalsGraph)));
   GlobalsGraph->removeTriviallyDeadNodes();

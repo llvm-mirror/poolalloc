@@ -46,16 +46,16 @@ bool CompleteBUDataStructures::runOnModule(Module &M) {
   hash_map<DSGraph*, unsigned> ValMap;
   unsigned NextID = 1;
 
-  Function *MainFunc = M.getMainFunction();
+  Function *MainFunc = M.getFunction("main");
   if (MainFunc) {
-    if (!MainFunc->isExternal())
+    if (!MainFunc->isDeclaration())
       calculateSCCGraphs(getOrCreateGraph(*MainFunc), Stack, NextID, ValMap);
   } else {
     DOUT << "CBU-DSA: No 'main' function found!\n";
   }
 
   for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I)
-    if (!I->isExternal() && !DSInfo.count(I)) {
+    if (!I->isDeclaration() && !DSInfo.count(I)) {
       if (MainFunc) {
         DOUT << "*** CBU: Function unreachable from main: "
              << I->getName() << "\n";
@@ -69,7 +69,7 @@ bool CompleteBUDataStructures::runOnModule(Module &M) {
   // Merge the globals variables (not the calls) from the globals graph back
   // into the main function's graph so that the main function contains all of
   // the information about global pools and GV usage in the program.
-  if (MainFunc && !MainFunc->isExternal()) {
+  if (MainFunc && !MainFunc->isDeclaration()) {
     DSGraph &MainGraph = getOrCreateGraph(*MainFunc);
     const DSGraph &GG = *MainGraph.getGlobalsGraph();
     ReachabilityCloner RC(MainGraph, GG,
@@ -129,7 +129,7 @@ unsigned CompleteBUDataStructures::calculateSCCGraphs(DSGraph &FG,
     callee_iterator I = callee_begin(Call), E = callee_end(Call);
     for (; I != E && I->first == Call; ++I) {
       assert(I->first == Call && "Bad callee construction!");
-      if (!I->second->isExternal()) {
+      if (!I->second->isDeclaration()) {
         DSGraph &Callee = getOrCreateGraph(*I->second);
         unsigned M;
         // Have we visited the destination function yet?
@@ -209,7 +209,7 @@ void CompleteBUDataStructures::processGraph(DSGraph &G) {
     for (; I != E; ++I, ++TNum) {
       assert(I->first == TheCall && "Bad callee construction!");
       Function *CalleeFunc = I->second;
-      if (!CalleeFunc->isExternal()) {
+      if (!CalleeFunc->isDeclaration()) {
         // Merge the callee's graph into this graph.  This works for normal
         // calls or for self recursion within an SCC.
         DSGraph &GI = getOrCreateGraph(*CalleeFunc);

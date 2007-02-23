@@ -89,7 +89,7 @@ bool TDDataStructures::runOnModule(Module &M) {
 
   // Functions without internal linkage also have unknown incoming arguments!
   for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I)
-    if (!I->isExternal() && !I->hasInternalLinkage())
+    if (!I->isDeclaration() && !I->hasInternalLinkage())
       ArgsRemainIncomplete.insert(I);
 
   // We want to traverse the call graph in reverse post-order.  To do this, we
@@ -102,7 +102,7 @@ bool TDDataStructures::runOnModule(Module &M) {
 
   // Visit each of the graphs in reverse post-order now!
   for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I)
-    if (!I->isExternal())
+    if (!I->isDeclaration())
       getOrCreateDSGraph(*I);
   return false;
 }
@@ -112,7 +112,7 @@ bool TDDataStructures::runOnModule(Module &M) {
 {TIME_REGION(XXX, "td:Compute postorder");
 
   // Calculate top-down from main...
-  if (Function *F = M.getMainFunction())
+  if (Function *F = M.getFunction("main"))
     ComputePostOrder(*F, VisitedGraph, PostOrder);
 
   // Next calculate the graphs for each unreachable function...
@@ -167,7 +167,7 @@ DSGraph &TDDataStructures::getOrCreateDSGraph(Function &F) {
 
 void TDDataStructures::ComputePostOrder(Function &F,hash_set<DSGraph*> &Visited,
                                         std::vector<DSGraph*> &PostOrder) {
-  if (F.isExternal()) return;
+  if (F.isDeclaration()) return;
   DSGraph &G = getOrCreateDSGraph(F);
   if (Visited.count(&G)) return;
   Visited.insert(&G);
@@ -312,7 +312,7 @@ void TDDataStructures::InlineCallersIntoGraph(DSGraph &DSG) {
 
     // Handle direct calls efficiently.
     if (CI->isDirectCall()) {
-      if (!CI->getCalleeFunc()->isExternal() &&
+      if (!CI->getCalleeFunc()->isDeclaration() &&
           !DSG.getReturnNodes().count(CI->getCalleeFunc()))
         CallerEdges[&getDSGraph(*CI->getCalleeFunc())]
           .push_back(CallerCallEdge(&DSG, &*CI, CI->getCalleeFunc()));
@@ -341,7 +341,7 @@ void TDDataStructures::InlineCallersIntoGraph(DSGraph &DSG) {
     // If there is exactly one callee from this call site, remember the edge in
     // CallerEdges.
     if (IPI == IPE) {
-      if (!FirstCallee->isExternal())
+      if (!FirstCallee->isDeclaration())
         CallerEdges[&getDSGraph(*FirstCallee)]
           .push_back(CallerCallEdge(&DSG, &*CI, FirstCallee));
       continue;
@@ -356,7 +356,7 @@ void TDDataStructures::InlineCallersIntoGraph(DSGraph &DSG) {
     for (BUDataStructures::ActualCalleesTy::const_iterator I =
            BUInfo->callee_begin(CallI), E = BUInfo->callee_end(CallI);
          I != E; ++I)
-      if (!I->second->isExternal())
+      if (!I->second->isDeclaration())
         Callees.push_back(I->second);
     std::sort(Callees.begin(), Callees.end());
 

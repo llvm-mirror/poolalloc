@@ -127,7 +127,7 @@ bool Steens::runOnModule(Module &M) {
   // into this graph.
   //
   for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I)
-    if (!I->isExternal())
+    if (!I->isDeclaration())
       ResultGraph->spliceFrom(LDS.getDSGraph(*I));
 
   ResultGraph->removeTriviallyDeadNodes();
@@ -157,7 +157,7 @@ bool Steens::runOnModule(Module &M) {
     for (unsigned c = 0; c != CallTargets.size(); ) {
       // If we can eliminate this function call, do so!
       Function *F = CallTargets[c];
-      if (!F->isExternal()) {
+      if (!F->isDeclaration()) {
         ResolveFunctionCall(F, CurCall, ResultGraph->getReturnNodes()[F]);
         CallTargets[c] = CallTargets.back();
         CallTargets.pop_back();
@@ -257,7 +257,7 @@ Steens::getModRefInfo(CallSite CS, Value *P, unsigned Size) {
       // points to a complete node, the external function cannot modify or read
       // the value (we know it's not passed out of the program!).
       if (Function *F = CS.getCalledFunction())
-        if (F->isExternal())
+        if (F->isDeclaration())
           return NoModRef;
 
       // Otherwise, if the node is complete, but it is only M or R, return this.

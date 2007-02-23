@@ -41,7 +41,7 @@ namespace {
 template<typename GT>
 static void CheckAllGraphs(Module *M, GT &ECGraphs) {
   for (Module::iterator I = M->begin(), E = M->end(); I != E; ++I)
-    if (!I->isExternal()) {
+    if (!I->isDeclaration()) {
       DSGraph &G = ECGraphs.getDSGraph(*I);
       if (G.retnodes_begin()->first != I)
         continue;  // Only check a graph once.
@@ -86,15 +86,15 @@ bool EquivClassGraphs::runOnModule(Module &M) {
   std::map<DSGraph*, unsigned> ValMap;
   unsigned NextID = 1;
 
-  Function *MainFunc = M.getMainFunction();
-  if (MainFunc && !MainFunc->isExternal()) {
+  Function *MainFunc = M.getFunction("main");
+  if (MainFunc && !MainFunc->isDeclaration()) {
     processSCC(getOrCreateGraph(*MainFunc), Stack, NextID, ValMap);
   } else {
     cerr << "Fold Graphs: No 'main' function found!\n";
   }
 
   for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I)
-    if (!I->isExternal())
+    if (!I->isDeclaration())
       processSCC(getOrCreateGraph(*I), Stack, NextID, ValMap);
 
   DEBUG(CheckAllGraphs(&M, *this));
@@ -105,7 +105,7 @@ bool EquivClassGraphs::runOnModule(Module &M) {
   // Merge the globals variables (not the calls) from the globals graph back
   // into the main function's graph so that the main function contains all of
   // the information about global pools and GV usage in the program.
-  if (MainFunc && !MainFunc->isExternal()) {
+  if (MainFunc && !MainFunc->isDeclaration()) {
     DSGraph &MainGraph = getOrCreateGraph(*MainFunc);
     const DSGraph &GG = *MainGraph.getGlobalsGraph();
     ReachabilityCloner RC(MainGraph, GG,
@@ -163,7 +163,7 @@ void EquivClassGraphs::buildIndirectFunctionSets(Module &M) {
   Instruction *LastInst = 0;
   Function *FirstFunc = 0;
   for (ActualCalleesTy::const_iterator I=AC.begin(), E=AC.end(); I != E; ++I) {
-    if (I->second->isExternal())
+    if (I->second->isDeclaration())
       continue;                         // Ignore functions we cannot modify
 
     CallSite CS = CallSite::get(I->first);
@@ -335,7 +335,7 @@ processSCC(DSGraph &FG, std::vector<DSGraph*> &Stack, unsigned &NextID,
     // Loop over all of the actually called functions...
     for (callee_iterator I = callee_begin(Call), E = callee_end(Call);
          I != E; ++I)
-      if (!I->second->isExternal()) {
+      if (!I->second->isDeclaration()) {
         // Process the callee as necessary.
         unsigned M = processSCC(getOrCreateGraph(*I->second),
                                 Stack, NextID, ValMap);
@@ -412,7 +412,7 @@ void EquivClassGraphs::processGraph(DSGraph &G) {
 
     // Loop over all potential callees to find the first non-external callee.
     for (TNum = 0, Num = std::distance(I, E); I != E; ++I, ++TNum)
-      if (!I->second->isExternal())
+      if (!I->second->isDeclaration())
         break;
 
     // Now check if the graph has changed and if so, clone and inline it.
@@ -448,7 +448,7 @@ void EquivClassGraphs::processGraph(DSGraph &G) {
     // same graph as the one inlined above.
     if (CalleeGraph)
       for (++I, ++TNum; I != E; ++I, ++TNum)
-        if (!I->second->isExternal())
+        if (!I->second->isDeclaration())
           assert(CalleeGraph == &getOrCreateGraph(*I->second) &&
                  "Callees at a call site have different graphs?");
 #endif

@@ -163,13 +163,13 @@ bool BUDataStructures::runOnModule(Module &M) {
   hash_map<Function*, unsigned> ValMap;
   unsigned NextID = 1;
 
-  Function *MainFunc = M.getMainFunction();
+  Function *MainFunc = M.getFunction("main");
   if (MainFunc)
     calculateGraphs(MainFunc, Stack, NextID, ValMap);
 
   // Calculate the graphs for any functions that are unreachable from main...
   for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I)
-    if (!I->isExternal() && !DSInfo.count(I)) {
+    if (!I->isDeclaration() && !DSInfo.count(I)) {
       if (MainFunc)
         DOUT << "*** BU: Function unreachable from main: "
              << I->getName() << "\n";
@@ -212,7 +212,7 @@ bool BUDataStructures::runOnModule(Module &M) {
   // Merge the globals variables (not the calls) from the globals graph back
   // into the main function's graph so that the main function contains all of
   // the information about global pools and GV usage in the program.
-  if (MainFunc && !MainFunc->isExternal()) {
+  if (MainFunc && !MainFunc->isDeclaration()) {
     DSGraph &MainGraph = getOrCreateGraph(MainFunc);
     const DSGraph &GG = *MainGraph.getGlobalsGraph();
     ReachabilityCloner RC(MainGraph, GG,
@@ -280,7 +280,7 @@ static bool isVAHackFn(const Function *F) {
 }
 
 static bool isResolvableFunc(const Function* callee) {
-  return !callee->isExternal() || isVAHackFn(callee);
+  return !callee->isDeclaration() || isVAHackFn(callee);
 }
 
 static void GetAllCallees(const DSCallSite &CS,
@@ -349,7 +349,7 @@ unsigned BUDataStructures::calculateGraphs(Function *F,
   // FIXME!  This test should be generalized to be any function that we have
   // already processed, in the case when there isn't a main or there are
   // unreachable functions!
-  if (F->isExternal()) {   // sprintf, fprintf, sscanf, etc...
+  if (F->isDeclaration()) {   // sprintf, fprintf, sscanf, etc...
     // No callees!
     Stack.pop_back();
     ValMap[F] = ~0;
