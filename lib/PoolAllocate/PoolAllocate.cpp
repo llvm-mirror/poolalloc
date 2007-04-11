@@ -128,7 +128,7 @@ bool PoolAllocate::runOnModule(Module &M) {
   // Loop over the functions in the original program finding the pool desc.
   // arguments necessary for each function that is indirectly callable.
   for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I)
-    if (!I->isExternal() && ECGraphs->ContainsDSGraphFor(*I))
+    if (!I->isDeclaration() && ECGraphs->ContainsDSGraphFor(*I))
       FindFunctionPoolArgs(*I);
 
   std::map<Function*, Function*> FuncMap;
@@ -140,7 +140,7 @@ bool PoolAllocate::runOnModule(Module &M) {
   std::set<Function*> ClonedFunctions;
 {TIME_REGION(X, "MakeFunctionClone");
   for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I)
-    if (!I->isExternal() && !ClonedFunctions.count(I) &&
+    if (!I->isDeclaration() && !ClonedFunctions.count(I) &&
         ECGraphs->ContainsDSGraphFor(*I))
       if (Function *Clone = MakeFunctionClone(*I)) {
         FuncMap[I] = Clone;
@@ -152,7 +152,7 @@ bool PoolAllocate::runOnModule(Module &M) {
   // clones.
 {TIME_REGION(X, "ProcessFunctionBody");
   for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I)
-    if (!I->isExternal() && !ClonedFunctions.count(I) &&
+    if (!I->isDeclaration() && !ClonedFunctions.count(I) &&
         ECGraphs->ContainsDSGraphFor(*I)) {
       std::map<Function*, Function*>::iterator FI = FuncMap.find(I);
       ProcessFunctionBody(*I, FI != FuncMap.end() ? *FI->second : *I);
@@ -409,9 +409,9 @@ Function *PoolAllocate::MakeFunctionClone(Function &F) {
   // Map the existing arguments of the old function to the corresponding
   // arguments of the new function, and copy over the names.
 #ifdef SAFECODE  
-  std::map<const Value*, Value*> &ValueMap = FI.ValueMap;
+  DenseMap<const Value*, Value*> &ValueMap = FI.ValueMap;
 #else
-  std::map<const Value*, Value*> ValueMap;
+  DenseMap<const Value*, Value*> ValueMap;
 #endif  
   for (Function::arg_iterator I = F.arg_begin();
        NI != New->arg_end(); ++I, ++NI) {
@@ -427,7 +427,7 @@ Function *PoolAllocate::MakeFunctionClone(Function &F) {
   // Invert the ValueMap into the NewToOldValueMap
   std::map<Value*, const Value*> &NewToOldValueMap = FI.NewToOldValueMap;
 
-  for (std::map<const Value*, Value*>::iterator I = ValueMap.begin(),
+  for (DenseMap<const Value*, Value*>::iterator I = ValueMap.begin(),
          E = ValueMap.end(); I != E; ++I)
     NewToOldValueMap.insert(std::make_pair(I->second, I->first));
   return FI.Clone = New;
@@ -469,8 +469,8 @@ bool PoolAllocate::SetupGlobalPools(Module &M) {
   }
   
   // Otherwise get the main function to insert the poolinit calls.
-  Function *MainFunc = M.getMainFunction();
-  if (MainFunc == 0 || MainFunc->isExternal()) {
+  Function *MainFunc = M.getFunction("main");
+  if (MainFunc == 0 || MainFunc->isDeclaration()) {
     std::cerr << "Cannot pool allocate this program: it has global "
               << "pools but no 'main' function yet!\n";
     return true;
@@ -532,7 +532,7 @@ GlobalVariable *PoolAllocate::CreateGlobalPool(unsigned RecSize, unsigned Align,
   DSNode *GNode = ECGraphs->getGlobalsGraph().addObjectToGraph(GV);
   GNode->setModifiedMarker()->setReadMarker();
 
-  Function *MainFunc = CurModule->getMainFunction();
+  Function *MainFunc = CurModule->getFunction("main");
   assert(MainFunc && "No main in program??");
 
   BasicBlock::iterator InsertPt;
@@ -545,8 +545,8 @@ GlobalVariable *PoolAllocate::CreateGlobalPool(unsigned RecSize, unsigned Align,
 
   Value *ElSize = ConstantInt::get(Type::Int32Ty, RecSize);
   Value *AlignV = ConstantInt::get(Type::Int32Ty, Align);
-  new CallInst(PoolInit, make_vector((Value*)GV, ElSize, AlignV, 0),
-               "", InsertPt);
+  Value* Opts[3] = {GV, ElSize, AlignV};
+  new CallInst(PoolInit, &Opts[0], 3, "", InsertPt);
   ++NumPools;
   return GV;
 }
@@ -886,8 +886,8 @@ void PoolAllocate::InitializeAndDestroyPool(Function &F, const DSNode *Node,
   Value *Align  = ConstantInt::get(Type::Int32Ty, AlignV);
 
   for (unsigned i = 0, e = PoolInitPoints.size(); i != e; ++i) {
-    new CallInst(PoolInit, make_vector((Value*)PD, ElSize, Align, 0),
-                 "", PoolInitPoints[i]);
+    Value* Opts[3] = {PD, ElSize, Align};
+    new CallInst(PoolInit, &Opts[0], 3,  "", PoolInitPoints[i]);
     DEBUG(std::cerr << PoolInitPoints[i]->getParent()->getName() << " ");
   }
 
@@ -896,8 +896,7 @@ void PoolAllocate::InitializeAndDestroyPool(Function &F, const DSNode *Node,
   // Loop over all of the places to insert pooldestroy's...
   for (unsigned i = 0, e = PoolDestroyPoints.size(); i != e; ++i) {
     // Insert the pooldestroy call for this pool.
-    new CallInst(PoolDestroy, make_vector((Value*)PD, 0), "",
-                 PoolDestroyPoints[i]);
+    new CallInst(PoolDestroy, PD, "", PoolDestroyPoints[i]);
     DEBUG(std::cerr << PoolDestroyPoints[i]->getParent()->getName()<<" ");
   }
   DEBUG(std::cerr << "\n\n");

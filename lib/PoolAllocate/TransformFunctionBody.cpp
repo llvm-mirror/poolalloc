@@ -155,8 +155,7 @@ Instruction *FuncTransform::TransformAllocationInstr(Instruction *I,
   // Insert a call to poolalloc
   Value *PH = getPoolHandle(I);
   
-  Instruction *V = new CallInst(PAInfo.PoolAlloc, make_vector(PH, Size, 0),
-                                Name, I);
+  Instruction *V = new CallInst(PAInfo.PoolAlloc, PH, Size, Name, I);
 
   AddPoolUse(*V, PH, PoolUses);
 
@@ -269,8 +268,7 @@ Instruction *FuncTransform::InsertPoolFreeInstr(Value *Arg, Instruction *Where){
     G.getScalarMap()[Casted] = G.getScalarMap()[Arg];
   }
 
-  CallInst *FreeI = new CallInst(PAInfo.PoolFree, make_vector(PH, Casted, 0), 
-				 "", Where);
+  CallInst *FreeI = new CallInst(PAInfo.PoolFree, PH, Casted, "", Where);
   AddPoolUse(*FreeI, PH, PoolFrees);
   return FreeI;
 }
@@ -329,9 +327,9 @@ void FuncTransform::visitCallocCall(CallSite CS) {
                        BBI);
   
   // We know that the memory returned by poolalloc is at least 4 byte aligned.
-  new CallInst(MemSet, make_vector(Ptr, ConstantInt::get(Type::Int8Ty, 0),
-                                   V2,  ConstantInt::get(Type::Int32Ty, 4), 0),
-               "", BBI);
+  Value* Opts[4] = {Ptr, ConstantInt::get(Type::Int8Ty, 0),
+                    V2,  ConstantInt::get(Type::Int32Ty, 4)};
+  new CallInst(MemSet, Opts, 4, "", BBI);
 }
 
 
@@ -350,9 +348,8 @@ void FuncTransform::visitReallocCall(CallSite CS) {
     OldPtr = CastInst::createPointerCast(OldPtr, VoidPtrTy, OldPtr->getName(), I);
 
   std::string Name = I->getName(); I->setName("");
-  Instruction *V = new CallInst(PAInfo.PoolRealloc, make_vector(PH, OldPtr,
-                                                                Size, 0),
-                                Name, I);
+  Value* Opts[3] = {PH, OldPtr, Size};
+  Instruction *V = new CallInst(PAInfo.PoolRealloc, Opts, 3, Name, I);
   Instruction *Casted = V;
   if (V->getType() != I->getType())
     Casted = CastInst::createPointerCast(V, I->getType(), V->getName(), I);
@@ -419,8 +416,8 @@ void FuncTransform::visitMemAlignCall(CallSite CS) {
     Size = CastInst::createZExtOrBitCast(Size, Type::Int32Ty, Size->getName(), I);
 
   std::string Name = I->getName(); I->setName("");
-  Instruction *V = new CallInst(PAInfo.PoolMemAlign,
-                                make_vector(PH, Align, Size, 0), Name, I);
+  Value* Opts[3] = {PH, Align, Size};
+  Instruction *V = new CallInst(PAInfo.PoolMemAlign, Opts, 3, Name, I);
 
   Instruction *Casted = V;
   if (V->getType() != I->getType())
@@ -471,7 +468,7 @@ void FuncTransform::visitCallSite(CallSite CS) {
 
   // If this function is one of the memory manipulating functions built into
   // libc, emulate it with pool calls as appropriate.
-  if (CF && CF->isExternal())
+  if (CF && CF->isDeclaration())
     if (CF->getName() == "calloc") {
       visitCallocCall(CS);
       return;
@@ -581,7 +578,7 @@ void FuncTransform::visitCallSite(CallSite CS) {
     EquivClassGraphs::callee_iterator I =
       ECGraphs.callee_begin(OrigInst), E = ECGraphs.callee_end(OrigInst);
     for (; I != E; ++I)
-      if (!I->second->isExternal())
+      if (!I->second->isDeclaration())
         assert(CalleeGraph == &ECGraphs.getDSGraph(*I->second) &&
                "Callees at call site do not have a common graph!");
 #endif    
@@ -655,9 +652,9 @@ void FuncTransform::visitCallSite(CallSite CS) {
 	  ArgVal =  new AllocaInst(ArrayType::get(VoidPtrTy, 16), 0, "PD", InsertPt);
 	  Value *ElSize = ConstantInt::get(Type::Int32Ty,0);
 	  Value *Align  = ConstantInt::get(Type::Int32Ty,0);
-	  new CallInst(PAInfo.PoolInit, make_vector(ArgVal, ElSize, Align, 0),"", TheCall);
-	    new CallInst(PAInfo.PoolDestroy, make_vector(ArgVal, 0), "",
-		       TheCall->getNext());
+          Value* Opts[3] = {ArgVal, ElSize, Align};
+	  new CallInst(PAInfo.PoolInit, Opts, 3,"", TheCall);
+	    new CallInst(PAInfo.PoolDestroy, ArgVal, "", TheCall->getNext());
 	}
 	//probably need to update DSG
 	//      std::cerr << "WARNING: NULL POOL ARGUMENTS ARE PASSED IN!\n";
@@ -675,9 +672,9 @@ void FuncTransform::visitCallSite(CallSite CS) {
 
   if (InvokeInst *II = dyn_cast<InvokeInst>(TheCall)) {
     NewCall = new InvokeInst(NewCallee, II->getNormalDest(),
-                             II->getUnwindDest(), Args, Name, TheCall);
+                             II->getUnwindDest(), &Args[0], Args.size(), Name, TheCall);
   } else {
-    NewCall = new CallInst(NewCallee, Args, Name, TheCall);
+    NewCall = new CallInst(NewCallee, &Args[0], Args.size(), Name, TheCall);
   }
 
   // Add all of the uses of the pool descriptor

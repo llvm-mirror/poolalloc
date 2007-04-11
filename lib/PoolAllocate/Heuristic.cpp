@@ -74,7 +74,7 @@ static bool Wants8ByteAlignment(const Type *Ty, unsigned Offs,
     
     // If we are on a 64-bit system, we want to align 8-byte integers and
     // pointers.
-    if (TD.getTypeAlignment(Ty) == 8)
+    if (TD.getPrefTypeAlignment(Ty) == 8)
       return true;
   }
 
@@ -85,7 +85,7 @@ static bool Wants8ByteAlignment(const Type *Ty, unsigned Offs,
     const StructLayout *SL = TD.getStructLayout(STy);
     for (unsigned i = 0, e = STy->getNumElements(); i != e; ++i) {
       if (Wants8ByteAlignment(STy->getElementType(i),
-                              Offs+SL->MemberOffsets[i], TD))
+                              Offs+SL->getElementOffset(i), TD))
         return true;
     }
   } else if (const SequentialType *STy = dyn_cast<SequentialType>(Ty)) {

@@ -18,6 +18,7 @@
 #include "llvm/Module.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Support/Debug.h"
+#include <set>
 using namespace llvm;
 
 namespace {
@@ -108,27 +109,20 @@ bool PoolOptimize::runOnModule(Module &M) {
     CallInst *CI = Calls[i];
     // poolrealloc(PD, null, X) -> poolalloc(PD, X)
     if (isa<ConstantPointerNull>(CI->getOperand(2))) {
-      std::vector<Value*> Ops;
-      Ops.push_back(CI->getOperand(1));
-      Ops.push_back(CI->getOperand(3));
-      Value *New = new CallInst(PoolAlloc, Ops, CI->getName(), CI);
+      Value *New = new CallInst(PoolAlloc, CI->getOperand(1), CI->getOperand(3),
+                                CI->getName(), CI);
       CI->replaceAllUsesWith(New);
       CI->eraseFromParent();
     } else if (isa<Constant>(CI->getOperand(3)) && 
                cast<Constant>(CI->getOperand(3))->isNullValue()) {
       // poolrealloc(PD, X, 0) -> poolfree(PD, X)
-      std::vector<Value*> Ops;
-      Ops.push_back(CI->getOperand(1));
-      Ops.push_back(CI->getOperand(2));
-      new CallInst(PoolFree, Ops, "", CI);
+      new CallInst(PoolFree, CI->getOperand(1), CI->getOperand(2), "", CI);
       CI->replaceAllUsesWith(Constant::getNullValue(CI->getType()));
       CI->eraseFromParent();
     } else if (isa<ConstantPointerNull>(CI->getOperand(1))) {
       // poolrealloc(null, X, Y) -> realloc(X, Y)
-      std::vector<Value*> Ops;
-      Ops.push_back(CI->getOperand(2));
-      Ops.push_back(CI->getOperand(3));
-      Value *New = new CallInst(Realloc, Ops, CI->getName(), CI);
+      Value *New = new CallInst(Realloc, CI->getOperand(2), CI->getOperand(3),
+                                CI->getName(), CI);
       CI->replaceAllUsesWith(New);
       CI->eraseFromParent();
     }
@@ -154,10 +148,7 @@ bool PoolOptimize::runOnModule(Module &M) {
     CallInst *CI = Calls[i];
     // poolmemalign(null, X, Y) -> memalign(X, Y)
     if (isa<ConstantPointerNull>(CI->getOperand(1))) {
-      std::vector<Value*> Ops;
-      Ops.push_back(CI->getOperand(2));
-      Ops.push_back(CI->getOperand(3));
-      Value *New = new CallInst(MemAlign, Ops, CI->getName(), CI);
+      Value *New = new CallInst(MemAlign, CI->getOperand(2), CI->getOperand(3), CI->getName(), CI);
       CI->replaceAllUsesWith(New);
       CI->eraseFromParent();
     }
@@ -228,18 +219,18 @@ bool PoolOptimize::runOnModule(Module &M) {
           std::vector<Value*> Args;
           if (CI->getCalledFunction() == PoolAlloc) {
             Args.assign(CI->op_begin()+1, CI->op_end());
-            Value *New = new CallInst(PoolAllocBP, Args, CI->getName(), CI);
+            Value *New = new CallInst(PoolAllocBP, &Args[0], Args.size(), CI->getName(), CI);
             CI->replaceAllUsesWith(New);
             CI->eraseFromParent();
           } else if (CI->getCalledFunction() == PoolInit) {
             Args.assign(CI->op_begin()+1, CI->op_end());
             Args.erase(Args.begin()+1); // Drop the size argument.
-            new CallInst(PoolInitBP, Args, "", CI);
+            new CallInst(PoolInitBP, &Args[0], Args.size(), "", CI);
             CI->eraseFromParent();
           } else {
             assert(CI->getCalledFunction() == PoolDestroy);
             Args.assign(CI->op_begin()+1, CI->op_end());
-            new CallInst(PoolDestroyBP, Args, "", CI);
+            new CallInst(PoolDestroyBP, &Args[0], Args.size(), "", CI);
             CI->eraseFromParent();
           }
         }

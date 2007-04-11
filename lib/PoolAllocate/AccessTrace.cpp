@@ -100,14 +100,14 @@ bool PoolAccessTrace::runOnModule(Module &M) {
   // Create the function prototypes for runtime library.
   InitializeLibraryFunctions(M);
 
-  Function *MainFunc = M.getMainFunction();
-  if (MainFunc && !MainFunc->isExternal())
+  Function *MainFunc = M.getFunction("main");
+  if (MainFunc && !MainFunc->isDeclaration())
     // Insert a call to the library init function into the beginning of main.
     new CallInst(AccessTraceInitFn, "", MainFunc->begin()->begin());
 
   // Look at all of the loads in the program.
   for (Module::iterator F = M.begin(), E = M.end(); F != E; ++F) {
-    if (F->isExternal()) continue;
+    if (F->isDeclaration()) continue;
 
     PA::FuncInfo *FI = PoolAlloc->getFuncInfoOrClone(*F);
     assert(FI && "DIDN'T FIND POOL INFO!");

@@ -263,7 +263,7 @@ ComputeCompressedType(const Type *OrigTy, unsigned NodeOffset,
 
     for (unsigned i = 0, e = STy->getNumElements(); i != e; ++i)
       Elements.push_back(ComputeCompressedType(STy->getElementType(i),
-                                               NodeOffset+SL->MemberOffsets[i],
+                                               NodeOffset+SL->getElementOffset(i),
                                                Nodes));
     return StructType::get(Elements);
   } else if (const ArrayType *ATy = dyn_cast<ArrayType>(OrigTy)) {
@@ -707,7 +707,7 @@ void InstructionRewriter::visitGetElementPtrInst(GetElementPtrInst &GEPI) {
       uint64_t Field = (unsigned)cast<ConstantInt>(Idx)->getZExtValue();
       if (Field) {
         uint64_t FieldOffs = TD.getStructLayout(cast<StructType>(NTy))
-                                        ->MemberOffsets[Field];
+          ->getElementOffset(Field);
         Constant *FieldOffsCst = ConstantInt::get(SCALARUINTTYPE, FieldOffs);
         Val = BinaryOperator::createAdd(Val, FieldOffsCst,
                                         GEPI.getName(), &GEPI);
@@ -765,10 +765,9 @@ void InstructionRewriter::visitLoadInst(LoadInst &LI) {
   Value *BasePtr = SrcPI->EmitPoolBaseLoad(LI);
 
   // Get the pointer to load from.
-  std::vector<Value*> Ops;
-  Ops.push_back(getTransformedValue(LI.getOperand(0)));
-  if (Ops[0]->getType() == Type::Int16Ty)
-    Ops[0] = CastInst::createZExtOrBitCast(Ops[0], Type::Int32Ty, "extend_idx", &LI);
+  Value* Ops = getTransformedValue(LI.getOperand(0));
+  if (Ops->getType() == Type::Int16Ty)
+    Ops = CastInst::createZExtOrBitCast(Ops, Type::Int32Ty, "extend_idx", &LI);
   Value *SrcPtr = new GetElementPtrInst(BasePtr, Ops,
                                         LI.getOperand(0)->getName()+".pp", &LI);
   const Type *DestTy = LoadingCompressedPtr ? MEMUINTTYPE : LI.getType();
@@ -831,10 +830,9 @@ void InstructionRewriter::visitStoreInst(StoreInst &SI) {
   Value *BasePtr = DestPI->EmitPoolBaseLoad(SI);
 
   // Get the pointer to store to.
-  std::vector<Value*> Ops;
-  Ops.push_back(getTransformedValue(SI.getOperand(1)));
-  if (Ops[0]->getType() == Type::Int16Ty)
-    Ops[0] = CastInst::createZExtOrBitCast(Ops[0], Type::Int32Ty, "extend_idx", &SI);
+  Value* Ops = getTransformedValue(SI.getOperand(1));
+  if (Ops->getType() == Type::Int16Ty)
+    Ops = CastInst::createZExtOrBitCast(Ops, Type::Int32Ty, "extend_idx", &SI);
 
   Value *DestPtr = new GetElementPtrInst(BasePtr, Ops,
                                          SI.getOperand(1)->getName()+".pp",
@@ -866,7 +864,7 @@ void InstructionRewriter::visitPoolInit(CallInst &CI) {
   Ops.push_back(ConstantInt::get(Type::Int32Ty,
              PA::Heuristic::getRecommendedAlignment(PI->getNewType(), TD)));
   // TODO: Compression could reduce the alignment restriction for the pool!
-  Value *PB = new CallInst(PtrComp.PoolInitPC, Ops, "", &CI);
+  Value *PB = new CallInst(PtrComp.PoolInitPC, &Ops[0], Ops.size(), "", &CI);
 
   if (!DisablePoolBaseASR) { // Load the pool base immediately.
     PB->setName(CI.getOperand(1)->getName()+".poolbase");
@@ -883,18 +881,13 @@ void InstructionRewriter::visitPoolDestroy(CallInst &CI) {
   const CompressedPoolInfo *PI = getPoolInfoForPoolDesc(CI.getOperand(1));
   if (PI == 0) return;  // Pool isn't compressed.
 
-  std::vector<Value*> Ops;
-  Ops.push_back(CI.getOperand(1));
-  new CallInst(PtrComp.PoolDestroyPC, Ops, "", &CI);
+  new CallInst(PtrComp.PoolDestroyPC, CI.getOperand(1), "", &CI);
   CI.eraseFromParent();
 }
 
 void InstructionRewriter::visitPoolAlloc(CallInst &CI) {
   const CompressedPoolInfo *PI = getPoolInfo(&CI);
   if (PI == 0) return;  // Pool isn't compressed.
-
-  std::vector<Value*> Ops;
-  Ops.push_back(CI.getOperand(1));  // PD
 
   Value *Size = CI.getOperand(2);
 
@@ -913,8 +906,7 @@ void InstructionRewriter::visitPoolAlloc(CallInst &CI) {
       Size = BinaryOperator::createMul(Size, NewSize, "newbytes", &CI);
     }
 
-  Ops.push_back(Size);
-  Value *NC = new CallInst(PtrComp.PoolAllocPC, Ops, CI.getName(), &CI);
+  Value *NC = new CallInst(PtrComp.PoolAllocPC, CI.getOperand(1), Size, CI.getName(), &CI);
   setTransformedValue(CI, NC);
 }
 
@@ -953,7 +945,7 @@ void InstructionRewriter::visitCallInst(CallInst &CI) {
     // Indirect call: you CAN'T passed compress pointers in.  Don't even think
     // about it.
     return;
-  } else if (Callee->isExternal()) {
+  } else if (Callee->isDeclaration()) {
     // We don't have a DSG for the callee in this case.  Assume that things will
     // work out if we pass compressed pointers.
     std::vector<Value*> Operands;
@@ -969,10 +961,8 @@ void InstructionRewriter::visitCallInst(CallInst &CI) {
       return;
     } else if (Callee->getName() == "read") {
       if (const CompressedPoolInfo *DestPI = getPoolInfo(CI.getOperand(2))) {
-        std::vector<Value*> Ops;
-        Ops.push_back(getTransformedValue(CI.getOperand(2)));
         Value *BasePtr = DestPI->EmitPoolBaseLoad(CI);
-        Value *SrcPtr = new GetElementPtrInst(BasePtr, Ops,
+        Value *SrcPtr = new GetElementPtrInst(BasePtr, getTransformedValue(CI.getOperand(2)),
                                        CI.getOperand(2)->getName()+".pp", &CI);
         SrcPtr = CastInst::createPointerCast(SrcPtr, CI.getOperand(2)->getType(), "", &CI);
         CI.setOperand(2, SrcPtr);
@@ -980,10 +970,8 @@ void InstructionRewriter::visitCallInst(CallInst &CI) {
       }
     } else if (Callee->getName() == "fwrite") {
       if (const CompressedPoolInfo *DestPI = getPoolInfo(CI.getOperand(1))) {
-        std::vector<Value*> Ops;
-        Ops.push_back(getTransformedValue(CI.getOperand(1)));
         Value *BasePtr = DestPI->EmitPoolBaseLoad(CI);
-        Value *SrcPtr = new GetElementPtrInst(BasePtr, Ops,
+        Value *SrcPtr = new GetElementPtrInst(BasePtr, getTransformedValue(CI.getOperand(1)),
                                        CI.getOperand(1)->getName()+".pp", &CI);
         SrcPtr = CastInst::createPointerCast(SrcPtr, CI.getOperand(1)->getType(), "", &CI);
         CI.setOperand(1, SrcPtr);
@@ -993,10 +981,8 @@ void InstructionRewriter::visitCallInst(CallInst &CI) {
                Callee->getName() == "llvm.memset.i32" ||
                Callee->getName() == "llvm.memset.i64") {
       if (const CompressedPoolInfo *DestPI = getPoolInfo(CI.getOperand(1))) {
-        std::vector<Value*> Ops;
-        Ops.push_back(getTransformedValue(CI.getOperand(1)));
         Value *BasePtr = DestPI->EmitPoolBaseLoad(CI);
-        Value *SrcPtr = new GetElementPtrInst(BasePtr, Ops,
+        Value *SrcPtr = new GetElementPtrInst(BasePtr, getTransformedValue(CI.getOperand(1)),
                                        CI.getOperand(1)->getName()+".pp", &CI);
         SrcPtr = CastInst::createPointerCast(SrcPtr, CI.getOperand(1)->getType(), "", &CI);
         CI.setOperand(1, SrcPtr);
@@ -1007,20 +993,16 @@ void InstructionRewriter::visitCallInst(CallInst &CI) {
                Callee->getName() == "llvm.memcpy.i64") {
       bool doret = false;
       if (const CompressedPoolInfo *DestPI = getPoolInfo(CI.getOperand(1))) {
-        std::vector<Value*> Ops;
-        Ops.push_back(getTransformedValue(CI.getOperand(1)));
         Value *BasePtr = DestPI->EmitPoolBaseLoad(CI);
-        Value *SrcPtr = new GetElementPtrInst(BasePtr, Ops,
+        Value *SrcPtr = new GetElementPtrInst(BasePtr, getTransformedValue(CI.getOperand(1)),
                                        CI.getOperand(1)->getName()+".pp", &CI);
         SrcPtr = CastInst::createPointerCast(SrcPtr, CI.getOperand(1)->getType(), "", &CI);
         CI.setOperand(1, SrcPtr);
         doret = true;
       }
       if (const CompressedPoolInfo *DestPI = getPoolInfo(CI.getOperand(2))) {
-        std::vector<Value*> Ops;
-        Ops.push_back(getTransformedValue(CI.getOperand(2)));
         Value *BasePtr = DestPI->EmitPoolBaseLoad(CI);
-        Value *SrcPtr = new GetElementPtrInst(BasePtr, Ops,
+        Value *SrcPtr = new GetElementPtrInst(BasePtr, getTransformedValue(CI.getOperand(2)),
                                        CI.getOperand(2)->getName()+".pp", &CI);
         SrcPtr = CastInst::createPointerCast(SrcPtr, CI.getOperand(2)->getType(), "", &CI);
         CI.setOperand(2, SrcPtr);
@@ -1049,7 +1031,7 @@ void InstructionRewriter::visitCallInst(CallInst &CI) {
     }
 
     Function *Clone = PtrComp.GetExtFunctionClone(Callee, CompressedArgs);
-    Value *NC = new CallInst(Clone, Operands, CI.getName(), &CI);
+    Value *NC = new CallInst(Clone, &Operands[0], Operands.size(), CI.getName(), &CI);
     if (NC->getType() != CI.getType())      // Compressing return value?
       setTransformedValue(CI, NC);
     else {
@@ -1126,7 +1108,7 @@ void InstructionRewriter::visitCallInst(CallInst &CI) {
     else
       Operands.push_back(CI.getOperand(i));
 
-  Value *NC = new CallInst(Clone, Operands, CI.getName(), &CI);
+  Value *NC = new CallInst(Clone, &Operands[0], Operands.size(), CI.getName(), &CI);
   if (NC->getType() != CI.getType())      // Compressing return value?
     setTransformedValue(CI, NC);
   else {
@@ -1245,7 +1227,7 @@ bool PointerCompress::
 CompressPoolsInFunction(Function &F,
                         std::vector<std::pair<Value*, Value*> > *PremappedVals,
                         std::set<const DSNode*> *ExternalPoolsToCompress){
-  if (F.isExternal()) return false;
+  if (F.isDeclaration()) return false;
 
   // If this is a pointer compressed clone of a pool allocated function, get the
   // the pool allocated function.  Rewriting a clone means that there are
@@ -1423,12 +1405,12 @@ GetFunctionClone(Function *F, std::set<const DSNode*> &PoolsToCompress,
   std::cerr << " CLONING FUNCTION: " << F->getName() << " -> "
             << Clone->getName() << "\n";
 
-  if (F->isExternal()) {
+  if (F->isDeclaration()) {
     Clone->setLinkage(GlobalValue::ExternalLinkage);
     return Clone;
   }
 
-  std::map<const Value*, Value*> ValueMap;
+  DenseMap<const Value*, Value*> ValueMap;
 
   // Create dummy Value*'s of pointer type for any arguments that are
   // compressed.  These are needed to satisfy typing constraints before the
@@ -1462,7 +1444,7 @@ GetFunctionClone(Function *F, std::set<const DSNode*> &PoolsToCompress,
   
   // Invert the ValueMap into the NewToOldValueMap
   std::map<Value*, const Value*> &NewToOldValueMap = CFI.NewToOldValueMap;
-  for (std::map<const Value*, Value*>::iterator I = ValueMap.begin(),
+  for (DenseMap<const Value*, Value*>::iterator I = ValueMap.begin(),
          E = ValueMap.end(); I != E; ++I)
     NewToOldValueMap.insert(std::make_pair(I->second, I->first));
 
