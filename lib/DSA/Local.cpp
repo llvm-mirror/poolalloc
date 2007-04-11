@@ -1,4 +1,3 @@
-#define JTC 0
 //===- Local.cpp - Compute a local data structure graph for a function ----===//
 //
 //                     The LLVM Compiler Infrastructure
@@ -26,7 +25,6 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/Timer.h"
-#include "poolalloc/Config/config.h"
 #include <iostream>
 
 // FIXME: This should eventually be a FunctionPass that is automatically
@@ -36,18 +34,8 @@
 
 using namespace llvm;
 
-#ifdef LLVA_KERNEL
-static STATISTIC (CacheAllocs , "Number of kmem_cache_alloc calls");
-static STATISTIC (KMallocs    , "Number of kmalloc calls");
-static STATISTIC (GlobalPools , "Number of global pools");
-#endif
-
 static RegisterPass<LocalDataStructures>
-X("datastructure", "Local Data Structure Analysis");
-
-static cl::opt<bool>
-TrackIntegersAsPointers("dsa-track-integers", cl::Hidden,
-         cl::desc("If this is set, track integers as potential pointers"));
+X("dsa-local", "Local Data Structure Analysis");
 
 static cl::opt<bool>
 IgnoreSetCC("dsa-ignore-setcc", cl::Hidden,
@@ -65,29 +53,7 @@ FreeList("dsa-free-list",
           cl::desc("List of functions that free memory from the heap"),
           cl::CommaSeparated, cl::Hidden);
 
-namespace llvm {
-namespace DS {
-  // isPointerType - Return true if this type is big enough to hold a pointer.
-  bool isPointerType(const Type *Ty) {
-    if (isa<PointerType>(Ty))
-      return true;
-    else if (TrackIntegersAsPointers && Ty->isPrimitiveType() &&Ty->isInteger())
-      return Ty->getPrimitiveSizeInBits() >= PointerSize;
-    return false;
-  }
-}}
-
-using namespace DS;
-
 namespace {
-  cl::opt<bool>
-  DisableDirectCallOpt("disable-direct-call-dsopt", cl::Hidden,
-                       cl::desc("Disable direct call optimization in "
-                                "DSGraph construction"));
-  cl::opt<bool>
-  DisableFieldSensitivity("disable-ds-field-sensitivity", cl::Hidden,
-                          cl::desc("Disable field sensitivity in DSGraphs"));
-
   //===--------------------------------------------------------------------===//
   //  GraphBuilder Class
   //===--------------------------------------------------------------------===//
@@ -97,109 +63,21 @@ namespace {
   ///
   class GraphBuilder : InstVisitor<GraphBuilder> {
     DSGraph &G;
-    DSNodeHandle *RetNode;               // Node that gets returned...
-    DSScalarMap &ScalarMap;
-    std::list<DSCallSite> *FunctionCalls;
-    Value * KMallocPool;
-  public:
-    GraphBuilder(Function &f, DSGraph &g, DSNodeHandle &retNode,
-                 std::list<DSCallSite> &fc)
-      : G(g), RetNode(&retNode), ScalarMap(G.getScalarMap()),
-        FunctionCalls(&fc) {
-      // Find the type unsafe pool in the program
-      KMallocPool = f.getParent()->getNamedGlobal ("KmallocPool");
-      
-#if 1
-      //
-      // Determine if the function somehow escapes
-      //
-      bool escapes = false;
-      if (!(f.hasInternalLinkage())) {
-        escapes = true;
-      }
-      Value::use_iterator U;
-      for (U=f.use_begin(); U != f.use_end(); ++U) {
-        if (isa<GlobalValue>(U)) {
-          std::cerr << "LLVA: isa: " << f.getName() << " " << *U << std::endl;
-          escapes = true;
-          break;
-        }
-      }
-#endif
-      // Create scalar nodes for all pointer arguments...
-      for (Function::arg_iterator I = f.arg_begin(), E = f.arg_end();
-           I != E; ++I) {
-        if (isPointerType(I->getType())) {
-          DSNode * Node = getValueDest(*I).getNode();
-          if (!(f.hasInternalLinkage())) {
-            Node->setExternalMarker();
-          }
-        }
-      }
+    Function* FB;
 
-      visit(f);  // Single pass over the function
-#if JTC
-std::cerr << "LLVA: Function " << f.getName() << "\n";
-      for (DSScalarMap::iterator I = ScalarMap.begin(), E=ScalarMap.end();
-           I != E;
-           ++I)
-      {
-        std::cerr << "LLVA:\t" << I->first->getName() << ": " << (void *)(I->second.getNode()) << "\n";
-      }
-#endif
-    }
-
-    // GraphBuilder ctor for working on the globals graph
-    GraphBuilder(DSGraph &g)
-      : G(g), RetNode(0), ScalarMap(G.getScalarMap()), FunctionCalls(0) {
-    }
-    void mergeInGlobalInitializer(GlobalVariable *GV);
-
-  private:
-    // Visitor functions, used to handle each instruction type we encounter...
-    friend class InstVisitor<GraphBuilder>;
-    void visitMallocInst(MallocInst &MI) { handleAlloc(MI, true); }
-    void visitAllocaInst(AllocaInst &AI) { handleAlloc(AI, false); }
-    void handleAlloc(AllocationInst &AI, bool isHeap);
-
-    void visitPHINode(PHINode &PN);
-    void visitSelectInst(SelectInst &SI);
-
-    void visitGetElementPtrInst(User &GEP);
-    void visitReturnInst(ReturnInst &RI);
-    void visitLoadInst(LoadInst &LI);
-    void visitStoreInst(StoreInst &SI);
-    void visitCallInst(CallInst &CI);
-    void visitInvokeInst(InvokeInst &II);
-    void visitICmpInst(ICmpInst &I);
-    void visitFCmpInst(FCmpInst &I);
-    void visitFreeInst(FreeInst &FI);
-    void visitCastInst(CastInst &CI);
-    void visitInstruction(Instruction &I);
-
-    bool visitIntrinsic(CallSite CS, Function* F);
-    bool visitExternal(CallSite CS, Function* F);
-    void visitCallSite(CallSite CS);
-    void visitVAArgInst(VAArgInst   &I);
+    ////////////////////////////////////////////////////////////////////////////
+    // Helper functions used to implement the visitation functions...
 
     void MergeConstantInitIntoNode(DSNodeHandle &NH, Constant *C);
-  private:
-    // Helper functions used to implement the visitation functions...
 
     /// createNode - Create a new DSNode, ensuring that it is properly added to
     /// the graph.
     ///
-    DSNode *createNode(const Type *Ty = 0) {
-      DSNode *N = new DSNode(Ty, &G);   // Create the node
-      if (DisableFieldSensitivity) {
-        // Create node handle referring to the old node so that it is
-        // immediately removed from the graph when the node handle is destroyed.
-        DSNodeHandle OldNNH = N;
-        N->foldNodeCompletely();
-        if (DSNode *FN = N->getForwardNode())
-          N = FN;
-      }
-      return N;
+    DSNode *createNode(const Type *Ty = 0) 
+    {   
+      DSNode* ret = new DSNode(Ty, &G);
+      assert(ret->getParentGraph() && "No parent?");
+      return ret;
     }
 
     /// setDestTo - Set the ScalarMap entry for the specified value to point to
@@ -217,45 +95,89 @@ std::cerr << "LLVA: Function " << f.getName() << "\n";
     /// null), then we create a new node, link it, then return it.
     ///
     DSNodeHandle &getLink(const DSNodeHandle &Node, unsigned Link = 0);
+
+    ////////////////////////////////////////////////////////////////////////////
+    // Visitor functions, used to handle each instruction type we encounter...
+    friend class InstVisitor<GraphBuilder>;
+
+    void visitMallocInst(MallocInst &MI)
+    { setDestTo(MI, createNode()->setHeapNodeMarker()); }
+
+    void visitAllocaInst(AllocaInst &AI)
+    { setDestTo(AI, createNode()->setAllocaNodeMarker()); }
+
+    void visitFreeInst(FreeInst &FI)
+    { if (DSNode *N = getValueDest(*FI.getOperand(0)).getNode())
+        N->setHeapNodeMarker();
+    }
+
+    //the simple ones
+    void visitPHINode(PHINode &PN);
+    void visitSelectInst(SelectInst &SI);
+    void visitLoadInst(LoadInst &LI);
+    void visitStoreInst(StoreInst &SI);
+    void visitReturnInst(ReturnInst &RI);
+    void visitVAArgInst(VAArgInst   &I);
+    void visitIntToPtrInst(IntToPtrInst &I);
+    void visitPtrToIntInst(PtrToIntInst &I);
+    void visitBitCastInst(BitCastInst &I);
+
+    //the nasty ones
+    void visitGetElementPtrInst(User &GEP);
+    void visitCallInst(CallInst &CI);
+    void visitInvokeInst(InvokeInst &II);
+    void visitInstruction(Instruction &I);
+
+    bool visitIntrinsic(CallSite CS, Function* F);
+    bool visitExternal(llvm::CallSite, llvm::Function*);
+    void visitCallSite(CallSite CS);
+
+  public:
+    GraphBuilder(Function &f, DSGraph &g)
+      : G(g), FB(&f) {
+      // Create scalar nodes for all pointer arguments...
+      for (Function::arg_iterator I = f.arg_begin(), E = f.arg_end();
+           I != E; ++I) {
+        if (isa<PointerType>(I->getType())) {
+          DSNode * Node = getValueDest(*I).getNode();
+
+          if (!(f.hasInternalLinkage())) {
+            Node->setExternalMarker();
+          }
+        }
+      }
+
+      // Create an entry for the return, which tracks which functions are in the graph
+      g.getOrCreateReturnNodeFor(f);
+
+      visit(f);  // Single pass over the function
+
+      // If there are any constant globals referenced in this function, merge their
+      // initializers into the local graph from the globals graph.
+      if (g.getScalarMap().global_begin() != g.getScalarMap().global_end()) {
+        ReachabilityCloner RC(g, *g.getGlobalsGraph(), 0);
+        
+        for (DSScalarMap::global_iterator I = g.getScalarMap().global_begin();
+             I != g.getScalarMap().global_end(); ++I)
+          if (GlobalVariable *GV = dyn_cast<GlobalVariable>(*I))
+            if (!GV->isDeclaration() && GV->isConstant())
+              RC.merge(g.getNodeForValue(GV), g.getGlobalsGraph()->getNodeForValue(GV));
+      }
+      
+      g.markIncompleteNodes(DSGraph::MarkFormalArgs);
+      
+      // Remove any nodes made dead due to merging...
+      g.removeDeadNodes(DSGraph::KeepUnreachableGlobals);
+    }
+
+    // GraphBuilder ctor for working on the globals graph
+    explicit GraphBuilder(DSGraph& g)
+      :G(g), FB(0)
+    {}
+
+    void mergeInGlobalInitializer(GlobalVariable *GV);
   };
 }
-
-using namespace DS;
-
-//===----------------------------------------------------------------------===//
-// DSGraph constructor - Simply use the GraphBuilder to construct the local
-// graph.
-DSGraph::DSGraph(EquivalenceClasses<GlobalValue*> &ECs, const TargetData &td,
-                 Function &F, DSGraph *GG)
-  : GlobalsGraph(GG), ScalarMap(ECs), TD(td) {
-  PrintAuxCalls = false;
-
-  DOUT << "  [Loc] Calculating graph for: " << F.getName() << "\n";
-
-  // Use the graph builder to construct the local version of the graph
-  GraphBuilder B(F, *this, ReturnNodes[&F], FunctionCalls);
-#ifndef NDEBUG
-  Timer::addPeakMemoryMeasurement();
-#endif
-
-  // If there are any constant globals referenced in this function, merge their
-  // initializers into the local graph from the globals graph.
-  if (ScalarMap.global_begin() != ScalarMap.global_end()) {
-    ReachabilityCloner RC(*this, *GG, 0);
-
-    for (DSScalarMap::global_iterator I = ScalarMap.global_begin();
-         I != ScalarMap.global_end(); ++I)
-      if (GlobalVariable *GV = dyn_cast<GlobalVariable>(*I))
-        if (!GV->isDeclaration() && GV->isConstant())
-          RC.merge(ScalarMap[GV], GG->ScalarMap[GV]);
-  }
-
-  markIncompleteNodes(DSGraph::MarkFormalArgs);
-
-  // Remove any nodes made dead due to merging...
-  removeDeadNodes(DSGraph::KeepUnreachableGlobals);
-}
-
 
 //===----------------------------------------------------------------------===//
 // Helper method implementations...
@@ -265,10 +187,10 @@ DSGraph::DSGraph(EquivalenceClasses<GlobalValue*> &ECs, const TargetData &td,
 ///
 DSNodeHandle GraphBuilder::getValueDest(Value &Val) {
   Value *V = &Val;
-  if (isa<Constant>(V) && cast<Constant>(V)->isNullValue())
+  if (isa<Constant>(V) && cast<Constant>(V)->isNullValue()) 
     return 0;  // Null doesn't point to anything, don't add to ScalarMap!
 
-  DSNodeHandle &NH = ScalarMap[V];
+  DSNodeHandle &NH = G.getNodeForValue(V);
   if (!NH.isNull())
     return NH;     // Already have a node?  Just return it...
 
@@ -289,20 +211,19 @@ DSNodeHandle GraphBuilder::getValueDest(Value &Val) {
           NH = createNode()->setUnknownNodeMarker();
       } else if (CE->getOpcode() == Instruction::GetElementPtr) {
         visitGetElementPtrInst(*CE);
-        DSScalarMap::iterator I = ScalarMap.find(CE);
-        assert(I != ScalarMap.end() && "GEP didn't get processed right?");
-        NH = I->second;
+        assert(G.hasNodeForValue(CE) && "GEP didn't get processed right?");
+        NH = G.getNodeForValue(CE);
       } else {
         // This returns a conservative unknown node for any unhandled ConstExpr
         return NH = createNode()->setUnknownNodeMarker();
       }
       if (NH.isNull()) {  // (getelementptr null, X) returns null
-        ScalarMap.erase(V);
+        G.eraseNodeForValue(V);
         return 0;
       }
       return NH;
     } else if (isa<UndefValue>(C)) {
-      ScalarMap.erase(V);
+      G.eraseNodeForValue(V);
       return 0;
     } else {
       assert(0 && "Unknown constant type!");
@@ -340,7 +261,7 @@ DSNodeHandle &GraphBuilder::getLink(const DSNodeHandle &node, unsigned LinkNo) {
 /// merge the two destinations together.
 ///
 void GraphBuilder::setDestTo(Value &V, const DSNodeHandle &NH) {
-  ScalarMap[&V].mergeWith(NH);
+  G.getNodeForValue(&V).mergeWith(NH);
 }
 
 
@@ -348,73 +269,93 @@ void GraphBuilder::setDestTo(Value &V, const DSNodeHandle &NH) {
 // Specific instruction type handler implementations...
 //
 
-/// Alloca & Malloc instruction implementation - Simply create a new memory
-/// object, pointing the scalar to it.
-///
-void GraphBuilder::handleAlloc(AllocationInst &AI, bool isHeap) {
-  DSNode *N = createNode();
-  if (isHeap)
-    N->setHeapNodeMarker();
-  else
-    N->setAllocaNodeMarker();
-  setDestTo(AI, N);
-}
-
 // PHINode - Make the scalar for the PHI node point to all of the things the
 // incoming values point to... which effectively causes them to be merged.
 //
 void GraphBuilder::visitPHINode(PHINode &PN) {
-  if (!isPointerType(PN.getType())) return; // Only pointer PHIs
+  if (!isa<PointerType>(PN.getType())) return; // Only pointer PHIs
 
-  DSNodeHandle &PNDest = ScalarMap[&PN];
+  DSNodeHandle &PNDest = G.getNodeForValue(&PN);
   for (unsigned i = 0, e = PN.getNumIncomingValues(); i != e; ++i)
     PNDest.mergeWith(getValueDest(*PN.getIncomingValue(i)));
 }
 
 void GraphBuilder::visitSelectInst(SelectInst &SI) {
-  if (!isPointerType(SI.getType())) return; // Only pointer Selects
+  if (!isa<PointerType>(SI.getType())) return; // Only pointer Selects
 
-  DSNodeHandle &Dest = ScalarMap[&SI];
+  DSNodeHandle &Dest = G.getNodeForValue(&SI);
   Dest.mergeWith(getValueDest(*SI.getOperand(1)));
   Dest.mergeWith(getValueDest(*SI.getOperand(2)));
 }
 
-void GraphBuilder::visitICmpInst(ICmpInst &SCI) {
-  if (!isPointerType(SCI.getOperand(0)->getType()) ||
-      isa<ConstantPointerNull>(SCI.getOperand(1))) return; // Only pointers
-  if(!IgnoreSetCC)
-    ScalarMap[SCI.getOperand(0)].mergeWith(getValueDest(*SCI.getOperand(1)));
+void GraphBuilder::visitLoadInst(LoadInst &LI) {
+  DSNodeHandle Ptr = getValueDest(*LI.getOperand(0));
+
+  // Make that the node is read from...
+  Ptr.getNode()->setReadMarker();
+
+  // Ensure a typerecord exists...
+  Ptr.getNode()->mergeTypeInfo(LI.getType(), Ptr.getOffset(), false);
+
+  if (isa<PointerType>(LI.getType()))
+    setDestTo(LI, getLink(Ptr));
 }
 
-void GraphBuilder::visitFCmpInst(FCmpInst &SCI) {
-  if (!isPointerType(SCI.getOperand(0)->getType()) ||
-      isa<ConstantPointerNull>(SCI.getOperand(1))) return; // Only pointers
-  if(!IgnoreSetCC)
-    ScalarMap[SCI.getOperand(0)].mergeWith(getValueDest(*SCI.getOperand(1)));
+void GraphBuilder::visitStoreInst(StoreInst &SI) {
+  const Type *StoredTy = SI.getOperand(0)->getType();
+  DSNodeHandle Dest = getValueDest(*SI.getOperand(1));
+  if (Dest.isNull()) return;
+
+  // Mark that the node is written to...
+  Dest.getNode()->setModifiedMarker();
+
+  // Ensure a type-record exists...
+  Dest.getNode()->mergeTypeInfo(StoredTy, Dest.getOffset());
+
+  // Avoid adding edges from null, or processing non-"pointer" stores
+  if (isa<PointerType>(StoredTy))
+    Dest.addEdgeTo(getValueDest(*SI.getOperand(0)));
 }
 
+void GraphBuilder::visitReturnInst(ReturnInst &RI) {
+  if (RI.getNumOperands() && isa<PointerType>(RI.getOperand(0)->getType()))
+    G.getOrCreateReturnNodeFor(*FB).mergeWith(getValueDest(*RI.getOperand(0)));
+}
+
+void GraphBuilder::visitVAArgInst(VAArgInst &I) {
+  //FIXME: also updates the argument
+  DSNodeHandle Ptr = getValueDest(*I.getOperand(0));
+  if (Ptr.isNull()) return;
+
+  // Make that the node is read and written
+  Ptr.getNode()->setReadMarker()->setModifiedMarker();
+
+  // Ensure a type record exists.
+  DSNode *PtrN = Ptr.getNode();
+  PtrN->mergeTypeInfo(I.getType(), Ptr.getOffset(), false);
+
+  if (isa<PointerType>(I.getType()))
+    setDestTo(I, getLink(Ptr));
+}
+
+void GraphBuilder::visitIntToPtrInst(IntToPtrInst &I) {
+  setDestTo(I, createNode()->setUnknownNodeMarker()); //->setIntToPtrMarker()); 
+}
+
+void GraphBuilder::visitPtrToIntInst(PtrToIntInst& I) {
+//   if (DSNode* N = getValueDest(*I.getOperand(0)).getNode())
+//     N->setPtrToIntMarker();
+}
+
+
+void GraphBuilder::visitBitCastInst(BitCastInst &I) {
+  if (!isa<PointerType>(I.getType())) return; // Only pointers
+  DSNodeHandle Ptr = getValueDest(*I.getOperand(0));
+  if (Ptr.isNull()) return;
+  setDestTo(I, Ptr);
+}
 
 void GraphBuilder::visitGetElementPtrInst(User &GEP) {
-
-#ifdef LLVA_KERNEL
-#if 1
-  int debug = 0;
-  if (isa<Instruction>(GEP)) {
-    Instruction * IGEP = (Instruction *)(&GEP);
-    if (IGEP->getParent()->getParent()->getName() == "alloc_vfsmnt")
-    {
-#if 0
-      if (G.getPoolDescriptorsMap().count(N) != 0)
-        if (G.getPoolDescriptorsMap()[N])
-  std::cerr << "LLVA: GEP[" << count << "]: Pool for " << GEP.getName() << " is " << G.getPoolDescriptorsMap()[N]->getMetaPoolValue()->getName() << "\n";
-#else
-    debug = 1;
-#endif
-    }
-  }
-#endif
-#endif
-
   DSNodeHandle Value = getValueDest(*GEP.getOperand(0));
   if (Value.isNull())
     Value = createNode();
@@ -434,11 +375,6 @@ void GraphBuilder::visitGetElementPtrInst(User &GEP) {
   if (AllZeros || (!Value.isNull() &&
                    Value.getNode()->isNodeCompletelyFolded())) {
     setDestTo(GEP, Value);
-#if 0
-if (debug) std::cerr << "LLVA: GEP: All Zeros\n";
-  if (G.getPoolDescriptorsMap()[Value.getNode()])
-    std::cerr << "LLVA: GEP: Pool for " << GEP.getName() << " is " << G.getPoolDescriptorsMap()[Value.getNode()]->getName() << "\n";
-#endif
     return;
   }
 
@@ -570,74 +506,6 @@ if (debug) std::cerr << "LLVA: GEP: All Zeros\n";
 
 }
 
-void GraphBuilder::visitLoadInst(LoadInst &LI) {
-  DSNodeHandle Ptr = getValueDest(*LI.getOperand(0));
-  if (Ptr.isNull())
-    Ptr = createNode();
-
-  // Make that the node is read from...
-  Ptr.getNode()->setReadMarker();
-
-  // Ensure a typerecord exists...
-  Ptr.getNode()->mergeTypeInfo(LI.getType(), Ptr.getOffset(), false);
-
-  if (isPointerType(LI.getType()))
-    setDestTo(LI, getLink(Ptr));
-#if 0
-  if (G.getPoolDescriptorsMap()[getLink(Ptr).getNode()])
-    std::cerr << "LLVA: Load: Pool for " << LI.getName() << " is " << G.getPoolDescriptorsMap()[getLink(Ptr).getNode()]->getName() << "\n";
-#endif
-}
-
-void GraphBuilder::visitStoreInst(StoreInst &SI) {
-  const Type *StoredTy = SI.getOperand(0)->getType();
-  DSNodeHandle Dest = getValueDest(*SI.getOperand(1));
-  if (Dest.isNull()) return;
-
-  // Mark that the node is written to...
-  Dest.getNode()->setModifiedMarker();
-
-  // Ensure a type-record exists...
-  Dest.getNode()->mergeTypeInfo(StoredTy, Dest.getOffset());
-
-  // Avoid adding edges from null, or processing non-"pointer" stores
-  if (isPointerType(StoredTy))
-    Dest.addEdgeTo(getValueDest(*SI.getOperand(0)));
-#ifdef LLVA_KERNEL
-#if 1
-  {
-    if (SI.getParent()->getParent()->getName() == "alloc_vfsmnt") {
-      DSNode * N = getValueDest(*SI.getOperand(1)).getNode();
-      if (G.getPoolDescriptorsMap().count(N) != 0)
-        if (G.getPoolDescriptorsMap()[N])
-          std::cerr << "LLVA: Store: Pool for " << SI.getName() << " is " << G.getPoolDescriptorsMap()[N]->getName() << "\n";
-    }
-  }
-#endif
-#endif
-}
-
-void GraphBuilder::visitReturnInst(ReturnInst &RI) {
-  if (RI.getNumOperands() && isPointerType(RI.getOperand(0)->getType()))
-    RetNode->mergeWith(getValueDest(*RI.getOperand(0)));
-}
-
-void GraphBuilder::visitVAArgInst(VAArgInst &I) {
-  //FIXME: also updates the argument
-  DSNodeHandle Ptr = getValueDest(*I.getOperand(0));
-  if (Ptr.isNull()) return;
-
-  // Make that the node is read from.
-  Ptr.getNode()->setReadMarker();
-
-  // Ensure a type record exists.
-  DSNode *PtrN = Ptr.getNode();
-  PtrN->mergeTypeInfo(I.getType(), Ptr.getOffset(), false);
-
-  if (isPointerType(I.getType()))
-    setDestTo(I, getLink(Ptr));
-}
-
 
 void GraphBuilder::visitCallInst(CallInst &CI) {
   visitCallSite(&CI);
@@ -730,7 +598,7 @@ bool GraphBuilder::visitExternal(CallSite CS, Function *F) {
     // These functions read all of their pointer operands.
     for (CallSite::arg_iterator AI = CS.arg_begin(), E = CS.arg_end();
          AI != E; ++AI) {
-      if (isPointerType((*AI)->getType()))
+      if (isa<PointerType>((*AI)->getType()))
         if (DSNode *N = getValueDest(**AI).getNode())
           N->setReadMarker();
     }
@@ -748,7 +616,7 @@ bool GraphBuilder::visitExternal(CallSite CS, Function *F) {
     // These functions write all of their pointer operands.
     for (CallSite::arg_iterator AI = CS.arg_begin(), E = CS.arg_end();
          AI != E; ++AI) {
-      if (isPointerType((*AI)->getType()))
+      if (isa<PointerType>((*AI)->getType()))
         if (DSNode *N = getValueDest(**AI).getNode())
           N->setModifiedMarker();
     }
@@ -757,7 +625,7 @@ bool GraphBuilder::visitExternal(CallSite CS, Function *F) {
              F->getName() == "lstat") {
     // These functions read their first operand if its a pointer.
     CallSite::arg_iterator AI = CS.arg_begin();
-    if (isPointerType((*AI)->getType())) {
+    if (isa<PointerType>((*AI)->getType())) {
       DSNodeHandle Path = getValueDest(**AI);
       if (DSNode *N = Path.getNode()) N->setReadMarker();
     }
@@ -793,7 +661,7 @@ bool GraphBuilder::visitExternal(CallSite CS, Function *F) {
     // These functions read all of their pointer operands.
     for (CallSite::arg_iterator AI = CS.arg_begin(), E = CS.arg_end();
          AI != E; ++AI)
-      if (isPointerType((*AI)->getType()))
+      if (isa<PointerType>((*AI)->getType()))
         if (DSNode *N = getValueDest(**AI).getNode())
           N->setReadMarker();
 
@@ -903,7 +771,7 @@ bool GraphBuilder::visitExternal(CallSite CS, Function *F) {
     // Any pointer arguments are read.
     for (CallSite::arg_iterator AI = CS.arg_begin(), E = CS.arg_end();
          AI != E; ++AI)
-      if (isPointerType((*AI)->getType()))
+      if (isa<PointerType>((*AI)->getType()))
         if (DSNode *N = getValueDest(**AI).getNode())
           N->setReadMarker();
     return true;
@@ -922,7 +790,7 @@ bool GraphBuilder::visitExternal(CallSite CS, Function *F) {
     // Any pointer arguments are read.
     for (CallSite::arg_iterator AI = CS.arg_begin(), E = CS.arg_end();
          AI != E; ++AI)
-      if (isPointerType((*AI)->getType()))
+      if (isa<PointerType>((*AI)->getType()))
         if (DSNode *N = getValueDest(**AI).getNode())
           N->setReadMarker()->setModifiedMarker();
     return true;
@@ -953,7 +821,7 @@ bool GraphBuilder::visitExternal(CallSite CS, Function *F) {
     
     for (; AI != E; ++AI) {
       // printf reads all pointer arguments.
-      if (isPointerType((*AI)->getType()))
+      if (isa<PointerType>((*AI)->getType()))
         if (DSNode *N = getValueDest(**AI).getNode())
           N->setReadMarker();
     }
@@ -986,14 +854,14 @@ bool GraphBuilder::visitExternal(CallSite CS, Function *F) {
     
     // Read the format
     if (AI != E) {
-      if (isPointerType((*AI)->getType()))
+      if (isa<PointerType>((*AI)->getType()))
         if (DSNode *N = getValueDest(**AI).getNode())
           N->setReadMarker();
       ++AI;
     }
     
     // Read the valist, and the pointed-to objects.
-    if (AI != E && isPointerType((*AI)->getType())) {
+    if (AI != E && isa<PointerType>((*AI)->getType())) {
       const DSNodeHandle &VAList = getValueDest(**AI);
       if (DSNode *N = VAList.getNode()) {
         N->setReadMarker();
@@ -1033,7 +901,7 @@ bool GraphBuilder::visitExternal(CallSite CS, Function *F) {
     
     for (; AI != E; ++AI) {
       // scanf writes all pointer arguments.
-      if (isPointerType((*AI)->getType()))
+      if (isa<PointerType>((*AI)->getType()))
         if (DSNode *N = getValueDest(**AI).getNode())
           N->setModifiedMarker();
     }
@@ -1068,7 +936,7 @@ bool GraphBuilder::visitExternal(CallSite CS, Function *F) {
     
     for (CallSite::arg_iterator AI = CS.arg_begin(), E = CS.arg_end();
          AI != E; ++AI)
-      if (isPointerType((*AI)->getType()))
+      if (isa<PointerType>((*AI)->getType()))
         if (DSNode *N = getValueDest(**AI).getNode())
           N->setReadMarker();
     
@@ -1078,7 +946,7 @@ bool GraphBuilder::visitExternal(CallSite CS, Function *F) {
   } else if (F->getName() == "__assert_fail") {
     for (CallSite::arg_iterator AI = CS.arg_begin(), E = CS.arg_end();
          AI != E; ++AI)
-      if (isPointerType((*AI)->getType()))
+      if (isa<PointerType>((*AI)->getType()))
         if (DSNode *N = getValueDest(**AI).getNode())
           N->setReadMarker();
     return true;
@@ -1269,167 +1137,7 @@ void GraphBuilder::visitCallSite(CallSite CS) {
   Value *Callee = CS.getCalledValue();
 
   // Special case handling of certain libc allocation functions here.
-  if (Function *F = dyn_cast<Function>(Callee)) {
-#ifdef LLVA_KERNEL    
-    if (F->getName() == "kmem_cache_alloc") {
-      DEBUG(std::cerr << "LLVA: kmem_cache_alloc" << std::endl);
-      // Update the statistics count
-      ++CacheAllocs;
-      
-      // Create a new DSNode for this memory allocation
-      DSNode *N = createNode();
-      N->setHeapNodeMarker();
-      setDestTo(*CS.getInstruction(), N);
-
-      // Get the pool handle
-      if (CS.arg_begin() == CS.arg_end()) {
-        abort(); //Handle this later
-        // Treat it as  a kmalloc
-        N->foldNodeCompletely();
-        //This becomes a kmalloc pool
-        MetaPoolHandle* mpvh = new MetaPoolHandle(new MetaPool(KMallocPool));
-        G.getPoolDescriptorsMap()[N] = mpvh;
-      } else {
-        Value *actualPD = *(CS.arg_begin());
-        if (!isa<GlobalValue>(actualPD)) {
-          std::cerr << "WARNING: Pool is not global.  Function = " << CS.getCaller()->getName() << "\n";
-        } else {
-          ++GlobalPools;
-        }
-        Value *TheMetaPool = actualPD;
-        //Get the Module first
-        Module * M = F->getParent();
-        if (G.getPoolDescriptorsMap().count(N)== 0) {
-          //Here we insert a global meta pool
-          //Now create a meta pool for this value, DSN Node
-          const Type * VoidPtrType = PointerType::get(Type::Int8Ty);              
-          TheMetaPool = new GlobalVariable(
-                                           /*type=*/ VoidPtrType,
-                                           /*isConstant=*/ false,
-                                           /*Linkage=*/ GlobalValue::InternalLinkage,
-                                           /*initializer=*/ Constant::getNullValue(VoidPtrType),
-                                           /*name=*/ "_metaPool_",
-                                           /*parent=*/ M );
-          //Inserted a global meta pool 
-        }
-#if 1
-        else {
-          // Lookup the meta pool
-          TheMetaPool = G.getPoolForNode(N)->getMetaPoolValue();
-        }
-#endif
-        //Now insert a function call that takes care of adding this pool to the global pool
-        
-        //First get the Insert point
-        Instruction *InsertPoint = CS.getInstruction();
-        
-        //Assumes AddPoolDescToMetaPool is in the module
-        const Type * VoidPtrType = PointerType::get(Type::Int8Ty);
-        const Type * VoidPtrPtrType = PointerType::get(VoidPtrType);
-        CastInst *CastMetaPool = 
-          CastInst::createPointerCast (TheMetaPool, 
-                       VoidPtrPtrType, "metapool.casted", InsertPoint);
-        CastInst *CastActualPD = 
-          CastInst::createPointerCast (actualPD, 
-                       PointerType::get(Type::Int8Ty), "poolhandle.lscasted", InsertPoint);
-        
-        // Create the call to AddPoolDescToMetaPool 
-        std::vector<Value *> args(1,CastMetaPool);
-        args.push_back(CastActualPD);
-
-        //Get the AddPoolDescToMetaPool function from the module
-        //FIXME optimize it by getting it once per module 
-        std::vector<const Type *> Arg(1, VoidPtrPtrType);
-        Arg.push_back(VoidPtrType);
-        FunctionType *AddPoolDescToMetaPoolTy =
-          FunctionType::get(Type::VoidTy,Arg, false);
-        Function *AddPoolDescToMetaPool = M->getOrInsertFunction("AddPoolDescToMetaPool", AddPoolDescToMetaPoolTy);
-
-        
-        new CallInst(AddPoolDescToMetaPool,args,"", InsertPoint);
-#if 0
-        MetaPoolHandle* tmpvh = new MetaPoolHandle(new MetaPool(TheMetaPool));
-#else
-        MetaPoolHandle* tmpvh = new MetaPoolHandle(new MetaPool(TheMetaPool), CS.getInstruction());
-#endif
-        G.getPoolDescriptorsMap()[N] = tmpvh;
-      }
-      return;
-    } else if (F->getName() == "poolalloc") {
-      if (CS.getCaller()->getName() == "kmem_cache_alloc")
-        return;
-      // Update the statistics
-      ++KMallocs;
-      
-      // Create a DSNode for the memory allocated by this function call
-      DSNode *N = createNode();
-      N->setHeapNodeMarker();
-      setDestTo(*CS.getInstruction(), N);
-      
-      // Get the pool handle, if possible
-      if (CS.arg_begin() == CS.arg_end()) {
-        abort() ; //Handle this later
-        // Treat it as kmalloc
-        N->foldNodeCompletely();
-        //This becomes a kmalloc pool
-        //So get the kmalloc pool
-        MetaPoolHandle* tmpvh = new MetaPoolHandle(new MetaPool(KMallocPool));
-        G.getPoolDescriptorsMap()[N] = tmpvh;
-      } else {
-        Value *actualPD = *(CS.arg_begin());
-        if (!isa<GlobalValue>(actualPD)) {
-          std::cerr << "WARNING: Pool is not global.  Function = " << CS.getCaller()->getName() << "\n";
-        } else {
-          ++GlobalPools;
-        }
-        Value *TheMetaPool = actualPD;
-        Module * M = F->getParent();
-        if (G.getPoolDescriptorsMap().count(N)== 0) {
-          //Here we insert a global meta pool
-          //Get the Module first
-          //Now create a meta pool for this value, DSN Node
-          const Type * VoidPtrType = PointerType::get(Type::Int8Ty);              
-          TheMetaPool = new GlobalVariable(
-                                           /*type=*/ VoidPtrType,
-                                           /*isConstant=*/ false,
-                                           /*Linkage=*/ GlobalValue::InternalLinkage,
-                                           /*initializer=*/ Constant::getNullValue(VoidPtrType),
-                                           /*name=*/ "_metaPool_",
-                                           /*parent=*/ M );
-          //Inserted a global meta pool 
-        }
-        //Now insert a function call that takes care of adding this pool to the global pool
-        //First get the Insert point
-        Instruction *InsertPoint = CS.getInstruction();
-        
-        //Assumes AddPoolDescToMetaPool is in the module
-        const Type * VoidPtrType = PointerType::get(Type::Int8Ty);
-        const Type * VoidPtrPtrType = PointerType::get(VoidPtrType);
-        CastInst *CastMetaPool = 
-          CastInst::createPointerCast (TheMetaPool, 
-                       VoidPtrPtrType, "metapool.casted", InsertPoint);
-        CastInst *CastActualPD = 
-          CastInst::createPointerCast (actualPD, 
-                       PointerType::get(Type::Int8Ty), "poolhandle.lscasted", InsertPoint);
-        
-        // Create the call to AddPoolDescToMetaPool 
-        std::vector<Value *> args(1,CastMetaPool);
-        args.push_back(CastActualPD);
-
-        //FIXME optimize it by getting it once per module 
-        std::vector<const Type *> Arg(1, VoidPtrPtrType);
-        Arg.push_back(VoidPtrType);
-        FunctionType *AddPoolDescToMetaPoolTy =
-          FunctionType::get(Type::VoidTy,Arg, false);
-        Function *AddPoolDescToMetaPool = M->getOrInsertFunction("AddPoolDescToMetaPool", AddPoolDescToMetaPoolTy);
-        
-        new CallInst(AddPoolDescToMetaPool,args,"", InsertPoint);
-        MetaPoolHandle* tmpvh = new MetaPoolHandle(new MetaPool(TheMetaPool));
-        G.getPoolDescriptorsMap()[N] = tmpvh;
-      }
-      return;
-    }
-#endif
+  if (Function *F = dyn_cast<Function>(Callee))
     if (F->isDeclaration())
       if (F->isIntrinsic() && visitIntrinsic(CS, F))
         return;
@@ -1457,11 +1165,11 @@ void GraphBuilder::visitCallSite(CallSite CS) {
 
         // Unknown function, warn if it returns a pointer type or takes a
         // pointer argument.
-        bool Warn = isPointerType(CS.getInstruction()->getType());
+        bool Warn = isa<PointerType>(CS.getInstruction()->getType());
         if (!Warn)
           for (CallSite::arg_iterator I = CS.arg_begin(), E = CS.arg_end();
                I != E; ++I)
-            if (isPointerType((*I)->getType())) {
+            if (isa<PointerType>((*I)->getType())) {
               Warn = true;
               break;
             }
@@ -1470,16 +1178,15 @@ void GraphBuilder::visitCallSite(CallSite CS) {
                << F->getName() << "' will cause pessimistic results!\n";
         }
       }
-  }
 
   // Set up the return value...
   DSNodeHandle RetVal;
   Instruction *I = CS.getInstruction();
-  if (isPointerType(I->getType()))
+  if (isa<PointerType>(I->getType()))
     RetVal = getValueDest(*I);
 
   DSNode *CalleeNode = 0;
-  if (DisableDirectCallOpt || !isa<Function>(Callee)) {
+  if (!isa<Function>(Callee)) {
     CalleeNode = getValueDest(*Callee).getNode();
     if (CalleeNode == 0) {
       cerr << "WARNING: Program is calling through a null pointer?\n"<< *I;
@@ -1492,58 +1199,26 @@ void GraphBuilder::visitCallSite(CallSite CS) {
 
   // Calculate the arguments vector...
   for (CallSite::arg_iterator I = CS.arg_begin(), E = CS.arg_end(); I != E; ++I)
-    if (isPointerType((*I)->getType()))
+    if (isa<PointerType>((*I)->getType()))
       Args.push_back(getValueDest(**I));
 
   // Add a new function call entry...
   if (CalleeNode)
-    FunctionCalls->push_back(DSCallSite(CS, RetVal, CalleeNode, Args));
+    G.getFunctionCalls().push_back(DSCallSite(CS, RetVal, CalleeNode, Args));
   else
-    FunctionCalls->push_back(DSCallSite(CS, RetVal, cast<Function>(Callee),
-                                        Args));
+    G.getFunctionCalls().push_back(DSCallSite(CS, RetVal, cast<Function>(Callee),
+                                              Args));
 }
-
-void GraphBuilder::visitFreeInst(FreeInst &FI) {
-  // Mark that the node is written to...
-  if (DSNode *N = getValueDest(*FI.getOperand(0)).getNode())
-    N->setModifiedMarker()->setHeapNodeMarker();
-}
-
-/// Handle casts...
-void GraphBuilder::visitCastInst(CastInst &CI) {
-  // Pointers can only be cast with BitCast so check that the instruction
-  // is a BitConvert. If not, its guaranteed not to involve any pointers so
-  // we don't do anything.
-  switch (CI.getOpcode()) {
-  default: break;
-  case Instruction::BitCast:
-  case Instruction::IntToPtr:
-    if (isPointerType(CI.getType()))
-      if (isPointerType(CI.getOperand(0)->getType())) {
-        DSNodeHandle Ptr = getValueDest(*CI.getOperand(0));
-        if (Ptr.getNode() == 0) return;
-        // Cast one pointer to the other, just act like a copy instruction
-        setDestTo(CI, Ptr);
-      } else {
-        // Cast something (floating point, small integer) to a pointer.  We 
-        // need to track the fact that the node points to SOMETHING, just 
-        // something we don't know about.  Make an "Unknown" node.
-        setDestTo(CI, createNode()->setUnknownNodeMarker());
-      }
-    break;
-  }
-}
-
 
 // visitInstruction - For all other instruction types, if we have any arguments
 // that are of pointer type, make them have unknown composition bits, and merge
 // the nodes together.
 void GraphBuilder::visitInstruction(Instruction &Inst) {
   DSNodeHandle CurNode;
-  if (isPointerType(Inst.getType()))
+  if (isa<PointerType>(Inst.getType()))
     CurNode = getValueDest(Inst);
   for (User::op_iterator I = Inst.op_begin(), E = Inst.op_end(); I != E; ++I)
-    if (isPointerType((*I)->getType()))
+    if (isa<PointerType>((*I)->getType()))
       CurNode.mergeWith(getValueDest(**I));
 
   if (DSNode *N = CurNode.getNode())
@@ -1564,7 +1239,7 @@ void GraphBuilder::MergeConstantInitIntoNode(DSNodeHandle &NH, Constant *C) {
   NHN->mergeTypeInfo(C->getType(), NH.getOffset());
 
   if (C->getType()->isFirstClassType()) {
-    if (isPointerType(C->getType()))
+    if (isa<PointerType>(C->getType()))
       // Avoid adding edges from null, or processing non-"pointer" stores
       NH.addEdgeTo(getValueDest(*C));
     return;
@@ -1606,93 +1281,11 @@ void GraphBuilder::mergeInGlobalInitializer(GlobalVariable *GV) {
 }
 
 
-/// BuildGlobalECs - Look at all of the nodes in the globals graph.  If any node
-/// contains multiple globals, DSA will never, ever, be able to tell the globals
-/// apart.  Instead of maintaining this information in all of the graphs
-/// throughout the entire program, store only a single global (the "leader") in
-/// the graphs, and build equivalence classes for the rest of the globals.
-static void BuildGlobalECs(DSGraph &GG, std::set<GlobalValue*> &ECGlobals) {
-  DSScalarMap &SM = GG.getScalarMap();
-  EquivalenceClasses<GlobalValue*> &GlobalECs = SM.getGlobalECs();
-  for (DSGraph::node_iterator I = GG.node_begin(), E = GG.node_end();
-       I != E; ++I) {
-    if (I->getGlobalsList().size() <= 1) continue;
-
-    // First, build up the equivalence set for this block of globals.
-    const std::vector<GlobalValue*> &GVs = I->getGlobalsList();
-    GlobalValue *First = GVs[0];
-    for (unsigned i = 1, e = GVs.size(); i != e; ++i)
-      GlobalECs.unionSets(First, GVs[i]);
-
-    // Next, get the leader element.
-    assert(First == GlobalECs.getLeaderValue(First) &&
-           "First did not end up being the leader?");
-
-    // Next, remove all globals from the scalar map that are not the leader.
-    assert(GVs[0] == First && "First had to be at the front!");
-    for (unsigned i = 1, e = GVs.size(); i != e; ++i) {
-      ECGlobals.insert(GVs[i]);
-      SM.erase(SM.find(GVs[i]));
-    }
-
-    // Finally, change the global node to only contain the leader.
-    I->clearGlobals();
-    I->addGlobal(First);
-  }
-
-  DEBUG(GG.AssertGraphOK());
-}
-
-/// EliminateUsesOfECGlobals - Once we have determined that some globals are in
-/// really just equivalent to some other globals, remove the globals from the
-/// specified DSGraph (if present), and merge any nodes with their leader nodes.
-static void EliminateUsesOfECGlobals(DSGraph &G,
-                                     const std::set<GlobalValue*> &ECGlobals) {
-  DSScalarMap &SM = G.getScalarMap();
-  EquivalenceClasses<GlobalValue*> &GlobalECs = SM.getGlobalECs();
-
-  bool MadeChange = false;
-  for (DSScalarMap::global_iterator GI = SM.global_begin(), E = SM.global_end();
-       GI != E; ) {
-    GlobalValue *GV = *GI++;
-    if (!ECGlobals.count(GV)) continue;
-
-    const DSNodeHandle &GVNH = SM[GV];
-    assert(!GVNH.isNull() && "Global has null NH!?");
-
-    // Okay, this global is in some equivalence class.  Start by finding the
-    // leader of the class.
-    GlobalValue *Leader = GlobalECs.getLeaderValue(GV);
-
-    // If the leader isn't already in the graph, insert it into the node
-    // corresponding to GV.
-    if (!SM.global_count(Leader)) {
-      GVNH.getNode()->addGlobal(Leader);
-      SM[Leader] = GVNH;
-    } else {
-      // Otherwise, the leader is in the graph, make sure the nodes are the
-      // merged in the specified graph.
-      const DSNodeHandle &LNH = SM[Leader];
-      if (LNH.getNode() != GVNH.getNode())
-        LNH.mergeWith(GVNH);
-    }
-
-    // Next step, remove the global from the DSNode.
-    GVNH.getNode()->removeGlobal(GV);
-
-    // Finally, remove the global from the ScalarMap.
-    SM.erase(GV);
-    MadeChange = true;
-  }
-
-  DEBUG(if(MadeChange) G.AssertGraphOK());
-}
-
 bool LocalDataStructures::runOnModule(Module &M) {
-  const TargetData &TD = getAnalysis<TargetData>();
+  setTargetData(getAnalysis<TargetData>());
 
   // First step, build the globals graph.
-  GlobalsGraph = new DSGraph(GlobalECs, TD);
+  GlobalsGraph = new DSGraph(GlobalECs, getTargetData());
   {
     GraphBuilder GGB(*GlobalsGraph);
 
@@ -1705,16 +1298,16 @@ bool LocalDataStructures::runOnModule(Module &M) {
 
   // Next step, iterate through the nodes in the globals graph, unioning
   // together the globals into equivalence classes.
-  std::set<GlobalValue*> ECGlobals;
-  BuildGlobalECs(*GlobalsGraph, ECGlobals);
-  DOUT << "Eliminating " << ECGlobals.size() << " EC Globals!\n";
-  ECGlobals.clear();
+  formGlobalECs();
 
   // Calculate all of the graphs...
   for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I)
-    if (!I->isDeclaration())
-      DSInfo.insert(std::make_pair(I, new DSGraph(GlobalECs, TD, *I,
-                                                  GlobalsGraph)));
+    if (!I->isDeclaration()) {
+      DSGraph* G = new DSGraph(GlobalECs, getTargetData(), GlobalsGraph);
+      GraphBuilder GGB(*I, *G);
+      DSInfo.insert(std::make_pair(I, G));
+    }
+
   GlobalsGraph->removeTriviallyDeadNodes();
   GlobalsGraph->markIncompleteNodes(DSGraph::MarkFormalArgs);
 
@@ -1722,13 +1315,7 @@ bool LocalDataStructures::runOnModule(Module &M) {
   // the globals graph, see if we have further constrained the globals in the
   // program if so, update GlobalECs and remove the extraneous globals from the
   // program.
-  BuildGlobalECs(*GlobalsGraph, ECGlobals);
-  if (!ECGlobals.empty()) {
-    DOUT << "Eliminating " << ECGlobals.size() << " EC Globals!\n";
-    for (hash_map<Function*, DSGraph*>::iterator I = DSInfo.begin(),
-           E = DSInfo.end(); I != E; ++I)
-      EliminateUsesOfECGlobals(*I->second, ECGlobals);
-  }
+  formGlobalECs();
 
   return false;
 }

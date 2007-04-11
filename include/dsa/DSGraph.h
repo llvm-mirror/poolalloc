@@ -18,14 +18,12 @@
 #include "dsa/DSNode.h"
 #include "llvm/ADT/hash_map"
 #include "llvm/ADT/EquivalenceClasses.h"
-#include "poolalloc/Config/config.h"
 
 #include <list>
 #include <map>
 #include <iostream>
 namespace llvm {
 
-  //typedef map<const DSNode *, Value*> PoolDescriptorMapType;
 
 class GlobalValue;
 
@@ -174,63 +172,6 @@ private:
   DSNodeHandle &AddGlobal(GlobalValue *GV);
 };
 
-
-#ifdef LLVA_KERNEL
-class MetaPool;
-class MetaPoolHandle {
-  MetaPool *Rep;
-  Instruction * Creator;
-public:
-  MetaPoolHandle(MetaPool *mp, Instruction * Maker = 0);
-  
-  MetaPool *getMetaPool() {
-    return Rep;
-  }
-  void setMetaPool(MetaPool *v) {
-    Rep = v;
-  }
-  ~MetaPoolHandle() {
-    //do nothing for now
-  }
-  const std::string &getName();
-  Value *getMetaPoolValue();
-  void merge(MetaPoolHandle *other);
-};
-
-  class MetaPool {
-    Value *MPD;
-    hash_set<MetaPoolHandle *> HandleSet;
-    
-  public:
-    MetaPool(Value *mpd) : MPD(mpd) {
-    }
-    void addMetaPoolHandles(hash_set<MetaPoolHandle *> & mpHS) {
-      HandleSet.insert(mpHS.begin(), mpHS.end());
-    }
-    hash_set<MetaPoolHandle *>& getHandleSet() {
-      return HandleSet;
-    }
-    Value * getMetaPoolValue() {
-      return MPD;
-    }
-    void setMetaPoolValue(Value *V) {
-      MPD = V;
-    }
-    void insert(MetaPoolHandle *mph) {
-      HandleSet.insert(mph);
-    }
-    const std::string& getName() {
-      return MPD->getName();
-    }
-    ~MetaPool() {
-      HandleSet.clear();
-    }
-  };
-
-#endif
-  
-
-  
 //===----------------------------------------------------------------------===//
 /// DSGraph - The graph that represents a function.
 ///
@@ -280,21 +221,15 @@ private:
   /// constructed for.
   const TargetData &TD;
 
-#ifdef LLVA_KERNEL
-  hash_map<const DSNode*, MetaPoolHandle*> PoolDescriptors;
-#endif  
-
-  
-
   void operator=(const DSGraph &); // DO NOT IMPLEMENT
   DSGraph(const DSGraph&);         // DO NOT IMPLEMENT
 public:
   // Create a new, empty, DSGraph.
-  DSGraph(EquivalenceClasses<GlobalValue*> &ECs, const TargetData &td)
-    : GlobalsGraph(0), PrintAuxCalls(false), ScalarMap(ECs), TD(td) { }
-  // Compute the local DSGraph
-  DSGraph(EquivalenceClasses<GlobalValue*> &ECs, const TargetData &TD,
-          Function &F, DSGraph *GlobalsGraph);
+  DSGraph(EquivalenceClasses<GlobalValue*> &ECs, const TargetData &td,
+          DSGraph *GG = 0) 
+    :GlobalsGraph(GG), PrintAuxCalls(false), 
+     ScalarMap(ECs), TD(td)
+  { }
 
   // Copy ctor - If you want to capture the node mapping between the source and
   // destination graph, you may optionally do this by specifying a map to record
@@ -310,31 +245,6 @@ public:
 
   DSGraph *getGlobalsGraph() const { return GlobalsGraph; }
   void setGlobalsGraph(DSGraph *G) { GlobalsGraph = G; }
-
-#ifdef LLVA_KERNEL
-#if 1
-  hash_map<const DSNode *, MetaPoolHandle*>& getPoolDescriptorsMap() {
-    return PoolDescriptors;
-  }
-  MetaPoolHandle *getPoolForNode(const DSNode *N) {
-    if (PoolDescriptors.count(N) > 0) {
-      return PoolDescriptors[N];
-    }
-    return 0;
-  }
-#else
-  hash_map<const DSNodeHandle *, MetaPoolHandle*>& getPoolDescriptorsMap() {
-    return PoolDescriptors;
-  }
-  MetaPoolHandle *getPoolForNode(const DSNodeHandle *N) {
-    if (PoolDescriptors.count(N) > 0) {
-      return PoolDescriptors[N];
-    }
-    return 0;
-  }
-#endif
-
-#endif  
 
   /// getGlobalECs - Return the set of equivalence classes that the global
   /// variables in the program form.
@@ -418,6 +328,15 @@ public:
     return I->second;
   }
 
+  bool hasNodeForValue(Value* V) const {
+    ScalarMapTy::const_iterator I = ScalarMap.find(V);
+    return I != ScalarMap.end();
+  }
+
+  void eraseNodeForValue(Value* V) {
+    ScalarMap.erase(V);
+  }
+
   /// retnodes_* iterator methods: expose iteration over return nodes in the
   /// graph, which are also the set of functions incorporated in this graph.
   typedef ReturnNodesTy::const_iterator retnodes_iterator;
@@ -443,6 +362,10 @@ public:
     ReturnNodesTy::const_iterator I = ReturnNodes.find(&F);
     assert(I != ReturnNodes.end() && "F not in this DSGraph!");
     return I->second;
+  }
+
+  DSNodeHandle& getOrCreateReturnNodeFor(Function& F) {
+    return ReturnNodes[&F];
   }
 
   /// containsFunction - Return true if this DSGraph contains information for

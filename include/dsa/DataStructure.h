@@ -20,7 +20,6 @@
 #include "llvm/ADT/hash_map"
 #include "llvm/ADT/hash_set"
 #include "llvm/ADT/EquivalenceClasses.h"
-#include "poolalloc/Config/config.h"
 
 namespace llvm {
 
@@ -31,41 +30,53 @@ class DSGraph;
 class DSCallSite;
 class DSNode;
 class DSNodeHandle;
-typedef std::map<const DSNode *, Value*> PoolDescriptorMapType;
 
 FunctionPass *createDataStructureStatsPass();
 FunctionPass *createDataStructureGraphCheckerPass();
 
-// FIXME: move this stuff to a private header
-namespace DataStructureAnalysis {
-  /// isPointerType - Return true if this first class type is big enough to hold
-  /// a pointer.
-  ///
-  bool isPointerType(const Type *Ty);
-}
+class DataStructures : public ModulePass {
 
-// LocalDataStructures - The analysis that computes the local data structure
-// graphs for all of the functions in the program.
-//
-// FIXME: This should be a Function pass that can be USED by a Pass, and would
-// be automatically preserved.  Until we can do that, this is a Pass.
-//
-class LocalDataStructures : public ModulePass {
+  /// TargetData, comes in handy
+  TargetData* TD;
+
+  /// Pass to get Graphs from
+  DataStructures* GraphSource;
+
+  /// Do we clone Graphs or steal them?
+  bool Clone;
+
+  void buildGlobalECs(std::set<GlobalValue*>& ECGlobals);
+
+  void eliminateUsesOfECGlobals(DSGraph& G, const std::set<GlobalValue*> &ECGlobals);
+
+protected:
   // DSInfo, one graph for each function
   hash_map<Function*, DSGraph*> DSInfo;
-  DSGraph *GlobalsGraph;
 
-#ifdef LLVA_KERNEL
-  Function *AddPoolDescToMetaPool;
-#endif  
+  /// The Globals Graph contains all information on the globals
+  DSGraph *GlobalsGraph;
 
   /// GlobalECs - The equivalence classes for each global value that is merged
   /// with other global values in the DSGraphs.
   EquivalenceClasses<GlobalValue*> GlobalECs;
-public:
-  ~LocalDataStructures() { releaseMemory(); }
 
-  virtual bool runOnModule(Module &M);
+
+  void setGraphSource(DataStructures* D) {
+    assert(!GraphSource && "Already have a Graph");
+    GraphSource = D;
+  }
+
+  void setGraphClone(bool clone) {
+    Clone = clone;
+  }
+
+  void setTargetData(TargetData& T) {
+    TD = &T;
+  }
+
+  void formGlobalECs();
+
+public:
 
   bool hasGraph(const Function &F) const {
     return DSInfo.find(const_cast<Function*>(&F)) != DSInfo.end();
@@ -80,9 +91,32 @@ public:
     return *I->second;
   }
 
+  DSGraph& getOrCreateGraph(Function* F);
+
   DSGraph &getGlobalsGraph() const { return *GlobalsGraph; }
 
   EquivalenceClasses<GlobalValue*> &getGlobalECs() { return GlobalECs; }
+
+  TargetData& getTargetData() const { return *TD; }
+
+  /// deleteValue/copyValue - Interfaces to update the DSGraphs in the program.
+  /// These correspond to the interfaces defined in the AliasAnalysis class.
+  void deleteValue(Value *V);
+  void copyValue(Value *From, Value *To);
+};
+
+
+// LocalDataStructures - The analysis that computes the local data structure
+// graphs for all of the functions in the program.
+//
+// FIXME: This should be a Function pass that can be USED by a Pass, and would
+// be automatically preserved.  Until we can do that, this is a Pass.
+//
+class LocalDataStructures : public DataStructures {
+public:
+  ~LocalDataStructures() { releaseMemory(); }
+
+  virtual bool runOnModule(Module &M);
 
   /// print - Print out the analysis results...
   ///
@@ -106,52 +140,18 @@ public:
 /// data structure graphs for all of the functions in the program.  This pass
 /// only performs a "Bottom Up" propagation (hence the name).
 ///
-class BUDataStructures : public ModulePass {
+class BUDataStructures : public DataStructures {
 protected:
-  // DSInfo, one graph for each function
-  hash_map<Function*, DSGraph*> DSInfo;
-  DSGraph *GlobalsGraph;
   std::set<std::pair<Instruction*, Function*> > ActualCallees;
 
   // This map is only maintained during construction of BU Graphs
   std::map<std::vector<Function*>,
            std::pair<DSGraph*, std::vector<DSNodeHandle> > > *IndCallGraphMap;
 
-  /// GlobalECs - The equivalence classes for each global value that is merged
-  /// with other global values in the DSGraphs.
-  EquivalenceClasses<GlobalValue*> GlobalECs;
-
-  std::map<CallSite, std::vector<Function*> > AlreadyInlined;
-
 public:
   ~BUDataStructures() { releaseMyMemory(); }
 
   virtual bool runOnModule(Module &M);
-
-  bool hasGraph(const Function &F) const {
-    return DSInfo.find(const_cast<Function*>(&F)) != DSInfo.end();
-  }
-
-  /// getDSGraph - Return the data structure graph for the specified function.
-  ///
-  DSGraph &getDSGraph(const Function &F) const {
-    hash_map<Function*, DSGraph*>::const_iterator I =
-      DSInfo.find(const_cast<Function*>(&F));
-    if (I != DSInfo.end())
-      return *I->second;
-    return const_cast<BUDataStructures*>(this)->
-                   CreateGraphForExternalFunction(F);
-  }
-  
-  /// DSGraphExists - Is the DSGraph computed for this function?
-  ///
-  bool doneDSGraph(const Function *F) const {
-    return (DSInfo.find(const_cast<Function*>(F)) != DSInfo.end());
-  }
-
-  DSGraph &getGlobalsGraph() const { return *GlobalsGraph; }
-
-  EquivalenceClasses<GlobalValue*> &getGlobalECs() { return GlobalECs; }
 
   DSGraph &CreateGraphForExternalFunction(const Function &F);
 
@@ -191,8 +191,6 @@ public:
 private:
   void calculateGraph(DSGraph &G);
 
-  DSGraph &getOrCreateGraph(Function *F);
-
   unsigned calculateGraphs(Function *F, std::vector<Function*> &Stack,
                            unsigned &NextID,
                            hash_map<Function*, unsigned> &ValMap);
@@ -203,16 +201,9 @@ private:
 /// for each function using the closed graphs for the callers computed
 /// by the bottom-up pass.
 ///
-class TDDataStructures : public ModulePass {
-  // DSInfo, one graph for each function
-  hash_map<Function*, DSGraph*> DSInfo;
+class TDDataStructures : public DataStructures {
   hash_set<Function*> ArgsRemainIncomplete;
-  DSGraph *GlobalsGraph;
   BUDataStructures *BUInfo;
-
-  /// GlobalECs - The equivalence classes for each global value that is merged
-  /// with other global values in the DSGraphs.
-  EquivalenceClasses<GlobalValue*> GlobalECs;
 
   /// CallerCallEdges - For a particular graph, we keep a list of these records
   /// which indicates which graphs call this function and from where.
@@ -245,10 +236,6 @@ public:
 
   virtual bool runOnModule(Module &M);
 
-  bool hasGraph(const Function &F) const {
-    return DSInfo.find(const_cast<Function*>(&F)) != DSInfo.end();
-  }
-
   /// getDSGraph - Return the data structure graph for the specified function.
   ///
   DSGraph &getDSGraph(const Function &F) const {
@@ -258,10 +245,6 @@ public:
     return const_cast<TDDataStructures*>(this)->
         getOrCreateDSGraph(const_cast<Function&>(F));
   }
-
-  DSGraph &getGlobalsGraph() const { return *GlobalsGraph; }
-  EquivalenceClasses<GlobalValue*> &getGlobalECs() { return GlobalECs; }
-
 
   /// deleteValue/copyValue - Interfaces to update the DSGraphs in the program.
   /// These correspond to the interfaces defined in the AliasAnalysis class.
@@ -301,19 +284,6 @@ private:
 ///
 struct CompleteBUDataStructures : public BUDataStructures {
   virtual bool runOnModule(Module &M);
-
-  bool hasGraph(const Function &F) const {
-    return DSInfo.find(const_cast<Function*>(&F)) != DSInfo.end();
-  }
-
-  /// getDSGraph - Return the data structure graph for the specified function.
-  ///
-  DSGraph &getDSGraph(const Function &F) const {
-    hash_map<Function*, DSGraph*>::const_iterator I =
-      DSInfo.find(const_cast<Function*>(&F));
-    assert(I != DSInfo.end() && "Function not in module!");
-    return *I->second;
-  }
 
   virtual void getAnalysisUsage(AnalysisUsage &AU) const {
     AU.setPreservesAll();

@@ -30,120 +30,8 @@ namespace {
   STATISTIC (NumBUInlines, "Number of graphs inlined");
   STATISTIC (NumCallEdges, "Number of 'actual' call edges");
 
-  cl::opt<bool>
-  AddGlobals("budatastructures-annotate-calls", cl::Hidden,
-	     cl::desc("Annotate call sites with functions as they are resolved"));
-  cl::opt<bool>
-  UpdateGlobals("budatastructures-update-from-globals", cl::Hidden,
-		cl::desc("Update local graph from global graph when processing function"));
-
   RegisterPass<BUDataStructures>
-  X("budatastructure", "Bottom-up Data Structure Analysis");
-}
-
-static bool GetAllCalleesN(const DSCallSite &CS,
-                          std::vector<Function*> &Callees);
-
-/// BuildGlobalECs - Look at all of the nodes in the globals graph.  If any node
-/// contains multiple globals, DSA will never, ever, be able to tell the globals
-/// apart.  Instead of maintaining this information in all of the graphs
-/// throughout the entire program, store only a single global (the "leader") in
-/// the graphs, and build equivalence classes for the rest of the globals.
-static void BuildGlobalECs(DSGraph &GG, std::set<GlobalValue*> &ECGlobals) {
-  DSScalarMap &SM = GG.getScalarMap();
-  EquivalenceClasses<GlobalValue*> &GlobalECs = SM.getGlobalECs();
-  for (DSGraph::node_iterator I = GG.node_begin(), E = GG.node_end();
-       I != E; ++I) {
-    if (I->getGlobalsList().size() <= 1) continue;
-
-    // First, build up the equivalence set for this block of globals.
-    const std::vector<GlobalValue*> &GVs = I->getGlobalsList();
-    GlobalValue *First = GVs[0];
-    for (unsigned i = 1, e = GVs.size(); i != e; ++i)
-      GlobalECs.unionSets(First, GVs[i]);
-
-    // Next, get the leader element.
-    assert(First == GlobalECs.getLeaderValue(First) &&
-           "First did not end up being the leader?");
-
-    // Next, remove all globals from the scalar map that are not the leader.
-    assert(GVs[0] == First && "First had to be at the front!");
-    for (unsigned i = 1, e = GVs.size(); i != e; ++i) {
-      ECGlobals.insert(GVs[i]);
-      SM.erase(SM.find(GVs[i]));
-    }
-
-    // Finally, change the global node to only contain the leader.
-    I->clearGlobals();
-    I->addGlobal(First);
-  }
-
-  DEBUG(GG.AssertGraphOK());
-}
-
-/// EliminateUsesOfECGlobals - Once we have determined that some globals are in
-/// really just equivalent to some other globals, remove the globals from the
-/// specified DSGraph (if present), and merge any nodes with their leader nodes.
-static void EliminateUsesOfECGlobals(DSGraph &G,
-                                     const std::set<GlobalValue*> &ECGlobals) {
-  DSScalarMap &SM = G.getScalarMap();
-  EquivalenceClasses<GlobalValue*> &GlobalECs = SM.getGlobalECs();
-
-  bool MadeChange = false;
-  for (DSScalarMap::global_iterator GI = SM.global_begin(), E = SM.global_end();
-       GI != E; ) {
-    GlobalValue *GV = *GI++;
-    if (!ECGlobals.count(GV)) continue;
-
-    const DSNodeHandle &GVNH = SM[GV];
-    assert(!GVNH.isNull() && "Global has null NH!?");
-
-    // Okay, this global is in some equivalence class.  Start by finding the
-    // leader of the class.
-    GlobalValue *Leader = GlobalECs.getLeaderValue(GV);
-
-    // If the leader isn't already in the graph, insert it into the node
-    // corresponding to GV.
-    if (!SM.global_count(Leader)) {
-      GVNH.getNode()->addGlobal(Leader);
-      SM[Leader] = GVNH;
-    } else {
-      // Otherwise, the leader is in the graph, make sure the nodes are the
-      // merged in the specified graph.
-      const DSNodeHandle &LNH = SM[Leader];
-      if (LNH.getNode() != GVNH.getNode())
-        LNH.mergeWith(GVNH);
-    }
-
-    // Next step, remove the global from the DSNode.
-    GVNH.getNode()->removeGlobal(GV);
-
-    // Finally, remove the global from the ScalarMap.
-    SM.erase(GV);
-    MadeChange = true;
-  }
-
-  DEBUG(if(MadeChange) G.AssertGraphOK());
-}
-
-static void AddGlobalToNode(BUDataStructures* B, DSCallSite D, Function* F) {
-  if(!AddGlobals)
-    return;
-  if(D.isIndirectCall()) {
-    DSGraph* GI = &B->getDSGraph(D.getCaller());
-    DSNodeHandle& NHF = GI->getNodeForValue(F);
-    DSCallSite DL = GI->getDSCallSiteForCallSite(D.getCallSite());
-    if (DL.getCalleeNode() != NHF.getNode() || NHF.isNull()) {
-      if (NHF.isNull()) {
-        DSNode *N = new DSNode(F->getType()->getElementType(), GI);   // Create the node
-        N->addGlobal(F);
-        NHF.setTo(N,0);
-        DOUT << "Adding " << F->getName() << " to a call node in "
-             << D.getCaller().getName() << "\n";
-      }
-      DL.getCalleeNode()->mergeWith(NHF, 0);
-    }
-  }
+  X("dsa-bu", "Bottom-up Data Structure Analysis");
 }
 
 // run - Calculate the bottom up data structure graphs for each function in the
@@ -151,6 +39,9 @@ static void AddGlobalToNode(BUDataStructures* B, DSCallSite D, Function* F) {
 //
 bool BUDataStructures::runOnModule(Module &M) {
   LocalDataStructures &LocalDSA = getAnalysis<LocalDataStructures>();
+  setGraphSource(&LocalDSA);
+  setTargetData(LocalDSA.getTargetData());
+  setGraphClone(false);
   GlobalECs = LocalDSA.getGlobalECs();
 
   GlobalsGraph = new DSGraph(LocalDSA.getGlobalsGraph(), GlobalECs);
@@ -197,17 +88,7 @@ bool BUDataStructures::runOnModule(Module &M) {
   // Mark external globals incomplete.
   GlobalsGraph->markIncompleteNodes(DSGraph::IgnoreGlobals);
 
-  // Grow the equivalence classes for the globals to include anything that we
-  // now know to be aliased.
-  std::set<GlobalValue*> ECGlobals;
-  BuildGlobalECs(*GlobalsGraph, ECGlobals);
-  if (!ECGlobals.empty()) {
-    NamedRegionTimer X("Bottom-UP EC Cleanup");
-    DOUT << "Eliminating " << ECGlobals.size() << " EC Globals!\n";
-    for (hash_map<Function*, DSGraph*>::iterator I = DSInfo.begin(),
-           E = DSInfo.end(); I != E; ++I)
-      EliminateUsesOfECGlobals(*I->second, ECGlobals);
-  }
+  formGlobalECs();
 
   // Merge the globals variables (not the calls) from the globals graph back
   // into the main function's graph so that the main function contains all of
@@ -228,47 +109,11 @@ bool BUDataStructures::runOnModule(Module &M) {
     MainGraph.maskIncompleteMarkers();
     MainGraph.markIncompleteNodes(DSGraph::MarkFormalArgs |
                                   DSGraph::IgnoreGlobals);
-
-    //Debug messages if along the way we didn't resolve a call site
-    //also update the call graph and callsites we did find.
-    for(DSGraph::afc_iterator ii = MainGraph.afc_begin(),
-          ee = MainGraph.afc_end(); ii != ee; ++ii) {
-      std::vector<Function*> Funcs;
-      GetAllCalleesN(*ii, Funcs);
-      DOUT << "Lost site\n";
-      DEBUG(ii->getCallSite().getInstruction()->dump());
-      for (std::vector<Function*>::iterator iif = Funcs.begin(), eef = Funcs.end();
-           iif != eef; ++iif) {
-        AddGlobalToNode(this, *ii, *iif);
-        DOUT << "Adding\n";
-        ActualCallees.insert(std::make_pair(ii->getCallSite().getInstruction(), *iif));
-      }
-    }
-
   }
 
   NumCallEdges += ActualCallees.size();
 
   return false;
-}
-
-DSGraph &BUDataStructures::getOrCreateGraph(Function *F) {
-  // Has the graph already been created?
-  DSGraph *&Graph = DSInfo[F];
-  if (Graph) return *Graph;
-
-  DSGraph &LocGraph = getAnalysis<LocalDataStructures>().getDSGraph(*F);
-
-  // Steal the local graph.
-  Graph = new DSGraph(GlobalECs, LocGraph.getTargetData());
-  Graph->spliceFrom(LocGraph);
-
-  Graph->setGlobalsGraph(GlobalsGraph);
-  Graph->setPrintAuxCalls();
-
-  // Start with a copy of the original call sites...
-  Graph->getAuxFunctionCalls() = Graph->getFunctionCalls();
-  return *Graph;
 }
 
 static bool isVAHackFn(const Function *F) {
@@ -302,33 +147,6 @@ static void GetAllCallees(const DSCallSite &CS,
   }
 }
 
-//returns true if all callees were resolved
-static bool GetAllCalleesN(const DSCallSite &CS,
-                          std::vector<Function*> &Callees) {
-  if (CS.isDirectCall()) {
-    if (isResolvableFunc(CS.getCalleeFunc())) {
-      Callees.push_back(CS.getCalleeFunc());
-      return true;
-    } else
-      return false;
-  } else {
-    // Get all callees.
-    bool retval = CS.getCalleeNode()->isComplete();
-    unsigned OldSize = Callees.size();
-    CS.getCalleeNode()->addFullFunctionList(Callees);
-
-    // If any of the callees are unresolvable, remove that one
-    for (unsigned i = OldSize; i != Callees.size(); ++i)
-      if (!isResolvableFunc(Callees[i])) {
-        Callees.erase(Callees.begin()+i);
-        --i;
-       retval = false;
-      }
-    return retval;
-    //return false;
-  }
-}
-
 /// GetAllAuxCallees - Return a list containing all of the resolvable callees in
 /// the aux list for the specified graph in the Callees vector.
 static void GetAllAuxCallees(DSGraph &G, std::vector<Function*> &Callees) {
@@ -357,8 +175,6 @@ unsigned BUDataStructures::calculateGraphs(Function *F,
   }
 
   DSGraph &Graph = getOrCreateGraph(F);
-  if (UpdateGlobals)
-    Graph.updateFromGlobalGraph();
 
   // Find all callee functions.
   std::vector<Function*> CalleeFunctions;
@@ -496,8 +312,8 @@ DSGraph &BUDataStructures::CreateGraphForExternalFunction(const Function &Fn) {
   if (F->getName() == "free") { // Taking the address of free.
 
     // Free should take a single pointer argument, mark it as heap memory.
-    DSNode *N = new DSNode(0, DSG);
-    N->setHeapNodeMarker();
+    DSNodeHandle N(new DSNode(0, DSG));
+    N.getNode()->setHeapNodeMarker();
     DSG->getNodeForValue(F->arg_begin()).mergeWith(N);
 
   } else {

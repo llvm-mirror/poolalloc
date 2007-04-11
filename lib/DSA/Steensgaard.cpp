@@ -28,7 +28,6 @@ namespace {
     DSGraph *ResultGraph;
 
     EquivalenceClasses<GlobalValue*> GlobalECs;  // Always empty
-    PoolDescriptorMapType PoolDescriptors; 
   public:
     Steens() : ResultGraph(0) {}
     ~Steens() {

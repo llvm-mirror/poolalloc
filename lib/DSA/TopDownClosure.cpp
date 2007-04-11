@@ -33,7 +33,7 @@ using namespace llvm;
 
 namespace {
   RegisterPass<TDDataStructures>   // Register the pass
-  Y("tddatastructure", "Top-down Data Structure Analysis");
+  Y("dsa-td", "Top-down Data Structure Analysis");
 
   STATISTIC (NumTDInlines, "Number of graphs inlined");
 }
