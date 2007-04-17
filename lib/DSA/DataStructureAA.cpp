@@ -143,7 +143,7 @@ AliasAnalysis::AliasResult DSAA::alias(const Value *V1, unsigned V1Size,
     return AliasAnalysis::alias(V1, V1Size, V2, V2Size);
 
   // We can only make a judgment if one of the nodes is complete.
-  if (N1->isComplete() || N2->isComplete()) {
+  if (N1->isCompleteNode() || N2->isCompleteNode()) {
     if (N1 != N2)
       return NoAlias;   // Completely different nodes.
 
@@ -197,9 +197,9 @@ DSAA::getModRefInfo(CallSite CS, Value *P, unsigned Size) {
     // track of aggregate mod/ref info.
     bool NeverReads = true, NeverWrites = true;
     for (; Range.first != Range.second; ++Range.first) {
-      if (Range.first->second->isModified())
+      if (Range.first->second->isModifiedNode())
         NeverWrites = false;
-      if (Range.first->second->isRead())
+      if (Range.first->second->isReadNode())
         NeverReads = false;
       if (NeverReads == false && NeverWrites == false)
         return AliasAnalysis::getModRefInfo(CS, P, Size);
@@ -240,7 +240,7 @@ DSAA::getModRefInfo(CallSite CS, Value *P, unsigned Size) {
 
     // If we found a node and it's complete, it cannot be passed out to the
     // called function.
-    if (NI->second.getNode()->isComplete())
+    if (NI->second.getNode()->isCompleteNode())
       return NoModRef;
     return AliasAnalysis::getModRefInfo(CS, P, Size);
   }
@@ -270,9 +270,9 @@ DSAA::getModRefInfo(CallSite CS, Value *P, unsigned Size) {
         // Otherwise, if the node is only M or R, return this.  This can be
         // useful for globals that should be marked const but are not.
         DSNode *N = NI->second.getNode();
-        if (!N->isModified())
+        if (!N->isModifiedNode())
           Result = (ModRefResult)(Result & ~Mod);
-        if (!N->isRead())
+        if (!N->isReadNode())
           Result = (ModRefResult)(Result & ~Ref);
       }
     }

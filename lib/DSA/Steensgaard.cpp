@@ -212,8 +212,8 @@ AliasAnalysis::AliasResult Steens::alias(const Value *V1, unsigned V1Size,
     // this.  If one is complete and the other isn't, then they are obviously
     // different nodes.  If they are both complete, we can't say anything
     // useful.
-    if (I->second.getNode()->isComplete() ||
-        J->second.getNode()->isComplete()) {
+    if (I->second.getNode()->isCompleteNode() ||
+        J->second.getNode()->isCompleteNode()) {
       // If the two pointers point to different data structure graph nodes, they
       // cannot alias!
       if (V1H.getNode() != V2H.getNode())
@@ -251,7 +251,7 @@ Steens::getModRefInfo(CallSite CS, Value *P, unsigned Size) {
 
   if (I != GSM.end() && !I->second.isNull()) {
     DSNode *N = I->second.getNode();
-    if (N->isComplete()) {
+    if (N->isCompleteNode()) {
       // If this is a direct call to an external function, and if the pointer
       // points to a complete node, the external function cannot modify or read
       // the value (we know it's not passed out of the program!).
@@ -261,9 +261,9 @@ Steens::getModRefInfo(CallSite CS, Value *P, unsigned Size) {
 
       // Otherwise, if the node is complete, but it is only M or R, return this.
       // This can be useful for globals that should be marked const but are not.
-      if (!N->isModified())
+      if (!N->isModifiedNode())
         Result = (ModRefResult)(Result & ~Mod);
-      if (!N->isRead())
+      if (!N->isReadNode())
         Result = (ModRefResult)(Result & ~Ref);
     }
   }

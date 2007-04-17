@@ -415,7 +415,7 @@ public:
     for (node_iterator I = node_begin(), E = node_end(); I != E; ++I)
       I->maskNodeTypes(Mask);
   }
-  void maskIncompleteMarkers() { maskNodeTypes(~DSNode::Incomplete); }
+  void maskIncompleteMarkers() { maskNodeTypes(~DSNode::IncompleteNode); }
 
   // markIncompleteNodes - Traverse the graph, identifying nodes that may be
   // modified by other functions that have not been resolved yet.  This marks
@@ -564,13 +564,13 @@ public:
   ReachabilityCloner(DSGraph &dest, const DSGraph &src, unsigned cloneFlags)
     : Dest(dest), Src(src), CloneFlags(cloneFlags) {
     assert(&Dest != &Src && "Cannot clone from graph to same graph!");
-    BitsToKeep = ~DSNode::DEAD;
+    BitsToKeep = ~DSNode::DeadNode;
     if (CloneFlags & DSGraph::StripAllocaBit)
       BitsToKeep &= ~DSNode::AllocaNode;
     if (CloneFlags & DSGraph::StripModRefBits)
-      BitsToKeep &= ~(DSNode::Modified | DSNode::Read);
+      BitsToKeep &= ~(DSNode::ModifiedNode | DSNode::ReadNode);
     if (CloneFlags & DSGraph::StripIncompleteBit)
-      BitsToKeep &= ~DSNode::Incomplete;
+      BitsToKeep &= ~DSNode::IncompleteNode;
   }
 
   DSNodeHandle getClonedNH(const DSNodeHandle &SrcNH);

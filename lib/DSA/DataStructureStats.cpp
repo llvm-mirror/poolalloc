@@ -118,7 +118,7 @@ DSNode *DSGraphStats::getNodeForValue(Value *V) {
 
 bool DSGraphStats::isNodeForValueCollapsed(Value *V) {
   if (DSNode *N = getNodeForValue(V))
-    return N->isNodeCompletelyFolded() || N->isIncomplete();
+    return N->isNodeCompletelyFolded() || N->isIncompleteNode();
   return false;
 }
 

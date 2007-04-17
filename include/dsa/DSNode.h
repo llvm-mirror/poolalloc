@@ -80,20 +80,23 @@ class DSNode {
   DSNode(const DSNode &);         // DO NOT IMPLEMENT
 public:
   enum NodeTy {
-    ShadowNode  = 0,        // Nothing is known about this node...
-    AllocaNode  = 1 << 0,   // This node was allocated with alloca
-    HeapNode    = 1 << 1,   // This node was allocated with malloc
-    GlobalNode  = 1 << 2,   // This node was allocated by a global var decl
-    UnknownNode = 1 << 3,   // This node points to unknown allocated memory
-    Incomplete  = 1 << 4,   // This node may not be complete
+    ShadowNode      = 0,        // Nothing is known about this node...
+    AllocaNode      = 1 << 0,   // This node was allocated with alloca
+    HeapNode        = 1 << 1,   // This node was allocated with malloc
+    GlobalNode      = 1 << 2,   // This node was allocated by a global var decl
+    UnknownNode     = 1 << 3,   // This node points to unknown allocated memory
+    IncompleteNode  = 1 << 4,   // This node may not be complete
 
-    Modified    = 1 << 5,   // This node is modified in this context
-    Read        = 1 << 6,   // This node is read in this context
+    ModifiedNode    = 1 << 5,   // This node is modified in this context
+    ReadNode        = 1 << 6,   // This node is read in this context
 
-    Array       = 1 << 7,   // This node is treated like an array
-    External    = 1 << 8,   // This node comes from an external source
+    ArrayNode       = 1 << 7,   // This node is treated like an array
+    ExternalNode    = 1 << 8,   // This node comes from an external source
+    IntToPtrNode    = 1 << 9,   // This node comes from an int cast
+    PtrToIntNode    = 1 << 10,  // This node excapes to an int cast
+
     //#ifndef NDEBUG
-    DEAD        = 1 << 9,   // This node is dead and should not be pointed to
+    DeadNode        = 1 << 11,   // This node is dead and should not be pointed to
     //#endif
 
     Composition = AllocaNode | HeapNode | GlobalNode | UnknownNode
@@ -147,7 +150,7 @@ public:
   ///
   const Type *getType() const { return Ty; }
 
-  bool isArray() const { return NodeType & Array; }
+  bool isArray() const { return NodeType & ArrayNode; }
 
   /// hasNoReferrers - Return true if nothing is pointing to this node at all.
   ///
@@ -332,36 +335,38 @@ public:
   /// getNodeFlags - Return all of the flags set on the node.  If the DEAD flag
   /// is set, hide it from the caller.
   ///
-  unsigned getNodeFlags() const { return NodeType & ~DEAD; }
+  unsigned getNodeFlags() const { return NodeType & ~DeadNode; }
 
-  bool isAllocaNode()  const { return NodeType & AllocaNode; }
-  bool isHeapNode()    const { return NodeType & HeapNode; }
-  bool isGlobalNode()  const { return NodeType & GlobalNode; }
-  bool isUnknownNode() const { return NodeType & UnknownNode; }
+  bool isAllocaNode()     const { return NodeType & AllocaNode;    }
+  bool isHeapNode()       const { return NodeType & HeapNode;      }
+  bool isGlobalNode()     const { return NodeType & GlobalNode;    }
+  bool isUnknownNode()    const { return NodeType & UnknownNode;   }
+  bool isModifiedNode()   const { return NodeType & ModifiedNode;  }
+  bool isReadNode()       const { return NodeType & ReadNode;      }
+  bool isArrayNode()      const { return NodeType & ArrayNode;     }
+  bool isIncompleteNode() const { return NodeType & IncompleteNode;}
+  bool isCompleteNode()   const { return !isIncompleteNode();      }
+  bool isDeadNode()       const { return NodeType & DeadNode;      }
+  bool isExternalNode()   const { return NodeType & ExternalNode;  }
+  bool isIntToPtrNode()   const { return NodeType & IntToPtrNode;  }
+  bool isPtrToIntNode()   const { return NodeType & PtrToIntNode;  }
 
-  bool isModified() const   { return NodeType & Modified; }
-  bool isRead() const       { return NodeType & Read; }
-
-  bool isIncomplete() const { return NodeType & Incomplete; }
-  bool isComplete() const   { return !isIncomplete(); }
-  bool isDeadNode() const   { return NodeType & DEAD; }
-  bool isExternalNode() const { return NodeType & External; }
-
-  DSNode *setAllocaNodeMarker()  { NodeType |= AllocaNode;  return this; }
-  DSNode *setHeapNodeMarker()    { NodeType |= HeapNode;    return this; }
-  DSNode *setGlobalNodeMarker()  { NodeType |= GlobalNode;  return this; }
-  DSNode *setUnknownNodeMarker() { NodeType |= UnknownNode; return this; }
-
-  DSNode *setExternalMarker() { NodeType |= External; return this; }
-  DSNode *setIncompleteMarker() { NodeType |= Incomplete; return this; }
-  DSNode *setModifiedMarker()   { NodeType |= Modified;   return this; }
-  DSNode *setReadMarker()       { NodeType |= Read;       return this; }
-  DSNode *setArrayMarker()      { NodeType |= Array; return this; }
+  DSNode* setAllocaMarker()     { NodeType |= AllocaNode;     return this; }
+  DSNode* setHeapMarker()       { NodeType |= HeapNode;       return this; }
+  DSNode* setGlobalMarker()     { NodeType |= GlobalNode;     return this; }
+  DSNode* setUnknownMarker()    { NodeType |= UnknownNode;    return this; }
+  DSNode* setModifiedMarker()   { NodeType |= ModifiedNode;   return this; }
+  DSNode* setReadMarker()       { NodeType |= ReadNode;       return this; }
+  DSNode* setArrayMarker()      { NodeType |= ArrayNode;      return this; }
+  DSNode* setIncompleteMarker() { NodeType |= IncompleteNode; return this; }
+  DSNode* setExternalMarker()   { NodeType |= ExternalNode;   return this; }
+  DSNode* setIntToPtrMarker()   { NodeType |= IntToPtrNode;   return this; }
+  DSNode* setPtrToIntMarker()   { NodeType |= PtrToIntNode;   return this; }
 
   void makeNodeDead() {
     Globals.clear();
     assert(hasNoReferrers() && "Dead node shouldn't have refs!");
-    NodeType = DEAD;
+    NodeType = DeadNode;
   }
 
   /// forwardNode - Mark this node as being obsolete, and all references to it
@@ -463,7 +468,7 @@ inline void DSNodeHandle::setTo(DSNode *n, unsigned NewOffset) const {
       Offset = 0;
     }
   }
-  assert(!N || ((N->NodeType & DSNode::DEAD) == 0));
+  assert(!N || ((N->NodeType & DSNode::DeadNode) == 0));
   assert((!N || Offset < N->Size || (N->Size == 0 && Offset == 0) ||
           N->isForwarding()) && "Node handle offset out of range!");
 }

@@ -101,14 +101,14 @@ namespace {
     friend class InstVisitor<GraphBuilder>;
 
     void visitMallocInst(MallocInst &MI)
-    { setDestTo(MI, createNode()->setHeapNodeMarker()); }
+    { setDestTo(MI, createNode()->setHeapMarker()); }
 
     void visitAllocaInst(AllocaInst &AI)
-    { setDestTo(AI, createNode()->setAllocaNodeMarker()); }
+    { setDestTo(AI, createNode()->setAllocaMarker()); }
 
     void visitFreeInst(FreeInst &FI)
     { if (DSNode *N = getValueDest(*FI.getOperand(0)).getNode())
-        N->setHeapNodeMarker();
+        N->setHeapMarker();
     }
 
     //the simple ones
@@ -208,14 +208,14 @@ DSNodeHandle GraphBuilder::getValueDest(Value &Val) {
         if (isa<PointerType>(CE->getOperand(0)->getType()))
           NH = getValueDest(*CE->getOperand(0));
         else
-          NH = createNode()->setUnknownNodeMarker();
+          NH = createNode()->setUnknownMarker();
       } else if (CE->getOpcode() == Instruction::GetElementPtr) {
         visitGetElementPtrInst(*CE);
         assert(G.hasNodeForValue(CE) && "GEP didn't get processed right?");
         NH = G.getNodeForValue(CE);
       } else {
         // This returns a conservative unknown node for any unhandled ConstExpr
-        return NH = createNode()->setUnknownNodeMarker();
+        return NH = createNode()->setUnknownMarker();
       }
       if (NH.isNull()) {  // (getelementptr null, X) returns null
         G.eraseNodeForValue(V);
@@ -339,12 +339,12 @@ void GraphBuilder::visitVAArgInst(VAArgInst &I) {
 }
 
 void GraphBuilder::visitIntToPtrInst(IntToPtrInst &I) {
-  setDestTo(I, createNode()->setUnknownNodeMarker()); //->setIntToPtrMarker()); 
+  setDestTo(I, createNode()->setUnknownMarker()->setIntToPtrMarker()); 
 }
 
 void GraphBuilder::visitPtrToIntInst(PtrToIntInst& I) {
-//   if (DSNode* N = getValueDest(*I.getOperand(0)).getNode())
-//     N->setPtrToIntMarker();
+  if (DSNode* N = getValueDest(*I.getOperand(0)).getNode())
+    N->setPtrToIntMarker();
 }
 
 
@@ -519,7 +519,7 @@ void GraphBuilder::visitInvokeInst(InvokeInst &II) {
 bool GraphBuilder::visitIntrinsic(CallSite CS, Function *F) {
   switch (F->getIntrinsicID()) {
   case Intrinsic::vastart:
-    getValueDest(*CS.getInstruction()).getNode()->setAllocaNodeMarker();
+    getValueDest(*CS.getInstruction()).getNode()->setAllocaMarker();
     return true;
   case Intrinsic::vacopy:
     getValueDest(*CS.getInstruction()).
@@ -561,14 +561,14 @@ bool GraphBuilder::visitExternal(CallSite CS, Function *F) {
       || F->getName() == "posix_memalign"
       || F->getName() == "memalign" || F->getName() == "valloc") {
     setDestTo(*CS.getInstruction(),
-              createNode()->setHeapNodeMarker()->setModifiedMarker());
+              createNode()->setHeapMarker()->setModifiedMarker());
     return true;
   } else if (F->getName() == "realloc") {
     DSNodeHandle RetNH = getValueDest(*CS.getInstruction());
     if (CS.arg_begin() != CS.arg_end())
       RetNH.mergeWith(getValueDest(**CS.arg_begin()));
     if (DSNode *N = RetNH.getNode())
-      N->setHeapNodeMarker()->setModifiedMarker()->setReadMarker();
+      N->setHeapMarker()->setModifiedMarker()->setReadMarker();
     return true;
   } else if (F->getName() == "memmove") {
     // Merge the first & second arguments, and mark the memory read and
@@ -581,7 +581,7 @@ bool GraphBuilder::visitExternal(CallSite CS, Function *F) {
   } else if (F->getName() == "free") {
     // Mark that the node is written to...
     if (DSNode *N = getValueDest(**CS.arg_begin()).getNode())
-      N->setModifiedMarker()->setHeapNodeMarker();
+      N->setModifiedMarker()->setHeapMarker();
   } else if (F->getName() == "atoi" || F->getName() == "atof" ||
              F->getName() == "atol" || F->getName() == "atoll" ||
              F->getName() == "remove" || F->getName() == "unlink" ||
@@ -669,7 +669,7 @@ bool GraphBuilder::visitExternal(CallSite CS, Function *F) {
     // descriptor.  Also, merge the allocated type into the node.
     DSNodeHandle Result = getValueDest(*CS.getInstruction());
     if (DSNode *N = Result.getNode()) {
-      N->setModifiedMarker()->setUnknownNodeMarker();
+      N->setModifiedMarker()->setUnknownMarker();
       const Type *RetTy = F->getFunctionType()->getReturnType();
       if (const PointerType *PTy = dyn_cast<PointerType>(RetTy))
               N->mergeTypeInfo(PTy->getElementType(), Result.getOffset());
@@ -689,7 +689,7 @@ bool GraphBuilder::visitExternal(CallSite CS, Function *F) {
     // file descriptor.  It merges the FILE type into the descriptor.
     DSNodeHandle H = getValueDest(**CS.arg_begin());
     if (DSNode *N = H.getNode()) {
-      N->setReadMarker()->setUnknownNodeMarker();
+      N->setReadMarker()->setUnknownMarker();
       const Type *ArgTy = F->getFunctionType()->getParamType(0);
       if (const PointerType *PTy = dyn_cast<PointerType>(ArgTy))
         N->mergeTypeInfo(PTy->getElementType(), H.getOffset());
@@ -965,7 +965,7 @@ bool GraphBuilder::visitExternal(CallSite CS, Function *F) {
     DSNodeHandle RetNH = getValueDest(*CS.getInstruction());
     RetNH.mergeWith(getValueDest(**CS.arg_begin()));
     if (DSNode *N = RetNH.getNode())
-      N->setHeapNodeMarker()->setModifiedMarker()->setReadMarker();
+      N->setHeapMarker()->setModifiedMarker()->setReadMarker();
     //and read second pointer
     if (DSNode *N = getValueDest(**(CS.arg_begin() + 1)).getNode())
       N->setReadMarker();
@@ -976,7 +976,7 @@ bool GraphBuilder::visitExternal(CallSite CS, Function *F) {
     DSNodeHandle RetNH = getValueDest(*CS.getInstruction());
     RetNH.mergeWith(getValueDest(**CS.arg_begin()));
     if (DSNode *N = RetNH.getNode())
-      N->setHeapNodeMarker()->setModifiedMarker();
+      N->setHeapMarker()->setModifiedMarker();
     //and read second pointer
     if (DSNode *N = getValueDest(**(CS.arg_begin() + 1)).getNode())
             N->setReadMarker();
@@ -989,7 +989,7 @@ bool GraphBuilder::visitExternal(CallSite CS, Function *F) {
 
     // Create a new DSNode for this memory allocation
     DSNode *N = createNode();
-    N->setHeapNodeMarker();
+    N->setHeapMarker();
     setDestTo(*CS.getInstruction(), N);
 
     // Get the pool handle
@@ -1051,7 +1051,7 @@ bool GraphBuilder::visitExternal(CallSite CS, Function *F) {
 
     // Create a DSNode for the memory allocated by this function call
     DSNode *N = createNode();
-    N->setHeapNodeMarker();
+    N->setHeapMarker();
     setDestTo(*CS.getInstruction(), N);
 
     // Get the pool handle, if possible
@@ -1146,7 +1146,7 @@ void GraphBuilder::visitCallSite(CallSite CS) {
         // allocation functions
         if (AllocList.end() != std::find(AllocList.begin(), AllocList.end(), F->getName())) {
           setDestTo(*CS.getInstruction(),
-                    createNode()->setHeapNodeMarker()->setModifiedMarker());
+                    createNode()->setHeapMarker()->setModifiedMarker());
           return;
         }
 
@@ -1156,7 +1156,7 @@ void GraphBuilder::visitCallSite(CallSite CS) {
                                         F->getName())) {
           // Mark that the node is written to...
           if (DSNode *N = getValueDest(*(CS.getArgument(0))).getNode())
-            N->setModifiedMarker()->setHeapNodeMarker();
+            N->setModifiedMarker()->setHeapMarker();
           return;
         }
 
@@ -1222,7 +1222,7 @@ void GraphBuilder::visitInstruction(Instruction &Inst) {
       CurNode.mergeWith(getValueDest(**I));
 
   if (DSNode *N = CurNode.getNode())
-    N->setUnknownNodeMarker();
+    N->setUnknownMarker();
 }
 
 

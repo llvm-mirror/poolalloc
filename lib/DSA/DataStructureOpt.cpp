@@ -76,11 +76,11 @@ bool DSOpt::OptimizeGlobals(Module &M) {
           I->replaceAllUsesWith(Constant::getNullValue((Type*)I->getType()));
           ++NumGlobalsIsolated;
         }
-      } else if (GNode && GNode->isComplete()) {
+      } else if (GNode && GNode->isCompleteNode()) {
 
         // If the node has not been read or written, and it is not externally
         // visible, kill any references to it so it can be DCE'd.
-        if (!GNode->isModified() && !GNode->isRead() &&I->hasInternalLinkage()){
+        if (!GNode->isModifiedNode() && !GNode->isReadNode() &&I->hasInternalLinkage()){
           if (!I->use_empty()) {
             I->replaceAllUsesWith(Constant::getNullValue((Type*)I->getType()));
             ++NumGlobalsIsolated;
@@ -90,7 +90,7 @@ bool DSOpt::OptimizeGlobals(Module &M) {
         // We expect that there will almost always be a node for this global.
         // If there is, and the node doesn't have the M bit set, we can set the
         // 'constant' bit on the global.
-        if (!GNode->isModified() && !I->isConstant()) {
+        if (!GNode->isModifiedNode() && !I->isConstant()) {
           I->setConstant(true);
           ++NumGlobalsConstanted;
           Changed = true;

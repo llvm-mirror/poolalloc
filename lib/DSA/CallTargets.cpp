@@ -53,11 +53,11 @@ void CallTargetFinder::findIndTargets(Module &M)
               DSNode* N = T->getDSGraph(*cs.getCaller())
                 .getNodeForValue(cs.getCalledValue()).getNode();
               N->addFullFunctionList(IndMap[cs]);
-              if (N->isComplete() && IndMap[cs].size()) {
+              if (N->isCompleteNode() && IndMap[cs].size()) {
                 CompleteSites.insert(cs);
                 ++CompleteInd;
               } 
-              if (N->isComplete() && !IndMap[cs].size()) {
+              if (N->isCompleteNode() && !IndMap[cs].size()) {
                 ++CompleteEmpty;
                 cerr << "Call site empty: '"
                      << cs.getInstruction()->getName() 

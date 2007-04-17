@@ -133,7 +133,7 @@ static void GetAllCallees(const DSCallSite &CS,
   if (CS.isDirectCall()) {
     if (isResolvableFunc(CS.getCalleeFunc()))
       Callees.push_back(CS.getCalleeFunc());
-  } else if (!CS.getCalleeNode()->isIncomplete()) {
+  } else if (!CS.getCalleeNode()->isIncompleteNode()) {
     // Get all callees.
     unsigned OldSize = Callees.size();
     CS.getCalleeNode()->addFullFunctionList(Callees);
@@ -313,7 +313,7 @@ DSGraph &BUDataStructures::CreateGraphForExternalFunction(const Function &Fn) {
 
     // Free should take a single pointer argument, mark it as heap memory.
     DSNodeHandle N(new DSNode(0, DSG));
-    N.getNode()->setHeapNodeMarker();
+    N.getNode()->setHeapMarker();
     DSG->getNodeForValue(F->arg_begin()).mergeWith(N);
 
   } else {

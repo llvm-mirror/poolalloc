@@ -182,7 +182,7 @@ const TargetData &DSNode::getTargetData() const {
 void DSNode::assertOK() const {
   assert((Ty != Type::VoidTy ||
           Ty == Type::VoidTy && (Size == 0 ||
-                                 (NodeType & DSNode::Array))) &&
+                                 (NodeType & DSNode::ArrayNode))) &&
          "Node not OK!");
 
   assert(ParentGraph && "Node has no parent?");
@@ -203,7 +203,7 @@ void DSNode::forwardNode(DSNode *To, unsigned Offset) {
   assert((Offset < To->Size || (Offset == To->Size && Offset == 0)) &&
          "Forwarded offset is wrong!");
   ForwardNH.setTo(To, Offset);
-  NodeType = DEAD;
+  NodeType = DeadNode;
   Size = 0;
   Ty = Type::VoidTy;
 
@@ -252,7 +252,7 @@ void DSNode::foldNodeCompletely() {
   // If this node has a size that is <= 1, we don't need to create a forwarding
   // node.
   if (getSize() <= 1) {
-    NodeType |= DSNode::Array;
+    NodeType |= DSNode::ArrayNode;
     Ty = Type::VoidTy;
     Size = 1;
     assert(Links.size() <= 1 && "Size is 1, but has more links?");
@@ -262,7 +262,7 @@ void DSNode::foldNodeCompletely() {
     // some referrers may have an offset that is > 0.  By forcing them to
     // forward, the forwarder has the opportunity to correct the offset.
     DSNode *DestNode = new DSNode(0, ParentGraph);
-    DestNode->NodeType = NodeType|DSNode::Array;
+    DestNode->NodeType = NodeType|DSNode::ArrayNode;
     DestNode->Ty = Type::VoidTy;
     DestNode->Size = 1;
     DestNode->Globals.swap(Globals);
@@ -535,8 +535,8 @@ bool DSNode::mergeTypeInfo(const Type *NewTy, unsigned Offset,
     }
 
     Ty = NewTy;
-    NodeType &= ~Array;
-    if (WillBeArray) NodeType |= Array;
+    NodeType &= ~ArrayNode;
+    if (WillBeArray) NodeType |= ArrayNode;
     Size = NewTySize;
 
     // Calculate the number of outgoing links from this node.
@@ -632,8 +632,8 @@ bool DSNode::mergeTypeInfo(const Type *NewTy, unsigned Offset,
 
     const Type *OldTy = Ty;
     Ty = NewTy;
-    NodeType &= ~Array;
-    if (WillBeArray) NodeType |= Array;
+    NodeType &= ~ArrayNode;
+    if (WillBeArray) NodeType |= ArrayNode;
     Size = NewTySize;
 
     // Must grow links to be the appropriate size...
@@ -1510,9 +1510,9 @@ DSNode *DSGraph::addObjectToGraph(Value *Ptr, bool UseDeclaredType) {
   if (GlobalValue *GV = dyn_cast<GlobalValue>(Ptr)) {
     N->addGlobal(GV);
   } else if (isa<MallocInst>(Ptr)) {
-   N->setHeapNodeMarker();
+   N->setHeapMarker();
   } else if (isa<AllocaInst>(Ptr)) {
-    N->setAllocaNodeMarker();
+    N->setAllocaMarker();
   } else {
     assert(0 && "Illegal memory object input!");
   }
@@ -1535,9 +1535,9 @@ void DSGraph::cloneInto( DSGraph &G, unsigned CloneFlags) {
 
   // Remove alloca or mod/ref bits as specified...
   unsigned BitsToClear = ((CloneFlags & StripAllocaBit)? DSNode::AllocaNode : 0)
-    | ((CloneFlags & StripModRefBits)? (DSNode::Modified | DSNode::Read) : 0)
-    | ((CloneFlags & StripIncompleteBit)? DSNode::Incomplete : 0);
-  BitsToClear |= DSNode::DEAD;  // Clear dead flag...
+    | ((CloneFlags & StripModRefBits)? (DSNode::ModifiedNode | DSNode::ReadNode) : 0)
+    | ((CloneFlags & StripIncompleteBit)? DSNode::IncompleteNode : 0);
+  BitsToClear |= DSNode::DeadNode;  // Clear dead flag...
 
   for (node_const_iterator I = G.node_begin(), E = G.node_end(); I != E; ++I) {
     assert(!I->isForwarding() &&
@@ -1545,10 +1545,6 @@ void DSGraph::cloneInto( DSGraph &G, unsigned CloneFlags) {
     DSNode *New = new DSNode(*I, this);
     New->maskNodeTypes(~BitsToClear);
     OldNodeMap[I] = New;
-#ifdef LLVA_KERNEL
-    if (G.getPoolForNode(&*I)) 
-      PoolDescriptors[New] = G.getPoolForNode(&*I);
-#endif    
   }
 
 #ifndef NDEBUG
@@ -1925,7 +1921,7 @@ DSCallSite DSGraph::getDSCallSiteForCallSite(CallSite CS) const {
 //
 static void markIncompleteNode(DSNode *N) {
   // Stop recursion if no node, or if node already marked...
-  if (N == 0 || N->isIncomplete()) return;
+  if (N == 0 || N->isIncompleteNode()) return;
 
   // Actually mark the node
   N->setIncompleteMarker();
@@ -1999,7 +1995,7 @@ static inline void killIfUselessEdge(DSNodeHandle &Edge) {
   if (DSNode *N = Edge.getNode())  // Is there an edge?
     if (N->getNumReferrers() == 1)  // Does it point to a lonely node?
       // No interesting info?
-      if ((N->getNodeFlags() & ~DSNode::Incomplete) == 0 &&
+      if ((N->getNodeFlags() & ~DSNode::IncompleteNode) == 0 &&
           N->getType() == Type::VoidTy && !N->isNodeCompletelyFolded())
         Edge.setTo(0, 0);  // Kill the edge!
 }
@@ -2037,7 +2033,7 @@ static void removeIdenticalCalls(std::list<DSCallSite> &Calls) {
 
       // If the Callee is a useless edge, this must be an unreachable call site,
       // eliminate it.
-      if (Callee->getNumReferrers() == 1 && Callee->isComplete() &&
+      if (Callee->getNumReferrers() == 1 && Callee->isCompleteNode() &&
           Callee->getGlobalsList().empty()) {  // No useful info?
         DOUT << "WARNING: Useless call site found.\n";
         Calls.erase(OldIt);
@@ -2213,7 +2209,7 @@ void DSGraph::removeTriviallyDeadNodes() {
       continue;
     }
 
-    if (Node.isComplete() && !Node.isModified() && !Node.isRead()) {
+    if (Node.isCompleteNode() && !Node.isModifiedNode() && !Node.isReadNode()) {
       // This is a useless node if it has no mod/ref info (checked above),
       // outgoing edges (which it cannot, as it is not modified in this
       // context), and it has no incoming edges.  If it is a global node it may
