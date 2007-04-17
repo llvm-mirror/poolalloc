@@ -654,7 +654,7 @@ void FuncTransform::visitCallSite(CallSite CS) {
 	  Value *Align  = ConstantInt::get(Type::Int32Ty,0);
           Value* Opts[3] = {ArgVal, ElSize, Align};
 	  new CallInst(PAInfo.PoolInit, Opts, 3,"", TheCall);
-	    new CallInst(PAInfo.PoolDestroy, ArgVal, "", TheCall->getNext());
+          new CallInst(PAInfo.PoolDestroy, ArgVal, "", TheCall+1);
 	}
 	//probably need to update DSG
 	//      std::cerr << "WARNING: NULL POOL ARGUMENTS ARE PASSED IN!\n";
