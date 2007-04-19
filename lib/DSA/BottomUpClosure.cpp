@@ -38,7 +38,7 @@ namespace {
 // program.
 //
 bool BUDataStructures::runOnModule(Module &M) {
-  LocalDataStructures &LocalDSA = getAnalysis<LocalDataStructures>();
+  StdLibDataStructures &LocalDSA = getAnalysis<StdLibDataStructures>();
   setGraphSource(&LocalDSA);
   setTargetData(LocalDSA.getTargetData());
   setGraphClone(false);
@@ -116,34 +116,13 @@ bool BUDataStructures::runOnModule(Module &M) {
   return false;
 }
 
-static bool isVAHackFn(const Function *F) {
-  return F->getName() == "printf"  || F->getName() == "sscanf" ||
-    F->getName() == "fprintf" || F->getName() == "open" ||
-    F->getName() == "sprintf" || F->getName() == "fputs" ||
-    F->getName() == "fscanf" || F->getName() == "malloc" ||
-    F->getName() == "free";
-}
-
-static bool isResolvableFunc(const Function* callee) {
-  return !callee->isDeclaration() || isVAHackFn(callee);
-}
-
 static void GetAllCallees(const DSCallSite &CS,
                           std::vector<Function*> &Callees) {
   if (CS.isDirectCall()) {
-    if (isResolvableFunc(CS.getCalleeFunc()))
-      Callees.push_back(CS.getCalleeFunc());
+    Callees.push_back(CS.getCalleeFunc());
   } else if (!CS.getCalleeNode()->isIncompleteNode()) {
     // Get all callees.
-    unsigned OldSize = Callees.size();
     CS.getCalleeNode()->addFullFunctionList(Callees);
-
-    // If any of the callees are unresolvable, remove the whole batch!
-    for (unsigned i = OldSize, e = Callees.size(); i != e; ++i)
-      if (!isResolvableFunc(Callees[i])) {
-        Callees.erase(Callees.begin()+OldSize, Callees.end());
-        return;
-      }
   }
 }
 
@@ -163,16 +142,6 @@ unsigned BUDataStructures::calculateGraphs(Function *F,
   unsigned Min = NextID++, MyID = Min;
   ValMap[F] = Min;
   Stack.push_back(F);
-
-  // FIXME!  This test should be generalized to be any function that we have
-  // already processed, in the case when there isn't a main or there are
-  // unreachable functions!
-  if (F->isDeclaration()) {   // sprintf, fprintf, sscanf, etc...
-    // No callees!
-    Stack.pop_back();
-    ValMap[F] = ~0;
-    return Min;
-  }
 
   DSGraph &Graph = getOrCreateGraph(F);
 
@@ -202,11 +171,10 @@ unsigned BUDataStructures::calculateGraphs(Function *F,
     DOUT << "Visiting single node SCC #: " << MyID << " fn: "
          << F->getName() << "\n";
     Stack.pop_back();
-    DSGraph &G = getDSGraph(*F);
     DOUT << "  [BU] Calculating graph for: " << F->getName()<< "\n";
-    calculateGraph(G);
+    calculateGraph(Graph);
     DOUT << "  [BU] Done inlining: " << F->getName() << " ["
-         << G.getGraphSize() << "+" << G.getAuxFunctionCalls().size()
+         << Graph.getGraphSize() << "+" << Graph.getAuxFunctionCalls().size()
          << "]\n";
 
     if (MaxSCC < 1) MaxSCC = 1;
@@ -371,9 +339,6 @@ void BUDataStructures::calculateGraph(DSGraph &Graph) {
     // Fast path for noop calls.  Note that we don't care about merging globals
     // in the callee with nodes in the caller here.
     if (CS.getRetVal().isNull() && CS.getNumPtrArgs() == 0) {
-      TempFCs.erase(TempFCs.begin());
-      continue;
-    } else if (CS.isDirectCall() && isVAHackFn(CS.getCalleeFunc())) {
       TempFCs.erase(TempFCs.begin());
       continue;
     }

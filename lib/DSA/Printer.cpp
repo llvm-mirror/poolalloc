@@ -71,6 +71,10 @@ static std::string getCaption(const DSNode *N, const DSGraph *G) {
     if (NodeType & DSNode::IncompleteNode ) OS << "I";
     if (NodeType & DSNode::ModifiedNode   ) OS << "M";
     if (NodeType & DSNode::ReadNode       ) OS << "R";
+    if (NodeType & DSNode::ExternalNode   ) OS << "E";
+    if (NodeType & DSNode::IntToPtrNode   ) OS << "P";
+    if (NodeType & DSNode::PtrToIntNode   ) OS << "2";
+
 #ifndef NDEBUG
     if (NodeType & DSNode::DeadNode       ) OS << "<dead>";
 #endif
@@ -329,6 +333,11 @@ static void printCollection(const Collection &C, std::ostream &O,
 
 // print - Print out the analysis results...
 void LocalDataStructures::print(std::ostream &O, const Module *M) const {
+  if (DontPrintAnything) return;
+  printCollection(*this, O, M, "ds.");
+}
+
+void StdLibDataStructures::print(std::ostream &O, const Module *M) const {
   if (DontPrintAnything) return;
   printCollection(*this, O, M, "ds.");
 }

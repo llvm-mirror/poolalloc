@@ -76,6 +76,8 @@ protected:
 
   void formGlobalECs();
 
+  DataStructures() :TD(0), GraphSource(0), GlobalsGraph(0) {}
+
 public:
 
   bool hasGraph(const Function &F) const {
@@ -114,6 +116,7 @@ public:
 //
 class LocalDataStructures : public DataStructures {
 public:
+  LocalDataStructures() :DataStructures() {}
   ~LocalDataStructures() { releaseMemory(); }
 
   virtual bool runOnModule(Module &M);
@@ -135,6 +138,31 @@ public:
   }
 };
 
+// StdLibDataStructures - This analysis recognizes common standard c library
+// functions and generates graphs for them.
+class StdLibDataStructures : public DataStructures {
+public:
+  StdLibDataStructures() :DataStructures() {}
+  ~StdLibDataStructures() { releaseMemory(); }
+
+  virtual bool runOnModule(Module &M);
+
+  /// print - Print out the analysis results...
+  ///
+  void print(std::ostream &O, const Module *M) const;
+
+  /// releaseMemory - if the pass pipeline is done with this pass, we can
+  /// release our memory...
+  ///
+  virtual void releaseMemory();
+
+  /// getAnalysisUsage - This obviously provides a data structure graph.
+  ///
+  virtual void getAnalysisUsage(AnalysisUsage &AU) const {
+    AU.setPreservesAll();
+    AU.addRequired<LocalDataStructures>();
+  }
+};
 
 /// BUDataStructures - The analysis that computes the interprocedurally closed
 /// data structure graphs for all of the functions in the program.  This pass
@@ -149,6 +177,7 @@ protected:
            std::pair<DSGraph*, std::vector<DSNodeHandle> > > *IndCallGraphMap;
 
 public:
+  BUDataStructures() : DataStructures() {}
   ~BUDataStructures() { releaseMyMemory(); }
 
   virtual bool runOnModule(Module &M);
@@ -170,7 +199,7 @@ public:
 
   virtual void getAnalysisUsage(AnalysisUsage &AU) const {
     AU.setPreservesAll();
-    AU.addRequired<LocalDataStructures>();
+    AU.addRequired<StdLibDataStructures>();
   }
 
   typedef std::set<std::pair<Instruction*, Function*> > ActualCalleesTy;
@@ -232,19 +261,10 @@ class TDDataStructures : public DataStructures {
   std::map<std::vector<Function*>, DSGraph*> IndCallMap;
 
 public:
+  TDDataStructures() :DataStructures() {}
   ~TDDataStructures() { releaseMyMemory(); }
 
   virtual bool runOnModule(Module &M);
-
-  /// getDSGraph - Return the data structure graph for the specified function.
-  ///
-  DSGraph &getDSGraph(const Function &F) const {
-    hash_map<Function*, DSGraph*>::const_iterator I =
-      DSInfo.find(const_cast<Function*>(&F));
-    if (I != DSInfo.end()) return *I->second;
-    return const_cast<TDDataStructures*>(this)->
-        getOrCreateDSGraph(const_cast<Function&>(F));
-  }
 
   /// deleteValue/copyValue - Interfaces to update the DSGraphs in the program.
   /// These correspond to the interfaces defined in the AliasAnalysis class.
@@ -271,7 +291,6 @@ private:
                                                   hash_set<DSNode*> &Visited);
 
   void InlineCallersIntoGraph(DSGraph &G);
-  DSGraph &getOrCreateDSGraph(Function &F);
   void ComputePostOrder(Function &F, hash_set<DSGraph*> &Visited,
                         std::vector<DSGraph*> &PostOrder);
 };

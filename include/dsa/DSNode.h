@@ -337,6 +337,10 @@ public:
   ///
   unsigned getNodeFlags() const { return NodeType & ~DeadNode; }
 
+  /// clearNodeFlags - Useful for completely resetting a node, 
+  /// used in external recognizers
+  DSNode* clearNodeFlags() { NodeType = 0; return this; }
+
   bool isAllocaNode()     const { return NodeType & AllocaNode;    }
   bool isHeapNode()       const { return NodeType & HeapNode;      }
   bool isGlobalNode()     const { return NodeType & GlobalNode;    }

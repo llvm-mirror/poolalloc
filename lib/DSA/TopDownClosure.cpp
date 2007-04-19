@@ -60,6 +60,10 @@ void TDDataStructures::markReachableFunctionsExternallyAccessible(DSNode *N,
 //
 bool TDDataStructures::runOnModule(Module &M) {
   BUInfo = &getAnalysis<BUDataStructures>();
+  setGraphSource(BUInfo);
+  setTargetData(BUInfo->getTargetData());
+  setGraphClone(true);
+
   GlobalECs = BUInfo->getGlobalECs();
   GlobalsGraph = new DSGraph(BUInfo->getGlobalsGraph(), GlobalECs);
   GlobalsGraph->setPrintAuxCalls();
@@ -89,7 +93,7 @@ bool TDDataStructures::runOnModule(Module &M) {
 
   // Functions without internal linkage also have unknown incoming arguments!
   for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I)
-    if (!I->isDeclaration() && !I->hasInternalLinkage())
+    if (!I->hasInternalLinkage())
       ArgsRemainIncomplete.insert(I);
 
   // We want to traverse the call graph in reverse post-order.  To do this, we
@@ -102,8 +106,7 @@ bool TDDataStructures::runOnModule(Module &M) {
 
   // Visit each of the graphs in reverse post-order now!
   for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I)
-    if (!I->isDeclaration())
-      getOrCreateDSGraph(*I);
+    getOrCreateGraph(*I);
   return false;
 }
 #endif
@@ -117,7 +120,8 @@ bool TDDataStructures::runOnModule(Module &M) {
 
   // Next calculate the graphs for each unreachable function...
   for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I)
-    ComputePostOrder(*I, VisitedGraph, PostOrder);
+    if (!I->isDeclaration())
+      ComputePostOrder(*I, VisitedGraph, PostOrder);
 
   VisitedGraph.clear();   // Release memory!
 }
@@ -145,30 +149,9 @@ bool TDDataStructures::runOnModule(Module &M) {
 }
 
 
-DSGraph &TDDataStructures::getOrCreateDSGraph(Function &F) {
-  DSGraph *&G = DSInfo[&F];
-  if (G == 0) { // Not created yet?  Clone BU graph...
-    G = new DSGraph(getAnalysis<BUDataStructures>().getDSGraph(F), GlobalECs,
-                    DSGraph::DontCloneAuxCallNodes);
-    assert(G->getAuxFunctionCalls().empty() && "Cloned aux calls?");
-    G->setPrintAuxCalls();
-    G->setGlobalsGraph(GlobalsGraph);
-
-    // Note that this graph is the graph for ALL of the function in the SCC, not
-    // just F.
-    for (DSGraph::retnodes_iterator RI = G->retnodes_begin(),
-           E = G->retnodes_end(); RI != E; ++RI)
-      if (RI->first != &F)
-        DSInfo[RI->first] = G;
-  }
-  return *G;
-}
-
-
 void TDDataStructures::ComputePostOrder(Function &F,hash_set<DSGraph*> &Visited,
                                         std::vector<DSGraph*> &PostOrder) {
-  if (F.isDeclaration()) return;
-  DSGraph &G = getOrCreateDSGraph(F);
+  DSGraph &G = getOrCreateGraph(&F);
   if (Visited.count(&G)) return;
   Visited.insert(&G);
 
@@ -312,9 +295,8 @@ void TDDataStructures::InlineCallersIntoGraph(DSGraph &DSG) {
 
     // Handle direct calls efficiently.
     if (CI->isDirectCall()) {
-      if (!CI->getCalleeFunc()->isDeclaration() &&
-          !DSG.getReturnNodes().count(CI->getCalleeFunc()))
-        CallerEdges[&getDSGraph(*CI->getCalleeFunc())]
+      if (!DSG.getReturnNodes().count(CI->getCalleeFunc()))
+        CallerEdges[&getOrCreateGraph(CI->getCalleeFunc())]
           .push_back(CallerCallEdge(&DSG, &*CI, CI->getCalleeFunc()));
       continue;
     }
@@ -325,7 +307,7 @@ void TDDataStructures::InlineCallersIntoGraph(DSGraph &DSG) {
       BUInfo->callee_begin(CallI), IPE = BUInfo->callee_end(CallI);
 
     // Skip over all calls to this graph (SCC calls).
-    while (IPI != IPE && &getDSGraph(*IPI->second) == &DSG)
+    while (IPI != IPE && &getOrCreateGraph(IPI->second) == &DSG)
       ++IPI;
 
     // All SCC calls?
@@ -335,15 +317,14 @@ void TDDataStructures::InlineCallersIntoGraph(DSGraph &DSG) {
     ++IPI;
 
     // Skip over more SCC calls.
-    while (IPI != IPE && &getDSGraph(*IPI->second) == &DSG)
+    while (IPI != IPE && &getOrCreateGraph(IPI->second) == &DSG)
       ++IPI;
 
     // If there is exactly one callee from this call site, remember the edge in
     // CallerEdges.
     if (IPI == IPE) {
-      if (!FirstCallee->isDeclaration())
-        CallerEdges[&getDSGraph(*FirstCallee)]
-          .push_back(CallerCallEdge(&DSG, &*CI, FirstCallee));
+      CallerEdges[&getOrCreateGraph(FirstCallee)]
+        .push_back(CallerCallEdge(&DSG, &*CI, FirstCallee));
       continue;
     }
 
@@ -356,8 +337,7 @@ void TDDataStructures::InlineCallersIntoGraph(DSGraph &DSG) {
     for (BUDataStructures::ActualCalleesTy::const_iterator I =
            BUInfo->callee_begin(CallI), E = BUInfo->callee_end(CallI);
          I != E; ++I)
-      if (!I->second->isDeclaration())
-        Callees.push_back(I->second);
+      Callees.push_back(I->second);
     std::sort(Callees.begin(), Callees.end());
 
     std::map<std::vector<Function*>, DSGraph*>::iterator IndCallRecI =
@@ -388,7 +368,7 @@ void TDDataStructures::InlineCallersIntoGraph(DSGraph &DSG) {
       // exactly once.
       DSCallSite *NCS = &IndCallGraph->getFunctionCalls().front();
       for (unsigned i = 0, e = Callees.size(); i != e; ++i) {
-        DSGraph& CalleeGraph = getDSGraph(*Callees[i]);
+        DSGraph& CalleeGraph = getOrCreateGraph(Callees[i]);
         if (&CalleeGraph != &DSG)
           CallerEdges[&CalleeGraph].push_back(CallerCallEdge(IndCallGraph, NCS,
                                                              Callees[i]));
@@ -400,67 +380,4 @@ void TDDataStructures::InlineCallersIntoGraph(DSGraph &DSG) {
     ReachabilityCloner RC(*IndCallGraph, DSG, 0);
     RC.mergeCallSite(IndCallGraph->getFunctionCalls().front(), *CI);
   }
-}
-
-
-static const Function *getFnForValue(const Value *V) {
-  if (const Instruction *I = dyn_cast<Instruction>(V))
-    return I->getParent()->getParent();
-  else if (const Argument *A = dyn_cast<Argument>(V))
-    return A->getParent();
-  else if (const BasicBlock *BB = dyn_cast<BasicBlock>(V))
-    return BB->getParent();
-  return 0;
-}
-
-void TDDataStructures::deleteValue(Value *V) {
-  if (const Function *F = getFnForValue(V)) {  // Function local value?
-    // If this is a function local value, just delete it from the scalar map!
-    getDSGraph(*F).getScalarMap().eraseIfExists(V);
-    return;
-  }
-
-  if (Function *F = dyn_cast<Function>(V)) {
-    assert(getDSGraph(*F).getReturnNodes().size() == 1 &&
-           "cannot handle scc's");
-    delete DSInfo[F];
-    DSInfo.erase(F);
-    return;
-  }
-
-  assert(!isa<GlobalVariable>(V) && "Do not know how to delete GV's yet!");
-}
-
-void TDDataStructures::copyValue(Value *From, Value *To) {
-  if (From == To) return;
-  if (const Function *F = getFnForValue(From)) {  // Function local value?
-    // If this is a function local value, just delete it from the scalar map!
-    getDSGraph(*F).getScalarMap().copyScalarIfExists(From, To);
-    return;
-  }
-
-  if (Function *FromF = dyn_cast<Function>(From)) {
-    Function *ToF = cast<Function>(To);
-    assert(!DSInfo.count(ToF) && "New Function already exists!");
-    DSGraph *NG = new DSGraph(getDSGraph(*FromF), GlobalECs);
-    DSInfo[ToF] = NG;
-    assert(NG->getReturnNodes().size() == 1 && "Cannot copy SCC's yet!");
-
-    // Change the Function* is the returnnodes map to the ToF.
-    DSNodeHandle Ret = NG->retnodes_begin()->second;
-    NG->getReturnNodes().clear();
-    NG->getReturnNodes()[ToF] = Ret;
-    return;
-  }
-
-  if (const Function *F = getFnForValue(To)) {
-    DSGraph &G = getDSGraph(*F);
-    G.getScalarMap().copyScalarIfExists(From, To);
-    return;
-  }
-
-  DOUT << *From;
-  DOUT << *To;
-  assert(0 && "Do not know how to copy this yet!");
-  abort();
 }
