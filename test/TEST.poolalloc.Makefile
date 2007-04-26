@@ -19,18 +19,20 @@ endif
 CURDIR  := $(shell cd .; pwd)
 PROGDIR := $(shell cd $(LLVM_SRC_ROOT)/projects/llvm-test; pwd)/
 RELDIR  := $(subst $(PROGDIR),,$(CURDIR))
+PADIR   := /home/andrewl/Research/llvm.orig/projects/llvm-poolalloc
 
 # Pool allocator pass shared object
-PA_SO    := $(PROJECT_DIR)/Debug/lib/poolalloc$(SHLIBEXT)
+PA_SO    := $(PADIR)/Debug/lib/poolalloc$(SHLIBEXT)
+DSA_SO   := $(PADIR)/Debug/lib/LLVMDataStructure$(SHLIBEXT)
 
 # Pool allocator runtime library
-#PA_RT    := $(PROJECT_DIR)/lib/Bytecode/libpoolalloc_fl_rt.bc
+#PA_RT    := $(PADIR)/Debug/lib/libpoolalloc_fl_rt.bc
 #PA_RT_O  := $(PROJECT_DIR)/lib/$(CONFIGURATION)/poolalloc_rt.o
-PA_RT_O  := $(PROJECT_DIR)/Release/lib/poolalloc_rt.o
+PA_RT_O  := $(PADIR)/Release/lib/poolalloc_rt.o
 #PA_RT_O  := $(PROJECT_DIR)/lib/Release/poolalloc_fl_rt.o
 
 # Command to run opt with the pool allocator pass loaded
-OPT_PA := $(LOPT) -load $(PA_SO)
+OPT_PA := $(LOPT) -load $(DSA_SO) -load $(PA_SO)
 
 # OPT_PA_STATS - Run opt with the -stats and -time-passes options, capturing the
 # output to a file.

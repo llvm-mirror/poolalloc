@@ -150,7 +150,7 @@ Instruction *FuncTransform::TransformAllocationInstr(Instruction *I,
   std::string Name = I->getName(); I->setName("");
 
   if (Size->getType() != Type::Int32Ty)
-    Size = CastInst::createZExtOrBitCast(Size, Type::Int32Ty, Size->getName(), I);
+    Size = CastInst::createIntegerCast(Size, Type::Int32Ty, false, Size->getName(), I);
 
   // Insert a call to poolalloc
   Value *PH = getPoolHandle(I);
@@ -341,7 +341,7 @@ void FuncTransform::visitReallocCall(CallSite CS) {
   Value *Size = CS.getArgument(1);
 
   if (Size->getType() != Type::Int32Ty)
-    Size = CastInst::createZExtOrBitCast(Size, Type::Int32Ty, Size->getName(), I);
+    Size = CastInst::createIntegerCast(Size, Type::Int32Ty, false, Size->getName(), I);
 
   static Type *VoidPtrTy = PointerType::get(Type::Int8Ty);
   if (OldPtr->getType() != VoidPtrTy)
@@ -411,9 +411,9 @@ void FuncTransform::visitMemAlignCall(CallSite CS) {
   }
 
   if (Align->getType() != Type::Int32Ty)
-    Align = CastInst::createZExtOrBitCast(Align, Type::Int32Ty, Align->getName(), I);
+    Align = CastInst::createIntegerCast(Align, Type::Int32Ty, false, Align->getName(), I);
   if (Size->getType() != Type::Int32Ty)
-    Size = CastInst::createZExtOrBitCast(Size, Type::Int32Ty, Size->getName(), I);
+    Size = CastInst::createIntegerCast(Size, Type::Int32Ty, false, Size->getName(), I);
 
   std::string Name = I->getName(); I->setName("");
   Value* Opts[3] = {PH, Align, Size};
@@ -615,7 +615,7 @@ void FuncTransform::visitCallSite(CallSite CS) {
   //assert(AI == AE && "Varargs calls not handled yet!");
 
   // Map the return value as well...
-  if (DS::isPointerType(TheCall->getType()))
+  if (isa<PointerType>(TheCall->getType()))
     DSGraph::computeNodeMapping(CalleeGraph->getReturnNodeFor(*CF),
                                 getDSNodeHFor(TheCall), NodeMapping, false);
 

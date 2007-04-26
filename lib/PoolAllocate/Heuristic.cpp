@@ -78,7 +78,7 @@ static bool Wants8ByteAlignment(const Type *Ty, unsigned Offs,
       return true;
   }
 
-  if (Ty->isPrimitiveType() || isa<PointerType>(Ty))
+  if (Ty->isFirstClassType())
     return false;
 
   if (const StructType *STy = dyn_cast<StructType>(Ty)) {
