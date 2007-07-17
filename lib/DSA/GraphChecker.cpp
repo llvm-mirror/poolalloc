@@ -55,6 +55,7 @@ namespace {
              cl::desc("Abort if any of the named symbols are merged together"));
 
   struct DSGC : public FunctionPass {
+    static char ID;
     DSGC();
     bool doFinalization(Module &M);
     bool runOnFunction(Function &F);
@@ -81,7 +82,7 @@ FunctionPass *llvm::createDataStructureGraphCheckerPass() {
 }
 
 
-DSGC::DSGC() {
+DSGC::DSGC() : FunctionPass((intptr_t)&ID) {
   if (!AbortIfAnyCollapsed && AbortIfCollapsed.empty() &&
       CheckFlags.empty() && AbortIfMerged.empty()) {
     cerr << "The -datastructure-gc is useless if you don't specify any"

@@ -29,7 +29,8 @@ namespace {
 
     EquivalenceClasses<GlobalValue*> GlobalECs;  // Always empty
   public:
-    Steens() : ResultGraph(0) {}
+    static char ID;
+    Steens() : ModulePass((intptr_t)&ID), ResultGraph(0) {}
     ~Steens() {
       releaseMyMemory();
       assert(ResultGraph == 0 && "releaseMemory not called?");

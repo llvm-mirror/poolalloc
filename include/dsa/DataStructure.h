@@ -76,7 +76,8 @@ protected:
 
   void formGlobalECs();
 
-  DataStructures() :TD(0), GraphSource(0), GlobalsGraph(0) {}
+  DataStructures(intptr_t id) 
+    :ModulePass(id), TD(0), GraphSource(0), GlobalsGraph(0) {}
 
 public:
 
@@ -116,7 +117,8 @@ public:
 //
 class LocalDataStructures : public DataStructures {
 public:
-  LocalDataStructures() :DataStructures() {}
+  static char ID;
+  LocalDataStructures() : DataStructures((intptr_t)&ID) {}
   ~LocalDataStructures() { releaseMemory(); }
 
   virtual bool runOnModule(Module &M);
@@ -142,7 +144,8 @@ public:
 // functions and generates graphs for them.
 class StdLibDataStructures : public DataStructures {
 public:
-  StdLibDataStructures() :DataStructures() {}
+  static char ID;
+  StdLibDataStructures() : DataStructures((intptr_t)&ID) {}
   ~StdLibDataStructures() { releaseMemory(); }
 
   virtual bool runOnModule(Module &M);
@@ -176,8 +179,10 @@ protected:
   std::map<std::vector<Function*>,
            std::pair<DSGraph*, std::vector<DSNodeHandle> > > *IndCallGraphMap;
 
+  BUDataStructures(intptr_t id) : DataStructures(id) {}
 public:
-  BUDataStructures() : DataStructures() {}
+  static char ID;
+  BUDataStructures() : DataStructures((intptr_t)&ID) {}
   ~BUDataStructures() { releaseMyMemory(); }
 
   virtual bool runOnModule(Module &M);
@@ -261,7 +266,8 @@ class TDDataStructures : public DataStructures {
   std::map<std::vector<Function*>, DSGraph*> IndCallMap;
 
 public:
-  TDDataStructures() :DataStructures() {}
+  static char ID;
+  TDDataStructures() : DataStructures((intptr_t)&ID) {}
   ~TDDataStructures() { releaseMyMemory(); }
 
   virtual bool runOnModule(Module &M);
@@ -301,7 +307,12 @@ private:
 /// their callers graphs, making the result more useful for things like pool
 /// allocation.
 ///
-struct CompleteBUDataStructures : public BUDataStructures {
+class CompleteBUDataStructures : public BUDataStructures {
+public:
+  static char ID;
+  CompleteBUDataStructures() : BUDataStructures((intptr_t)&ID) {}
+  ~CompleteBUDataStructures() { releaseMyMemory(); }
+
   virtual bool runOnModule(Module &M);
 
   virtual void getAnalysisUsage(AnalysisUsage &AU) const {
@@ -357,9 +368,13 @@ struct EquivClassGraphs : public ModulePass {
   EquivalenceClasses<GlobalValue*> GlobalECs;
 
 public:
+  static char ID;
+  EquivClassGraphs() : ModulePass((intptr_t)&ID) {}
+
   /// EquivClassGraphs - Computes the equivalence classes and then the
   /// folded DS graphs for each class.
   ///
+
   virtual bool runOnModule(Module &M);
 
   /// print - Print out the analysis results...

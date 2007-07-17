@@ -29,6 +29,9 @@ namespace {
   class DSOpt : public ModulePass {
     TDDataStructures *TD;
   public:
+    static char ID;
+    DSOpt() : ModulePass((intptr_t)&ID) {};
+
     bool runOnModule(Module &M) {
       TD = &getAnalysis<TDDataStructures>();
       bool Changed = OptimizeGlobals(M);

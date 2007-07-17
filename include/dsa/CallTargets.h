@@ -30,6 +30,9 @@ namespace llvm {
 
     void findIndTargets(Module &M);
   public:
+    static char ID;
+    CallTargetFinder() : ModulePass((intptr_t)&ID) {}
+
     virtual bool runOnModule(Module &M);
 
     virtual void getAnalysisUsage(AnalysisUsage &AU) const;

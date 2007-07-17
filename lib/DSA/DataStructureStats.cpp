@@ -43,6 +43,9 @@ namespace {
     DSNode *getNodeForValue(Value *V);
     bool isNodeForValueCollapsed(Value *V);
   public:
+    static char ID;
+    DSGraphStats() : FunctionPass((intptr_t)&ID) {}
+
     /// Driver functions to compute the Load/Store Dep. Graph per function.
     bool runOnFunction(Function& F);
 

@@ -36,7 +36,8 @@ namespace {
     CallSite MapCS;
     std::multimap<DSNode*, const DSNode*> CallerCalleeMap;
   public:
-    DSAA() : TD(0) {}
+    static char ID;
+    DSAA() : ModulePass((intptr_t)&ID), TD(0) {}
     ~DSAA() {
       InvalidateCache();
     }

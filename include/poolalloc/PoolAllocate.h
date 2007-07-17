@@ -147,12 +147,13 @@ public:
   std::map<const DSNode*, Value*> GlobalNodes;
 
  public:
+  static char ID;
 #ifdef SAFECODE  
   PoolAllocate(bool passAllArguments = true) 
-    : PassAllArguments(passAllArguments) {}
+    : ModulePass((intptr_t)&ID), PassAllArguments(passAllArguments) {}
 #else
   PoolAllocate(bool passAllArguments = false) 
-    : PassAllArguments(passAllArguments) {}
+    : ModulePass((intptr_t)&ID), PassAllArguments(passAllArguments) {}
 #endif
   bool runOnModule(Module &M);
   
