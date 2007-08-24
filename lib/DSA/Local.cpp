@@ -64,7 +64,7 @@ namespace {
     ////////////////////////////////////////////////////////////////////////////
     // Helper functions used to implement the visitation functions...
 
-    void MergeConstantInitIntoNode(DSNodeHandle &NH, Constant *C);
+    void MergeConstantInitIntoNode(DSNodeHandle &NH, const Type* Ty, Constant *C);
 
     /// createNode - Create a new DSNode, ensuring that it is properly added to
     /// the graph.
@@ -297,6 +297,8 @@ void GraphBuilder::visitSelectInst(SelectInst &SI) {
 void GraphBuilder::visitLoadInst(LoadInst &LI) {
   DSNodeHandle Ptr = getValueDest(*LI.getOperand(0));
 
+  if (Ptr.isNull()) return; // Load from null
+
   // Make that the node is read from...
   Ptr.getNode()->setReadMarker();
 
@@ -345,6 +347,8 @@ void GraphBuilder::visitVAArgInst(VAArgInst &I) {
 }
 
 void GraphBuilder::visitIntToPtrInst(IntToPtrInst &I) {
+  std::cerr << "cast in " << I.getParent()->getParent()->getName() << "\n";
+  I.dump();
   setDestTo(I, createNode()->setUnknownMarker()->setIntToPtrMarker()); 
 }
 
@@ -659,13 +663,13 @@ void GraphBuilder::visitInstruction(Instruction &Inst) {
 
 // MergeConstantInitIntoNode - Merge the specified constant into the node
 // pointed to by NH.
-void GraphBuilder::MergeConstantInitIntoNode(DSNodeHandle &NH, Constant *C) {
+void GraphBuilder::MergeConstantInitIntoNode(DSNodeHandle &NH, const Type* Ty, Constant *C) {
   // Ensure a type-record exists...
   DSNode *NHN = NH.getNode();
-  NHN->mergeTypeInfo(C->getType(), NH.getOffset());
+  NHN->mergeTypeInfo(Ty, NH.getOffset());
 
-  if (C->getType()->isFirstClassType()) {
-    if (isa<PointerType>(C->getType()))
+  if (Ty->isFirstClassType()) {
+    if (isa<PointerType>(Ty))
       // Avoid adding edges from null, or processing non-"pointer" stores
       NH.addEdgeTo(getValueDest(*C));
     return;
@@ -676,15 +680,15 @@ void GraphBuilder::MergeConstantInitIntoNode(DSNodeHandle &NH, Constant *C) {
   if (ConstantArray *CA = dyn_cast<ConstantArray>(C)) {
     for (unsigned i = 0, e = CA->getNumOperands(); i != e; ++i)
       // We don't currently do any indexing for arrays...
-      MergeConstantInitIntoNode(NH, cast<Constant>(CA->getOperand(i)));
+      MergeConstantInitIntoNode(NH, cast<ArrayType>(Ty)->getElementType(), cast<Constant>(CA->getOperand(i)));
   } else if (ConstantStruct *CS = dyn_cast<ConstantStruct>(C)) {
-    const StructLayout *SL = TD.getStructLayout(CS->getType());
+    const StructLayout *SL = TD.getStructLayout(cast<StructType>(Ty));
     for (unsigned i = 0, e = CS->getNumOperands(); i != e; ++i) {
       DSNode *NHN = NH.getNode();
       //Some programmers think ending a structure with a [0 x sbyte] is cute
       if (SL->getElementOffset(i) < SL->getSizeInBytes()) {
         DSNodeHandle NewNH(NHN, NH.getOffset()+(unsigned)SL->getElementOffset(i));
-        MergeConstantInitIntoNode(NewNH, cast<Constant>(CS->getOperand(i)));
+        MergeConstantInitIntoNode(NewNH, cast<StructType>(Ty)->getElementType(i), cast<Constant>(CS->getOperand(i)));
       } else if (SL->getElementOffset(i) == SL->getSizeInBytes()) {
         DOUT << "Zero size element at end of struct\n";
         NHN->foldNodeCompletely();
@@ -703,9 +707,10 @@ void GraphBuilder::mergeInGlobalInitializer(GlobalVariable *GV) {
   assert(!GV->isDeclaration() && "Cannot merge in external global!");
   // Get a node handle to the global node and merge the initializer into it.
   DSNodeHandle NH = getValueDest(*GV);
-  MergeConstantInitIntoNode(NH, GV->getInitializer());
+  MergeConstantInitIntoNode(NH, GV->getType()->getElementType(), GV->getInitializer());
 }
 
+char LocalDataStructures::ID;
 
 bool LocalDataStructures::runOnModule(Module &M) {
   setTargetData(getAnalysis<TargetData>());

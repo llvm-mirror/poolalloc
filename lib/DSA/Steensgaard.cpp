@@ -85,6 +85,8 @@ namespace {
   RegisterAnalysisGroup<AliasAnalysis> Y(X);
 }
 
+char Steens::ID;
+
 ModulePass *llvm::createSteensgaardPass() { return new Steens(); }
 
 /// ResolveFunctionCall - Resolve the actual arguments of a call to function F

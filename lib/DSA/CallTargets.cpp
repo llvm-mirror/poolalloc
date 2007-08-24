@@ -38,6 +38,8 @@ namespace {
   RegisterPass<CallTargetFinder> X("calltarget","Find Call Targets (uses DSA)");
 }
 
+char CallTargetFinder::ID;
+
 void CallTargetFinder::findIndTargets(Module &M)
 {
   TDDataStructures* T = &getAnalysis<TDDataStructures>();

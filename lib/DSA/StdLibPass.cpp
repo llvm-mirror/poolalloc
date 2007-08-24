@@ -29,6 +29,8 @@ using namespace llvm;
 static RegisterPass<StdLibDataStructures>
 X("dsa-stdlib", "Standard Library Local Data Structure Analysis");
 
+char StdLibDataStructures::ID;
+
 bool StdLibDataStructures::runOnModule(Module &M) {
   LocalDataStructures &LocalDSA = getAnalysis<LocalDataStructures>();
   setGraphSource(&LocalDSA);

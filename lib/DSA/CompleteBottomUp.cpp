@@ -29,6 +29,7 @@ namespace {
   STATISTIC (NumCBUInlines, "Number of graphs inlined");
 }
 
+char CompleteBUDataStructures::ID;
 
 // run - Calculate the bottom up data structure graphs for each function in the
 // program.

@@ -34,6 +34,8 @@ namespace {
   X("dsa-bu", "Bottom-up Data Structure Analysis");
 }
 
+char BUDataStructures::ID;
+
 // run - Calculate the bottom up data structure graphs for each function in the
 // program.
 //

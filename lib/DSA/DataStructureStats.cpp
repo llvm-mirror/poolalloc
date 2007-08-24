@@ -65,6 +65,8 @@ namespace {
   static RegisterPass<DSGraphStats> Z("dsstats", "DS Graph Statistics");
 }
 
+char DSGraphStats::ID;
+
 FunctionPass *llvm::createDataStructureStatsPass() { 
   return new DSGraphStats();
 }

@@ -52,6 +52,8 @@ namespace {
   RegisterPass<DSOpt> X("ds-opt", "DSA-based simple optimizations");
 }
 
+char DSOpt::ID;
+
 ModulePass *llvm::createDSOptPass() { return new DSOpt(); }
 
 /// OptimizeGlobals - This method uses information taken from DSA to optimize

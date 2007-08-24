@@ -104,6 +104,8 @@ namespace {
   RegisterAnalysisGroup<AliasAnalysis> Y(X);
 }
 
+char DSAA::ID;
+
 ModulePass *llvm::createDSAAPass() { return new DSAA(); }
 
 // getGraphForValue - Return the DSGraph to use for queries about the specified

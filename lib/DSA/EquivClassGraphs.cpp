@@ -37,6 +37,8 @@ namespace {
                                   "Number of graphs inlined");
 }
 
+char EquivClassGraphs::ID;
+
 #ifndef NDEBUG
 template<typename GT>
 static void CheckAllGraphs(Module *M, GT &ECGraphs) {

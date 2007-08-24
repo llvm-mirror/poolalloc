@@ -38,6 +38,8 @@ namespace {
   STATISTIC (NumTDInlines, "Number of graphs inlined");
 }
 
+char TDDataStructures::ID;
+
 void TDDataStructures::markReachableFunctionsExternallyAccessible(DSNode *N,
                                                    hash_set<DSNode*> &Visited) {
   if (!N || Visited.count(N)) return;

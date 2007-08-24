@@ -77,6 +77,8 @@ namespace {
   RegisterPass<DSGC> X("datastructure-gc", "DSA Graph Checking Pass");
 }
 
+char DSGC::ID;
+
 FunctionPass *llvm::createDataStructureGraphCheckerPass() {
   return new DSGC();
 }
