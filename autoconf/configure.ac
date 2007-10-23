@@ -7,13 +7,13 @@ dnl Identify where LLVM source tree is
 LLVM_SRC_ROOT="`(cd $srcdir/../..; pwd)`"
 LLVM_OBJ_ROOT="`(cd ../..; pwd)`"
 
-dnl Tell autoconf that the auxilliary files are actually located in
-dnl the LLVM autoconf directory, not here.
-AC_CONFIG_AUX_DIR($LLVM_SRC_ROOT/autoconf)
-
 dnl Tell autoconf that this is an LLVM project being configured
 dnl This provides the --with-llvmsrc and --with-llvmobj options
 LLVM_CONFIG_PROJECT($LLVM_SRC_ROOT,$LLVM_OBJ_ROOT)
+
+dnl Tell autoconf that the auxilliary files are actually located in
+dnl the LLVM autoconf directory, not here.
+AC_CONFIG_AUX_DIR($LLVM_SRC/autoconf)
 
 dnl Verify that the source directory is valid
 AC_CONFIG_SRCDIR(["Makefile.common.in"])
