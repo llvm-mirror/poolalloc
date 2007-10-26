@@ -546,7 +546,7 @@ GlobalVariable *PoolAllocate::CreateGlobalPool(unsigned RecSize, unsigned Align,
   Value *ElSize = ConstantInt::get(Type::Int32Ty, RecSize);
   Value *AlignV = ConstantInt::get(Type::Int32Ty, Align);
   Value* Opts[3] = {GV, ElSize, AlignV};
-  new CallInst(PoolInit, &Opts[0], 3, "", InsertPt);
+  new CallInst(PoolInit, Opts, Opts + 3, "", InsertPt);
   ++NumPools;
   return GV;
 }
@@ -887,7 +887,7 @@ void PoolAllocate::InitializeAndDestroyPool(Function &F, const DSNode *Node,
 
   for (unsigned i = 0, e = PoolInitPoints.size(); i != e; ++i) {
     Value* Opts[3] = {PD, ElSize, Align};
-    new CallInst(PoolInit, &Opts[0], 3,  "", PoolInitPoints[i]);
+    new CallInst(PoolInit, Opts, Opts + 3,  "", PoolInitPoints[i]);
     DEBUG(std::cerr << PoolInitPoints[i]->getParent()->getName() << " ");
   }
 

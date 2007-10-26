@@ -32,6 +32,8 @@ namespace {
     const Type *VoidPtrTy;
   public:
 
+    PoolAccessTrace() : ModulePass((intptr_t)&ID) {}
+
     bool runOnModule(Module &M);
 
     void getAnalysisUsage(AnalysisUsage &AU) const;
@@ -39,6 +41,7 @@ namespace {
     const DSGraph &getGraphForFunc(PA::FuncInfo *FI) const {
       return ECG->getDSGraph(FI->F);
     }
+    static char ID;
 
   private:
     void InitializeLibraryFunctions(Module &M);
@@ -46,6 +49,7 @@ namespace {
                           PA::FuncInfo *FI, DSGraph &DSG);
   };
 
+  char PoolAccessTrace::ID = 0;
   RegisterPass<PoolAccessTrace>
   X("poolaccesstrace", "Instrument program to print trace of accesses");
 }
@@ -90,7 +94,8 @@ void PoolAccessTrace::InstrumentAccess(Instruction *I, Value *Ptr,
     PD = Constant::getNullValue(VoidPtrTy);
 
   // Insert the trace call.
-  new CallInst(PoolAccessTraceFn, Ptr, PD, "", I);
+  Value *Opts[2] = {Ptr, PD};
+  new CallInst(PoolAccessTraceFn, Opts, Opts + 2, "", I);
 }
 
 bool PoolAccessTrace::runOnModule(Module &M) {

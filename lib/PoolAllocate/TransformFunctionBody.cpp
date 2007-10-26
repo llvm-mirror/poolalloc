@@ -155,7 +155,8 @@ Instruction *FuncTransform::TransformAllocationInstr(Instruction *I,
   // Insert a call to poolalloc
   Value *PH = getPoolHandle(I);
   
-  Instruction *V = new CallInst(PAInfo.PoolAlloc, PH, Size, Name, I);
+  Value* Opts[2] = {PH, Size};
+  Instruction *V = new CallInst(PAInfo.PoolAlloc, Opts, Opts + 2, Name, I);
 
   AddPoolUse(*V, PH, PoolUses);
 
@@ -268,7 +269,8 @@ Instruction *FuncTransform::InsertPoolFreeInstr(Value *Arg, Instruction *Where){
     G.getScalarMap()[Casted] = G.getScalarMap()[Arg];
   }
 
-  CallInst *FreeI = new CallInst(PAInfo.PoolFree, PH, Casted, "", Where);
+  Value* Opts[2] = {PH, Casted};
+  CallInst *FreeI = new CallInst(PAInfo.PoolFree, Opts, Opts + 2, "", Where);
   AddPoolUse(*FreeI, PH, PoolFrees);
   return FreeI;
 }
@@ -329,7 +331,7 @@ void FuncTransform::visitCallocCall(CallSite CS) {
   // We know that the memory returned by poolalloc is at least 4 byte aligned.
   Value* Opts[4] = {Ptr, ConstantInt::get(Type::Int8Ty, 0),
                     V2,  ConstantInt::get(Type::Int32Ty, 4)};
-  new CallInst(MemSet, Opts, 4, "", BBI);
+  new CallInst(MemSet, Opts, Opts + 4, "", BBI);
 }
 
 
@@ -349,7 +351,7 @@ void FuncTransform::visitReallocCall(CallSite CS) {
 
   std::string Name = I->getName(); I->setName("");
   Value* Opts[3] = {PH, OldPtr, Size};
-  Instruction *V = new CallInst(PAInfo.PoolRealloc, Opts, 3, Name, I);
+  Instruction *V = new CallInst(PAInfo.PoolRealloc, Opts, Opts + 3, Name, I);
   Instruction *Casted = V;
   if (V->getType() != I->getType())
     Casted = CastInst::createPointerCast(V, I->getType(), V->getName(), I);
@@ -417,7 +419,7 @@ void FuncTransform::visitMemAlignCall(CallSite CS) {
 
   std::string Name = I->getName(); I->setName("");
   Value* Opts[3] = {PH, Align, Size};
-  Instruction *V = new CallInst(PAInfo.PoolMemAlign, Opts, 3, Name, I);
+  Instruction *V = new CallInst(PAInfo.PoolMemAlign, Opts, Opts + 3, Name, I);
 
   Instruction *Casted = V;
   if (V->getType() != I->getType())
@@ -653,7 +655,7 @@ void FuncTransform::visitCallSite(CallSite CS) {
 	  Value *ElSize = ConstantInt::get(Type::Int32Ty,0);
 	  Value *Align  = ConstantInt::get(Type::Int32Ty,0);
           Value* Opts[3] = {ArgVal, ElSize, Align};
-	  new CallInst(PAInfo.PoolInit, Opts, 3,"", TheCall);
+	  new CallInst(PAInfo.PoolInit, Opts, Opts + 3,"", TheCall);
           BasicBlock::iterator BBI = TheCall;
           new CallInst(PAInfo.PoolDestroy, ArgVal, "", ++BBI);
 	}
@@ -673,9 +675,9 @@ void FuncTransform::visitCallSite(CallSite CS) {
 
   if (InvokeInst *II = dyn_cast<InvokeInst>(TheCall)) {
     NewCall = new InvokeInst(NewCallee, II->getNormalDest(),
-                             II->getUnwindDest(), &Args[0], Args.size(), Name, TheCall);
+                             II->getUnwindDest(), Args.begin(), Args.end(), Name, TheCall);
   } else {
-    NewCall = new CallInst(NewCallee, &Args[0], Args.size(), Name, TheCall);
+    NewCall = new CallInst(NewCallee, Args.begin(), Args.end(), Name, TheCall);
   }
 
   // Add all of the uses of the pool descriptor

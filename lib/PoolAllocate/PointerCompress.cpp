@@ -117,7 +117,9 @@ namespace {
   public:
     Constant *PoolInitPC, *PoolDestroyPC, *PoolAllocPC;
     typedef std::map<const DSNode*, CompressedPoolInfo> PoolInfoMap;
+    static char ID;
 
+    PointerCompress() : ModulePass((intptr_t)&ID) {}
     /// NoArgFunctionsCalled - When we are walking the call graph, keep track of
     /// which functions are called that don't need their prototype to be
     /// changed.
@@ -162,6 +164,7 @@ namespace {
                              Function &F, DSGraph &DSG, PA::FuncInfo *FI);
   };
 
+  char PointerCompress::ID = 0;
   RegisterPass<PointerCompress>
   X("pointercompress", "Compress type-safe data structures");
 }
@@ -285,7 +288,8 @@ Value *CompressedPoolInfo::EmitPoolBaseLoad(Instruction &I) const {
     
     // Get the pool base pointer.
     Constant *Zero = Constant::getNullValue(Type::Int32Ty);
-    Value *BasePtrPtr = new GetElementPtrInst(getPoolDesc(), Zero, Zero,
+    Value *Opts[2] = {Zero, Zero};
+    Value *BasePtrPtr = new GetElementPtrInst(getPoolDesc(), Opts, Opts + 2,
                                               "poolbaseptrptr", &I);
     return new LoadInst(BasePtrPtr, "poolbaseptr", &I);
   } else {
@@ -296,7 +300,8 @@ Value *CompressedPoolInfo::EmitPoolBaseLoad(Instruction &I) const {
       BasicBlock::iterator IP = I.getParent()->getParent()->begin()->begin();
       while (isa<AllocaInst>(IP)) ++IP;
       Constant *Zero = Constant::getNullValue(Type::Int32Ty);
-      Value *BasePtrPtr = new GetElementPtrInst(getPoolDesc(), Zero, Zero,
+      Value *Opts[2] = {Zero, Zero};
+      Value *BasePtrPtr = new GetElementPtrInst(getPoolDesc(), Opts, Opts + 2,
                                                 "poolbaseptrptr", IP);
       PoolBase = new LoadInst(BasePtrPtr, "poolbaseptr", IP);
     }
@@ -864,7 +869,7 @@ void InstructionRewriter::visitPoolInit(CallInst &CI) {
   Ops.push_back(ConstantInt::get(Type::Int32Ty,
              PA::Heuristic::getRecommendedAlignment(PI->getNewType(), TD)));
   // TODO: Compression could reduce the alignment restriction for the pool!
-  Value *PB = new CallInst(PtrComp.PoolInitPC, &Ops[0], Ops.size(), "", &CI);
+  Value *PB = new CallInst(PtrComp.PoolInitPC, Ops.begin(), Ops.end(), "", &CI);
 
   if (!DisablePoolBaseASR) { // Load the pool base immediately.
     PB->setName(CI.getOperand(1)->getName()+".poolbase");
@@ -906,7 +911,8 @@ void InstructionRewriter::visitPoolAlloc(CallInst &CI) {
       Size = BinaryOperator::createMul(Size, NewSize, "newbytes", &CI);
     }
 
-  Value *NC = new CallInst(PtrComp.PoolAllocPC, CI.getOperand(1), Size, CI.getName(), &CI);
+  Value *Opts[2] = {CI.getOperand(1), Size};
+  Value *NC = new CallInst(PtrComp.PoolAllocPC, Opts, Opts + 2, CI.getName(), &CI);
   setTransformedValue(CI, NC);
 }
 
@@ -1031,7 +1037,7 @@ void InstructionRewriter::visitCallInst(CallInst &CI) {
     }
 
     Function *Clone = PtrComp.GetExtFunctionClone(Callee, CompressedArgs);
-    Value *NC = new CallInst(Clone, &Operands[0], Operands.size(), CI.getName(), &CI);
+    Value *NC = new CallInst(Clone, Operands.begin(), Operands.end(), CI.getName(), &CI);
     if (NC->getType() != CI.getType())      // Compressing return value?
       setTransformedValue(CI, NC);
     else {
@@ -1108,7 +1114,7 @@ void InstructionRewriter::visitCallInst(CallInst &CI) {
     else
       Operands.push_back(CI.getOperand(i));
 
-  Value *NC = new CallInst(Clone, &Operands[0], Operands.size(), CI.getName(), &CI);
+  Value *NC = new CallInst(Clone, Operands.begin(), Operands.end(), CI.getName(), &CI);
   if (NC->getType() != CI.getType())      // Compressing return value?
     setTransformedValue(CI, NC);
   else {
