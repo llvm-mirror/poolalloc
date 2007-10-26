@@ -1318,32 +1318,6 @@ ac_compiler_gnu=$ac_cv_c_compiler_gnu
 LLVM_SRC_ROOT="`(cd $srcdir/../..; pwd)`"
 LLVM_OBJ_ROOT="`(cd ../..; pwd)`"
 
-ac_aux_dir=
-for ac_dir in $LLVM_SRC_ROOT/autoconf $srcdir/$LLVM_SRC_ROOT/autoconf; do
-  if test -f $ac_dir/install-sh; then
-    ac_aux_dir=$ac_dir
-    ac_install_sh="$ac_aux_dir/install-sh -c"
-    break
-  elif test -f $ac_dir/install.sh; then
-    ac_aux_dir=$ac_dir
-    ac_install_sh="$ac_aux_dir/install.sh -c"
-    break
-  elif test -f $ac_dir/shtool; then
-    ac_aux_dir=$ac_dir
-    ac_install_sh="$ac_aux_dir/shtool install -c"
-    break
-  fi
-done
-if test -z "$ac_aux_dir"; then
-  { { echo "$as_me:$LINENO: error: cannot find install-sh or install.sh in $LLVM_SRC_ROOT/autoconf $srcdir/$LLVM_SRC_ROOT/autoconf" >&5
-echo "$as_me: error: cannot find install-sh or install.sh in $LLVM_SRC_ROOT/autoconf $srcdir/$LLVM_SRC_ROOT/autoconf" >&2;}
-   { (exit 1); exit 1; }; }
-fi
-ac_config_guess="$SHELL $ac_aux_dir/config.guess"
-ac_config_sub="$SHELL $ac_aux_dir/config.sub"
-ac_configure="$SHELL $ac_aux_dir/configure" # This should be Cygnus configure.
-
-
 
 # Check whether --with-llvmsrc or --without-llvmsrc was given.
 if test "${with_llvmsrc+set}" = set; then
@@ -1366,6 +1340,32 @@ fi;
 
             ac_config_commands="$ac_config_commands setup"
 
+
+
+ac_aux_dir=
+for ac_dir in $LLVM_SRC/autoconf $srcdir/$LLVM_SRC/autoconf; do
+  if test -f $ac_dir/install-sh; then
+    ac_aux_dir=$ac_dir
+    ac_install_sh="$ac_aux_dir/install-sh -c"
+    break
+  elif test -f $ac_dir/install.sh; then
+    ac_aux_dir=$ac_dir
+    ac_install_sh="$ac_aux_dir/install.sh -c"
+    break
+  elif test -f $ac_dir/shtool; then
+    ac_aux_dir=$ac_dir
+    ac_install_sh="$ac_aux_dir/shtool install -c"
+    break
+  fi
+done
+if test -z "$ac_aux_dir"; then
+  { { echo "$as_me:$LINENO: error: cannot find install-sh or install.sh in $LLVM_SRC/autoconf $srcdir/$LLVM_SRC/autoconf" >&5
+echo "$as_me: error: cannot find install-sh or install.sh in $LLVM_SRC/autoconf $srcdir/$LLVM_SRC/autoconf" >&2;}
+   { (exit 1); exit 1; }; }
+fi
+ac_config_guess="$SHELL $ac_aux_dir/config.guess"
+ac_config_sub="$SHELL $ac_aux_dir/config.sub"
+ac_configure="$SHELL $ac_aux_dir/configure" # This should be Cygnus configure.
 
 
 
