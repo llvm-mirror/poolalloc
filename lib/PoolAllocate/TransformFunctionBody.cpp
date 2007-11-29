@@ -198,7 +198,7 @@ void FuncTransform::visitMallocInst(MallocInst &MI) {
 
   TargetData &TD = PAInfo.getAnalysis<TargetData>();
   Value *AllocSize =
-    ConstantInt::get(Type::Int32Ty, TD.getTypeSize(MI.getAllocatedType()));
+    ConstantInt::get(Type::Int32Ty, TD.getABITypeSize(MI.getAllocatedType()));
 
   if (MI.isArrayAllocation())
     AllocSize = BinaryOperator::create(Instruction::Mul, AllocSize,
@@ -240,7 +240,7 @@ void FuncTransform::visitAllocaInst(AllocaInst &MI) {
     if (PH == 0 || isa<ConstantPointerNull>(PH)) return;
     TargetData &TD = PAInfo.getAnalysis<TargetData>();
     Value *AllocSize =
-      ConstantInt::get(Type::Int32Ty, TD.getTypeSize(MI.getAllocatedType()));
+      ConstantInt::get(Type::Int32Ty, TD.getABITypeSize(MI.getAllocatedType()));
     
     if (MI.isArrayAllocation())
       AllocSize = BinaryOperator::create(Instruction::Mul, AllocSize,
@@ -296,7 +296,7 @@ void FuncTransform::visitFreeInst(FreeInst &FrI) {
 
 void FuncTransform::visitCallocCall(CallSite CS) {
   TargetData& TD = PAInfo.getAnalysis<TargetData>();
-  bool useLong = TD.getTypeSize(PointerType::get(Type::Int8Ty)) != 4;
+  bool useLong = TD.getABITypeSize(PointerType::get(Type::Int8Ty)) != 4;
   
   Module *M = CS.getInstruction()->getParent()->getParent()->getParent();
   assert(CS.arg_end()-CS.arg_begin() == 2 && "calloc takes two arguments!");

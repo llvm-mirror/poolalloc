@@ -226,7 +226,7 @@ void CompressedPoolInfo::Initialize(std::map<const DSNode*,
   NewTy = ComputeCompressedType(Pool->getType(), 0, Nodes);
 
   // Get the compressed type size.
-  NewSize = NewTy->isSized() ? TD.getTypeSize(NewTy) : 0;
+  NewSize = NewTy->isSized() ? TD.getABITypeSize(NewTy) : 0;
 }
 
 
@@ -318,9 +318,9 @@ void CompressedPoolInfo::dump() const {
   const TargetData &TD = getNode()->getParentGraph()->getTargetData();
   std::cerr << "  From size: "
             << (getNode()->getType()->isSized() ? 
-                        TD.getTypeSize(getNode()->getType()) : 0)
+                        TD.getABITypeSize(getNode()->getType()) : 0)
             << "  To size: "
-            << (NewTy->isSized() ? TD.getTypeSize(NewTy) : 0) << "\n";
+            << (NewTy->isSized() ? TD.getABITypeSize(NewTy) : 0) << "\n";
   std::cerr << "Node: "; getNode()->dump();
   std::cerr << "New Type: " << *NewTy << "\n";
 }
@@ -733,7 +733,7 @@ void InstructionRewriter::visitGetElementPtrInst(GetElementPtrInst &GEPI) {
           Idx = CastInst::createSExtOrBitCast(Idx, SCALARUINTTYPE, Idx->getName(), &GEPI);
 
         Constant *Scale = ConstantInt::get(SCALARUINTTYPE,
-                                            TD.getTypeSize(ElTy));
+                                            TD.getABITypeSize(ElTy));
         Idx = BinaryOperator::createMul(Idx, Scale, "fieldidx", &GEPI);
         Val = BinaryOperator::createAdd(Val, Idx, GEPI.getName(), &GEPI);
       }
