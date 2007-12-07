@@ -26,8 +26,7 @@
 #include "poolalloc/Config/config.h"
 
 #ifdef SAFECODE
-//FIXME : make this use some configuration options
-#include "/home/vadve/criswell/src/latestllvm/projects/safecode/include/ConvertUnsafeAllocas.h"
+#include "ConvertUnsafeAllocas.h"
 #endif
 
 
