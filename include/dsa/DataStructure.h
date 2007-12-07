@@ -272,10 +272,12 @@ public:
 
   virtual bool runOnModule(Module &M);
 
+#if 0
   /// deleteValue/copyValue - Interfaces to update the DSGraphs in the program.
   /// These correspond to the interfaces defined in the AliasAnalysis class.
   void deleteValue(Value *V);
   void copyValue(Value *From, Value *To);
+#endif
 
   /// print - Print out the analysis results...
   ///
