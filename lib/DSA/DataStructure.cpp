@@ -14,6 +14,7 @@
 #include "dsa/DSGraphTraits.h"
 #include "dsa/DataStructure.h"
 #include "dsa/DSGraph.h"
+#include "dsa/DSSupport.h"
 #include "llvm/Constants.h"
 #include "llvm/Function.h"
 #include "llvm/GlobalVariable.h"
@@ -59,6 +60,16 @@ namespace {
 #endif
 
 using namespace DS;
+
+//
+// Function: DS::isPointerType()
+//
+// Description:
+//  This returns whether the given type is a pointer.
+//
+bool DS::isPointerType(const Type *Ty) {
+  return isa<llvm::PointerType>(Ty);
+}
 
 /// isForwarding - Return true if this NodeHandle is forwarding to another
 /// one.
