@@ -43,6 +43,9 @@ using namespace PA;
 using namespace CUA;
 #endif
 
+char PoolAllocate::ID = 0;
+char PoolAllocatePassAllPools::ID = 0;
+
 const Type *PoolAllocate::PoolDescPtrTy = 0;
 
 #if 0

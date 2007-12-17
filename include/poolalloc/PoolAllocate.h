@@ -148,11 +148,11 @@ public:
  public:
   static char ID;
 #ifdef SAFECODE  
-  PoolAllocate(bool passAllArguments = true) 
-    : ModulePass((intptr_t)&ID), PassAllArguments(passAllArguments) {}
+  PoolAllocate(bool passAllArguments = true, intptr_t IDp = (intptr_t) (&ID))
+    : ModulePass((intptr_t)IDp), PassAllArguments(passAllArguments) {}
 #else
-  PoolAllocate(bool passAllArguments = false) 
-    : ModulePass((intptr_t)&ID), PassAllArguments(passAllArguments) {}
+  PoolAllocate(bool passAllArguments = false, intptr_t IDp = (intptr_t) (&ID))
+    : ModulePass((intptr_t)IDp), PassAllArguments(passAllArguments) {}
 #endif
   bool runOnModule(Module &M);
   
@@ -283,7 +283,8 @@ public:
 /// pass, which requires a pool descriptor to be available for a pool if any
 /// load or store to that pool is performed.
 struct PoolAllocatePassAllPools : public PoolAllocate {
-  PoolAllocatePassAllPools() : PoolAllocate(true) {}
+  static char ID;
+  PoolAllocatePassAllPools() : PoolAllocate(true, (intptr_t) &ID) {}
 };
 
 }
