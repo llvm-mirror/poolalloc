@@ -50,8 +50,8 @@ static void getCallsOf(Constant *C, std::vector<CallInst*> &Calls) {
 }
 
 bool PoolOptimize::runOnModule(Module &M) {
-  const Type *VoidPtrTy = PointerType::get(Type::Int8Ty);
-  const Type *PoolDescPtrTy = PointerType::get(ArrayType::get(VoidPtrTy, 16));
+  const Type *VoidPtrTy = PointerType::getUnqual(Type::Int8Ty);
+  const Type *PoolDescPtrTy = PointerType::getUnqual(ArrayType::get(VoidPtrTy, 16));
 
 
   // Get poolinit function.

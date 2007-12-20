@@ -203,7 +203,18 @@ void FuncTransform::visitMallocInst(MallocInst &MI) {
   if (MI.isArrayAllocation())
     AllocSize = BinaryOperator::create(Instruction::Mul, AllocSize,
                                        MI.getOperand(0), "sizetmp", &MI);
+//
+// NOTE:
+//  The code below used to be used by SAFECode.  However, it requires
+//  Pool Allocation to depend upon SAFECode passes, which is messy.
+//
+//  I believe the code below is an unneeded optimization.  Basically, when
+//  SAFECode promotes a stack allocation to the heap, this makes it a stack
+//  allocation again if the DSNode has no heap allocations.  This seems to be
+//  a performance optimization and unnecessary for the first prototype.
+//
 #ifdef SAFECODE
+#if 0
   const MallocInst *originalMalloc = &MI;
   if (FI.NewToOldValueMap.count(&MI)) {
     originalMalloc = cast<MallocInst>(FI.NewToOldValueMap[&MI]);
@@ -218,14 +229,17 @@ void FuncTransform::visitMallocInst(MallocInst &MI) {
     MI.getParent()->getInstList().erase(&MI);
     Value *Casted = AI;
     Instruction *aiNext = AI->getNext();
-    if (AI->getType() != PointerType::get(Type::Int8Ty))
-      Casted = CastInst::createPointerCast(AI, PointerType::get(Type::Int8Ty),
+    if (AI->getType() != PointerType::getUnqual(Type::Int8Ty))
+      Casted = CastInst::createPointerCast(AI, PointerType::getUnqual(Type::Int8Ty),
 			      AI->getName()+".casted",aiNext);
     
     Instruction *V = new CallInst(PAInfo.PoolRegister,
 				  make_vector(PH, AllocSize, Casted, 0), "", aiNext);
     AddPoolUse(*V, PH, PoolUses);
   }
+#else
+  TransformAllocationInstr(&MI, AllocSize);  
+#endif
 #else
   TransformAllocationInstr(&MI, AllocSize);  
 #endif
@@ -247,7 +261,7 @@ void FuncTransform::visitAllocaInst(AllocaInst &MI) {
 					 MI.getOperand(0), "sizetmp", &MI);
     
     //  TransformAllocationInstr(&MI, AllocSize);
-    Instruction *Casted = CastInst::createPointerCast(&MI, PointerType::get(Type::Int8Ty),
+    Instruction *Casted = CastInst::createPointerCast(&MI, PointerType::getUnqual(Type::Int8Ty),
 				       MI.getName()+".casted", MI.getNext());
     Instruction *V = new CallInst(PAInfo.PoolRegister,
 				  make_vector(PH, Casted, AllocSize, 0), "", Casted->getNext());
@@ -263,8 +277,8 @@ Instruction *FuncTransform::InsertPoolFreeInstr(Value *Arg, Instruction *Where){
 
   // Insert a cast and a call to poolfree...
   Value *Casted = Arg;
-  if (Arg->getType() != PointerType::get(Type::Int8Ty)) {
-    Casted = CastInst::createPointerCast(Arg, PointerType::get(Type::Int8Ty),
+  if (Arg->getType() != PointerType::getUnqual(Type::Int8Ty)) {
+    Casted = CastInst::createPointerCast(Arg, PointerType::getUnqual(Type::Int8Ty),
 				 Arg->getName()+".casted", Where);
     G.getScalarMap()[Casted] = G.getScalarMap()[Arg];
   }
@@ -296,7 +310,7 @@ void FuncTransform::visitFreeInst(FreeInst &FrI) {
 
 void FuncTransform::visitCallocCall(CallSite CS) {
   TargetData& TD = PAInfo.getAnalysis<TargetData>();
-  bool useLong = TD.getABITypeSize(PointerType::get(Type::Int8Ty)) != 4;
+  bool useLong = TD.getABITypeSize(PointerType::getUnqual(Type::Int8Ty)) != 4;
   
   Module *M = CS.getInstruction()->getParent()->getParent()->getParent();
   assert(CS.arg_end()-CS.arg_begin() == 2 && "calloc takes two arguments!");
@@ -320,12 +334,12 @@ void FuncTransform::visitCallocCall(CallSite CS) {
   // finish calloc, we need to zero out the memory.
   Constant *MemSet =  M->getOrInsertFunction((useLong ? "llvm.memset.i64" : "llvm.memset.i32"),
                                              Type::VoidTy,
-                                             PointerType::get(Type::Int8Ty),
+                                             PointerType::getUnqual(Type::Int8Ty),
                                              Type::Int8Ty, (useLong ? Type::Int64Ty : Type::Int32Ty),
                                              Type::Int32Ty, NULL);
 
-  if (Ptr->getType() != PointerType::get(Type::Int8Ty))
-    Ptr = CastInst::createPointerCast(Ptr, PointerType::get(Type::Int8Ty), Ptr->getName(),
+  if (Ptr->getType() != PointerType::getUnqual(Type::Int8Ty))
+    Ptr = CastInst::createPointerCast(Ptr, PointerType::getUnqual(Type::Int8Ty), Ptr->getName(),
                        BBI);
   
   // We know that the memory returned by poolalloc is at least 4 byte aligned.
@@ -345,7 +359,7 @@ void FuncTransform::visitReallocCall(CallSite CS) {
   if (Size->getType() != Type::Int32Ty)
     Size = CastInst::createIntegerCast(Size, Type::Int32Ty, false, Size->getName(), I);
 
-  static Type *VoidPtrTy = PointerType::get(Type::Int8Ty);
+  static Type *VoidPtrTy = PointerType::getUnqual(Type::Int8Ty);
   if (OldPtr->getType() != VoidPtrTy)
     OldPtr = CastInst::createPointerCast(OldPtr, VoidPtrTy, OldPtr->getName(), I);
 
@@ -407,7 +421,7 @@ void FuncTransform::visitMemAlignCall(CallSite CS) {
     Value *RetVal = Constant::getNullValue(I->getType());
     I->replaceAllUsesWith(RetVal);
 
-    static const Type *PtrPtr=PointerType::get(PointerType::get(Type::Int8Ty));
+    static const Type *PtrPtr=PointerType::getUnqual(PointerType::getUnqual(Type::Int8Ty));
     if (ResultDest->getType() != PtrPtr)
       ResultDest = CastInst::createPointerCast(ResultDest, PtrPtr, ResultDest->getName(), I);
   }
@@ -601,7 +615,7 @@ void FuncTransform::visitCallSite(CallSite CS) {
       ArgTys.push_back((*I)->getType());
     
     FunctionType *FTy = FunctionType::get(TheCall->getType(), ArgTys, false);
-    PointerType *PFTy = PointerType::get(FTy);
+    PointerType *PFTy = PointerType::getUnqual(FTy);
     
     // If there are any pool arguments cast the func ptr to the right type.
     NewCallee = CastInst::createPointerCast(CS.getCalledValue(), PFTy, "tmp", TheCall);
@@ -650,7 +664,7 @@ void FuncTransform::visitCallSite(CallSite CS) {
 	if (!isa<InvokeInst>(TheCall)) {
 	  //Dinakar we need pooldescriptors for allocas in the callee if it escapes
 	  BasicBlock::iterator InsertPt = TheCall->getParent()->getParent()->front().begin();
-	  Type *VoidPtrTy = PointerType::get(Type::Int8Ty);
+	  Type *VoidPtrTy = PointerType::getUnqual(Type::Int8Ty);
 	  ArgVal =  new AllocaInst(ArrayType::get(VoidPtrTy, 16), 0, "PD", InsertPt);
 	  Value *ElSize = ConstantInt::get(Type::Int32Ty,0);
 	  Value *Align  = ConstantInt::get(Type::Int32Ty,0);

@@ -88,19 +88,16 @@ namespace {
 }
 
 void PoolAllocate::getAnalysisUsage(AnalysisUsage &AU) const {
-#ifdef SAFECODE
-  AU.addRequired<ConvertUnsafeAllocas>();
-#endif  
-  AU.addRequired<EquivClassGraphs>();
+  AU.addRequiredTransitive<EquivClassGraphs>();
   AU.addPreserved<EquivClassGraphs>();
 #ifdef SAFECODE  
   //Dinakar for preserving the pool information across passes
   AU.setPreservesAll();
 #endif  
-#ifdef BOUNDS_CHECK  
+#ifdef BOUNDS_CHECK
   //Dinakar hack for preserving the pool information across passes
   AU.setPreservesAll();
-#endif  
+#endif
   AU.addRequired<TargetData>();
   if (UseTDResolve)
     AU.addRequired<CallTargetFinder>();
@@ -109,7 +106,9 @@ void PoolAllocate::getAnalysisUsage(AnalysisUsage &AU) const {
 bool PoolAllocate::runOnModule(Module &M) {
   if (M.begin() == M.end()) return false;
 #ifdef SAFECODE  
+#if 0
   CUAPass = &getAnalysis<ConvertUnsafeAllocas>();
+#endif
 #endif  
   CurModule = &M;
   ECGraphs = &getAnalysis<EquivClassGraphs>();   // folded inlined CBU graphs
@@ -183,13 +182,13 @@ bool PoolAllocate::runOnModule(Module &M) {
 void PoolAllocate::AddPoolPrototypes() {
   if (VoidPtrTy == 0) {
     // NOTE: If these are changed, make sure to update PoolOptimize.cpp as well!
-    VoidPtrTy = PointerType::get(Type::Int8Ty);
+    VoidPtrTy = PointerType::getUnqual(Type::Int8Ty);
 #ifdef SAFECODE    
     PoolDescType = ArrayType::get(VoidPtrTy, 50);
 #else
     PoolDescType = ArrayType::get(VoidPtrTy, 16);
 #endif    
-    PoolDescPtrTy = PointerType::get(PoolDescType);
+    PoolDescPtrTy = PointerType::getUnqual(PoolDescType);
   }
 
   CurModule->addTypeName("PoolDescriptor", PoolDescType);
@@ -514,7 +513,7 @@ bool PoolAllocate::SetupGlobalPools(Module &M) {
   // Any unallocated DSNodes get null pool descriptor pointers.
   for (hash_set<const DSNode*>::iterator I = GlobalHeapNodes.begin(),
          E = GlobalHeapNodes.end(); I != E; ++I) {
-    GlobalNodes[*I] = Constant::getNullValue(PointerType::get(PoolDescType));
+    GlobalNodes[*I] = Constant::getNullValue(PointerType::getUnqual(PoolDescType));
     ++NumNonprofit;
   }
   
@@ -617,7 +616,7 @@ void PoolAllocate::CreatePools(Function &F, DSGraph &DSG,
   // Any unallocated DSNodes get null pool descriptor pointers.
   for (std::set<const DSNode*>::iterator I = UnallocatedNodes.begin(),
          E = UnallocatedNodes.end(); I != E; ++I) {
-    PoolDescriptors[*I] =Constant::getNullValue(PointerType::get(PoolDescType));
+    PoolDescriptors[*I] =Constant::getNullValue(PointerType::getUnqual(PoolDescType));
     ++NumNonprofit;
   }
 }

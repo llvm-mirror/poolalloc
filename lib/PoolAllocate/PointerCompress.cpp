@@ -690,7 +690,7 @@ void InstructionRewriter::visitGetElementPtrInst(GetElementPtrInst &GEPI) {
 
   // The compressed type for the pool.  FIXME: NOTE: This only works if 'Val'
   // pointed to the start of a node!
-  const Type *NTy = PointerType::get(PI->getNewType());
+  const Type *NTy = PointerType::getUnqual(PI->getNewType());
 
   //Check if we have a pointer to an array of Original Types this happens if
   //you do a malloc of [n x OrigTy] for a pool of Type OrigTy
@@ -699,7 +699,7 @@ void InstructionRewriter::visitGetElementPtrInst(GetElementPtrInst &GEPI) {
       cast<PointerType>(GEPI.getOperand(0)->getType())->getElementType();
     if(isa<ArrayType>(PT)) {
       if (cast<ArrayType>(PT)->getElementType() == PI->getNode()->getType())
-        NTy = PointerType::get(ArrayType::get(PI->getNewType(),
+        NTy = PointerType::getUnqual(ArrayType::get(PI->getNewType(),
                                               cast<ArrayType>(PT)->getNumElements()));
     }
   }
@@ -776,7 +776,7 @@ void InstructionRewriter::visitLoadInst(LoadInst &LI) {
   Value *SrcPtr = new GetElementPtrInst(BasePtr, Ops,
                                         LI.getOperand(0)->getName()+".pp", &LI);
   const Type *DestTy = LoadingCompressedPtr ? MEMUINTTYPE : LI.getType();
-  SrcPtr = CastInst::createPointerCast(SrcPtr, PointerType::get(DestTy),
+  SrcPtr = CastInst::createPointerCast(SrcPtr, PointerType::getUnqual(DestTy),
                                       SrcPtr->getName(), &LI);
   std::string OldName = LI.getName(); LI.setName("");
   Value *NewLoad = new LoadInst(SrcPtr, OldName, &LI);
@@ -843,7 +843,7 @@ void InstructionRewriter::visitStoreInst(StoreInst &SI) {
                                          SI.getOperand(1)->getName()+".pp",
                                          &SI);
   DestPtr = CastInst::createPointerCast(DestPtr,
-                                        PointerType::get(SrcVal->getType()),
+                                        PointerType::getUnqual(SrcVal->getType()),
                                         DestPtr->getName(), &SI);
   new StoreInst(SrcVal, DestPtr, &SI);
 
@@ -1498,8 +1498,8 @@ void PointerCompress::HandleGlobalPools(Module &M) {
 /// InitializePoolLibraryFunctions - Create the function prototypes for pointer
 /// compress runtime library functions.
 void PointerCompress::InitializePoolLibraryFunctions(Module &M) {
-  const Type *VoidPtrTy = PointerType::get(Type::Int8Ty);
-  const Type *PoolDescPtrTy = PointerType::get(ArrayType::get(VoidPtrTy, 16));
+  const Type *VoidPtrTy = PointerType::getUnqual(Type::Int8Ty);
+  const Type *PoolDescPtrTy = PointerType::getUnqual(ArrayType::get(VoidPtrTy, 16));
 
   PoolInitPC = M.getOrInsertFunction("poolinit_pc", VoidPtrTy, PoolDescPtrTy, 
                                      Type::Int32Ty, Type::Int32Ty, NULL);

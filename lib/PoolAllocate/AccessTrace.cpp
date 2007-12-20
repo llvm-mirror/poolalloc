@@ -63,7 +63,7 @@ void PoolAccessTrace::getAnalysisUsage(AnalysisUsage &AU) const {
 }
 
 void PoolAccessTrace::InitializeLibraryFunctions(Module &M) {
-  VoidPtrTy = PointerType::get(Type::Int8Ty);
+  VoidPtrTy = PointerType::getUnqual(Type::Int8Ty);
 
   AccessTraceInitFn = M.getOrInsertFunction("poolaccesstraceinit",
                                             Type::VoidTy,NULL);

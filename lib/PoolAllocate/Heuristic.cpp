@@ -311,7 +311,7 @@ static void POVisit(DSNode *N, std::set<DSNode*> &Visited,
         } else if (N->isArray() && !N->isNodeCompletelyFolded()) {
           // We never pool allocate array nodes.
           PoolDescriptors[N] =
-            Constant::getNullValue(PointerType::get(PoolDescType));
+            Constant::getNullValue(PointerType::getUnqual(PoolDescType));
           ++NumNonprofit;
 #endif
         } else {
@@ -349,7 +349,7 @@ static void POVisit(DSNode *N, std::set<DSNode*> &Visited,
             // If this node has predecessors that are in different pools, don't
             // pool allocate this node.
             PoolDescriptors[N] =
-              Constant::getNullValue(PointerType::get(PoolDescType));
+              Constant::getNullValue(PointerType::getUnqual(PoolDescType));
             ++NumNonprofit;
           } else if (PredPool) {
             // If all of the predecessors of this node are already in a pool,
@@ -370,7 +370,7 @@ static void POVisit(DSNode *N, std::set<DSNode*> &Visited,
             // reason to pool allocate it, don't.
             assert(PredPool == 0);
              PoolDescriptors[N] =
-              Constant::getNullValue(PointerType::get(PoolDescType));
+              Constant::getNullValue(PointerType::getUnqual(PoolDescType));
             ++NumNonprofit;
           }
         }
