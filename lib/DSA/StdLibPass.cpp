@@ -121,7 +121,7 @@ bool StdLibDataStructures::runOnModule(Module &M) {
         // argument node.
         DSNodeHandle& EndNH = Graph.getNodeForValue(&*(++(I->arg_begin())));
         EndNH.getNode()->clearNodeFlags()->setModifiedMarker();
-        EndNH.getNode()->mergeTypeInfo(PointerType::get(Type::Int8Ty),
+        EndNH.getNode()->mergeTypeInfo(PointerType::getUnqual(Type::Int8Ty),
                                        EndNH.getOffset(), false);
         DSNodeHandle &Link = EndNH.getLink(0);
         Link.mergeWith(Str);
