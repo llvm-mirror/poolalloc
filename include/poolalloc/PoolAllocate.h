@@ -205,6 +205,12 @@ public:
   GlobalVariable *CreateGlobalPool(unsigned RecSize, unsigned Alignment,
                                    Instruction *IPHint = 0);
 
+  /// getPoolType - Return the type of a pool descriptor
+  const Type * getPoolType() {
+    Type * VoidPtrType = PointerType::getUnqual(Type::Int8Ty);
+    return ArrayType::get(VoidPtrType, 16);
+  }
+
  private:
   
   /// AddPoolPrototypes - Add prototypes for the pool functions to the
