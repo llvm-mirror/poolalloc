@@ -311,7 +311,7 @@ ac_includes_default="\
 # include <unistd.h>
 #endif"
 
-ac_subst_vars='SHELL PATH_SEPARATOR PACKAGE_NAME PACKAGE_TARNAME PACKAGE_VERSION PACKAGE_STRING PACKAGE_BUGREPORT exec_prefix prefix program_transform_name bindir sbindir libexecdir datadir sysconfdir sharedstatedir localstatedir libdir includedir oldincludedir infodir mandir build_alias host_alias target_alias DEFS ECHO_C ECHO_N ECHO_T LIBS LLVM_SRC LLVM_OBJ CC CFLAGS LDFLAGS CPPFLAGS ac_ct_CC EXEEXT OBJEXT CPP EGREP MMAP_FILE SAFECODESRC LIBOBJS LTLIBOBJS'
+ac_subst_vars='SHELL PATH_SEPARATOR PACKAGE_NAME PACKAGE_TARNAME PACKAGE_VERSION PACKAGE_STRING PACKAGE_BUGREPORT exec_prefix prefix program_transform_name bindir sbindir libexecdir datadir sysconfdir sharedstatedir localstatedir libdir includedir oldincludedir infodir mandir build_alias host_alias target_alias DEFS ECHO_C ECHO_N ECHO_T LIBS LLVM_SRC LLVM_OBJ CC CFLAGS LDFLAGS CPPFLAGS ac_ct_CC EXEEXT OBJEXT CPP EGREP MMAP_FILE SAFECODESRC SAFECODEOBJ LIBOBJS LTLIBOBJS'
 ac_subst_files=''
 
 # Initialize some variables set by options.
@@ -854,7 +854,8 @@ Optional Packages:
   --without-PACKAGE       do not use PACKAGE (same as --with-PACKAGE=no)
   --with-llvmsrc          Location of LLVM Source Code
   --with-llvmobj          Location of LLVM Object Code
-  --with-safecode         Location of SAFECode Source Code
+  --with-safecodesrc      Location of SAFECode Source Code
+  --with-safecodeobj      Location of SAFECode Object Code
 
 Some influential environment variables:
   CC          C compiler command
@@ -3675,6 +3676,16 @@ else
 
 fi;
 
+# Check whether --with-safecodeobj or --without-safecodeobj was given.
+if test "${with_safecodeobj+set}" = set; then
+  withval="$with_safecodeobj"
+  SAFECODEOBJ=$withval
+
+else
+  SAFECODEOBJ=`cd ../safecode; pwd`
+
+fi;
+
           ac_config_headers="$ac_config_headers include/poolalloc/Config/config.h"
 
 
@@ -4320,6 +4331,7 @@ s,@CPP@,$CPP,;t t
 s,@EGREP@,$EGREP,;t t
 s,@MMAP_FILE@,$MMAP_FILE,;t t
 s,@SAFECODESRC@,$SAFECODESRC,;t t
+s,@SAFECODEOBJ@,$SAFECODEOBJ,;t t
 s,@LIBOBJS@,$LIBOBJS,;t t
 s,@LTLIBOBJS@,$LTLIBOBJS,;t t
 CEOF
