@@ -410,10 +410,11 @@ Function *PoolAllocate::MakeFunctionClone(Function &F) {
 
   // Map the existing arguments of the old function to the corresponding
   // arguments of the new function, and copy over the names.
-#ifdef SAFECODE  
-  DenseMap<const Value*, Value*> &ValueMap = FI.ValueMap;
-#else
   DenseMap<const Value*, Value*> ValueMap;
+#ifdef SAFECODE  
+  for (std::map<const Value*, Value*>::iterator I = FI.ValueMap.begin(),
+         E = FI.ValueMap.end(); I != E; ++I)
+    ValueMap.insert(std::make_pair(I->first, I->second));
 #endif  
   for (Function::arg_iterator I = F.arg_begin();
        NI != New->arg_end(); ++I, ++NI) {
