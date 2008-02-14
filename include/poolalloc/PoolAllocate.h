@@ -208,7 +208,11 @@ public:
   /// getPoolType - Return the type of a pool descriptor
   const Type * getPoolType() {
     Type * VoidPtrType = PointerType::getUnqual(Type::Int8Ty);
+#ifdef SAFECODE
+    return ArrayType::get(VoidPtrType, 50);
+#else
     return ArrayType::get(VoidPtrType, 16);
+#endif
   }
 
  private:
