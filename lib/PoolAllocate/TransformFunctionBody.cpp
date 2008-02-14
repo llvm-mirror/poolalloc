@@ -515,7 +515,8 @@ void FuncTransform::visitCallSite(CallSite CS) {
   std::vector<const DSNode*> ArgNodes;
   DSGraph *CalleeGraph;  // The callee graph
 
-  // For indirect callees find any callee since all DS graphs have been merged.
+  // For indirect callees, find any callee since all DS graphs have been
+  // merged.
   if (CF) {   // Direct calls are nice and simple.
     DEBUG(std::cerr << "  Handling direct call: " << *TheCall);
     FuncInfo *CFI = PAInfo.getFuncInfo(*CF);
@@ -543,11 +544,11 @@ void FuncTransform::visitCallSite(CallSite CS) {
 
     if (!CF) 
       for (EquivClassGraphs::callee_iterator I = ECGraphs.callee_begin(OrigInst), 
-	     E = ECGraphs.callee_end(OrigInst); I != E; ++I)
-	if (I->second) {
-	  CF = I->second;
-	  break;
-	}
+           E = ECGraphs.callee_end(OrigInst); I != E; ++I)
+        if (I->second) {
+          CF = I->second;
+          break;
+        }
 
     // If we didn't find the callee in the constructed call graph, try
     // checking in the DSNode itself.
@@ -661,21 +662,23 @@ void FuncTransform::visitCallSite(CallSite CS) {
 #ifdef BOUNDS_CHECK
       if (ArgNodes[i]->isArray()) {
 #endif
-	if (!isa<InvokeInst>(TheCall)) {
-	  //Dinakar we need pooldescriptors for allocas in the callee if it escapes
-	  BasicBlock::iterator InsertPt = TheCall->getParent()->getParent()->front().begin();
-	  Type *VoidPtrTy = PointerType::getUnqual(Type::Int8Ty);
-	  ArgVal =  new AllocaInst(PAInfo.getPoolType(), 0, "PD", InsertPt);
-	  Value *ElSize = ConstantInt::get(Type::Int32Ty,0);
-	  Value *Align  = ConstantInt::get(Type::Int32Ty,0);
-          Value* Opts[3] = {ArgVal, ElSize, Align};
-	  new CallInst(PAInfo.PoolInit, Opts, Opts + 3,"", TheCall);
-          BasicBlock::iterator BBI = TheCall;
-          new CallInst(PAInfo.PoolDestroy, ArgVal, "", ++BBI);
-	}
-	//probably need to update DSG
-	//      std::cerr << "WARNING: NULL POOL ARGUMENTS ARE PASSED IN!\n";
-#ifdef BOUNDS_CHECK	
+      if (!isa<InvokeInst>(TheCall)) {
+        // Dinakar: We need pooldescriptors for allocas in the callee if it
+        //          escapes
+        BasicBlock::iterator InsertPt = TheCall->getParent()->getParent()->front().begin();
+        Type *VoidPtrTy = PointerType::getUnqual(Type::Int8Ty);
+        ArgVal =  new AllocaInst(PAInfo.getPoolType(), 0, "PD", InsertPt);
+        Value *ElSize = ConstantInt::get(Type::Int32Ty,0);
+        Value *Align  = ConstantInt::get(Type::Int32Ty,0);
+        Value* Opts[3] = {ArgVal, ElSize, Align};
+        new CallInst(PAInfo.PoolInit, Opts, Opts + 3,"", TheCall);
+        BasicBlock::iterator BBI = TheCall;
+        new CallInst(PAInfo.PoolDestroy, ArgVal, "", ++BBI);
+      }
+
+      //probably need to update DSG
+      //      std::cerr << "WARNING: NULL POOL ARGUMENTS ARE PASSED IN!\n";
+#ifdef BOUNDS_CHECK
       }
 #endif
     }
