@@ -183,11 +183,7 @@ void PoolAllocate::AddPoolPrototypes() {
   if (VoidPtrTy == 0) {
     // NOTE: If these are changed, make sure to update PoolOptimize.cpp as well!
     VoidPtrTy = PointerType::getUnqual(Type::Int8Ty);
-#ifdef SAFECODE    
-    PoolDescType = ArrayType::get(VoidPtrTy, 50);
-#else
-    PoolDescType = ArrayType::get(VoidPtrTy, 16);
-#endif    
+    PoolDescType = getPoolType();
     PoolDescPtrTy = PointerType::getUnqual(PoolDescType);
   }
 

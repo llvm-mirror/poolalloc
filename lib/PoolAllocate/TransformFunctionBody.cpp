@@ -665,7 +665,7 @@ void FuncTransform::visitCallSite(CallSite CS) {
 	  //Dinakar we need pooldescriptors for allocas in the callee if it escapes
 	  BasicBlock::iterator InsertPt = TheCall->getParent()->getParent()->front().begin();
 	  Type *VoidPtrTy = PointerType::getUnqual(Type::Int8Ty);
-	  ArgVal =  new AllocaInst(ArrayType::get(VoidPtrTy, 16), 0, "PD", InsertPt);
+	  ArgVal =  new AllocaInst(PAInfo.getPoolType(), 0, "PD", InsertPt);
 	  Value *ElSize = ConstantInt::get(Type::Int32Ty,0);
 	  Value *Align  = ConstantInt::get(Type::Int32Ty,0);
           Value* Opts[3] = {ArgVal, ElSize, Align};
