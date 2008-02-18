@@ -24,6 +24,7 @@
 #include "llvm/Instructions.h"
 #include "llvm/Module.h"
 #include "llvm/Constants.h"
+#include "llvm/ParameterAttributes.h"
 #include "llvm/Support/CFG.h"
 #include "llvm/Target/TargetData.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
@@ -424,6 +425,29 @@ Function *PoolAllocate::MakeFunctionClone(Function &F) {
 {TIME_REGION(X, "CloneFunctionInto");
   CloneFunctionInto(New, &F, ValueMap, Returns);
 }
+
+  //
+  // The CloneFunctionInto() function will copy the parameter attributes
+  // verbatim.  This is incorrect; each attribute should be shifted one so
+  // that the pool descriptor has no attributes.
+  //
+  const ParamAttrsList * OldAttrs = New->getParamAttrs();
+  ParamAttrsVector NewAttrsVector;
+  for (unsigned index = 0; index < OldAttrs->size(); ++index) {
+    // Find the argument index
+    unsigned argIndex = OldAttrs->getParamIndex (index);
+
+    // If it's not the return value, move the attribute to the next
+    // parameter.
+    if (argIndex) ++argIndex;
+
+    // Add the parameter to the new list.
+    NewAttrsVector.push_back(ParamAttrsWithIndex::get(argIndex,OldAttrs->getParamAttrsAtIndex(index)));
+  }
+
+  // Assign the new attributes to the function clone
+  New->setParamAttrs (ParamAttrsList::get (NewAttrsVector));
+
   // Invert the ValueMap into the NewToOldValueMap
   std::map<Value*, const Value*> &NewToOldValueMap = FI.NewToOldValueMap;
 
