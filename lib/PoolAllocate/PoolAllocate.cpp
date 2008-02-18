@@ -135,10 +135,10 @@ bool PoolAllocate::runOnModule(Module &M) {
 
   std::map<Function*, Function*> FuncMap;
 
-  // Now clone a function using the pool arg list obtained in the previous pass
-  // over the modules.  Loop over only the function initially in the program,
-  // don't traverse newly added ones.  If the function needs new arguments, make
-  // its clone.
+  // Now clone a function using the pool arg list obtained in the previous
+  // pass over the modules.  Loop over only the function initially in the
+  // program, don't traverse newly added ones.  If the function needs new
+  // arguments, make its clone.
   std::set<Function*> ClonedFunctions;
 {TIME_REGION(X, "MakeFunctionClone");
   for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I)
@@ -379,7 +379,8 @@ Function *PoolAllocate::MakeFunctionClone(Function &F) {
   ++NumCloned;
  
       
-  // Figure out what the arguments are to be for the new version of the function
+  // Figure out what the arguments are to be for the new version of the
+  // function
   const FunctionType *OldFuncTy = F.getFunctionType();
   std::vector<const Type*> ArgTys(FI.ArgNodes.size(), PoolDescPtrTy);
   ArgTys.reserve(OldFuncTy->getNumParams() + FI.ArgNodes.size());
