@@ -432,21 +432,23 @@ Function *PoolAllocate::MakeFunctionClone(Function &F) {
   // that the pool descriptor has no attributes.
   //
   const ParamAttrsList * OldAttrs = New->getParamAttrs();
-  ParamAttrsVector NewAttrsVector;
-  for (unsigned index = 0; index < OldAttrs->size(); ++index) {
-    // Find the argument index
-    unsigned argIndex = OldAttrs->getParamIndex (index);
+  if (OldAttrs) {
+    ParamAttrsVector NewAttrsVector;
+    for (unsigned index = 0; index < OldAttrs->size(); ++index) {
+      // Find the argument index
+      unsigned argIndex = OldAttrs->getParamIndex (index);
 
-    // If it's not the return value, move the attribute to the next
-    // parameter.
-    if (argIndex) ++argIndex;
+      // If it's not the return value, move the attribute to the next
+      // parameter.
+      if (argIndex) ++argIndex;
 
-    // Add the parameter to the new list.
-    NewAttrsVector.push_back(ParamAttrsWithIndex::get(argIndex,OldAttrs->getParamAttrsAtIndex(index)));
+      // Add the parameter to the new list.
+      NewAttrsVector.push_back(ParamAttrsWithIndex::get(argIndex,OldAttrs->getParamAttrsAtIndex(index)));
+    }
+
+    // Assign the new attributes to the function clone
+    New->setParamAttrs (ParamAttrsList::get (NewAttrsVector));
   }
-
-  // Assign the new attributes to the function clone
-  New->setParamAttrs (ParamAttrsList::get (NewAttrsVector));
 
   // Invert the ValueMap into the NewToOldValueMap
   std::map<Value*, const Value*> &NewToOldValueMap = FI.NewToOldValueMap;
