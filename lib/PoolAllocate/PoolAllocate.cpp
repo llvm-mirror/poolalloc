@@ -24,6 +24,7 @@
 #include "llvm/Instructions.h"
 #include "llvm/Module.h"
 #include "llvm/Constants.h"
+#include "llvm/ParamAttrsList.h"
 #include "llvm/ParameterAttributes.h"
 #include "llvm/Support/CFG.h"
 #include "llvm/Target/TargetData.h"
