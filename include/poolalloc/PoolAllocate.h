@@ -132,6 +132,7 @@ public:
 #endif  
   Constant *PoolInit, *PoolDestroy, *PoolAlloc, *PoolRealloc, *PoolMemAlign;
   Constant *PoolFree;
+  Constant *PoolStrdup;
 #if defined(SAFECODE) || defined(BOUNDS_CHECK)
   Constant *PoolRegister;
 #endif
