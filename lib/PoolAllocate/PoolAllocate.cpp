@@ -25,7 +25,6 @@
 #include "llvm/Module.h"
 #include "llvm/Constants.h"
 #include "llvm/ParamAttrsList.h"
-#include "llvm/ParameterAttributes.h"
 #include "llvm/Support/CFG.h"
 #include "llvm/Target/TargetData.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
@@ -215,18 +214,19 @@ void PoolAllocate::AddPoolPrototypes() {
                                                 Type::Int32Ty, Type::Int32Ty, 
                                                 NULL);
 
+  // The poolstrdup function.
+  PoolStrdup = CurModule->getOrInsertFunction("poolstrdup",
+                                               VoidPtrTy, PoolDescPtrTy,
+                                               VoidPtrTy, NULL);
+  // The poolmemalign function.
   // Get the poolfree function.
   PoolFree = CurModule->getOrInsertFunction("poolfree", Type::VoidTy,
                                             PoolDescPtrTy, VoidPtrTy, NULL);
-#ifdef SAFECODE
+#if defined(SAFECODE) || defined(BOUNDS_CHECK)
   //Get the poolregister function
   PoolRegister = CurModule->getOrInsertFunction("poolregister", Type::VoidTy,
-                                   PoolDescPtrTy, Type::Int32Ty, VoidPtrTy, NULL);
+                                 PoolDescPtrTy, VoidPtrTy, Type::Int32Ty, NULL);
 #endif
-#ifdef BOUNDS_CHECK
-  PoolRegister = CurModule->getOrInsertFunction("poolregister", Type::VoidTy,
-                                   PoolDescPtrTy, VoidPtrTy, Type::Int32Ty, NULL);
-#endif  
 }
 
 static void getCallsOf(Constant *C, std::vector<CallInst*> &Calls) {
@@ -672,11 +672,11 @@ void PoolAllocate::ProcessFunctionBody(Function &F, Function &NewF) {
   for (DSGraph::node_iterator I = G.node_begin(), E = G.node_end(); I != E;++I){
     // We only need to make a pool if there is a heap object in it...
     DSNode *N = I;
-    if (
 #ifdef BOUNDS_CHECK
-  (N->isArray() ||
+    if ((N->isArray()) || (N->isHeapNode()))
+#else
+    if (N->isHeapNode())
 #endif		 
-   (N->isHeapNode()))
       if (GlobalsGraphNodeMapping.count(N)) {
         // If it is a global pool, set up the pool descriptor appropriately.
         DSNode *GGN = GlobalsGraphNodeMapping[N].getNode();

@@ -68,6 +68,7 @@ namespace {
     void visitCallocCall(CallSite CS);
     void visitReallocCall(CallSite CS);
     void visitMemAlignCall(CallSite CS);
+    void visitStrdupCall(CallSite CS);
     void visitFreeInst(FreeInst &FI);
     void visitCallSite(CallSite CS);
     void visitCallInst(CallInst &CI) { visitCallSite(&CI); }
@@ -261,10 +262,16 @@ void FuncTransform::visitAllocaInst(AllocaInst &MI) {
 					 MI.getOperand(0), "sizetmp", &MI);
     
     //  TransformAllocationInstr(&MI, AllocSize);
+    BasicBlock::iterator InsertPt(MI);
+    ++InsertPt;
     Instruction *Casted = CastInst::createPointerCast(&MI, PointerType::getUnqual(Type::Int8Ty),
-				       MI.getName()+".casted", MI.getNext());
+				       MI.getName()+".casted", InsertPt);
+    std::vector<Value *> args;
+    args.push_back (PH);
+    args.push_back (Casted);
+    args.push_back (AllocSize);
     Instruction *V = new CallInst(PAInfo.PoolRegister,
-				  make_vector(PH, Casted, AllocSize, 0), "", Casted->getNext());
+				  args.begin(), args.end(), "", InsertPt);
     AddPoolUse(*V, PH, PoolUses);
   }
 #endif  
@@ -464,6 +471,57 @@ void FuncTransform::visitMemAlignCall(CallSite CS) {
   I->eraseFromParent();
 }
 
+/// visitStrdupCall - Handle strdup().
+///
+void FuncTransform::visitStrdupCall(CallSite CS) {
+  assert(CS.arg_end()-CS.arg_begin() == 1 && "strdup takes one argument!");
+  Instruction *I = CS.getInstruction();
+  DSNode *Node = getDSNodeHFor(I).getNode();
+  assert (Node && "strdup has NULL DSNode!\n");
+  Value *PH = getPoolHandle(I);
+#if 0
+  assert (PH && "PH for strdup is null!\n");
+#else
+  if (!PH) {
+    std::cerr << "strdup: NoPH" << std::endl;
+    return;
+  }
+#endif
+  Value *OldPtr = CS.getArgument(0);
+
+  static Type *VoidPtrTy = PointerType::getUnqual(Type::Int8Ty);
+  if (OldPtr->getType() != VoidPtrTy)
+    OldPtr = CastInst::createPointerCast(OldPtr, VoidPtrTy, OldPtr->getName(), I);
+
+  std::string Name = I->getName(); I->setName("");
+  Value* Opts[3] = {PH, OldPtr, 0};
+  Instruction *V = new CallInst(PAInfo.PoolStrdup, Opts, Opts + 2, Name, I);
+  Instruction *Casted = V;
+  if (V->getType() != I->getType())
+    Casted = CastInst::createPointerCast(V, I->getType(), V->getName(), I);
+
+  // Update def-use info
+  I->replaceAllUsesWith(Casted);
+
+  // If we are modifying the original function, update the DSGraph.
+  if (!FI.Clone) {
+    // V and Casted now point to whatever the original allocation did.
+    G.getScalarMap().replaceScalar(I, V);
+    if (V != Casted)
+      G.getScalarMap()[Casted] = G.getScalarMap()[V];
+  } else {             // Otherwise, update the NewToOldValueMap
+    UpdateNewToOldValueMap(I, V, V != Casted ? Casted : 0);
+  }
+
+  // If this was an invoke, fix up the CFG.
+  if (InvokeInst *II = dyn_cast<InvokeInst>(I)) {
+    new BranchInst(II->getNormalDest(), I);
+    II->getUnwindDest()->removePredecessor(II->getParent(), true);
+  }
+
+  // Remove old allocation instruction.
+  I->eraseFromParent();
+}
 
 
 void FuncTransform::visitCallSite(CallSite CS) {
@@ -496,7 +554,10 @@ void FuncTransform::visitCallSite(CallSite CS) {
       visitMemAlignCall(CS);
       return;
     } else if (CF->getName() == "strdup") {
-      assert(0 && "strdup should have been linked into the program!");
+#if 1
+      visitStrdupCall(CS);
+#endif
+      return;
     } else if (CF->getName() == "valloc") {
       std::cerr << "VALLOC USED BUT NOT HANDLED!\n";
       abort();

@@ -51,7 +51,11 @@ static void getCallsOf(Constant *C, std::vector<CallInst*> &Calls) {
 
 bool PoolOptimize::runOnModule(Module &M) {
   const Type *VoidPtrTy = PointerType::getUnqual(Type::Int8Ty);
+#ifdef SAFECODE
+  const Type *PoolDescPtrTy = PointerType::getUnqual(ArrayType::get(VoidPtrTy, 50));
+#else
   const Type *PoolDescPtrTy = PointerType::getUnqual(ArrayType::get(VoidPtrTy, 16));
+#endif
 
 
   // Get poolinit function.
