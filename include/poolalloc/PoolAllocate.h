@@ -155,7 +155,7 @@ public:
   PoolAllocate(bool passAllArguments = false, intptr_t IDp = (intptr_t) (&ID))
     : ModulePass((intptr_t)IDp), PassAllArguments(passAllArguments) {}
 #endif
-  bool runOnModule(Module &M);
+  virtual bool runOnModule(Module &M);
   
   virtual void getAnalysisUsage(AnalysisUsage &AU) const;
   
@@ -216,13 +216,15 @@ public:
 #endif
   }
 
- private:
+protected:
   
   /// AddPoolPrototypes - Add prototypes for the pool functions to the
   /// specified module and update the Pool* instance variables to point to
   /// them.
   ///
-  void AddPoolPrototypes();
+  void AddPoolPrototypes(Module*);
+
+ private:
 
   /// MicroOptimizePoolCalls - Apply any microoptimizations to calls to pool
   /// allocation function calls that we can.

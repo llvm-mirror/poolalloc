@@ -122,7 +122,7 @@ bool PoolAllocate::runOnModule(Module &M) {
   CurHeuristic->Initialize(M, ECGraphs->getGlobalsGraph(), *this);
 
   // Add the pool* prototypes to the module
-  AddPoolPrototypes();
+  AddPoolPrototypes(&M);
 
   // Create the pools for memory objects reachable by global variables.
   if (SetupGlobalPools(M))
@@ -180,7 +180,7 @@ bool PoolAllocate::runOnModule(Module &M) {
 //
 // NOTE: If these are changed, make sure to update PoolOptimize.cpp as well!
 //
-void PoolAllocate::AddPoolPrototypes() {
+void PoolAllocate::AddPoolPrototypes(Module* M) {
   if (VoidPtrTy == 0) {
     // NOTE: If these are changed, make sure to update PoolOptimize.cpp as well!
     VoidPtrTy = PointerType::getUnqual(Type::Int8Ty);
@@ -188,43 +188,43 @@ void PoolAllocate::AddPoolPrototypes() {
     PoolDescPtrTy = PointerType::getUnqual(PoolDescType);
   }
 
-  CurModule->addTypeName("PoolDescriptor", PoolDescType);
+  M->addTypeName("PoolDescriptor", PoolDescType);
   
   // Get poolinit function.
-  PoolInit = CurModule->getOrInsertFunction("poolinit", Type::VoidTy,
+  PoolInit = M->getOrInsertFunction("poolinit", Type::VoidTy,
                                             PoolDescPtrTy, Type::Int32Ty,
                                             Type::Int32Ty, NULL);
 
   // Get pooldestroy function.
-  PoolDestroy = CurModule->getOrInsertFunction("pooldestroy", Type::VoidTy,
+  PoolDestroy = M->getOrInsertFunction("pooldestroy", Type::VoidTy,
                                                PoolDescPtrTy, NULL);
   
   // The poolalloc function.
-  PoolAlloc = CurModule->getOrInsertFunction("poolalloc", 
+  PoolAlloc = M->getOrInsertFunction("poolalloc", 
                                              VoidPtrTy, PoolDescPtrTy,
                                              Type::Int32Ty, NULL);
   
   // The poolrealloc function.
-  PoolRealloc = CurModule->getOrInsertFunction("poolrealloc",
+  PoolRealloc = M->getOrInsertFunction("poolrealloc",
                                                VoidPtrTy, PoolDescPtrTy,
                                                VoidPtrTy, Type::Int32Ty, NULL);
   // The poolmemalign function.
-  PoolMemAlign = CurModule->getOrInsertFunction("poolmemalign",
+  PoolMemAlign = M->getOrInsertFunction("poolmemalign",
                                                 VoidPtrTy, PoolDescPtrTy,
                                                 Type::Int32Ty, Type::Int32Ty, 
                                                 NULL);
 
   // The poolstrdup function.
-  PoolStrdup = CurModule->getOrInsertFunction("poolstrdup",
+  PoolStrdup = M->getOrInsertFunction("poolstrdup",
                                                VoidPtrTy, PoolDescPtrTy,
                                                VoidPtrTy, NULL);
   // The poolmemalign function.
   // Get the poolfree function.
-  PoolFree = CurModule->getOrInsertFunction("poolfree", Type::VoidTy,
+  PoolFree = M->getOrInsertFunction("poolfree", Type::VoidTy,
                                             PoolDescPtrTy, VoidPtrTy, NULL);
 #if defined(SAFECODE) || defined(BOUNDS_CHECK)
   //Get the poolregister function
-  PoolRegister = CurModule->getOrInsertFunction("poolregister", Type::VoidTy,
+  PoolRegister = M->getOrInsertFunction("poolregister", Type::VoidTy,
                                  PoolDescPtrTy, VoidPtrTy, Type::Int32Ty, NULL);
 #endif
 }

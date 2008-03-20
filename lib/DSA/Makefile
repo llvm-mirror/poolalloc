@@ -11,5 +11,7 @@ LEVEL = ../..
 SHARED_LIBRARY=1
 LIBRARYNAME = LLVMDataStructure
 
+CFlags += -fPIC
+
 include $(LEVEL)/Makefile.common
 

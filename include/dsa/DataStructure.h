@@ -364,7 +364,7 @@ struct EquivClassGraphs : public ModulePass {
 
 public:
   static char ID;
-  EquivClassGraphs() : ModulePass((intptr_t)&ID) {}
+  EquivClassGraphs();
 
   /// EquivClassGraphs - Computes the equivalence classes and then the
   /// folded DS graphs for each class.

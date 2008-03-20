@@ -37,7 +37,9 @@ namespace {
                                   "Number of graphs inlined");
 }
 
-char EquivClassGraphs::ID;
+char EquivClassGraphs::ID = 0;
+
+EquivClassGraphs::EquivClassGraphs() : ModulePass((intptr_t)&ID) {}
 
 #ifndef NDEBUG
 template<typename GT>
