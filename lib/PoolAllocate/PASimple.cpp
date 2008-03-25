@@ -7,7 +7,8 @@
 // 
 //===----------------------------------------------------------------------===//
 //
-// A minimal poolallocator that assignes all allocation to one common global pool
+// A minimal poolallocator that assignes all allocation to one common
+// global pool.
 //
 //===----------------------------------------------------------------------===//
 
@@ -39,9 +40,6 @@
 
 using namespace llvm;
 using namespace PA;
-#ifdef SAFECODE
-using namespace CUA;
-#endif
 
 namespace {
   class PoolAllocateSimple : public PoolAllocate {
@@ -60,7 +58,7 @@ namespace {
   char PoolAllocateSimple::ID = 0;
 
   RegisterPass<PoolAllocateSimple>
-  X("poolalloc-simple", "Pool allocate everything togeather");
+  X("poolalloc-simple", "Pool allocate everything into a single global pool");
 
 }
 
