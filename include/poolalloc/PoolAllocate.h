@@ -300,6 +300,21 @@ struct PoolAllocatePassAllPools : public PoolAllocate {
   PoolAllocatePassAllPools() : PoolAllocate(true, (intptr_t) &ID) {}
 };
 
+/// PoolAllocateSimple - This class modifies the heap allocations so that they
+/// use the pool allocator run-time.  However, unlike PoolAllocatePassAllPools,
+/// it doesn't involve all of complex machinery of the original pool allocation
+/// implementation.
+class PoolAllocateSimple : public PoolAllocate {
+  GlobalValue* TheGlobalPool;
+public:
+  static char ID;
+  PoolAllocateSimple() : PoolAllocate(false, (intptr_t)&ID) {}
+  void getAnalysisUsage(AnalysisUsage &AU) const;
+  bool runOnModule(Module &M);
+  GlobalVariable *CreateGlobalPool(unsigned RecSize, unsigned Align,
+                                   Instruction *IPHint, Module& M);
+  void ProcessFunctionBodySimple(Function& F);
+};
 }
 
 #endif

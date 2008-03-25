@@ -41,25 +41,11 @@
 using namespace llvm;
 using namespace PA;
 
+char llvm::PoolAllocateSimple::ID = 0;
+
 namespace {
-  class PoolAllocateSimple : public PoolAllocate {
-    GlobalValue* TheGlobalPool;
-  public:
-    static char ID;
-    PoolAllocateSimple() : PoolAllocate(false, (intptr_t)&ID) {}
-    void getAnalysisUsage(AnalysisUsage &AU) const;
-    bool runOnModule(Module &M);
-    GlobalVariable *CreateGlobalPool(unsigned RecSize, unsigned Align,
-                                     Instruction *IPHint, Module& M);
-    void ProcessFunctionBodySimple(Function& F);
-
-  };
-
-  char PoolAllocateSimple::ID = 0;
-
   RegisterPass<PoolAllocateSimple>
   X("poolalloc-simple", "Pool allocate everything into a single global pool");
-
 }
 
 void PoolAllocateSimple::getAnalysisUsage(AnalysisUsage &AU) const {
