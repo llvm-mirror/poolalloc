@@ -73,7 +73,7 @@ AC_ARG_ENABLE(safecode,
                   )
 
 dnl --enable-boundscheck: Enable SAFECode Bounds Check functionality
-AC_ARG_ENABLE(boundscheck,
+AC_ARG_ENABLE(boundschecks,
   AS_HELP_STRING(--enable-boundschecks,
                  [Enable SAFECode bounds checking (default is NO)]),
                   AC_DEFINE(BOUNDS_CHECK,[[1]]),

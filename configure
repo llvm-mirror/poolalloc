@@ -3646,9 +3646,9 @@ _ACEOF
 
 fi;
 
-# Check whether --enable-boundscheck or --disable-boundscheck was given.
-if test "${enable_boundscheck+set}" = set; then
-  enableval="$enable_boundscheck"
+# Check whether --enable-boundschecks or --disable-boundschecks was given.
+if test "${enable_boundschecks+set}" = set; then
+  enableval="$enable_boundschecks"
   cat >>confdefs.h <<\_ACEOF
 #define BOUNDS_CHECK 1
 _ACEOF
