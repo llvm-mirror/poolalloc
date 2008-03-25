@@ -21,6 +21,8 @@
 #include "llvm/ADT/hash_set"
 #include "llvm/ADT/EquivalenceClasses.h"
 
+#include <map>
+
 namespace llvm {
 
 class Type;
