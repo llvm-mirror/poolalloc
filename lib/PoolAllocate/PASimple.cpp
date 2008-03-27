@@ -72,8 +72,11 @@ bool PoolAllocateSimple::runOnModule(Module &M) {
   // Now that all call targets are available, rewrite the function bodies of the
   // clones.
   for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I)
-    if (!I->isDeclaration())
+    if (!I->isDeclaration()) {
+      FuncInfo &FI =
+        FunctionInfo.insert(std::make_pair(&F, FuncInfo(F))).first->second;
       ProcessFunctionBodySimple(*I);
+    }
   
   return true;
 }
