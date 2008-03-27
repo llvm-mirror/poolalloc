@@ -48,12 +48,39 @@ namespace {
   X("poolalloc-simple", "Pool allocate everything into a single global pool");
 }
 
+static inline Value *
+castTo (Value * V, const Type * Ty, std::string Name, Instruction * InsertPt) {
+  //
+  // Don't bother creating a cast if it's already the correct type.
+  //
+  if (V->getType() == Ty)
+    return V;
+
+  //
+  // If it's a constant, just create a constant expression.
+  //
+  if (Constant * C = dyn_cast<Constant>(V)) {
+    Constant * CE = ConstantExpr::getZExtOrBitCast (C, Ty);
+    return CE;
+  }
+
+  //
+  // Otherwise, insert a cast instruction.
+  //
+  return CastInst::createZExtOrBitCast (V, Ty, Name, InsertPt);
+}
+
 void PoolAllocateSimple::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.addRequired<TargetData>();
+  AU.addRequiredTransitive<EquivClassGraphs>();
+  AU.addPreserved<EquivClassGraphs>();
 }
 
 bool PoolAllocateSimple::runOnModule(Module &M) {
   if (M.begin() == M.end()) return false;
+
+  // Get the Target Data information and the ECGraphs
+  ECGraphs = &getAnalysis<EquivClassGraphs>();   // folded inlined CBU graphs
 
   // Add the pool* prototypes to the module
   AddPoolPrototypes(&M);
@@ -66,18 +93,16 @@ bool PoolAllocateSimple::runOnModule(Module &M) {
     return true;
   }
 
+  //
+  // Create the global pool.
+  //
   TheGlobalPool = CreateGlobalPool(1, 1, MainFunc->getEntryBlock().begin(), M);
-
 
   // Now that all call targets are available, rewrite the function bodies of the
   // clones.
   for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I)
-    if (!I->isDeclaration()) {
-      FuncInfo &FI =
-        FunctionInfo.insert(std::make_pair(&F, FuncInfo(F))).first->second;
+    if (!I->isDeclaration())
       ProcessFunctionBodySimple(*I);
-    }
-  
   return true;
 }
 
@@ -85,37 +110,82 @@ void PoolAllocateSimple::ProcessFunctionBodySimple(Function& F) {
   std::vector<Instruction*> toDelete;
   std::vector<ReturnInst*> Returns;
   std::vector<Instruction*> ToFree;
+
+  // Get the target data information
+  TargetData &TD = getAnalysis<TargetData>();
+
+  //
+  // Create a silly Function Info structure for this function.
+  //
+  FuncInfo FInfo(F);
+  FunctionInfo.insert (make_pair(&F, FInfo));
+
+  //
+  // Get the DSGraph for this function.
+  //
+  DSGraph &ECG = ECGraphs->getDSGraph(F);
+
   for (Function::iterator i = F.begin(), e = F.end(); i != e; ++i)
     for (BasicBlock::iterator ii = i->begin(), ee = i->end(); ii != ee; ++ii) {
-      if (isa<MallocInst>(ii)) {
+      if (MallocInst * MI = dyn_cast<MallocInst>(ii)) {
+        // Associate the global pool decriptor with the DSNode
+        DSNode * Node = ECG.getNodeForValue(MI).getNode();
+        FInfo.PoolDescriptors.insert(make_pair(Node,TheGlobalPool));
+
+        // Mark the malloc as an instruction to delete
         toDelete.push_back(ii);
-        //Fixme: fixup size
-        Value* args[] = {TheGlobalPool, ii->getOperand(0)};
-        Instruction* x = new CallInst(PoolAlloc, &args[0], &args[2], "", ii);
+
+        // Create instructions to calculate the size of the allocation in
+        // bytes
+        Value * AllocSize;
+        if (MI->isArrayAllocation()) {
+          Value * NumElements = MI->getArraySize();
+          Value * ElementSize = ConstantInt::get (Type::Int32Ty,
+                                                  TD.getABITypeSize(MI->getAllocatedType()));
+          AllocSize = BinaryOperator::create (Instruction::Mul,
+                                              ElementSize,
+                                              NumElements,
+                                              "sizetmp",
+                                              MI);
+        } else {
+          AllocSize = ConstantInt::get (Type::Int32Ty,
+                                        TD.getABITypeSize(MI->getAllocatedType()));
+        }
+
+        Value* args[] = {TheGlobalPool, AllocSize};
+        Instruction* x = new CallInst(PoolAlloc, &args[0], &args[2], MI->getName(), ii);
         ii->replaceAllUsesWith(CastInst::createPointerCast(x, ii->getType(), "", ii));
-      } else if (isa<AllocaInst>(ii)) {
+      } else if (AllocaInst * AI = dyn_cast<AllocaInst>(ii)) {
+#if 0
+        DSNode * Node = ECG.getNodeForValue(AI).getNode();
+        FInfo.PoolDescriptors.insert(make_pair(Node,TheGlobalPool));
         toDelete.push_back(ii);
         //Fixme: fixup size
         Value* args[] = {TheGlobalPool, ii->getOperand(0)};
-        Instruction* x = new CallInst(PoolAlloc, &args[0], &args[2], "", ii);
+        Instruction* x = new CallInst(PoolAlloc, &args[0], &args[2], AI->getName(), ii);
         ToFree.push_back(x);
         ii->replaceAllUsesWith(CastInst::createPointerCast(x, ii->getType(), "", ii));
-      } else if (isa<FreeInst>(ii)) {
+#endif
+      } else if (FreeInst * FI = dyn_cast<FreeInst>(ii)) {
+        Type * VoidPtrTy = PointerType::getUnqual(Type::Int8Ty);
+        Value * FreedNode = castTo (FI->getPointerOperand(), VoidPtrTy, "cast", ii);
         toDelete.push_back(ii);
-        Value* args[] = {TheGlobalPool, ii->getOperand(0)};
+        Value* args[] = {TheGlobalPool, FreedNode};
         new CallInst(PoolFree, &args[0], &args[2], "", ii);
       } else if (isa<ReturnInst>(ii)) {
         Returns.push_back(cast<ReturnInst>(ii));
       }
     }
-  
+
   //add frees at each return for the allocas
   for (std::vector<ReturnInst*>::iterator i = Returns.begin(), e = Returns.end();
        i != e; ++i)
     for (std::vector<Instruction*>::iterator ii = ToFree.begin(), ee = ToFree.end();
          ii != ee; ++ii) {
-        Value* args[] = {TheGlobalPool, *ii};
-        new CallInst(PoolFree, &args[0], &args[2], "", *i);
+        std::vector<Value*> args;
+        args.push_back (TheGlobalPool);
+        args.push_back (*ii);
+        new CallInst(PoolFree, args.begin(), args.end(), "", *i);
     }
   
   //delete malloc and alloca insts
@@ -126,8 +196,11 @@ void PoolAllocateSimple::ProcessFunctionBodySimple(Function& F) {
 /// CreateGlobalPool - Create a global pool descriptor object, and insert a
 /// poolinit for it into main.  IPHint is an instruction that we should insert
 /// the poolinit before if not null.
-GlobalVariable *PoolAllocateSimple::CreateGlobalPool(unsigned RecSize, unsigned Align,
-                                                     Instruction *IPHint, Module& M) {
+GlobalVariable *
+PoolAllocateSimple::CreateGlobalPool (unsigned RecSize,
+                                      unsigned Align,
+                                      Instruction *IPHint,
+                                      Module& M) {
   GlobalVariable *GV =
     new GlobalVariable(getPoolType(), false, GlobalValue::InternalLinkage, 
                        Constant::getNullValue(getPoolType()), "GlobalPool",
