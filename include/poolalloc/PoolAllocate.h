@@ -120,10 +120,8 @@ class PoolAllocate : public ModulePass {
   bool PassAllArguments;
 
   Module *CurModule;
-  EquivClassGraphs *ECGraphs;
   CallTargetFinder* CTF;
   
-  std::map<Function*, PA::FuncInfo> FunctionInfo;
   std::map<Function*, Function*> CloneToOrigMap;
 public:
 
@@ -145,6 +143,10 @@ public:
   /// map contains the global variable that holds the pool descriptor for the
   /// node.
   std::map<const DSNode*, Value*> GlobalNodes;
+
+protected:
+  std::map<Function*, PA::FuncInfo> FunctionInfo;
+  EquivClassGraphs *ECGraphs;
 
  public:
   static char ID;
@@ -216,6 +218,13 @@ public:
 #endif
   }
 
+  virtual Value * getGlobalPool (const DSNode * Node) {
+    std::map<const DSNode *, Value *>::iterator I = GlobalNodes.find (Node);
+    if (I == GlobalNodes.end())
+      return 0;
+    else
+      return I->second;
+  }
 protected:
   
   /// AddPoolPrototypes - Add prototypes for the pool functions to the
@@ -314,7 +323,11 @@ public:
   GlobalVariable *CreateGlobalPool(unsigned RecSize, unsigned Align,
                                    Instruction *IPHint, Module& M);
   void ProcessFunctionBodySimple(Function& F);
-};
+
+  virtual Value * getGlobalPool (const DSNode * Node) {
+    return TheGlobalPool;
+  }
+  };
 }
 
 #endif
