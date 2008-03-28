@@ -166,6 +166,51 @@ void PoolAllocateSimple::ProcessFunctionBodySimple(Function& F) {
         ToFree.push_back(x);
         ii->replaceAllUsesWith(CastInst::createPointerCast(x, ii->getType(), "", ii));
 #endif
+      } else if (CallInst * CI = dyn_cast<CallInst>(ii)) {
+        CallSite CS(CI);
+        Function *CF = CS.getCalledFunction();
+        if (ConstantExpr *CE = dyn_cast<ConstantExpr>(CS.getCalledValue()))
+          if (CE->getOpcode() == Instruction::BitCast &&
+              isa<Function>(CE->getOperand(0)))
+            CF = cast<Function>(CE->getOperand(0));
+        if (CF && (CF->isDeclaration()) && (CF->getName() == "realloc")) {
+          // Mark the realloc as an instruction to delete
+          toDelete.push_back(ii);
+
+          // Insertion point - Instruction before which all our instructions go
+          Instruction *InsertPt = CI;
+          Value *OldPtr = CS.getArgument(0);
+          Value *Size = CS.getArgument(1);
+
+          // Ensure the size and pointer arguments are of the correct type
+          if (Size->getType() != Type::Int32Ty)
+            Size = CastInst::createIntegerCast (Size,
+                                                Type::Int32Ty,
+                                                false,
+                                                Size->getName(),
+                                                InsertPt);
+
+          static Type *VoidPtrTy = PointerType::getUnqual(Type::Int8Ty);
+          if (OldPtr->getType() != VoidPtrTy)
+            OldPtr = CastInst::createPointerCast (OldPtr,
+                                                  VoidPtrTy,
+                                                  OldPtr->getName(),
+                                                  InsertPt);
+
+          std::string Name = CI->getName(); CI->setName("");
+          Value* Opts[3] = {TheGlobalPool, OldPtr, Size};
+          Instruction *V = new CallInst (PoolRealloc,
+                                         Opts,
+                                         Opts + 3,
+                                         Name,
+                                         InsertPt);
+          Instruction *Casted = V;
+          if (V->getType() != CI->getType())
+            Casted = CastInst::createPointerCast (V, CI->getType(), V->getName(), InsertPt);
+
+          // Update def-use info
+          CI->replaceAllUsesWith(Casted);
+        }
       } else if (FreeInst * FI = dyn_cast<FreeInst>(ii)) {
         Type * VoidPtrTy = PointerType::getUnqual(Type::Int8Ty);
         Value * FreedNode = castTo (FI->getPointerOperand(), VoidPtrTy, "cast", ii);
