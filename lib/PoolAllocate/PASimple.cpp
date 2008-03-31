@@ -174,6 +174,10 @@ void PoolAllocateSimple::ProcessFunctionBodySimple(Function& F) {
               isa<Function>(CE->getOperand(0)))
             CF = cast<Function>(CE->getOperand(0));
         if (CF && (CF->isDeclaration()) && (CF->getName() == "realloc")) {
+          // Associate the global pool decriptor with the DSNode
+          DSNode * Node = ECG.getNodeForValue(CI).getNode();
+          FInfo.PoolDescriptors.insert(make_pair(Node,TheGlobalPool));
+
           // Mark the realloc as an instruction to delete
           toDelete.push_back(ii);
 
