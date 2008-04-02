@@ -218,6 +218,14 @@ protected:
 #endif
   }
 
+  virtual DSGraph & getDSGraph (const Function & F) const {
+    return ECGraphs->getDSGraph (F);
+  }
+
+  virtual DSGraph & getGlobalsGraph () const {
+    return ECGraphs->getGlobalsGraph ();
+  }
+
   virtual Value * getGlobalPool (const DSNode * Node) {
     std::map<const DSNode *, Value *>::iterator I = GlobalNodes.find (Node);
     if (I == GlobalNodes.end())
