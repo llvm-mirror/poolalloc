@@ -243,6 +243,17 @@ protected:
     else
       return I->second;
   }
+
+  virtual CompleteBUDataStructures::callee_iterator
+  callee_begin (CallInst * CI) {
+    return ECGraphs->callee_begin(CI);
+  }
+
+  virtual CompleteBUDataStructures::callee_iterator
+  callee_end (CallInst * CI) {
+    return ECGraphs->callee_end(CI);
+  }
+
 protected:
   
   /// AddPoolPrototypes - Add prototypes for the pool functions to the
