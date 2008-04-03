@@ -226,6 +226,16 @@ protected:
     return ECGraphs->getGlobalsGraph ();
   }
 
+  virtual Value * getPool (const DSNode * N, Function & F) {
+    PA::FuncInfo * FI = getFuncInfoOrClone (F);
+    std::map<const DSNode*, Value*>::iterator I = FI->PoolDescriptors.find(N);
+    if (I != FI->PoolDescriptors.end()) {
+      return I->second;
+    }
+
+    return 0;
+  }
+
   virtual Value * getGlobalPool (const DSNode * Node) {
     std::map<const DSNode *, Value *>::iterator I = GlobalNodes.find (Node);
     if (I == GlobalNodes.end())
@@ -333,6 +343,10 @@ public:
   void ProcessFunctionBodySimple(Function& F);
 
   virtual Value * getGlobalPool (const DSNode * Node) {
+    return TheGlobalPool;
+  }
+
+  virtual Value * getPool (const DSNode * N, Function & F) {
     return TheGlobalPool;
   }
   };
