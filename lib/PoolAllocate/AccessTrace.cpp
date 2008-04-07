@@ -95,7 +95,7 @@ void PoolAccessTrace::InstrumentAccess(Instruction *I, Value *Ptr,
 
   // Insert the trace call.
   Value *Opts[2] = {Ptr, PD};
-  new CallInst(PoolAccessTraceFn, Opts, Opts + 2, "", I);
+  CallInst::Create (PoolAccessTraceFn, Opts, Opts + 2, "", I);
 }
 
 bool PoolAccessTrace::runOnModule(Module &M) {
@@ -108,7 +108,7 @@ bool PoolAccessTrace::runOnModule(Module &M) {
   Function *MainFunc = M.getFunction("main");
   if (MainFunc && !MainFunc->isDeclaration())
     // Insert a call to the library init function into the beginning of main.
-    new CallInst(AccessTraceInitFn, "", MainFunc->begin()->begin());
+    CallInst::Create (AccessTraceInitFn, "", MainFunc->begin()->begin());
 
   // Look at all of the loads in the program.
   for (Module::iterator F = M.begin(), E = M.end(); F != E; ++F) {

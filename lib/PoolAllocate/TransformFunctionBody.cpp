@@ -157,7 +157,7 @@ Instruction *FuncTransform::TransformAllocationInstr(Instruction *I,
   Value *PH = getPoolHandle(I);
   
   Value* Opts[2] = {PH, Size};
-  Instruction *V = new CallInst(PAInfo.PoolAlloc, Opts, Opts + 2, Name, I);
+  Instruction *V = CallInst::Create(PAInfo.PoolAlloc, Opts, Opts + 2, Name, I);
 
   AddPoolUse(*V, PH, PoolUses);
 
@@ -181,7 +181,7 @@ Instruction *FuncTransform::TransformAllocationInstr(Instruction *I,
 
   // If this was an invoke, fix up the CFG.
   if (InvokeInst *II = dyn_cast<InvokeInst>(I)) {
-    new BranchInst(II->getNormalDest(), I);
+    BranchInst::Create (II->getNormalDest(), I);
     II->getUnwindDest()->removePredecessor(II->getParent(), true);
   }
 
@@ -234,7 +234,7 @@ void FuncTransform::visitMallocInst(MallocInst &MI) {
       Casted = CastInst::createPointerCast(AI, PointerType::getUnqual(Type::Int8Ty),
 			      AI->getName()+".casted",aiNext);
     
-    Instruction *V = new CallInst(PAInfo.PoolRegister,
+    Instruction *V = CallInst::Create(PAInfo.PoolRegister,
 				  make_vector(PH, AllocSize, Casted, 0), "", aiNext);
     AddPoolUse(*V, PH, PoolUses);
   }
@@ -270,7 +270,7 @@ void FuncTransform::visitAllocaInst(AllocaInst &MI) {
     args.push_back (PH);
     args.push_back (Casted);
     args.push_back (AllocSize);
-    Instruction *V = new CallInst(PAInfo.PoolRegister,
+    Instruction *V = CallInst::Create(PAInfo.PoolRegister,
 				  args.begin(), args.end(), "", InsertPt);
     AddPoolUse(*V, PH, PoolUses);
   }
@@ -291,7 +291,7 @@ Instruction *FuncTransform::InsertPoolFreeInstr(Value *Arg, Instruction *Where){
   }
 
   Value* Opts[2] = {PH, Casted};
-  CallInst *FreeI = new CallInst(PAInfo.PoolFree, Opts, Opts + 2, "", Where);
+  CallInst *FreeI = CallInst::Create(PAInfo.PoolFree, Opts, Opts + 2, "", Where);
   AddPoolUse(*FreeI, PH, PoolFrees);
   return FreeI;
 }
@@ -352,7 +352,7 @@ void FuncTransform::visitCallocCall(CallSite CS) {
   // We know that the memory returned by poolalloc is at least 4 byte aligned.
   Value* Opts[4] = {Ptr, ConstantInt::get(Type::Int8Ty, 0),
                     V2,  ConstantInt::get(Type::Int32Ty, 4)};
-  new CallInst(MemSet, Opts, Opts + 4, "", BBI);
+  CallInst::Create(MemSet, Opts, Opts + 4, "", BBI);
 }
 
 
@@ -372,7 +372,7 @@ void FuncTransform::visitReallocCall(CallSite CS) {
 
   std::string Name = I->getName(); I->setName("");
   Value* Opts[3] = {PH, OldPtr, Size};
-  Instruction *V = new CallInst(PAInfo.PoolRealloc, Opts, Opts + 3, Name, I);
+  Instruction *V = CallInst::Create(PAInfo.PoolRealloc, Opts, Opts + 3, Name, I);
   Instruction *Casted = V;
   if (V->getType() != I->getType())
     Casted = CastInst::createPointerCast(V, I->getType(), V->getName(), I);
@@ -392,7 +392,7 @@ void FuncTransform::visitReallocCall(CallSite CS) {
 
   // If this was an invoke, fix up the CFG.
   if (InvokeInst *II = dyn_cast<InvokeInst>(I)) {
-    new BranchInst(II->getNormalDest(), I);
+    BranchInst::Create (II->getNormalDest(), I);
     II->getUnwindDest()->removePredecessor(II->getParent(), true);
   }
 
@@ -440,7 +440,7 @@ void FuncTransform::visitMemAlignCall(CallSite CS) {
 
   std::string Name = I->getName(); I->setName("");
   Value* Opts[3] = {PH, Align, Size};
-  Instruction *V = new CallInst(PAInfo.PoolMemAlign, Opts, Opts + 3, Name, I);
+  Instruction *V = CallInst::Create(PAInfo.PoolMemAlign, Opts, Opts + 3, Name, I);
 
   Instruction *Casted = V;
   if (V->getType() != I->getType())
@@ -463,7 +463,7 @@ void FuncTransform::visitMemAlignCall(CallSite CS) {
 
   // If this was an invoke, fix up the CFG.
   if (InvokeInst *II = dyn_cast<InvokeInst>(I)) {
-    new BranchInst(II->getNormalDest(), I);
+    BranchInst::Create (II->getNormalDest(), I);
     II->getUnwindDest()->removePredecessor(II->getParent(), true);
   }
 
@@ -495,7 +495,7 @@ void FuncTransform::visitStrdupCall(CallSite CS) {
 
   std::string Name = I->getName(); I->setName("");
   Value* Opts[3] = {PH, OldPtr, 0};
-  Instruction *V = new CallInst(PAInfo.PoolStrdup, Opts, Opts + 2, Name, I);
+  Instruction *V = CallInst::Create(PAInfo.PoolStrdup, Opts, Opts + 2, Name, I);
   Instruction *Casted = V;
   if (V->getType() != I->getType())
     Casted = CastInst::createPointerCast(V, I->getType(), V->getName(), I);
@@ -515,7 +515,7 @@ void FuncTransform::visitStrdupCall(CallSite CS) {
 
   // If this was an invoke, fix up the CFG.
   if (InvokeInst *II = dyn_cast<InvokeInst>(I)) {
-    new BranchInst(II->getNormalDest(), I);
+    BranchInst::Create (II->getNormalDest(), I);
     II->getUnwindDest()->removePredecessor(II->getParent(), true);
   }
 
@@ -733,9 +733,9 @@ void FuncTransform::visitCallSite(CallSite CS) {
         Value *ElSize = ConstantInt::get(Type::Int32Ty,0);
         Value *Align  = ConstantInt::get(Type::Int32Ty,0);
         Value* Opts[3] = {ArgVal, ElSize, Align};
-        new CallInst(PAInfo.PoolInit, Opts, Opts + 3,"", TheCall);
+        CallInst::Create(PAInfo.PoolInit, Opts, Opts + 3,"", TheCall);
         BasicBlock::iterator BBI = TheCall;
-        new CallInst(PAInfo.PoolDestroy, ArgVal, "", ++BBI);
+        CallInst::Create(PAInfo.PoolDestroy, ArgVal, "", ++BBI);
       }
 
       //probably need to update DSG
@@ -753,10 +753,12 @@ void FuncTransform::visitCallSite(CallSite CS) {
   std::string Name = TheCall->getName(); TheCall->setName("");
 
   if (InvokeInst *II = dyn_cast<InvokeInst>(TheCall)) {
-    NewCall = new InvokeInst(NewCallee, II->getNormalDest(),
-                             II->getUnwindDest(), Args.begin(), Args.end(), Name, TheCall);
+    NewCall = InvokeInst::Create (NewCallee, II->getNormalDest(),
+                                  II->getUnwindDest(),
+                                  Args.begin(), Args.end(), Name, TheCall);
   } else {
-    NewCall = new CallInst(NewCallee, Args.begin(), Args.end(), Name, TheCall);
+    NewCall = CallInst::Create (NewCallee, Args.begin(), Args.end(), Name,
+                                TheCall);
   }
 
   // Add all of the uses of the pool descriptor

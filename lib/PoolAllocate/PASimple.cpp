@@ -46,6 +46,8 @@ char llvm::PoolAllocateSimple::ID = 0;
 namespace {
   RegisterPass<PoolAllocateSimple>
   X("poolalloc-simple", "Pool allocate everything into a single global pool");
+
+  RegisterAnalysisGroup<PoolAllocateGroup> PAGroup1(X);
 }
 
 static inline Value *
@@ -74,6 +76,7 @@ void PoolAllocateSimple::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.addRequired<TargetData>();
   AU.addRequiredTransitive<EquivClassGraphs>();
   AU.addPreserved<EquivClassGraphs>();
+  AU.setPreservesAll();
 }
 
 bool PoolAllocateSimple::runOnModule(Module &M) {
@@ -153,7 +156,7 @@ void PoolAllocateSimple::ProcessFunctionBodySimple(Function& F) {
         }
 
         Value* args[] = {TheGlobalPool, AllocSize};
-        Instruction* x = new CallInst(PoolAlloc, &args[0], &args[2], MI->getName(), ii);
+        Instruction* x = CallInst::Create(PoolAlloc, &args[0], &args[2], MI->getName(), ii);
         ii->replaceAllUsesWith(CastInst::createPointerCast(x, ii->getType(), "", ii));
       } else if (AllocaInst * AI = dyn_cast<AllocaInst>(ii)) {
 #if 0
@@ -162,7 +165,7 @@ void PoolAllocateSimple::ProcessFunctionBodySimple(Function& F) {
         toDelete.push_back(ii);
         //Fixme: fixup size
         Value* args[] = {TheGlobalPool, ii->getOperand(0)};
-        Instruction* x = new CallInst(PoolAlloc, &args[0], &args[2], AI->getName(), ii);
+        Instruction* x = CallInst::Create(PoolAlloc, &args[0], &args[2], AI->getName(), ii);
         ToFree.push_back(x);
         ii->replaceAllUsesWith(CastInst::createPointerCast(x, ii->getType(), "", ii));
 #endif
@@ -203,7 +206,7 @@ void PoolAllocateSimple::ProcessFunctionBodySimple(Function& F) {
 
           std::string Name = CI->getName(); CI->setName("");
           Value* Opts[3] = {TheGlobalPool, OldPtr, Size};
-          Instruction *V = new CallInst (PoolRealloc,
+          Instruction *V = CallInst::Create (PoolRealloc,
                                          Opts,
                                          Opts + 3,
                                          Name,
@@ -220,7 +223,7 @@ void PoolAllocateSimple::ProcessFunctionBodySimple(Function& F) {
         Value * FreedNode = castTo (FI->getPointerOperand(), VoidPtrTy, "cast", ii);
         toDelete.push_back(ii);
         Value* args[] = {TheGlobalPool, FreedNode};
-        new CallInst(PoolFree, &args[0], &args[2], "", ii);
+        CallInst::Create(PoolFree, &args[0], &args[2], "", ii);
       } else if (isa<ReturnInst>(ii)) {
         Returns.push_back(cast<ReturnInst>(ii));
       }
@@ -234,7 +237,7 @@ void PoolAllocateSimple::ProcessFunctionBodySimple(Function& F) {
         std::vector<Value*> args;
         args.push_back (TheGlobalPool);
         args.push_back (*ii);
-        new CallInst(PoolFree, args.begin(), args.end(), "", *i);
+        CallInst::Create(PoolFree, args.begin(), args.end(), "", *i);
     }
   
   //delete malloc and alloca insts
@@ -269,7 +272,7 @@ PoolAllocateSimple::CreateGlobalPool (unsigned RecSize,
   Value *ElSize = ConstantInt::get(Type::Int32Ty, RecSize);
   Value *AlignV = ConstantInt::get(Type::Int32Ty, Align);
   Value* Opts[3] = {GV, ElSize, AlignV};
-  new CallInst(PoolInit, Opts, Opts + 3, "", InsertPt);
+  CallInst::Create(PoolInit, Opts, Opts + 3, "", InsertPt);
   return GV;
 }
 

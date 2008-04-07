@@ -46,6 +46,7 @@ using namespace CUA;
 
 char PoolAllocate::ID = 0;
 char PoolAllocatePassAllPools::ID = 0;
+char PoolAllocateGroup::ID = 0;
 
 const Type *PoolAllocate::PoolDescPtrTy = 0;
 
@@ -59,8 +60,12 @@ const Type *PoolAllocate::PoolDescPtrTy = 0;
 namespace {
   RegisterPass<PoolAllocate>
   X("poolalloc", "Pool allocate disjoint data structures");
+
   RegisterPass<PoolAllocatePassAllPools>
   Y("poolalloc-passing-all-pools", "Pool allocate disjoint data structures");
+
+  RegisterAnalysisGroup<PoolAllocateGroup> PAGroup ("Pool Allocation Group");
+  RegisterAnalysisGroup<PoolAllocateGroup> PAGroup1(X);
 
   STATISTIC (NumArgsAdded, "Number of function arguments added");
   STATISTIC (MaxArgsAdded, "Maximum function arguments added to one function");
@@ -393,7 +398,7 @@ Function *PoolAllocate::MakeFunctionClone(Function &F) {
   FunctionType *FuncTy = FunctionType::get(OldFuncTy->getReturnType(), ArgTys,
                                            OldFuncTy->isVarArg());
   // Create the new function...
-  Function *New = new Function(FuncTy, Function::InternalLinkage, F.getName());
+  Function *New = Function::Create(FuncTy, Function::InternalLinkage, F.getName());
   F.getParent()->getFunctionList().insert(&F, New);
   CloneToOrigMap[New] = &F;   // Remember original function.
 
@@ -573,7 +578,7 @@ GlobalVariable *PoolAllocate::CreateGlobalPool(unsigned RecSize, unsigned Align,
   Value *ElSize = ConstantInt::get(Type::Int32Ty, RecSize);
   Value *AlignV = ConstantInt::get(Type::Int32Ty, Align);
   Value* Opts[3] = {GV, ElSize, AlignV};
-  new CallInst(PoolInit, Opts, Opts + 3, "", InsertPt);
+  CallInst::Create(PoolInit, Opts, Opts + 3, "", InsertPt);
   ++NumPools;
   return GV;
 }
@@ -914,7 +919,7 @@ void PoolAllocate::InitializeAndDestroyPool(Function &F, const DSNode *Node,
 
   for (unsigned i = 0, e = PoolInitPoints.size(); i != e; ++i) {
     Value* Opts[3] = {PD, ElSize, Align};
-    new CallInst(PoolInit, Opts, Opts + 3,  "", PoolInitPoints[i]);
+    CallInst::Create(PoolInit, Opts, Opts + 3,  "", PoolInitPoints[i]);
     DEBUG(std::cerr << PoolInitPoints[i]->getParent()->getName() << " ");
   }
 
@@ -923,7 +928,7 @@ void PoolAllocate::InitializeAndDestroyPool(Function &F, const DSNode *Node,
   // Loop over all of the places to insert pooldestroy's...
   for (unsigned i = 0, e = PoolDestroyPoints.size(); i != e; ++i) {
     // Insert the pooldestroy call for this pool.
-    new CallInst(PoolDestroy, PD, "", PoolDestroyPoints[i]);
+    CallInst::Create(PoolDestroy, PD, "", PoolDestroyPoints[i]);
     DEBUG(std::cerr << PoolDestroyPoints[i]->getParent()->getName()<<" ");
   }
   DEBUG(std::cerr << "\n\n");

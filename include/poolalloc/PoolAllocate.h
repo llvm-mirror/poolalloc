@@ -109,6 +109,22 @@ namespace PA {
 } // end PA namespace
 
 
+class PoolAllocateGroup : public ImmutablePass {
+public:
+  static char ID;
+  virtual PA::FuncInfo *getFuncInfo(Function &F);
+  virtual PA::FuncInfo *getFuncInfoOrClone(Function &F);
+  virtual DSGraph & getDSGraph (const Function & F) const;
+
+  virtual DSGraph & getGlobalsGraph () const;
+
+  virtual Value * getPool (const DSNode * N, Function & F);
+
+  virtual Value * getGlobalPool (const DSNode * Node);
+
+  virtual CompleteBUDataStructures::callee_iterator callee_begin (CallInst *CI);
+  virtual CompleteBUDataStructures::callee_iterator callee_end   (CallInst *CI);
+};
 
 /// PoolAllocate - The main pool allocation pass
 ///

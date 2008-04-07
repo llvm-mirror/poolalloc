@@ -117,7 +117,7 @@ bool PoolOptimize::runOnModule(Module &M) {
     // poolrealloc(PD, null, X) -> poolalloc(PD, X)
     if (isa<ConstantPointerNull>(CI->getOperand(2))) {
       Value* Opts[2] = {CI->getOperand(1), CI->getOperand(3)};
-      Value *New = new CallInst(PoolAlloc, Opts, Opts + 2,
+      Value *New = CallInst::Create(PoolAlloc, Opts, Opts + 2,
                                 CI->getName(), CI);
       CI->replaceAllUsesWith(New);
       CI->eraseFromParent();
@@ -125,13 +125,13 @@ bool PoolOptimize::runOnModule(Module &M) {
                cast<Constant>(CI->getOperand(3))->isNullValue()) {
       // poolrealloc(PD, X, 0) -> poolfree(PD, X)
       Value* Opts[2] = {CI->getOperand(1), CI->getOperand(2)};
-      new CallInst(PoolFree, Opts, Opts + 2, "", CI);
+      CallInst::Create(PoolFree, Opts, Opts + 2, "", CI);
       CI->replaceAllUsesWith(Constant::getNullValue(CI->getType()));
       CI->eraseFromParent();
     } else if (isa<ConstantPointerNull>(CI->getOperand(1))) {
       // poolrealloc(null, X, Y) -> realloc(X, Y)
       Value* Opts[2] = {CI->getOperand(2), CI->getOperand(3)};
-      Value *New = new CallInst(Realloc, Opts, Opts + 2,
+      Value *New = CallInst::Create(Realloc, Opts, Opts + 2,
                                 CI->getName(), CI);
       CI->replaceAllUsesWith(New);
       CI->eraseFromParent();
@@ -159,7 +159,7 @@ bool PoolOptimize::runOnModule(Module &M) {
     // poolmemalign(null, X, Y) -> memalign(X, Y)
     if (isa<ConstantPointerNull>(CI->getOperand(1))) {
       Value* Opts[2] = {CI->getOperand(2), CI->getOperand(3)};
-      Value *New = new CallInst(MemAlign, Opts, Opts + 2, CI->getName(), CI);
+      Value *New = CallInst::Create(MemAlign, Opts, Opts + 2, CI->getName(), CI);
       CI->replaceAllUsesWith(New);
       CI->eraseFromParent();
     }
@@ -230,18 +230,18 @@ bool PoolOptimize::runOnModule(Module &M) {
           std::vector<Value*> Args;
           if (CI->getCalledFunction() == PoolAlloc) {
             Args.assign(CI->op_begin()+1, CI->op_end());
-            Value *New = new CallInst(PoolAllocBP, Args.begin(), Args.end(), CI->getName(), CI);
+            Value *New = CallInst::Create(PoolAllocBP, Args.begin(), Args.end(), CI->getName(), CI);
             CI->replaceAllUsesWith(New);
             CI->eraseFromParent();
           } else if (CI->getCalledFunction() == PoolInit) {
             Args.assign(CI->op_begin()+1, CI->op_end());
             Args.erase(Args.begin()+1); // Drop the size argument.
-            new CallInst(PoolInitBP, Args.begin(), Args.end(), "", CI);
+            CallInst::Create(PoolInitBP, Args.begin(), Args.end(), "", CI);
             CI->eraseFromParent();
           } else {
             assert(CI->getCalledFunction() == PoolDestroy);
             Args.assign(CI->op_begin()+1, CI->op_end());
-            new CallInst(PoolDestroyBP, Args.begin(), Args.end(), "", CI);
+            CallInst::Create(PoolDestroyBP, Args.begin(), Args.end(), "", CI);
             CI->eraseFromParent();
           }
         }
