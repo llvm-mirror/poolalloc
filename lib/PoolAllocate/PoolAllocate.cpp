@@ -986,3 +986,7 @@ void PoolAllocate::InitializeAndDestroyPools(Function &F,
     InitializeAndDestroyPool(F, Node, PoolDescriptors, PoolUses, PoolFrees);
   }
 }
+
+DEFINING_FILE_FOR(PoolAllocateGroup)
+DEFINING_FILE_FOR(PoolAllocate)
+

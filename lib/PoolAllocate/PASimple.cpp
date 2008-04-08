@@ -47,7 +47,7 @@ namespace {
   RegisterPass<PoolAllocateSimple>
   X("poolalloc-simple", "Pool allocate everything into a single global pool");
 
-  RegisterAnalysisGroup<PoolAllocateGroup> PAGroup1(X);
+  RegisterAnalysisGroup<PoolAllocateGroup, true> PAGroup1(X);
 }
 
 static inline Value *
@@ -276,3 +276,4 @@ PoolAllocateSimple::CreateGlobalPool (unsigned RecSize,
   return GV;
 }
 
+DEFINING_FILE_FOR(PoolAllocateSimple)

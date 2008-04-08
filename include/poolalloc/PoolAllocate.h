@@ -109,26 +109,34 @@ namespace PA {
 } // end PA namespace
 
 
-class PoolAllocateGroup : public ImmutablePass {
+class PoolAllocateGroup {
+private:
+  EquivClassGraphs *ECGraphs;
+
 public:
   static char ID;
-  virtual PA::FuncInfo *getFuncInfo(Function &F);
-  virtual PA::FuncInfo *getFuncInfoOrClone(Function &F);
-  virtual DSGraph & getDSGraph (const Function & F) const;
+  virtual ~PoolAllocateGroup () {}
+  virtual PA::FuncInfo *getFuncInfo(Function &F) { return 0;}
+  virtual PA::FuncInfo *getFuncInfoOrClone(Function &F) {return 0;}
+  virtual DSGraph & getDSGraph (const Function & F) const {
+    return ECGraphs->getDSGraph (F);
+  }
 
-  virtual DSGraph & getGlobalsGraph () const;
+  virtual DSGraph & getGlobalsGraph () const {
+    return ECGraphs->getGlobalsGraph ();
+  }
 
-  virtual Value * getPool (const DSNode * N, Function & F);
+  virtual Value * getPool (const DSNode * N, Function & F) {return 0;}
 
-  virtual Value * getGlobalPool (const DSNode * Node);
+  virtual Value * getGlobalPool (const DSNode * Node) {return 0;}
 
-  virtual CompleteBUDataStructures::callee_iterator callee_begin (CallInst *CI);
-  virtual CompleteBUDataStructures::callee_iterator callee_end   (CallInst *CI);
+  virtual CompleteBUDataStructures::callee_iterator callee_begin (CallInst *CI) { return ECGraphs->callee_begin(CI);}
+  virtual CompleteBUDataStructures::callee_iterator callee_end   (CallInst *CI) { return ECGraphs->callee_end(CI);}
 };
 
 /// PoolAllocate - The main pool allocation pass
 ///
-class PoolAllocate : public ModulePass {
+class PoolAllocate : public ModulePass , public PoolAllocateGroup {
   /// PassAllArguments - If set to true, we should pass pool descriptor
   /// arguments into any function that loads or stores to a pool, in addition to
   /// those functions that allocate or deallocate.  See also the
@@ -378,5 +386,9 @@ public:
   }
   };
 }
+
+FORCE_DEFINING_FILE_TO_BE_LINKED(PoolAllocateGroup)
+FORCE_DEFINING_FILE_TO_BE_LINKED(PoolAllocateSimple)
+FORCE_DEFINING_FILE_TO_BE_LINKED(PoolAllocate)
 
 #endif
