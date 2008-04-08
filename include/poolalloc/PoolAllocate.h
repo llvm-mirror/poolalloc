@@ -115,9 +115,15 @@ private:
 
 public:
   static char ID;
+  Constant *PoolRegister;
+
   virtual ~PoolAllocateGroup () {}
   virtual PA::FuncInfo *getFuncInfo(Function &F) { return 0;}
   virtual PA::FuncInfo *getFuncInfoOrClone(Function &F) {return 0;}
+  virtual Function *getOrigFunctionFromClone(Function *F) const {return 0;}
+
+  virtual const Type * getPoolType() {return 0;}
+
   virtual DSGraph & getDSGraph (const Function & F) const {
     return ECGraphs->getDSGraph (F);
   }
@@ -155,9 +161,6 @@ public:
   Constant *PoolInit, *PoolDestroy, *PoolAlloc, *PoolRealloc, *PoolMemAlign;
   Constant *PoolFree;
   Constant *PoolStrdup;
-#if defined(SAFECODE) || defined(BOUNDS_CHECK)
-  Constant *PoolRegister;
-#endif
   
   static const Type *PoolDescPtrTy;
 
