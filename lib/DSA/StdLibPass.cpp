@@ -58,6 +58,9 @@ bool StdLibDataStructures::runOnModule(Module &M) {
           ->setHeapMarker()->setModifiedMarker();
         Graph.getNodeForValue(I->arg_begin()).getNode()->clearNodeFlags()
           ->mergeWith(Graph.getReturnNodeFor(*I), 0);
+      } else if (Name == "strdup") {
+        Graph.getReturnNodeFor(*I).getNode()->clearNodeFlags()
+          ->setHeapMarker()->setModifiedMarker();
       } else if (Name == "free") {
         Graph.getNodeForValue(&*I->arg_begin()).getNode()->clearNodeFlags()
           ->setHeapMarker()->setModifiedMarker();
