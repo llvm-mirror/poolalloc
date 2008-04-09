@@ -539,6 +539,19 @@ bool GraphBuilder::visitIntrinsic(CallSite CS, Function *F) {
     getValueDest(*CS.getInstruction()).
       mergeWith(getValueDest(**(CS.arg_begin())));
     return true;
+  case Intrinsic::stacksave: {
+    DSNode * Node = createNode();
+    Node->setAllocaMarker()->setIncompleteMarker()->setUnknownMarker();
+    Node->foldNodeCompletely();
+    setDestTo (*(CS.getInstruction()), Node);
+    return true;
+  }
+  case Intrinsic::stackrestore:
+    getValueDest(*CS.getInstruction()).getNode()->setAllocaMarker()
+                                                ->setIncompleteMarker()
+                                                ->setUnknownMarker()
+                                                ->foldNodeCompletely();
+    return true;
   case Intrinsic::vaend:
   case Intrinsic::dbg_func_start:
   case Intrinsic::dbg_region_end:
