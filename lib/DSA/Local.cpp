@@ -543,6 +543,8 @@ bool GraphBuilder::visitIntrinsic(CallSite CS, Function *F) {
   case Intrinsic::dbg_func_start:
   case Intrinsic::dbg_region_end:
   case Intrinsic::dbg_stoppoint:
+  case Intrinsic::dbg_region_start:
+  case Intrinsic::dbg_declare:
     return true;  // noop
   case Intrinsic::memcpy_i32: 
   case Intrinsic::memcpy_i64:
