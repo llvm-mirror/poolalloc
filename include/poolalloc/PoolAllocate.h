@@ -160,6 +160,7 @@ public:
 #endif  
   Constant *PoolInit, *PoolDestroy, *PoolAlloc, *PoolRealloc, *PoolMemAlign;
   Constant *PoolFree;
+  Constant *PoolCalloc;
   Constant *PoolStrdup;
   
   static const Type *PoolDescPtrTy;

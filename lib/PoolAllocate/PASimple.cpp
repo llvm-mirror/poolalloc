@@ -217,6 +217,48 @@ void PoolAllocateSimple::ProcessFunctionBodySimple(Function& F) {
 
           // Update def-use info
           CI->replaceAllUsesWith(Casted);
+        } else if (CF && (CF->isDeclaration()) && (CF->getName() == "calloc")) {
+          // Associate the global pool decriptor with the DSNode
+          DSNode * Node = ECG.getNodeForValue(CI).getNode();
+          FInfo.PoolDescriptors.insert(make_pair(Node,TheGlobalPool));
+
+          // Mark the realloc as an instruction to delete
+          toDelete.push_back(ii);
+
+          // Insertion point - Instruction before which all our instructions go
+          Instruction *InsertPt = CI;
+          Value *NumElements = CS.getArgument(0);
+          Value *Size        = CS.getArgument(1);
+
+          // Ensure the size and pointer arguments are of the correct type
+          if (Size->getType() != Type::Int32Ty)
+            Size = CastInst::createIntegerCast (Size,
+                                                Type::Int32Ty,
+                                                false,
+                                                Size->getName(),
+                                                InsertPt);
+
+          if (NumElements->getType() != Type::Int32Ty)
+            NumElements = CastInst::createIntegerCast (Size,
+                                                Type::Int32Ty,
+                                                false,
+                                                NumElements->getName(),
+                                                InsertPt);
+
+          std::string Name = CI->getName(); CI->setName("");
+          Value* Opts[3] = {TheGlobalPool, NumElements, Size};
+          Instruction *V = CallInst::Create (PoolCalloc,
+                                             Opts,
+                                             Opts + 3,
+                                             Name,
+                                             InsertPt);
+
+          Instruction *Casted = V;
+          if (V->getType() != CI->getType())
+            Casted = CastInst::createPointerCast (V, CI->getType(), V->getName(), InsertPt);
+
+          // Update def-use info
+          CI->replaceAllUsesWith(Casted);
         }
       } else if (FreeInst * FI = dyn_cast<FreeInst>(ii)) {
         Type * VoidPtrTy = PointerType::getUnqual(Type::Int8Ty);

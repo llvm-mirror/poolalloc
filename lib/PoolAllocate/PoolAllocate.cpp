@@ -213,6 +213,12 @@ void PoolAllocate::AddPoolPrototypes(Module* M) {
   PoolRealloc = M->getOrInsertFunction("poolrealloc",
                                                VoidPtrTy, PoolDescPtrTy,
                                                VoidPtrTy, Type::Int32Ty, NULL);
+
+  // The poolcalloc function.
+  PoolCalloc = M->getOrInsertFunction("poolcalloc",
+                                      VoidPtrTy, PoolDescPtrTy,
+                                      Type::Int32Ty, Type::Int32Ty, NULL);
+
   // The poolmemalign function.
   PoolMemAlign = M->getOrInsertFunction("poolmemalign",
                                                 VoidPtrTy, PoolDescPtrTy,
