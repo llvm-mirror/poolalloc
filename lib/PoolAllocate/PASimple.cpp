@@ -259,6 +259,39 @@ void PoolAllocateSimple::ProcessFunctionBodySimple(Function& F) {
 
           // Update def-use info
           CI->replaceAllUsesWith(Casted);
+        } else if (CF && (CF->isDeclaration()) && (CF->getName() == "strdup")) {
+          // Associate the global pool decriptor with the DSNode
+          DSNode * Node = ECG.getNodeForValue(CI).getNode();
+          FInfo.PoolDescriptors.insert(make_pair(Node,TheGlobalPool));
+
+          // Mark the realloc as an instruction to delete
+          toDelete.push_back(ii);
+
+          // Insertion point - Instruction before which all our instructions go
+          Instruction *InsertPt = CI;
+          Value *OldPtr = CS.getArgument(0);
+
+          // Ensure the size and pointer arguments are of the correct type
+          static Type *VoidPtrTy = PointerType::getUnqual(Type::Int8Ty);
+          if (OldPtr->getType() != VoidPtrTy)
+            OldPtr = CastInst::createPointerCast (OldPtr,
+                                                  VoidPtrTy,
+                                                  OldPtr->getName(),
+                                                  InsertPt);
+
+          std::string Name = CI->getName(); CI->setName("");
+          Value* Opts[2] = {TheGlobalPool, OldPtr};
+          Instruction *V = CallInst::Create (PoolStrdup,
+                                         Opts,
+                                         Opts + 3,
+                                         Name,
+                                         InsertPt);
+          Instruction *Casted = V;
+          if (V->getType() != CI->getType())
+            Casted = CastInst::createPointerCast (V, CI->getType(), V->getName(), InsertPt);
+
+          // Update def-use info
+          CI->replaceAllUsesWith(Casted);
         }
       } else if (FreeInst * FI = dyn_cast<FreeInst>(ii)) {
         Type * VoidPtrTy = PointerType::getUnqual(Type::Int8Ty);
