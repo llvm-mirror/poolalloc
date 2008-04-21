@@ -283,7 +283,7 @@ void PoolAllocateSimple::ProcessFunctionBodySimple(Function& F) {
           Value* Opts[2] = {TheGlobalPool, OldPtr};
           Instruction *V = CallInst::Create (PoolStrdup,
                                          Opts,
-                                         Opts + 3,
+                                         Opts + 2,
                                          Name,
                                          InsertPt);
           Instruction *Casted = V;
