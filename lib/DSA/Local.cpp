@@ -577,6 +577,21 @@ bool GraphBuilder::visitIntrinsic(CallSite CS, Function *F) {
     if (DSNode *N = getValueDest(**CS.arg_begin()).getNode())
       N->setModifiedMarker();
     return true;
+
+  case Intrinsic::eh_exception: {
+    DSNode * Node = createNode();
+    Node->setIncompleteMarker();
+    Node->foldNodeCompletely();
+    setDestTo (*(CS.getInstruction()), Node);
+    return true;
+  }
+
+  case Intrinsic::eh_selector_i32:
+  case Intrinsic::eh_selector_i64:
+  case Intrinsic::eh_typeid_for_i32:
+  case Intrinsic::eh_typeid_for_i64:
+    return true;
+
   default: {
     //ignore pointer free intrinsics
     if (!isa<PointerType>(F->getReturnType())) {
