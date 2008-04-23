@@ -40,9 +40,6 @@
 
 using namespace llvm;
 using namespace PA;
-#ifdef SAFECODE
-using namespace CUA;
-#endif
 
 char PoolAllocate::ID = 0;
 char PoolAllocatePassAllPools::ID = 0;
@@ -111,11 +108,6 @@ void PoolAllocate::getAnalysisUsage(AnalysisUsage &AU) const {
 
 bool PoolAllocate::runOnModule(Module &M) {
   if (M.begin() == M.end()) return false;
-#ifdef SAFECODE  
-#if 0
-  CUAPass = &getAnalysis<ConvertUnsafeAllocas>();
-#endif
-#endif  
   CurModule = &M;
   ECGraphs = &getAnalysis<EquivClassGraphs>();   // folded inlined CBU graphs
   if (UseTDResolve)

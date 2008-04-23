@@ -121,7 +121,7 @@ void PoolAllocateSimple::ProcessFunctionBodySimple(Function& F) {
   // Create a silly Function Info structure for this function.
   //
   FuncInfo FInfo(F);
-  FunctionInfo.insert (make_pair(&F, FInfo));
+  FunctionInfo.insert (std::make_pair(&F, FInfo));
 
   //
   // Get the DSGraph for this function.
@@ -133,7 +133,7 @@ void PoolAllocateSimple::ProcessFunctionBodySimple(Function& F) {
       if (MallocInst * MI = dyn_cast<MallocInst>(ii)) {
         // Associate the global pool decriptor with the DSNode
         DSNode * Node = ECG.getNodeForValue(MI).getNode();
-        FInfo.PoolDescriptors.insert(make_pair(Node,TheGlobalPool));
+        FInfo.PoolDescriptors.insert(std::make_pair(Node,TheGlobalPool));
 
         // Mark the malloc as an instruction to delete
         toDelete.push_back(ii);
@@ -161,7 +161,7 @@ void PoolAllocateSimple::ProcessFunctionBodySimple(Function& F) {
       } else if (AllocaInst * AI = dyn_cast<AllocaInst>(ii)) {
 #if 0
         DSNode * Node = ECG.getNodeForValue(AI).getNode();
-        FInfo.PoolDescriptors.insert(make_pair(Node,TheGlobalPool));
+        FInfo.PoolDescriptors.insert(std::make_pair(Node,TheGlobalPool));
         toDelete.push_back(ii);
         //Fixme: fixup size
         Value* args[] = {TheGlobalPool, ii->getOperand(0)};
@@ -179,7 +179,7 @@ void PoolAllocateSimple::ProcessFunctionBodySimple(Function& F) {
         if (CF && (CF->isDeclaration()) && (CF->getName() == "realloc")) {
           // Associate the global pool decriptor with the DSNode
           DSNode * Node = ECG.getNodeForValue(CI).getNode();
-          FInfo.PoolDescriptors.insert(make_pair(Node,TheGlobalPool));
+          FInfo.PoolDescriptors.insert(std::make_pair(Node,TheGlobalPool));
 
           // Mark the realloc as an instruction to delete
           toDelete.push_back(ii);
@@ -220,7 +220,7 @@ void PoolAllocateSimple::ProcessFunctionBodySimple(Function& F) {
         } else if (CF && (CF->isDeclaration()) && (CF->getName() == "calloc")) {
           // Associate the global pool decriptor with the DSNode
           DSNode * Node = ECG.getNodeForValue(CI).getNode();
-          FInfo.PoolDescriptors.insert(make_pair(Node,TheGlobalPool));
+          FInfo.PoolDescriptors.insert(std::make_pair(Node,TheGlobalPool));
 
           // Mark the realloc as an instruction to delete
           toDelete.push_back(ii);
@@ -262,7 +262,7 @@ void PoolAllocateSimple::ProcessFunctionBodySimple(Function& F) {
         } else if (CF && (CF->isDeclaration()) && (CF->getName() == "strdup")) {
           // Associate the global pool decriptor with the DSNode
           DSNode * Node = ECG.getNodeForValue(CI).getNode();
-          FInfo.PoolDescriptors.insert(make_pair(Node,TheGlobalPool));
+          FInfo.PoolDescriptors.insert(std::make_pair(Node,TheGlobalPool));
 
           // Mark the realloc as an instruction to delete
           toDelete.push_back(ii);
