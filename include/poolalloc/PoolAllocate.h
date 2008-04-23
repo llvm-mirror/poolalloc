@@ -23,19 +23,13 @@
 #include "llvm/ADT/EquivalenceClasses.h"
 #include "llvm/ADT/VectorExtras.h"
 #include "llvm/ADT/hash_set"
+#include "dsa/DataStructure.h"
 #include "poolalloc/Config/config.h"
 
-#ifdef SAFECODE
-#include "ConvertUnsafeAllocas.h"
-#endif
-
-
 #include <set>
+#include <utility>
 
 namespace llvm {
-#ifdef SAFECODE
-  using namespace CUA;
-#endif  
 class DSNode;
 class DSGraph;
 class Type;
@@ -136,8 +130,8 @@ public:
 
   virtual Value * getGlobalPool (const DSNode * Node) {return 0;}
 
-  virtual CompleteBUDataStructures::callee_iterator callee_begin (CallInst *CI) { return ECGraphs->callee_begin(CI);}
-  virtual CompleteBUDataStructures::callee_iterator callee_end   (CallInst *CI) { return ECGraphs->callee_end(CI);}
+  virtual CompleteBUDataStructures::callee_iterator callee_begin (Instruction *I) { return ECGraphs->callee_begin(I);}
+  virtual CompleteBUDataStructures::callee_iterator callee_end   (Instruction *I) { return ECGraphs->callee_end(I);}
 };
 
 /// PoolAllocate - The main pool allocation pass
@@ -155,9 +149,6 @@ class PoolAllocate : public ModulePass , public PoolAllocateGroup {
   std::map<Function*, Function*> CloneToOrigMap;
 public:
 
-#ifdef SAFECODE  
-  ConvertUnsafeAllocas *CUAPass;
-#endif  
   Constant *PoolInit, *PoolDestroy, *PoolAlloc, *PoolRealloc, *PoolMemAlign;
   Constant *PoolFree;
   Constant *PoolCalloc;
@@ -273,13 +264,13 @@ protected:
   }
 
   virtual CompleteBUDataStructures::callee_iterator
-  callee_begin (CallInst * CI) {
-    return ECGraphs->callee_begin(CI);
+  callee_begin (Instruction * I) {
+    return ECGraphs->callee_begin(I);
   }
 
   virtual CompleteBUDataStructures::callee_iterator
-  callee_end (CallInst * CI) {
-    return ECGraphs->callee_end(CI);
+  callee_end (Instruction * I) {
+    return ECGraphs->callee_end(I);
   }
 
 protected:
@@ -371,7 +362,7 @@ struct PoolAllocatePassAllPools : public PoolAllocate {
 /// it doesn't involve all of complex machinery of the original pool allocation
 /// implementation.
 class PoolAllocateSimple : public PoolAllocate {
-  GlobalValue* TheGlobalPool;
+  Value * TheGlobalPool;
 public:
   static char ID;
   PoolAllocateSimple() : PoolAllocate(false, (intptr_t)&ID) {}
