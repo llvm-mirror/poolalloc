@@ -580,7 +580,7 @@ bool GraphBuilder::visitIntrinsic(CallSite CS, Function *F) {
 
   case Intrinsic::eh_exception: {
     DSNode * Node = createNode();
-    //Node->setIncompleteMarker();
+    Node->setIncompleteMarker();
     Node->foldNodeCompletely();
     setDestTo (*(CS.getInstruction()), Node);
     return true;
