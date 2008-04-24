@@ -146,9 +146,7 @@ DSNode::DSNode(const Type *T, DSGraph *G)
   if (T) mergeTypeInfo(T, 0);
   if (G) G->addNode(this);
   ++NumNodeAllocated;
-#if JTC
-std::cerr << "LLVA: Creating (1) DSNode " << this << "\n";
-#endif
+  DOUT << "LLVA: Creating (1) DSNode " << this << "\n";
 }
 
 // DSNode copy constructor... do not copy over the referrers list!
@@ -161,9 +159,7 @@ DSNode::DSNode(const DSNode &N, DSGraph *G, bool NullLinks)
     Links.resize(N.Links.size()); // Create the appropriate number of null links
   G->addNode(this);
   ++NumNodeAllocated;
-#if JTC
-std::cerr << "LLVA: Creating (2) DSNode " << this << "\n";
-#endif
+  DOUT << "LLVA: Creating (2) DSNode " << this << "\n";
 }
 
 DSNode::~DSNode() {
@@ -174,9 +170,7 @@ DSNode::~DSNode() {
   //
   // Remove all references to this node from the Pool Descriptor Map.
   //
-#if JTC
-  std::cerr << "LLVA: Removing " << this << "\n";
-#endif
+  DOUT << "LLVA: Removing " << this << "\n";
   if (ParentGraph) {
     hash_map<const DSNode *, MetaPoolHandle*> &pdm=ParentGraph->getPoolDescriptorsMap();
     pdm.erase (this);
@@ -278,9 +272,7 @@ void DSNode::foldNodeCompletely() {
     DestNode->Size = 1;
     DestNode->Globals.swap(Globals);
     
-#if JTC
-    std::cerr << "LLVA: foldNode: " << this << " becomes " << DestNode << "\n";
-#endif
+    DOUT << "LLVA: foldNode: " << this << " becomes " << DestNode << "\n";
 #ifdef LLVA_KERNEL
     //Again we have created a new DSNode, we need to fill in the
     // pool desc map appropriately
@@ -903,10 +895,8 @@ void DSNode::MergeNodes(DSNodeHandle& CurNodeH, DSNodeHandle& NH) {
       //do nothing  (common case)
     } else {
       if (pdm[NNode]) {
-#if JTC
-	std::cerr << "LLVA: 1: currNode (" << currNode << ") becomes " << pdm[NNode]->getName() << "(" << NNode << ")\n";
-#endif
-	pdm[currNode] = pdm[NNode];
+        DOUT << "LLVA: 1: currNode (" << currNode << ") becomes " << pdm[NNode]->getName() << "(" << NNode << ")\n";
+        pdm[currNode] = pdm[NNode];
       }
     }
   } else {
@@ -917,10 +907,9 @@ void DSNode::MergeNodes(DSNodeHandle& CurNodeH, DSNodeHandle& NH) {
       //  Verify that this is correct.  I believe it is; it seems to make sense
       //  since either node can be used after the merge.
       //
-#if JTC
-std::cerr << "LLVA: MergeNodes: currnode has something, newnode has nothing\n";
-	std::cerr << "LLVA: 2: currNode (" << currNode << ") becomes <no name>" << "(" << NNode << ")\n";
-#endif
+      DOUT << "LLVA: MergeNodes: currnode has something, newnode has nothing\n";
+      DOUT << "LLVA: 2: currNode (" << currNode << ") becomes <no name>"
+           << "(" << NNode << ")\n";
       pdm[NNode] = pdm[currNode];
 #endif
       //do nothing 
@@ -1025,9 +1014,7 @@ std::cerr << "LLVA: MergeNodes: currnode has something, newnode has nothing\n";
 /// point to this node).
 ///
 void DSNode::mergeWith(const DSNodeHandle &NH, unsigned Offset) {
-#if JTC
-std::cerr << "LLVA: mergeWith: " << this << " becomes " << NH.getNode() << "\n";
-#endif
+  DOUT << "mergeWith: " << this << " becomes " << NH.getNode() << "\n";
   DSNode *N = NH.getNode();
   if (N == this && NH.getOffset() == Offset)
     return;  // Noop
@@ -1107,9 +1094,7 @@ DSNodeHandle ReachabilityCloner::getClonedNH(const DSNodeHandle &SrcNH) {
   DSNode *DN = new DSNode(*SN, &Dest, true /* Null out all links */);
   DN->maskNodeTypes(BitsToKeep);
   NH = DN;
-#if JTC
-std::cerr << "LLVA: getClonedNH: " << SN << " becomes " << DN << "\n";
-#endif
+  DOUT << "getClonedNH: " << SN << " becomes " << DN << "\n";
 #if 1
 #ifdef LLVA_KERNEL
     //Again we have created a new DSNode, we need to fill in the
@@ -1280,9 +1265,7 @@ void ReachabilityCloner::merge(const DSNodeHandle &NH,
     }
   }
 
-#if JTC
-std::cerr << "LLVA: mergeWith: " << SN << " becomes " << DN << "\n";
-#endif
+  DOUT << "LLVA: mergeWith: " << SN << " becomes " << DN << "\n";
 
 #ifdef LLVA_KERNEL
   //Here some merge is going on just like in DSNode::merge
@@ -1306,9 +1289,7 @@ std::cerr << "LLVA: mergeWith: " << SN << " becomes " << DN << "\n";
         //do nothing  (common case)
       } else {
         if (srcpdm[SN]) {
-#if JTC
-          std::cerr << "LLVA: DN becomes " << srcpdm[SN]->getName() << std::endl;
-#endif
+          DOUT << "DN becomes " << srcpdm[SN]->getName() << std::endl;
           destpdm[DN] = srcpdm[SN];
         }
       }
