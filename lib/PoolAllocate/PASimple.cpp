@@ -89,7 +89,8 @@ bool PoolAllocateSimple::runOnModule(Module &M) {
   AddPoolPrototypes(&M);
 
   // Get the main function to insert the poolinit calls.
-  Function *MainFunc = M.getFunction("main");
+  Function *MainFunc = (M.getFunction("main") ? M.getFunction("main")
+                                              : M.getFunction("MAIN__"));
   if (MainFunc == 0 || MainFunc->isDeclaration()) {
     std::cerr << "Cannot pool allocate this program: it has global "
               << "pools but no 'main' function yet!\n";
@@ -104,7 +105,7 @@ bool PoolAllocateSimple::runOnModule(Module &M) {
   // Now that all call targets are available, rewrite the function bodies of the
   // clones.
   for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I)
-    if (!I->isDeclaration())
+    if (!(I->isDeclaration()))
       ProcessFunctionBodySimple(*I);
   return true;
 }
@@ -333,7 +334,8 @@ PoolAllocateSimple::CreateGlobalPool (unsigned RecSize,
                        Constant::getNullValue(getPoolType()), "GlobalPool",
                        &M);
 
-  Function *MainFunc = M.getFunction("main");
+  Function *MainFunc = (M.getFunction("main") ? M.getFunction("main")
+                                              : M.getFunction("MAIN__"));
   assert(MainFunc && "No main in program??");
 
   BasicBlock::iterator InsertPt;
