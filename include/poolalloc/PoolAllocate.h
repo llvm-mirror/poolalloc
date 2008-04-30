@@ -111,7 +111,7 @@ public:
   static char ID;
   Constant *PoolRegister;
 
-  virtual ~PoolAllocateGroup () {}
+  virtual ~PoolAllocateGroup () {return;}
   virtual PA::FuncInfo *getFuncInfo(Function &F) { return 0;}
   virtual PA::FuncInfo *getFuncInfoOrClone(Function &F) {return 0;}
   virtual Function *getOrigFunctionFromClone(Function *F) const {return 0;}
@@ -363,14 +363,27 @@ struct PoolAllocatePassAllPools : public PoolAllocate {
 /// implementation.
 class PoolAllocateSimple : public PoolAllocate {
   Value * TheGlobalPool;
+  DSGraph * CombinedDSGraph;
+  EquivalenceClasses<GlobalValue*> * GlobalECs;
+  TargetData * TD;
 public:
   static char ID;
   PoolAllocateSimple() : PoolAllocate(false, (intptr_t)&ID) {}
+  ~PoolAllocateSimple() {return;}
   void getAnalysisUsage(AnalysisUsage &AU) const;
   bool runOnModule(Module &M);
   GlobalVariable *CreateGlobalPool(unsigned RecSize, unsigned Align,
                                    Instruction *IPHint, Module& M);
-  void ProcessFunctionBodySimple(Function& F);
+  void ProcessFunctionBodySimple(Function& F, TargetData & TD);
+
+
+  virtual DSGraph & getDSGraph (const Function & F) const {
+    return *CombinedDSGraph;
+  }
+
+  virtual DSGraph & getGlobalsGraph () const {
+    return *CombinedDSGraph;
+  }
 
   virtual Value * getGlobalPool (const DSNode * Node) {
     return TheGlobalPool;

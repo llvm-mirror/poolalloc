@@ -79,11 +79,24 @@ void PoolAllocateSimple::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.setPreservesAll();
 }
 
+static void
+MergeNodesInDSGraph (DSGraph & Graph) {
+  while ((Graph.node_begin() != Graph.node_end()) &&
+        ((++(Graph.node_begin())) != Graph.node_end())) {
+    DSNodeHandle Node  (Graph.node_begin());
+    DSNodeHandle Target(++(Graph.node_begin()));
+    Node.mergeWith (Target);
+  }
+  return;
+}
+
 bool PoolAllocateSimple::runOnModule(Module &M) {
   if (M.begin() == M.end()) return false;
 
   // Get the Target Data information and the ECGraphs
   ECGraphs = &getAnalysis<EquivClassGraphs>();   // folded inlined CBU graphs
+  assert (ECGraphs && "No ECGraphs pass available!\n");
+  TargetData & TD = getAnalysis<TargetData>();
 
   // Add the pool* prototypes to the module
   AddPoolPrototypes(&M);
@@ -98,25 +111,39 @@ bool PoolAllocateSimple::runOnModule(Module &M) {
   }
 
   //
+  // Merge all of the DSNodes in the DSGraphs.
+  //
+  GlobalECs = &(ECGraphs->getGlobalECs());
+  CombinedDSGraph = new DSGraph (*GlobalECs, TD, &(ECGraphs->getGlobalsGraph()));
+  //CombinedDSGraph.cloneInto (ECGraphs->getGlobalsGraph());
+  for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I) {
+    if (ECGraphs->hasGraph (*I))
+      CombinedDSGraph->cloneInto (ECGraphs->getDSGraph(*I));
+  }
+  CombinedDSGraph->cloneInto (ECGraphs->getGlobalsGraph());
+  MergeNodesInDSGraph (*CombinedDSGraph);
+
+  //
   // Create the global pool.
   //
   TheGlobalPool = CreateGlobalPool(1, 1, MainFunc->getEntryBlock().begin(), M);
 
+  //
   // Now that all call targets are available, rewrite the function bodies of the
   // clones.
-  for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I)
+  for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I) {
     if (!(I->isDeclaration()))
-      ProcessFunctionBodySimple(*I);
+      ProcessFunctionBodySimple(*I, TD);
+  }
+
   return true;
 }
 
-void PoolAllocateSimple::ProcessFunctionBodySimple(Function& F) {
+void
+PoolAllocateSimple::ProcessFunctionBodySimple (Function& F, TargetData & TD) {
   std::vector<Instruction*> toDelete;
   std::vector<ReturnInst*> Returns;
   std::vector<Instruction*> ToFree;
-
-  // Get the target data information
-  TargetData &TD = getAnalysis<TargetData>();
 
   //
   // Create a silly Function Info structure for this function.
