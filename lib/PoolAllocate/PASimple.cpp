@@ -380,4 +380,3 @@ PoolAllocateSimple::CreateGlobalPool (unsigned RecSize,
   return GV;
 }
 
-DEFINING_FILE_FOR(PoolAllocateSimple)

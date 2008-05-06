@@ -395,8 +395,4 @@ public:
   };
 }
 
-FORCE_DEFINING_FILE_TO_BE_LINKED(PoolAllocateGroup)
-FORCE_DEFINING_FILE_TO_BE_LINKED(PoolAllocateSimple)
-FORCE_DEFINING_FILE_TO_BE_LINKED(PoolAllocate)
-
 #endif
