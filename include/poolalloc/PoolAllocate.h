@@ -22,7 +22,7 @@
 #include "llvm/Support/CallSite.h"
 #include "llvm/ADT/EquivalenceClasses.h"
 #include "llvm/ADT/VectorExtras.h"
-#include "llvm/ADT/hash_set"
+#include "llvm/ADT/hash_set.h"
 #include "dsa/DataStructure.h"
 #include "poolalloc/Config/config.h"
 

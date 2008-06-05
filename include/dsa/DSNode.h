@@ -15,7 +15,8 @@
 #define LLVM_ANALYSIS_DSNODE_H
 
 #include "dsa/DSSupport.h"
-#include "llvm/ADT/hash_map"
+#include "llvm/ADT/hash_map.h"
+#include "llvm/Support/Streams.h"
 
 namespace llvm {
 

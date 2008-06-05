@@ -29,7 +29,7 @@
 #include "llvm/ADT/SCCIterator.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Support/Timer.h"
-#include "llvm/ADT/hash_map"
+#include "llvm/ADT/hash_map.h"
 
 #include <iostream>
 #include <algorithm>

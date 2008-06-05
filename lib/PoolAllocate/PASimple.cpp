@@ -126,7 +126,7 @@ bool PoolAllocateSimple::runOnModule(Module &M) {
   //
   // Create the global pool.
   //
-  TheGlobalPool = CreateGlobalPool(1, 1, MainFunc->getEntryBlock().begin(), M);
+  TheGlobalPool = CreateGlobalPool(32, 1, MainFunc->getEntryBlock().begin(), M);
 
   //
   // Now that all call targets are available, rewrite the function bodies of the

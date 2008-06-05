@@ -18,7 +18,7 @@
 
 #include "dsa/DSGraph.h"
 #include "llvm/ADT/GraphTraits.h"
-#include "llvm/ADT/iterator"
+#include "llvm/ADT/iterator.h"
 #include "llvm/ADT/STLExtras.h"
 
 namespace llvm {
