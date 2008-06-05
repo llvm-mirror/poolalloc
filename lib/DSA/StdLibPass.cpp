@@ -54,10 +54,12 @@ bool StdLibDataStructures::runOnModule(Module &M) {
         Graph.getReturnNodeFor(*I).getNode()->clearNodeFlags()
           ->setHeapMarker()->setModifiedMarker();
       } else if (Name == "realloc") {
-        Graph.getReturnNodeFor(*I).getNode()->clearNodeFlags()
-          ->setHeapMarker()->setModifiedMarker();
-        Graph.getNodeForValue(I->arg_begin()).getNode()->clearNodeFlags()
-          ->mergeWith(Graph.getReturnNodeFor(*I), 0);
+        if (isa<PointerType>(I->getReturnType())) {
+          Graph.getReturnNodeFor(*I).getNode()->clearNodeFlags()
+            ->setHeapMarker()->setModifiedMarker();
+          Graph.getNodeForValue(I->arg_begin()).getNode()->clearNodeFlags()
+            ->mergeWith(Graph.getReturnNodeFor(*I), 0);
+        }
       } else if (Name == "strdup") {
         Graph.getReturnNodeFor(*I).getNode()->clearNodeFlags()
           ->setHeapMarker()->setModifiedMarker();
