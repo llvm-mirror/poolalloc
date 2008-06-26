@@ -81,24 +81,19 @@ void PoolAllocateSimple::getAnalysisUsage(AnalysisUsage &AU) const {
 
 static void
 MergeNodesInDSGraph (DSGraph & Graph) {
-  std::vector<DSNode *> HeapNodes;
+  std::vector<DSNodeHandle> HeapNodes;
 
   DSGraph::node_iterator i;
   DSGraph::node_iterator e = Graph.node_end();
   for (i = Graph.node_begin(); i != e; ++i) {
     DSNode * Node = i;
     if (Node->isHeapNode())
-      HeapNodes.push_back (Node);
+      HeapNodes.push_back (DSNodeHandle(Node));
   }
 
-  while (HeapNodes.size() > 1) {
-    DSNodeHandle Node  (*HeapNodes.rbegin());
-    DSNodeHandle Target(*(--(HeapNodes.rbegin())));
-    Node.mergeWith (Target);
-    HeapNodes.pop_back();
-    HeapNodes.pop_back();
-    HeapNodes.push_back (Node.getNode());
-  }
+  for (unsigned i = 0; i < HeapNodes.size(); ++i)
+    for (unsigned j = i+1; j < HeapNodes.size(); ++j)
+      HeapNodes[i].mergeWith (HeapNodes[j]);
   return;
 }
 
