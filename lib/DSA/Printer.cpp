@@ -11,6 +11,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+#define DEBUG_TYPE "dsgraph-printer"
+
 #include "dsa/DataStructure.h"
 #include "dsa/DSGraph.h"
 #include "dsa/DSGraphTraits.h"
