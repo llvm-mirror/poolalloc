@@ -419,6 +419,7 @@ struct ilist_traits<DSNode> {
   static DSNode *getPrev(const DSNode *N) { return N->Prev; }
   static DSNode *getNext(const DSNode *N) { return N->Next; }
 
+  static void deleteNode(llvm::DSNode *V) { delete V; }
   static void setPrev(DSNode *N, DSNode *Prev) { N->Prev = Prev; }
   static void setNext(DSNode *N, DSNode *Next) { N->Next = Next; }
 
