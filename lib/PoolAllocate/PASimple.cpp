@@ -92,8 +92,7 @@ MergeNodesInDSGraph (DSGraph & Graph) {
   }
 
   for (unsigned i = 0; i < HeapNodes.size(); ++i)
-    for (unsigned j = i+1; j < HeapNodes.size(); ++j)
-      HeapNodes[i].mergeWith (HeapNodes[j]);
+    HeapNodes[i].getNode()->foldNodeCompletely();
   return;
 }
 
