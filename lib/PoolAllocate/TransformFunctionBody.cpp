@@ -155,6 +155,10 @@ Instruction *FuncTransform::TransformAllocationInstr(Instruction *I,
 
   // Insert a call to poolalloc
   Value *PH = getPoolHandle(I);
+
+  // Do not change the instruction into a poolalloc() call unless we have a
+  // real pool descriptor
+  if (PH == 0 || isa<ConstantPointerNull>(PH)) return I;
   
   Value* Opts[2] = {PH, Size};
   Instruction *V = CallInst::Create(PAInfo.PoolAlloc, Opts, Opts + 2, Name, I);
@@ -362,6 +366,9 @@ void FuncTransform::visitReallocCall(CallSite CS) {
   Value *PH = getPoolHandle(I);
   Value *OldPtr = CS.getArgument(0);
   Value *Size = CS.getArgument(1);
+
+  // Don't poolallocate if we have no pool handle
+  if (PH == 0 || isa<ConstantPointerNull>(PH)) return;
 
   if (Size->getType() != Type::Int32Ty)
     Size = CastInst::createIntegerCast(Size, Type::Int32Ty, false, Size->getName(), I);
