@@ -757,6 +757,23 @@ void FuncTransform::visitCallSite(CallSite CS) {
   // Add the rest of the arguments...
   Args.insert(Args.end(), CS.arg_begin(), CS.arg_end());
     
+  //
+  // There are circumstances where a function is casted to another type and
+  // then called (que horible).  We need to perform a similar cast if the
+  // type doesn't match the number of arguments.
+  //
+  if (Function * NewFunction = dyn_cast<Function>(NewCallee)) {
+    const FunctionType * NewCalleeType = NewFunction->getFunctionType();
+    if (NewCalleeType->getNumParams() != Args.size()) {
+      std::vector<const Type *> Types;
+      Type * FuncTy = FunctionType::get (NewCalleeType->getReturnType(),
+                                         Types,
+                                         true);
+      FuncTy = PointerType::getUnqual (FuncTy);
+      NewCallee = new BitCastInst (NewCallee, FuncTy, "", TheCall);
+    }
+  }
+
   std::string Name = TheCall->getName(); TheCall->setName("");
 
   if (InvokeInst *II = dyn_cast<InvokeInst>(TheCall)) {
