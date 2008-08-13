@@ -45,7 +45,7 @@ bool StdLibDataStructures::runOnModule(Module &M) {
   for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I) {
     DSGraph &Graph = getOrCreateGraph(&*I);
     //If this is an true external, check it out
-    if (I->isDeclaration() && !I->isIntrinsic()) {
+    if (I->isDeclaration() && !I->isIntrinsic() && !(I->isVarArg())) {
       const std::string& Name = I->getName();
       if (Name == "calloc" ||
           Name == "malloc" ||
