@@ -9,6 +9,7 @@
 
 LEVEL = ../..
 BUILD_RELINKED=1
+SHARED_LIBRARY=1
 LIBRARYNAME = LLVMDataStructure
 
 CFlags += -fPIC
