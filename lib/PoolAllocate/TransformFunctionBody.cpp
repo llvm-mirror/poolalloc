@@ -208,50 +208,52 @@ void FuncTransform::visitMallocInst(MallocInst &MI) {
   if (MI.isArrayAllocation())
     AllocSize = BinaryOperator::create(Instruction::Mul, AllocSize,
                                        MI.getOperand(0), "sizetmp", &MI);
-//
-// NOTE:
-//  The code below used to be used by SAFECode.  However, it requires
-//  Pool Allocation to depend upon SAFECode passes, which is messy.
-//
-//  I believe the code below is an unneeded optimization.  Basically, when
-//  SAFECode promotes a stack allocation to the heap, this makes it a stack
-//  allocation again if the DSNode has no heap allocations.  This seems to be
-//  a performance optimization and unnecessary for the first prototype.
-//
-#ifdef SAFECODE
+  //
+  // NOTE:
+  //  The code below used to be used by SAFECode.  However, it requires
+  //  Pool Allocation to depend upon SAFECode passes, which is messy.
+  //
+  //  I believe the code below is an unneeded optimization.  Basically, when
+  //  SAFECode promotes a stack allocation to the heap, this makes it a stack
+  //  allocation again if the DSNode has no heap allocations.  This seems to be
+  //  a performance optimization and unnecessary for the first prototype.
+  //
+  if (PAInfo.SAFECodeEnabled) {
 #if 0
-  const MallocInst *originalMalloc = &MI;
-  if (FI.NewToOldValueMap.count(&MI)) {
-    originalMalloc = cast<MallocInst>(FI.NewToOldValueMap[&MI]);
-  }
-  //Dinakar to test stack safety & array safety 
-  if (PAInfo.CUAPass->ArrayMallocs.find(originalMalloc) ==
-      PAInfo.CUAPass->ArrayMallocs.end()) {
-    TransformAllocationInstr(&MI, AllocSize);
+    const MallocInst *originalMalloc = &MI;
+    if (FI.NewToOldValueMap.count(&MI)) {
+      originalMalloc = cast<MallocInst>(FI.NewToOldValueMap[&MI]);
+    }
+    //Dinakar to test stack safety & array safety 
+    if (PAInfo.CUAPass->ArrayMallocs.find(originalMalloc) ==
+        PAInfo.CUAPass->ArrayMallocs.end()) {
+      TransformAllocationInstr(&MI, AllocSize);
+    } else {
+      AllocaInst *AI = new AllocaInst(MI.getType()->getElementType(), MI.getArraySize(), MI.getName(), MI.getNext());
+      MI.replaceAllUsesWith(AI);
+      MI.getParent()->getInstList().erase(&MI);
+      Value *Casted = AI;
+      Instruction *aiNext = AI->getNext();
+      if (AI->getType() != PointerType::getUnqual(Type::Int8Ty))
+        Casted = CastInst::createPointerCast(AI, PointerType::getUnqual(Type::Int8Ty),
+              AI->getName()+".casted",aiNext);
+      
+      Instruction *V = CallInst::Create(PAInfo.PoolRegister,
+            make_vector(PH, AllocSize, Casted, 0), "", aiNext);
+      AddPoolUse(*V, PH, PoolUses);
+    }
+#else
+    TransformAllocationInstr(&MI, AllocSize);  
+#endif
   } else {
-    AllocaInst *AI = new AllocaInst(MI.getType()->getElementType(), MI.getArraySize(), MI.getName(), MI.getNext());
-    MI.replaceAllUsesWith(AI);
-    MI.getParent()->getInstList().erase(&MI);
-    Value *Casted = AI;
-    Instruction *aiNext = AI->getNext();
-    if (AI->getType() != PointerType::getUnqual(Type::Int8Ty))
-      Casted = CastInst::createPointerCast(AI, PointerType::getUnqual(Type::Int8Ty),
-			      AI->getName()+".casted",aiNext);
-    
-    Instruction *V = CallInst::Create(PAInfo.PoolRegister,
-				  make_vector(PH, AllocSize, Casted, 0), "", aiNext);
-    AddPoolUse(*V, PH, PoolUses);
+    TransformAllocationInstr(&MI, AllocSize);  
   }
-#else
-  TransformAllocationInstr(&MI, AllocSize);  
-#endif
-#else
-  TransformAllocationInstr(&MI, AllocSize);  
-#endif
 }
 
 void FuncTransform::visitAllocaInst(AllocaInst &MI) {
-#ifdef BOUNDS_CHECK
+  // Don't do anything if bounds checking will not be done by SAFECode later.
+  if (!(PAInfo.BoundsChecksEnabled)) return;
+
   // Get the pool handle for the node that this contributes to...
   DSNode *Node = getDSNodeHFor(&MI).getNode();
   if (Node->isArray()) {
@@ -278,7 +280,6 @@ void FuncTransform::visitAllocaInst(AllocaInst &MI) {
 				  args.begin(), args.end(), "", InsertPt);
     AddPoolUse(*V, PH, PoolUses);
   }
-#endif  
 }
 
 
@@ -728,28 +729,24 @@ void FuncTransform::visitCallSite(CallSite CS) {
         if (FI.PoolDescriptors.count(LocalNode))
           ArgVal = FI.PoolDescriptors.find(LocalNode)->second;
     if (isa<Constant>(ArgVal) && cast<Constant>(ArgVal)->isNullValue()) {
-#ifdef BOUNDS_CHECK
-      if (ArgNodes[i]->isArray()) {
-#endif
-      if (!isa<InvokeInst>(TheCall)) {
-        // Dinakar: We need pooldescriptors for allocas in the callee if it
-        //          escapes
-        BasicBlock::iterator InsertPt = TheCall->getParent()->getParent()->front().begin();
-        Type *VoidPtrTy = PointerType::getUnqual(Type::Int8Ty);
-        ArgVal =  new AllocaInst(PAInfo.getPoolType(), 0, "PD", InsertPt);
-        Value *ElSize = ConstantInt::get(Type::Int32Ty,0);
-        Value *Align  = ConstantInt::get(Type::Int32Ty,0);
-        Value* Opts[3] = {ArgVal, ElSize, Align};
-        CallInst::Create(PAInfo.PoolInit, Opts, Opts + 3,"", TheCall);
-        BasicBlock::iterator BBI = TheCall;
-        CallInst::Create(PAInfo.PoolDestroy, ArgVal, "", ++BBI);
-      }
+      if ((!(PAInfo.BoundsChecksEnabled)) || (ArgNodes[i]->isArray())) {
+        if (!isa<InvokeInst>(TheCall)) {
+          // Dinakar: We need pooldescriptors for allocas in the callee if it
+          //          escapes
+          BasicBlock::iterator InsertPt = TheCall->getParent()->getParent()->front().begin();
+          Type *VoidPtrTy = PointerType::getUnqual(Type::Int8Ty);
+          ArgVal =  new AllocaInst(PAInfo.getPoolType(), 0, "PD", InsertPt);
+          Value *ElSize = ConstantInt::get(Type::Int32Ty,0);
+          Value *Align  = ConstantInt::get(Type::Int32Ty,0);
+          Value* Opts[3] = {ArgVal, ElSize, Align};
+          CallInst::Create(PAInfo.PoolInit, Opts, Opts + 3,"", TheCall);
+          BasicBlock::iterator BBI = TheCall;
+          CallInst::Create(PAInfo.PoolDestroy, ArgVal, "", ++BBI);
+        }
 
-      //probably need to update DSG
-      //      std::cerr << "WARNING: NULL POOL ARGUMENTS ARE PASSED IN!\n";
-#ifdef BOUNDS_CHECK
+        //probably need to update DSG
+        //      std::cerr << "WARNING: NULL POOL ARGUMENTS ARE PASSED IN!\n";
       }
-#endif
     }
     Args.push_back(ArgVal);
   }

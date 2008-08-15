@@ -77,12 +77,10 @@ namespace PA {
     /// function.
     std::map<const DSNode*, Value*> PoolDescriptors;
 
-#ifdef SAFECODE
-    //This is a map from Old to New Value Map reverse of the one above
-    //Useful in SAFECode for check insertion
+    /// This is a map from Old to New Values (the reverse of NewToOldValueMap).
+    /// SAFECode uses this for check insertion.
     std::map<const Value*, Value*> ValueMap;
-#endif
-    
+
     /// NewToOldValueMap - When and if a function needs to be cloned, this map
     /// contains a mapping from all of the values in the new function back to
     /// the values they correspond to in the old function.
@@ -110,6 +108,8 @@ private:
 public:
   static char ID;
   Constant *PoolRegister;
+  bool SAFECodeEnabled;
+  bool BoundsChecksEnabled;
 
   virtual ~PoolAllocateGroup () {return;}
   virtual PA::FuncInfo *getFuncInfo(Function &F) { return 0;}
@@ -169,13 +169,12 @@ protected:
 
  public:
   static char ID;
-#ifdef SAFECODE  
-  PoolAllocate(bool passAllArguments = true, intptr_t IDp = (intptr_t) (&ID))
-    : ModulePass((intptr_t)IDp), PassAllArguments(passAllArguments) {}
-#else
-  PoolAllocate(bool passAllArguments = false, intptr_t IDp = (intptr_t) (&ID))
-    : ModulePass((intptr_t)IDp), PassAllArguments(passAllArguments) {}
-#endif
+  PoolAllocate (bool passAllArguments = false,
+                bool SAFECode = false,
+                intptr_t IDp = (intptr_t) (&ID))
+    : ModulePass((intptr_t)IDp),
+      PassAllArguments(passAllArguments)
+      {SAFECodeEnabled = BoundsChecksEnabled = SAFECode;}
   virtual bool runOnModule(Module &M);
   
   virtual void getAnalysisUsage(AnalysisUsage &AU) const;
@@ -230,11 +229,10 @@ protected:
   /// getPoolType - Return the type of a pool descriptor
   const Type * getPoolType() {
     Type * VoidPtrType = PointerType::getUnqual(Type::Int8Ty);
-#ifdef SAFECODE
-    return ArrayType::get(VoidPtrType, 50);
-#else
-    return ArrayType::get(VoidPtrType, 16);
-#endif
+    if (SAFECodeEnabled)
+      return ArrayType::get(VoidPtrType, 50);
+    else
+      return ArrayType::get(VoidPtrType, 16);
   }
 
   virtual DSGraph & getDSGraph (const Function & F) const {
@@ -368,7 +366,8 @@ class PoolAllocateSimple : public PoolAllocate {
   TargetData * TD;
 public:
   static char ID;
-  PoolAllocateSimple() : PoolAllocate(false, (intptr_t)&ID) {}
+  PoolAllocateSimple(bool passAllArgs=false, bool SAFECode = false)
+    : PoolAllocate (passAllArgs, SAFECode, (intptr_t)&ID) {}
   ~PoolAllocateSimple() {return;}
   void getAnalysisUsage(AnalysisUsage &AU) const;
   bool runOnModule(Module &M);

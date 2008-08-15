@@ -26,7 +26,11 @@ namespace {
 
   struct PoolOptimize : public ModulePass {
     static char ID;
-    PoolOptimize() : ModulePass((intptr_t)&ID) {}
+    bool SAFECodeEnabled;
+
+    PoolOptimize(bool SAFECode = false) : ModulePass((intptr_t)&ID) {
+      SAFECodeEnabled = SAFECode;
+    }
     bool runOnModule(Module &M);
   };
 
@@ -51,12 +55,11 @@ static void getCallsOf(Constant *C, std::vector<CallInst*> &Calls) {
 
 bool PoolOptimize::runOnModule(Module &M) {
   const Type *VoidPtrTy = PointerType::getUnqual(Type::Int8Ty);
-#ifdef SAFECODE
-  const Type *PoolDescPtrTy = PointerType::getUnqual(ArrayType::get(VoidPtrTy, 50));
-#else
-  const Type *PoolDescPtrTy = PointerType::getUnqual(ArrayType::get(VoidPtrTy, 16));
-#endif
-
+  const Type *PoolDescPtrTy;
+  if (SAFECodeEnabled)
+    PoolDescPtrTy = PointerType::getUnqual(ArrayType::get(VoidPtrTy, 50));
+  else
+    PoolDescPtrTy = PointerType::getUnqual(ArrayType::get(VoidPtrTy, 16));
 
   // Get poolinit function.
   Constant *PoolInit = M.getOrInsertFunction("poolinit", Type::VoidTy,

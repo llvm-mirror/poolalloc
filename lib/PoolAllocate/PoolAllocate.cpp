@@ -93,14 +93,11 @@ namespace {
 void PoolAllocate::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.addRequiredTransitive<EquivClassGraphs>();
   AU.addPreserved<EquivClassGraphs>();
-#ifdef SAFECODE  
-  //Dinakar for preserving the pool information across passes
-  AU.setPreservesAll();
-#endif  
-#ifdef BOUNDS_CHECK
-  //Dinakar hack for preserving the pool information across passes
-  AU.setPreservesAll();
-#endif
+
+  // Preserve the pool information across passes
+  if (SAFECodeEnabled)
+    AU.setPreservesAll();
+
   AU.addRequired<TargetData>();
   if (UseTDResolve)
     AU.addRequired<CallTargetFinder>();
@@ -225,11 +222,9 @@ void PoolAllocate::AddPoolPrototypes(Module* M) {
   // Get the poolfree function.
   PoolFree = M->getOrInsertFunction("poolfree", Type::VoidTy,
                                             PoolDescPtrTy, VoidPtrTy, NULL);
-#if defined(SAFECODE) || defined(BOUNDS_CHECK)
   //Get the poolregister function
   PoolRegister = M->getOrInsertFunction("poolregister", Type::VoidTy,
                                  PoolDescPtrTy, VoidPtrTy, Type::Int32Ty, NULL);
-#endif
 }
 
 static void getCallsOf(Constant *C, std::vector<CallInst*> &Calls) {
@@ -413,11 +408,10 @@ Function *PoolAllocate::MakeFunctionClone(Function &F) {
   // Map the existing arguments of the old function to the corresponding
   // arguments of the new function, and copy over the names.
   DenseMap<const Value*, Value*> ValueMap;
-#ifdef SAFECODE  
-  for (std::map<const Value*, Value*>::iterator I = FI.ValueMap.begin(),
-         E = FI.ValueMap.end(); I != E; ++I)
-    ValueMap.insert(std::make_pair(I->first, I->second));
-#endif  
+  if (SAFECodeEnabled)
+    for (std::map<const Value*, Value*>::iterator I = FI.ValueMap.begin(),
+           E = FI.ValueMap.end(); I != E; ++I)
+      ValueMap.insert(std::make_pair(I->first, I->second));
   for (Function::arg_iterator I = F.arg_begin();
        NI != New->arg_end(); ++I, ++NI) {
     ValueMap[I] = NI;
@@ -486,12 +480,19 @@ bool PoolAllocate::SetupGlobalPools(Module &M) {
   for (hash_set<const DSNode*>::iterator I = GlobalHeapNodes.begin(),
          E = GlobalHeapNodes.end(); I != E; ) {
     hash_set<const DSNode*>::iterator Last = I++;
-#ifndef SAFECODE
-#ifndef BOUNDS_CHECK    
-    //    if (!(*Last)->isHeapNode());
-    //       GlobalHeapNodes.erase(Last);
-#endif       
+
+#if 0
+    //
+    // FIXME:
+    //  This code was disabled for regular pool allocation, but I don't know
+    //  why.
+    //
+    if (!SAFECodeEnabled) {
+      if (!(*Last)->isHeapNode());
+      GlobalHeapNodes.erase(Last);
+    }
 #endif
+
     const DSNode *tmp = *Last;
     //    std::cerr << "test \n";
     if (!(tmp->isHeapNode() || tmp->isArray()))
@@ -516,11 +517,7 @@ bool PoolAllocate::SetupGlobalPools(Module &M) {
   CurHeuristic->AssignToPools(NodesToPA, 0, GG, ResultPools);
 
   BasicBlock::iterator InsertPt = MainFunc->getEntryBlock().begin();
-#ifndef SAFECODE
-#ifndef BOUNDS_CHECK  
-  while (isa<AllocaInst>(InsertPt)) ++InsertPt;
-#endif  
-#endif
+
   // Perform all global assignments as specified.
   for (unsigned i = 0, e = ResultPools.size(); i != e; ++i) {
     Heuristic::OnePool &Pool = ResultPools[i];
@@ -600,11 +597,7 @@ void PoolAllocate::CreatePools(Function &F, DSGraph &DSG,
   std::set<const DSNode*> UnallocatedNodes(NodesToPA.begin(), NodesToPA.end());
 
   BasicBlock::iterator InsertPoint = F.front().begin();
-#ifndef SAFECODE
-#ifndef BOUNDS_CHECK  
-  while (isa<AllocaInst>(InsertPoint)) ++InsertPoint;
-#endif
-#endif  
+
   // Is this main?  If so, make the pool descriptors globals, not automatic
   // vars.
   bool IsMain = F.getName() == "main" && F.hasExternalLinkage();
@@ -675,11 +668,7 @@ void PoolAllocate::ProcessFunctionBody(Function &F, Function &NewF) {
   for (DSGraph::node_iterator I = G.node_begin(), E = G.node_end(); I != E;++I){
     // We only need to make a pool if there is a heap object in it...
     DSNode *N = I;
-#ifdef BOUNDS_CHECK
-    if ((N->isArray()) || (N->isHeapNode()))
-#else
-    if (N->isHeapNode())
-#endif		 
+    if ((N->isHeapNode()) || (BoundsChecksEnabled && (N->isArray())))
       if (GlobalsGraphNodeMapping.count(N)) {
         // If it is a global pool, set up the pool descriptor appropriately.
         DSNode *GGN = GlobalsGraphNodeMapping[N].getNode();
