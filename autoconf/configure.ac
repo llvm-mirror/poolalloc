@@ -65,20 +65,6 @@ dnl **************************************************************************
 dnl * Enable various compile-time options
 dnl **************************************************************************
 
-dnl --enable-safecode: Enable SAFECode functionality
-AC_ARG_ENABLE(safecode,
-  AS_HELP_STRING(--enable-safecode,
-                 [Enable SAFECode functionality (default is NO)]),
-                  AC_DEFINE(SAFECODE,[[1]]),
-                  )
-
-dnl --enable-boundscheck: Enable SAFECode Bounds Check functionality
-AC_ARG_ENABLE(boundschecks,
-  AS_HELP_STRING(--enable-boundschecks,
-                 [Enable SAFECode bounds checking (default is NO)]),
-                  AC_DEFINE(BOUNDS_CHECK,[[1]]),
-                  )
-
 dnl --enable-llva-kernel: Compile DSA for pool inference
 AC_ARG_ENABLE(kernel,
   AS_HELP_STRING(--enable-kernel,

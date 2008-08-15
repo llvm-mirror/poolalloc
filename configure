@@ -844,8 +844,6 @@ if test -n "$ac_init_help"; then
 Optional Features:
   --disable-FEATURE       do not include FEATURE (same as --enable-FEATURE=no)
   --enable-FEATURE[=ARG]  include FEATURE [ARG=yes]
-  --enable-safecode       Enable SAFECode functionality (default is NO)
-  --enable-boundschecks   Enable SAFECode bounds checking (default is NO)
   --enable-kernel         Use SAFECode for use with Linux Kernel (default is
                           NO)
 
@@ -3634,24 +3632,6 @@ _ACEOF
 
 fi
 
-
-# Check whether --enable-safecode or --disable-safecode was given.
-if test "${enable_safecode+set}" = set; then
-  enableval="$enable_safecode"
-  cat >>confdefs.h <<\_ACEOF
-#define SAFECODE 1
-_ACEOF
-
-fi;
-
-# Check whether --enable-boundschecks or --disable-boundschecks was given.
-if test "${enable_boundschecks+set}" = set; then
-  enableval="$enable_boundschecks"
-  cat >>confdefs.h <<\_ACEOF
-#define BOUNDS_CHECK 1
-_ACEOF
-
-fi;
 
 # Check whether --enable-kernel or --disable-kernel was given.
 if test "${enable_kernel+set}" = set; then
