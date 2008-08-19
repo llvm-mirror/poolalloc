@@ -770,10 +770,12 @@ bool DSNode::mergeTypeInfo(const Type *NewTy, unsigned Offset,
     M = getParentGraph()->retnodes_begin()->first->getParent();
 
   DOUT << "MergeTypeInfo Folding OrigTy: ";
-  DEBUG(WriteTypeSymbolic(*cerr.stream(), Ty, M) << "\n due to:";
-        WriteTypeSymbolic(*cerr.stream(), NewTy, M) << " @ " << Offset << "!\n"
-                                                    << "SubType: ";
-        WriteTypeSymbolic(*cerr.stream(), SubType, M) << "\n\n");
+  DEBUG(WriteTypeSymbolic(*cerr.stream(), Ty, M);
+        *cerr.stream() << "\n due to:";
+        WriteTypeSymbolic(*cerr.stream(), NewTy, M);
+        *cerr.stream() << " @ " << Offset << "!\n" << "SubType: ";
+        WriteTypeSymbolic(*cerr.stream(), SubType, M);
+        *cerr.stream() << "\n\n");
 
   if (FoldIfIncompatible) foldNodeCompletely();
   return true;
