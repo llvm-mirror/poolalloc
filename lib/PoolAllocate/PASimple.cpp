@@ -24,7 +24,6 @@
 #include "llvm/Instructions.h"
 #include "llvm/Module.h"
 #include "llvm/Constants.h"
-#include "llvm/ParameterAttributes.h"
 #include "llvm/Support/CFG.h"
 #include "llvm/Target/TargetData.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
@@ -192,17 +191,6 @@ PoolAllocateSimple::ProcessFunctionBodySimple (Function& F, TargetData & TD) {
         Value* args[] = {TheGlobalPool, AllocSize};
         Instruction* x = CallInst::Create(PoolAlloc, &args[0], &args[2], MI->getName(), ii);
         ii->replaceAllUsesWith(CastInst::createPointerCast(x, ii->getType(), "", ii));
-      } else if (AllocaInst * AI = dyn_cast<AllocaInst>(ii)) {
-#if 0
-        DSNode * Node = ECG.getNodeForValue(AI).getNode();
-        FInfo.PoolDescriptors.insert(std::make_pair(Node,TheGlobalPool));
-        toDelete.push_back(ii);
-        //Fixme: fixup size
-        Value* args[] = {TheGlobalPool, ii->getOperand(0)};
-        Instruction* x = CallInst::Create(PoolAlloc, &args[0], &args[2], AI->getName(), ii);
-        ToFree.push_back(x);
-        ii->replaceAllUsesWith(CastInst::createPointerCast(x, ii->getType(), "", ii));
-#endif
       } else if (CallInst * CI = dyn_cast<CallInst>(ii)) {
         CallSite CS(CI);
         Function *CF = CS.getCalledFunction();
