@@ -24,7 +24,7 @@
 #include "llvm/Instructions.h"
 #include "llvm/Module.h"
 #include "llvm/Constants.h"
-#include "llvm/ParameterAttributes.h"
+#include "llvm/Attributes.h"
 #include "llvm/Support/CFG.h"
 #include "llvm/Target/TargetData.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
@@ -433,7 +433,7 @@ Function *PoolAllocate::MakeFunctionClone(Function &F) {
   if (!OldAttrs.isEmpty()) {
     PAListPtr NewAttrsVector;
     for (unsigned index = 0; index < OldAttrs.getNumSlots(); ++index) {
-      const ParamAttrsWithIndex & PAWI = OldAttrs.getSlot(index);
+      const FnAttributeWithIndex & PAWI = OldAttrs.getSlot(index);
       unsigned argIndex = PAWI.Index;
 
       // If it's not the return value, move the attribute to the next
