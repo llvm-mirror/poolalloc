@@ -74,7 +74,9 @@ castTo (Value * V, const Type * Ty, std::string Name, Instruction * InsertPt) {
 void PoolAllocateSimple::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.addRequired<TargetData>();
   AU.addRequiredTransitive<EquivClassGraphs>();
+  AU.addRequiredTransitive<TDDataStructures>();
   AU.addPreserved<EquivClassGraphs>();
+  AU.addPreserved<TDDataStructures>();
   AU.setPreservesAll();
 }
 
@@ -101,6 +103,10 @@ bool PoolAllocateSimple::runOnModule(Module &M) {
   // Get the Target Data information and the ECGraphs
   ECGraphs = &getAnalysis<EquivClassGraphs>();   // folded inlined CBU graphs
   assert (ECGraphs && "No ECGraphs pass available!\n");
+  if (SAFECodeEnabled) {
+    TDGraphs = &getAnalysis<TDDataStructures>();   // folded inlined CBU graphs
+    assert (TDGraphs && "No ECGraphs pass available!\n");
+  }
   TargetData & TD = getAnalysis<TargetData>();
 
   // Add the pool* prototypes to the module

@@ -102,8 +102,9 @@ namespace PA {
 
 
 class PoolAllocateGroup {
-private:
+protected:
   EquivClassGraphs *ECGraphs;
+  TDDataStructures *TDGraphs;
 
 public:
   static char ID;
@@ -119,11 +120,17 @@ public:
   virtual const Type * getPoolType() {return 0;}
 
   virtual DSGraph & getDSGraph (const Function & F) const {
-    return ECGraphs->getDSGraph (F);
+    if (SAFECodeEnabled)
+      return TDGraphs->getDSGraph (F);
+    else
+      return ECGraphs->getDSGraph (F);
   }
 
   virtual DSGraph & getGlobalsGraph () const {
-    return ECGraphs->getGlobalsGraph ();
+    if (SAFECodeEnabled)
+      return TDGraphs->getGlobalsGraph ();
+    else
+      return ECGraphs->getGlobalsGraph ();
   }
 
   virtual Value * getPool (const DSNode * N, Function & F) {return 0;}
@@ -165,7 +172,6 @@ public:
 
 protected:
   std::map<Function*, PA::FuncInfo> FunctionInfo;
-  EquivClassGraphs *ECGraphs;
 
  public:
   static char ID;
@@ -180,7 +186,7 @@ protected:
   virtual void getAnalysisUsage(AnalysisUsage &AU) const;
   
   EquivClassGraphs &getECGraphs() const { return *ECGraphs; }
-  
+
   /// getOrigFunctionFromClone - Given a pointer to a function that was cloned
   /// from another function, return the original function.  If the argument
   /// function is not a clone, return null.
@@ -236,11 +242,17 @@ protected:
   }
 
   virtual DSGraph & getDSGraph (const Function & F) const {
-    return ECGraphs->getDSGraph (F);
+    if (SAFECodeEnabled)
+      return TDGraphs->getDSGraph (F);
+    else
+      return ECGraphs->getDSGraph (F);
   }
 
   virtual DSGraph & getGlobalsGraph () const {
-    return ECGraphs->getGlobalsGraph ();
+    if (SAFECodeEnabled)
+      return TDGraphs->getGlobalsGraph ();
+    else
+      return ECGraphs->getGlobalsGraph ();
   }
 
   virtual Value * getPool (const DSNode * N, Function & F) {
