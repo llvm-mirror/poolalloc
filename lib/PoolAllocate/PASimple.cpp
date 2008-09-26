@@ -105,7 +105,7 @@ bool PoolAllocateSimple::runOnModule(Module &M) {
   assert (ECGraphs && "No ECGraphs pass available!\n");
   if (SAFECodeEnabled) {
     TDGraphs = &getAnalysis<TDDataStructures>();   // folded inlined CBU graphs
-    assert (TDGraphs && "No ECGraphs pass available!\n");
+    assert (TDGraphs && "No TDGraphs pass available!\n");
   }
   TargetData & TD = getAnalysis<TargetData>();
 
@@ -124,14 +124,14 @@ bool PoolAllocateSimple::runOnModule(Module &M) {
   //
   // Merge all of the DSNodes in the DSGraphs.
   //
-  GlobalECs = &(ECGraphs->getGlobalECs());
-  CombinedDSGraph = new DSGraph (*GlobalECs, TD, &(ECGraphs->getGlobalsGraph()));
-  //CombinedDSGraph.cloneInto (ECGraphs->getGlobalsGraph());
+  GlobalECs = &(TDGraphs->getGlobalECs());
+  CombinedDSGraph = new DSGraph (*GlobalECs, TD, &(TDGraphs->getGlobalsGraph()));
+  //CombinedDSGraph.cloneInto (TDGraphs->getGlobalsGraph());
   for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I) {
-    if (ECGraphs->hasGraph (*I))
-      CombinedDSGraph->cloneInto (ECGraphs->getDSGraph(*I));
+    if (TDGraphs->hasGraph (*I))
+      CombinedDSGraph->cloneInto (TDGraphs->getDSGraph(*I));
   }
-  CombinedDSGraph->cloneInto (ECGraphs->getGlobalsGraph());
+  CombinedDSGraph->cloneInto (TDGraphs->getGlobalsGraph());
   MergeNodesInDSGraph (*CombinedDSGraph);
 
   //
@@ -165,7 +165,7 @@ PoolAllocateSimple::ProcessFunctionBodySimple (Function& F, TargetData & TD) {
   //
   // Get the DSGraph for this function.
   //
-  DSGraph &ECG = ECGraphs->getDSGraph(F);
+  DSGraph &ECG = TDGraphs->getDSGraph(F);
 
   for (Function::iterator i = F.begin(), e = F.end(); i != e; ++i)
     for (BasicBlock::iterator ii = i->begin(), ee = i->end(); ii != ee; ++ii) {
