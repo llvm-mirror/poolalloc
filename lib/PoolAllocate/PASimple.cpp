@@ -124,14 +124,17 @@ bool PoolAllocateSimple::runOnModule(Module &M) {
   //
   // Merge all of the DSNodes in the DSGraphs.
   //
-  GlobalECs = &(TDGraphs->getGlobalECs());
-  CombinedDSGraph = new DSGraph (*GlobalECs, TD, &(TDGraphs->getGlobalsGraph()));
-  //CombinedDSGraph.cloneInto (TDGraphs->getGlobalsGraph());
+  if (SAFECodeEnabled)
+    GlobalECs = &(TDGraphs->getGlobalECs());
+  else
+    GlobalECs = &(ECGraphs->getGlobalECs());
+  CombinedDSGraph = new DSGraph (*GlobalECs, TD, &(getGlobalsGraph()));
+  //CombinedDSGraph.cloneInto (getGlobalsGraph());
   for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I) {
-    if (TDGraphs->hasGraph (*I))
-      CombinedDSGraph->cloneInto (TDGraphs->getDSGraph(*I));
+    if (hasDSGraph (*I))
+      CombinedDSGraph->cloneInto (getDSGraph(*I));
   }
-  CombinedDSGraph->cloneInto (TDGraphs->getGlobalsGraph());
+  CombinedDSGraph->cloneInto (getGlobalsGraph());
   MergeNodesInDSGraph (*CombinedDSGraph);
 
   //
@@ -165,7 +168,7 @@ PoolAllocateSimple::ProcessFunctionBodySimple (Function& F, TargetData & TD) {
   //
   // Get the DSGraph for this function.
   //
-  DSGraph &ECG = TDGraphs->getDSGraph(F);
+  DSGraph &ECG = getDSGraph(F);
 
   for (Function::iterator i = F.begin(), e = F.end(); i != e; ++i)
     for (BasicBlock::iterator ii = i->begin(), ee = i->end(); ii != ee; ++ii) {
