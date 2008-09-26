@@ -119,6 +119,13 @@ public:
 
   virtual const Type * getPoolType() {return 0;}
 
+  virtual bool hasDSGraph (const Function & F) const {
+    if (SAFECodeEnabled)
+      return TDGraphs->hasGraph (F);
+    else
+      return ECGraphs->hasGraph (F);
+  }
+
   virtual DSGraph & getDSGraph (const Function & F) const {
     if (SAFECodeEnabled)
       return TDGraphs->getDSGraph (F);
