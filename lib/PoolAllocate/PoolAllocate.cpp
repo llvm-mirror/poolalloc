@@ -429,11 +429,11 @@ Function *PoolAllocate::MakeFunctionClone(Function &F) {
   // verbatim.  This is incorrect; each attribute should be shifted one so
   // that the pool descriptor has no attributes.
   //
-  const PAListPtr OldAttrs = New->getParamAttrs();
+  const AttrListPtr OldAttrs = New->getAttributes();
   if (!OldAttrs.isEmpty()) {
-    PAListPtr NewAttrsVector;
+    AttrListPtr NewAttrsVector;
     for (unsigned index = 0; index < OldAttrs.getNumSlots(); ++index) {
-      const FnAttributeWithIndex & PAWI = OldAttrs.getSlot(index);
+      const AttributeWithIndex & PAWI = OldAttrs.getSlot(index);
       unsigned argIndex = PAWI.Index;
 
       // If it's not the return value, move the attribute to the next
@@ -445,7 +445,7 @@ Function *PoolAllocate::MakeFunctionClone(Function &F) {
     }
 
     // Assign the new attributes to the function clone
-    New->setParamAttrs (NewAttrsVector);
+    New->setAttributes (NewAttrsVector);
   }
 
   // Invert the ValueMap into the NewToOldValueMap
