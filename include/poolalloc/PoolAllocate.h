@@ -120,24 +120,15 @@ public:
   virtual const Type * getPoolType() {return 0;}
 
   virtual bool hasDSGraph (const Function & F) const {
-    if (SAFECodeEnabled)
-      return TDGraphs->hasGraph (F);
-    else
-      return ECGraphs->hasGraph (F);
+    return ECGraphs->hasGraph (F);
   }
 
   virtual DSGraph & getDSGraph (const Function & F) const {
-    if (SAFECodeEnabled)
-      return TDGraphs->getDSGraph (F);
-    else
-      return ECGraphs->getDSGraph (F);
+    return ECGraphs->getDSGraph (F);
   }
 
   virtual DSGraph & getGlobalsGraph () const {
-    if (SAFECodeEnabled)
-      return TDGraphs->getGlobalsGraph ();
-    else
-      return ECGraphs->getGlobalsGraph ();
+    return ECGraphs->getGlobalsGraph ();
   }
 
   virtual Value * getPool (const DSNode * N, Function & F) {return 0;}
@@ -249,17 +240,11 @@ protected:
   }
 
   virtual DSGraph & getDSGraph (const Function & F) const {
-    if (SAFECodeEnabled)
-      return TDGraphs->getDSGraph (F);
-    else
-      return ECGraphs->getDSGraph (F);
+    return ECGraphs->getDSGraph (F);
   }
 
   virtual DSGraph & getGlobalsGraph () const {
-    if (SAFECodeEnabled)
-      return TDGraphs->getGlobalsGraph ();
-    else
-      return ECGraphs->getGlobalsGraph ();
+    return ECGraphs->getGlobalsGraph ();
   }
 
   virtual Value * getPool (const DSNode * N, Function & F) {

@@ -74,9 +74,9 @@ castTo (Value * V, const Type * Ty, std::string Name, Instruction * InsertPt) {
 void PoolAllocateSimple::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.addRequired<TargetData>();
   AU.addRequiredTransitive<EquivClassGraphs>();
-  AU.addRequiredTransitive<TDDataStructures>();
+
   AU.addPreserved<EquivClassGraphs>();
-  AU.addPreserved<TDDataStructures>();
+
   AU.setPreservesAll();
 }
 
@@ -103,10 +103,6 @@ bool PoolAllocateSimple::runOnModule(Module &M) {
   // Get the Target Data information and the ECGraphs
   ECGraphs = &getAnalysis<EquivClassGraphs>();   // folded inlined CBU graphs
   assert (ECGraphs && "No ECGraphs pass available!\n");
-  if (SAFECodeEnabled) {
-    TDGraphs = &getAnalysis<TDDataStructures>();   // folded inlined CBU graphs
-    assert (TDGraphs && "No TDGraphs pass available!\n");
-  }
   TargetData & TD = getAnalysis<TargetData>();
 
   // Add the pool* prototypes to the module
@@ -124,17 +120,14 @@ bool PoolAllocateSimple::runOnModule(Module &M) {
   //
   // Merge all of the DSNodes in the DSGraphs.
   //
-  if (SAFECodeEnabled)
-    GlobalECs = &(TDGraphs->getGlobalECs());
-  else
-    GlobalECs = &(ECGraphs->getGlobalECs());
-  CombinedDSGraph = new DSGraph (*GlobalECs, TD, &(getGlobalsGraph()));
+  GlobalECs = &(TDGraphs->getGlobalECs());
+  CombinedDSGraph = new DSGraph (*GlobalECs, TD, &(ECGraphs->getGlobalsGraph()));
   //CombinedDSGraph.cloneInto (getGlobalsGraph());
   for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I) {
-    if (hasDSGraph (*I))
-      CombinedDSGraph->cloneInto (getDSGraph(*I));
+    if (ECGraphs->hasGraph (*I))
+      CombinedDSGraph->cloneInto (ECGraphs->getDSGraph(*I));
   }
-  CombinedDSGraph->cloneInto (getGlobalsGraph());
+  CombinedDSGraph->cloneInto (ECGraphs->getGlobalsGraph());
   MergeNodesInDSGraph (*CombinedDSGraph);
 
   //
@@ -168,7 +161,7 @@ PoolAllocateSimple::ProcessFunctionBodySimple (Function& F, TargetData & TD) {
   //
   // Get the DSGraph for this function.
   //
-  DSGraph &ECG = getDSGraph(F);
+  DSGraph &ECG = ECGraphs->getDSGraph(F);
 
   for (Function::iterator i = F.begin(), e = F.end(); i != e; ++i)
     for (BasicBlock::iterator ii = i->begin(), ee = i->end(); ii != ee; ++ii) {
