@@ -12,7 +12,7 @@ BUILD_RELINKED=1
 SHARED_LIBRARY=1
 LIBRARYNAME = LLVMDataStructure
 
-CFlags += -fPIC
+CFlags += -fPIC -Wno-deprecated
 
 include $(LEVEL)/Makefile.common
 

@@ -57,8 +57,10 @@ bool BUDataStructures::runOnModule(Module &M) {
   unsigned NextID = 1;
 
   Function *MainFunc = M.getFunction("main");
-  if (MainFunc)
+  if (MainFunc) {
     calculateGraphs(MainFunc, Stack, NextID, ValMap);
+    CloneAuxIntoGlobal(getDSGraph(*MainFunc));
+  }
 
   // Calculate the graphs for any functions that are unreachable from main...
   for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I)
@@ -67,6 +69,7 @@ bool BUDataStructures::runOnModule(Module &M) {
         DOUT << "*** BU: Function unreachable from main: "
              << I->getName() << "\n";
       calculateGraphs(I, Stack, NextID, ValMap);     // Calculate all graphs.
+      CloneAuxIntoGlobal(getDSGraph(*I));
     }
 
   // If we computed any temporary indcallgraphs, free them now.
@@ -297,6 +300,14 @@ unsigned BUDataStructures::calculateGraphs(Function *F,
   return MyID;  // == Min
 }
 
+void BUDataStructures::CloneAuxIntoGlobal(DSGraph& G) {
+  DSGraph& GG = *G.getGlobalsGraph();
+  ReachabilityCloner RC(GG, G, 0);
+
+  for(DSGraph::afc_iterator ii = G.afc_begin(), ee = G.afc_end();
+      ii != ee; ++ii)
+    GG.getAuxFunctionCalls().push_front(RC.cloneCallSite(*ii));
+}
 
 // releaseMemory - If the pass pipeline is done with this pass, we can release
 // our memory... here...

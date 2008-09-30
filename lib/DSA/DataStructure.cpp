@@ -1368,6 +1368,22 @@ void ReachabilityCloner::mergeCallSite(DSCallSite &DestCS,
     DestCS.addPtrArg(getClonedNH(SrcCS.getPtrArg(a)));
 }
 
+DSCallSite ReachabilityCloner::cloneCallSite(const DSCallSite& SrcCS) {
+  std::vector<DSNodeHandle> Args;
+  for(unsigned x = 0; x < SrcCS.getNumPtrArgs(); ++x)
+    Args.push_back(getClonedNH(SrcCS.getPtrArg(x)));
+  if (SrcCS.isDirectCall())
+    return DSCallSite(SrcCS.getCallSite(),
+                      getClonedNH(SrcCS.getRetVal()),
+                      SrcCS.getCalleeFunc(),
+                      Args);
+  else
+    return DSCallSite(SrcCS.getCallSite(),
+                      getClonedNH(SrcCS.getRetVal()),
+                      getClonedNH(SrcCS.getCalleeNode()).getNode(),
+                      Args);
+}
+
 //===----------------------------------------------------------------------===//
 // DSCallSite Implementation
 //===----------------------------------------------------------------------===//
