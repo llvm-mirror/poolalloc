@@ -231,11 +231,12 @@ static void getCallsOf(Constant *C, std::vector<CallInst*> &Calls) {
   // Get the Function out of the constant
   Function * F;
   ConstantExpr * CE;
-  if (!(F=dyn_cast<Function>(C)))
+  if (!(F=dyn_cast<Function>(C))) {
     if ((CE = dyn_cast<ConstantExpr>(C)) && (CE->isCast()))
       F = dyn_cast<Function>(CE->getOperand(0));
     else
       assert (0 && "Constant is not a Function of ConstantExpr!"); 
+  }
   Calls.clear();
   for (Value::use_iterator UI = F->use_begin(), E = F->use_end(); UI != E; ++UI)
     Calls.push_back(cast<CallInst>(*UI));

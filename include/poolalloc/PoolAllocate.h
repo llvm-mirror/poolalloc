@@ -356,7 +356,7 @@ protected:
 /// load or store to that pool is performed.
 struct PoolAllocatePassAllPools : public PoolAllocate {
   static char ID;
-  PoolAllocatePassAllPools() : PoolAllocate(true, (intptr_t) &ID) {}
+  PoolAllocatePassAllPools() : PoolAllocate(true, false, (intptr_t) &ID) {}
 };
 
 /// PoolAllocateSimple - This class modifies the heap allocations so that they
