@@ -124,7 +124,7 @@ bool PoolAllocateSimple::runOnModule(Module &M) {
   CombinedDSGraph = new DSGraph (GlobalECs, TD, &(ECGraphs->getGlobalsGraph()));
   //CombinedDSGraph.cloneInto (getGlobalsGraph());
   for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I) {
-    if (ECGraphs->hasGraph (*I))
+    if (ECGraphs->hasDSGraph (*I))
       CombinedDSGraph->cloneInto (ECGraphs->getDSGraph(*I));
   }
   CombinedDSGraph->cloneInto (ECGraphs->getGlobalsGraph());

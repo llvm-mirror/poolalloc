@@ -596,7 +596,7 @@ void FuncTransform::visitCallSite(CallSite CS) {
     NewCallee = CFI->Clone;
     ArgNodes = CFI->ArgNodes;
     
-    assert ((ECGraphs.hasGraph (*CF)) && "Function has no ECGraph!\n");
+    assert ((ECGraphs.hasDSGraph (*CF)) && "Function has no ECGraph!\n");
     CalleeGraph = &ECGraphs.getDSGraph(*CF);
   } else {
     DEBUG(std::cerr << "  Handling indirect call: " << *TheCall);

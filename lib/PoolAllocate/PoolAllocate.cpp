@@ -125,7 +125,7 @@ bool PoolAllocate::runOnModule(Module &M) {
   // Loop over the functions in the original program finding the pool desc.
   // arguments necessary for each function that is indirectly callable.
   for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I)
-    if (!I->isDeclaration() && ECGraphs->ContainsDSGraphFor(*I))
+    if (!I->isDeclaration() && ECGraphs->hasDSGraph(*I))
       FindFunctionPoolArgs(*I);
 
   std::map<Function*, Function*> FuncMap;
@@ -138,7 +138,7 @@ bool PoolAllocate::runOnModule(Module &M) {
 {TIME_REGION(X, "MakeFunctionClone");
   for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I)
     if (!I->isDeclaration() && !ClonedFunctions.count(I) &&
-        ECGraphs->ContainsDSGraphFor(*I))
+        ECGraphs->hasDSGraph(*I))
       if (Function *Clone = MakeFunctionClone(*I)) {
         FuncMap[I] = Clone;
         ClonedFunctions.insert(Clone);
@@ -150,7 +150,7 @@ bool PoolAllocate::runOnModule(Module &M) {
 {TIME_REGION(X, "ProcessFunctionBody");
   for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I)
     if (!I->isDeclaration() && !ClonedFunctions.count(I) &&
-        ECGraphs->ContainsDSGraphFor(*I)) {
+        ECGraphs->hasDSGraph(*I)) {
       std::map<Function*, Function*>::iterator FI = FuncMap.find(I);
       ProcessFunctionBody(*I, FI != FuncMap.end() ? *FI->second : *I);
     }

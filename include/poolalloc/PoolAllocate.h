@@ -120,7 +120,7 @@ public:
   virtual const Type * getPoolType() {return 0;}
 
   virtual bool hasDSGraph (const Function & F) const {
-    return ECGraphs->hasGraph (F);
+    return ECGraphs->hasDSGraph (F);
   }
 
   virtual DSGraph & getDSGraph (const Function & F) const {
