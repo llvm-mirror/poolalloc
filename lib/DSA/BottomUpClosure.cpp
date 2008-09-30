@@ -72,6 +72,12 @@ bool BUDataStructures::runOnModule(Module &M) {
       CloneAuxIntoGlobal(getDSGraph(*I));
     }
 
+  //Be sure to get the all unresolved call sites
+  for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I)
+    if (!I->isDeclaration() && InlinedSomewhere.find(I) == InlinedSomewhere.end())
+      CloneAuxIntoGlobal(getDSGraph(*I));
+  InlinedSomewhere.clear();
+
   // If we computed any temporary indcallgraphs, free them now.
   for (std::map<std::vector<Function*>,
          std::pair<DSGraph*, std::vector<DSNodeHandle> > >::iterator I =
@@ -397,7 +403,8 @@ void BUDataStructures::calculateGraph(DSGraph &Graph) {
     if (CalledFuncs.size() == 1) {
       Function *Callee = CalledFuncs[0];
       ActualCallees.insert(std::make_pair(TheCall, Callee));
-      
+      if (isComplete) InlinedSomewhere.insert(Callee);
+
       // Get the data structure graph for the called function.
       GI = &getDSGraph(*Callee);  // Graph to inline
       DOUT << "    Inlining graph for " << Callee->getName()
@@ -446,24 +453,26 @@ void BUDataStructures::calculateGraph(DSGraph &Graph) {
         GI->getFunctionArgumentsForCall(*I, Args);
         
         // Merge all of the other callees into this graph.
-        for (++I; I != E; ++I) {
-          // If the graph already contains the nodes for the function, don't
-          // bother merging it in again.
-          if (!GI->containsFunction(*I)) {
-            GI->cloneInto(getDSGraph(**I));
-            ++NumBUInlines;
+        for (++I; I != E; ++I) 
+          if (isComplete || hasDSGraph(**I)) {
+            if (isComplete) InlinedSomewhere.insert(*I);
+            // If the graph already contains the nodes for the function, don't
+            // bother merging it in again.
+            if (!GI->containsFunction(*I)) {
+              GI->cloneInto(getDSGraph(**I));
+              ++NumBUInlines;
+            }
+            
+            std::vector<DSNodeHandle> NextArgs;
+            GI->getFunctionArgumentsForCall(*I, NextArgs);
+            unsigned i = 0, e = Args.size();
+            for (; i != e; ++i) {
+              if (i == NextArgs.size()) break;
+              Args[i].mergeWith(NextArgs[i]);
+            }
+            for (e = NextArgs.size(); i != e; ++i)
+              Args.push_back(NextArgs[i]);
           }
-          
-          std::vector<DSNodeHandle> NextArgs;
-          GI->getFunctionArgumentsForCall(*I, NextArgs);
-          unsigned i = 0, e = Args.size();
-          for (; i != e; ++i) {
-            if (i == NextArgs.size()) break;
-            Args[i].mergeWith(NextArgs[i]);
-          }
-          for (e = NextArgs.size(); i != e; ++i)
-            Args.push_back(NextArgs[i]);
-        }
         
         // Clean up the final graph!
         GI->removeDeadNodes(DSGraph::KeepUnreachableGlobals);

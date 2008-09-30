@@ -279,7 +279,7 @@ static void printCollection(const Collection &C, std::ostream &O,
 
   unsigned TotalNumNodes = 0, TotalCallNodes = 0;
   for (Module::const_iterator I = M->begin(), E = M->end(); I != E; ++I)
-    if (C.hasGraph(*I)) {
+    if (C.hasDSGraph(*I)) {
       DSGraph &Gr = C.getDSGraph((Function&)*I);
       unsigned NumCalls = Gr.shouldPrintAuxCalls() ?
         Gr.getAuxFunctionCalls().size() : Gr.getFunctionCalls().size();
