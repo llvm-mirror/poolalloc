@@ -305,6 +305,10 @@ public:
     return AuxFunctionCalls;
   }
 
+  /// removeFunction - Specify that all call sites to the function have been
+  /// fully specified by a pass such as StdLibPass.
+  void removeFunctionCalls(Function& F);
+
   // Function Call iteration
   typedef std::list<DSCallSite>::const_iterator fc_iterator;
   fc_iterator fc_begin() const { return FunctionCalls.begin(); }

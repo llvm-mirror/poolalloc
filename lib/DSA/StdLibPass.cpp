@@ -31,6 +31,69 @@ X("dsa-stdlib", "Standard Library Local Data Structure Analysis");
 
 char StdLibDataStructures::ID;
 
+struct libAction {
+  bool ret_read, ret_write, ret_heap;
+  bool args_read, args_write, args_heap;
+  bool mergeAllArgs;
+  bool mergeWithRet;
+  bool collapse;
+};
+
+const struct {
+  const char* name;
+  libAction action;
+} recFuncs[] = {
+  {"calloc",   {false,  true,  true, false, false, false, false, false, false}},
+  {"malloc",   {false,  true,  true, false, false, false, false, false, false}},
+  {"valloc",   {false,  true,  true, false, false, false, false, false, false}},
+  {"memalign", {false,  true,  true, false, false, false, false, false, false}},
+  {"strdup",   {false,  true,  true, false, false, false, false, false,  true}},
+  {"wcsdup",   {false,  true,  true, false, false, false, false, false,  true}},
+  {"free",     {false, false, false, false,  true,  true, false, false, false}},
+  {"realloc",  {false,  true,  true, false,  true,  true, false,  true,  true}},
+  {"atoi",     {false, false, false,  true, false, false, false, false, false}},
+  {"atof",     {false, false, false,  true, false, false, false, false, false}},
+  {"atol",     {false, false, false,  true, false, false, false, false, false}},
+  {"atoll",    {false, false, false,  true, false, false, false, false, false}},
+  {"remove",   {false, false, false,  true, false, false, false, false, false}},
+  {"unlink",   {false, false, false,  true, false, false, false, false, false}},
+  {"rename",   {false, false, false,  true, false, false, false, false, false}},
+  {"memcmp",   {false, false, false,  true, false, false, false, false, false}},
+  {"strcmp",   {false, false, false,  true, false, false, false, false, false}},
+  {"strncmp",  {false, false, false,  true, false, false, false, false, false}},
+  {"execl",    {false, false, false,  true, false, false, false, false, false}},
+  {"execlp",   {false, false, false,  true, false, false, false, false, false}},
+  {"execle",   {false, false, false,  true, false, false, false, false, false}},
+  {"execv",    {false, false, false,  true, false, false, false, false, false}},
+  {"execvp",   {false, false, false,  true, false, false, false, false, false}},
+  {"chmod",    {false, false, false,  true, false, false, false, false, false}},
+  {"puts",     {false, false, false,  true, false, false, false, false, false}},
+  {"write",    {false, false, false,  true, false, false, false, false, false}},
+  {"open",     {false, false, false,  true, false, false, false, false, false}},
+  {"create",   {false, false, false,  true, false, false, false, false, false}},
+  {"truncate", {false, false, false,  true, false, false, false, false, false}},
+  {"chdir",    {false, false, false,  true, false, false, false, false, false}},
+  {"mkdir",    {false, false, false,  true, false, false, false, false, false}},
+  {"rmdir",    {false, false, false,  true, false, false, false, false, false}},
+  {"strlen",   {false, false, false,  true, false, false, false, false, false}},
+  {"read",     {false, false, false, false,  true, false, false, false, false}},
+  {"pipe",     {false, false, false, false,  true, false, false, false, false}},
+  {"wait",     {false, false, false, false,  true, false, false, false, false}},
+  {"time",     {false, false, false, false,  true, false, false, false, false}},
+  {"getrusage",{false, false, false, false,  true, false, false, false, false}},
+  {"memchr",   { true, false, false,  true, false, false, false,  true,  true}},
+  {"memrchr",  { true, false, false,  true, false, false, false,  true,  true}},
+  {"rawmemchr",{ true, false, false,  true, false, false, false,  true,  true}},
+  {"memmove",  {false,  true, false,  true,  true, false,  true,  true,  true}},
+  {"bcopy",    {false, false, false,  true,  true, false,  true, false,  true}},
+  {"strcpy",   {false,  true, false,  true,  true, false,  true,  true,  true}},
+  {"strncpy",  {false,  true, false,  true,  true, false,  true,  true,  true}},
+  {"memccpy",  {false,  true, false,  true,  true, false,  true,  true,  true}},
+  {"wcscpy",   {false,  true, false,  true,  true, false,  true,  true,  true}},
+  {"wcsncpy",  {false,  true, false,  true,  true, false,  true,  true,  true}},
+  {"wmemccpy", {false,  true, false,  true,  true, false,  true,  true,  true}},
+};
+
 bool StdLibDataStructures::runOnModule(Module &M) {
   LocalDataStructures &LocalDSA = getAnalysis<LocalDataStructures>();
   setGraphSource(&LocalDSA);
@@ -41,108 +104,61 @@ bool StdLibDataStructures::runOnModule(Module &M) {
   GlobalsGraph = new DSGraph(LocalDSA.getGlobalsGraph(), GlobalECs);
   GlobalsGraph->setPrintAuxCalls();
 
-  // Calculate all of the graphs...
-  for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I) {
-    DSGraph &Graph = getOrCreateGraph(&*I);
-    //If this is an true external, check it out
-    if (I->isDeclaration() && !I->isIntrinsic() && !(I->isVarArg())) {
-      const std::string& Name = I->getName();
-      if (Name == "calloc" ||
-          Name == "malloc" ||
-          Name == "valloc" ||
-          Name == "memalign") {
-        Graph.getReturnNodeFor(*I).getNode()->clearNodeFlags()
-          ->setHeapMarker()->setModifiedMarker();
-      } else if (Name == "realloc") {
-        if (isa<PointerType>(I->getReturnType())) {
-          Graph.getReturnNodeFor(*I).getNode()->clearNodeFlags()
-            ->setHeapMarker()->setModifiedMarker();
-          Graph.getNodeForValue(I->arg_begin()).getNode()->clearNodeFlags()
-            ->mergeWith(Graph.getReturnNodeFor(*I), 0);
-        }
-      } else if (Name == "strdup") {
-        Graph.getReturnNodeFor(*I).getNode()->clearNodeFlags()
-          ->setHeapMarker()->setModifiedMarker();
-      } else if (Name == "free") {
-        Graph.getNodeForValue(&*I->arg_begin()).getNode()->clearNodeFlags()
-          ->setHeapMarker()->setModifiedMarker();
-      } else if (Name == "atoi"     || Name == "atof"    ||
-                 Name == "atol"     || Name == "atoll"   ||
-                 Name == "remove"   || Name == "unlink"  ||
-                 Name == "rename"   || Name == "memcmp"  ||
-                 Name == "strcmp"   || Name == "strncmp" ||
-                 Name == "execl"    || Name == "execlp"  ||
-                 Name == "execle"   || Name == "execv"   ||
-                 Name == "execvp"   || Name == "chmod"   ||
-                 Name == "puts"     || Name == "write"   ||
-                 Name == "open"     || Name == "create"  ||
-                 Name == "truncate" || Name == "chdir"   ||
-                 Name == "mkdir"    || Name == "rmdir"   ||
-                 Name == "strlen") {
-        for (Function::arg_iterator AI = I->arg_begin(), E = I->arg_end();
-             AI != E; ++AI) {
-          if (isa<PointerType>(AI->getType()))
-            Graph.getNodeForValue(&*AI).getNode()->clearNodeFlags()
-              ->setReadMarker();
-        }
-      } else if (Name == "read" || Name == "pipe" ||
-                 Name == "wait" || Name == "time" ||
-                 Name == "getrusage") {
-        for (Function::arg_iterator AI = I->arg_begin(), E = I->arg_end();
-             AI != E; ++AI) {
-          if (isa<PointerType>(AI->getType()))
-            Graph.getNodeForValue(&*AI).getNode()->clearNodeFlags()
-              ->setModifiedMarker();
-        }
-      } else if (Name == "memchr" || Name == "memrchr") {
-        DSNodeHandle RetNH = Graph.getReturnNodeFor(*I);
-        DSNodeHandle Result = Graph.getNodeForValue(&*I->arg_begin());
-        RetNH.mergeWith(Result);
-        RetNH.getNode()->clearNodeFlags()->setReadMarker();
-      } else if (Name == "memmove") {
-        // Merge the first & second arguments, and mark the memory read and
-        // modified.
-        DSNodeHandle& RetNH = Graph.getNodeForValue(&*I->arg_begin());
-        RetNH.mergeWith(Graph.getNodeForValue(&*(++(I->arg_begin()))));
-        RetNH.getNode()->clearNodeFlags()->setModifiedMarker()->setReadMarker();
-      } else if (Name == "stat" || Name == "fstat" || Name == "lstat") {
-        // These functions read their first operand if its a pointer.
-        Function::arg_iterator AI = I->arg_begin();
-        if (isa<PointerType>(AI->getType()))
-          Graph.getNodeForValue(&*AI).getNode()
-            ->clearNodeFlags()->setReadMarker();
-        // Then they write into the stat buffer.
-        DSNodeHandle StatBuf = Graph.getNodeForValue(&*++AI);
-        DSNode *N = StatBuf.getNode();
-        N->setModifiedMarker();
-        const Type *StatTy = I->getFunctionType()->getParamType(1);
-        if (const PointerType *PTy = dyn_cast<PointerType>(StatTy))
-          N->mergeTypeInfo(PTy->getElementType(), StatBuf.getOffset());
-      } else if (Name == "strtod" || Name == "strtof" || Name == "strtold") {
-        // These functions read the first pointer
-        DSNodeHandle& Str = Graph.getNodeForValue(&*I->arg_begin());
-        Str.getNode()->clearNodeFlags()->setReadMarker();
-        // If the second parameter is passed, it will point to the first
-        // argument node.
-        DSNodeHandle& EndNH = Graph.getNodeForValue(&*(++(I->arg_begin())));
-        EndNH.getNode()->clearNodeFlags()->setModifiedMarker();
-        EndNH.getNode()->mergeTypeInfo(PointerType::getUnqual(Type::Int8Ty),
-                                       EndNH.getOffset(), false);
-        DSNodeHandle &Link = EndNH.getLink(0);
-        Link.mergeWith(Str);
-      } else {
-        //ignore pointer free functions
-        bool hasPtr = isa<PointerType>(I->getReturnType());
-        for (Function::const_arg_iterator AI = I->arg_begin(), AE = I->arg_end();
-             AI != AE && !hasPtr; ++AI)
-          if (isa<PointerType>(AI->getType()))
-            hasPtr = true;
-        if (hasPtr)
-          std::cerr << "Unhandled External: " << Name << "\n";
-      }
-    }
-  }
+  //Clone Module
+  for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I) 
+    if (!I->isDeclaration())
+      getOrCreateGraph(&*I);
 
+  for (int x = 0; recFuncs[x].name; ++x)
+    if (Function* F = M.getFunction(recFuncs[x].name))
+      if (F->isDeclaration())
+        for (Value::use_iterator ii = F->use_begin(), ee = F->use_end();
+             ii != ee; ++ii)
+          if (CallInst* CI = dyn_cast<CallInst>(ii))
+            if (CI->getOperand(0) == F) {
+              DSGraph& Graph = getDSGraph(*CI->getParent()->getParent());
+              if (recFuncs[x].action.ret_read)
+                Graph.getNodeForValue(CI).getNode()->setReadMarker();
+              if (recFuncs[x].action.ret_write)
+                Graph.getNodeForValue(CI).getNode()->setModifiedMarker();
+              if (recFuncs[x].action.ret_heap)
+                Graph.getNodeForValue(CI).getNode()->setHeapMarker();
+
+              if (recFuncs[x].action.args_read)
+                for (unsigned y = 1; y < CI->getNumOperands(); ++y)
+                  if (isa<PointerType>(CI->getOperand(y)->getType()))
+                    Graph.getNodeForValue(CI->getOperand(y)).getNode()->setReadMarker();
+              if (recFuncs[x].action.args_write)
+                for (unsigned y = 1; y < CI->getNumOperands(); ++y)
+                  if (isa<PointerType>(CI->getOperand(y)->getType()))
+                    Graph.getNodeForValue(CI->getOperand(y)).getNode()->setModifiedMarker();
+              if (recFuncs[x].action.args_heap)
+                for (unsigned y = 1; y < CI->getNumOperands(); ++y)
+                  if (isa<PointerType>(CI->getOperand(y)->getType()))
+                    Graph.getNodeForValue(CI->getOperand(y)).getNode()->setHeapMarker();
+
+              std::vector<DSNodeHandle> toMerge;
+              if (recFuncs[x].action.mergeWithRet)
+                toMerge.push_back(Graph.getNodeForValue(CI));
+              if (recFuncs[x].action.mergeAllArgs || recFuncs[x].action.mergeWithRet)
+                for (unsigned y = 1; y < CI->getNumOperands(); ++y)
+                  if (isa<PointerType>(CI->getOperand(y)->getType()))
+                    toMerge.push_back(Graph.getNodeForValue(CI->getOperand(y)));
+              for (unsigned y = 1; y < toMerge.size(); ++y)
+                toMerge[0].mergeWith(toMerge[y]);
+
+              if (recFuncs[x].action.collapse) {
+                Graph.getNodeForValue(CI).getNode()->foldNodeCompletely();
+                for (unsigned y = 1; y < CI->getNumOperands(); ++y)
+                  if (isa<PointerType>(CI->getOperand(y)->getType()))
+                    Graph.getNodeForValue(CI->getOperand(y)).getNode()->foldNodeCompletely();
+              }
+
+              //delete the call
+              DOUT << "Removing " << F->getName() << " from " << CI->getParent()->getParent()->getName() << "\n";
+              Graph.removeFunctionCalls(*F);
+            }
+  
   return false;
 }
 

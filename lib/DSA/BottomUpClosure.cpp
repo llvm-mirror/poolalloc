@@ -121,10 +121,19 @@ bool BUDataStructures::runOnModule(Module &M) {
 static void GetAllCallees(const DSCallSite &CS,
                           std::vector<Function*> &Callees) {
   if (CS.isDirectCall()) {
-    Callees.push_back(CS.getCalleeFunc());
+    if (!CS.getCalleeFunc()->isDeclaration())
+      Callees.push_back(CS.getCalleeFunc());
   } else if (!CS.getCalleeNode()->isIncompleteNode()) {
     // Get all callees.
+    unsigned OldSize = Callees.size();
     CS.getCalleeNode()->addFullFunctionList(Callees);
+    
+    // If any of the callees are unresolvable, remove the whole batch!
+    for (unsigned i = OldSize, e = Callees.size(); i != e; ++i)
+      if (Callees[i]->isDeclaration()) {
+        Callees.erase(Callees.begin()+OldSize, Callees.end());
+        return;
+      }
   }
 }
 
@@ -144,6 +153,16 @@ unsigned BUDataStructures::calculateGraphs(Function *F,
   unsigned Min = NextID++, MyID = Min;
   ValMap[F] = Min;
   Stack.push_back(F);
+
+  // FIXME!  This test should be generalized to be any function that we have
+  // already processed, in the case when there isn't a main or there are
+  // unreachable functions!
+  if (F->isDeclaration()) {   // sprintf, fprintf, sscanf, etc...
+    // No callees!
+    Stack.pop_back();
+    ValMap[F] = ~0;
+    return Min;
+  }
 
   DSGraph &Graph = getOrCreateGraph(F);
 
@@ -267,31 +286,6 @@ void BUDataStructures::releaseMyMemory() {
   DSInfo.clear();
   delete GlobalsGraph;
   GlobalsGraph = 0;
-}
-
-DSGraph &BUDataStructures::CreateGraphForExternalFunction(const Function &Fn) {
-  Function *F = const_cast<Function*>(&Fn);
-  DSGraph *DSG = new DSGraph(GlobalECs, GlobalsGraph->getTargetData());
-  DSInfo[F] = DSG;
-  DSG->setGlobalsGraph(GlobalsGraph);
-  DSG->setPrintAuxCalls();
-
-  // Add function to the graph.
-  DSG->getReturnNodes().insert(std::make_pair(F, DSNodeHandle()));
-
-  if (F->getName() == "free") { // Taking the address of free.
-
-    // Free should take a single pointer argument, mark it as heap memory.
-    DSNodeHandle N(new DSNode(0, DSG));
-    N.getNode()->setHeapMarker();
-    DSG->getNodeForValue(F->arg_begin()).mergeWith(N);
-
-  } else {
-    cerr << "Unrecognized external function: " << F->getName() << "\n";
-    abort();
-  }
-
-  return *DSG;
 }
 
 void BUDataStructures::calculateGraph(DSGraph &Graph) {

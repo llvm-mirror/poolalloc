@@ -462,7 +462,7 @@ inline DSNode *DSNodeHandle::getNode() const {
 }
 
 inline void DSNodeHandle::setTo(DSNode *n, unsigned NewOffset) const {
-  assert(!n || !n->isForwarding() && "Cannot set node to a forwarded node!");
+  assert((!n || !n->isForwarding()) && "Cannot set node to a forwarded node!");
   if (N) getNode()->NumReferrers--;
   N = n;
   Offset = NewOffset;

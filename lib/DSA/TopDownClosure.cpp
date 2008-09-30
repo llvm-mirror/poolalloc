@@ -95,7 +95,7 @@ bool TDDataStructures::runOnModule(Module &M) {
 
   // Functions without internal linkage also have unknown incoming arguments!
   for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I)
-    if (!I->hasInternalLinkage())
+    if (!I->isDeclaration() && !I->hasInternalLinkage())
       ArgsRemainIncomplete.insert(I);
 
   // We want to traverse the call graph in reverse post-order.  To do this, we
@@ -108,7 +108,8 @@ bool TDDataStructures::runOnModule(Module &M) {
 
   // Visit each of the graphs in reverse post-order now!
   for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I)
-    getOrCreateGraph(*I);
+    if (!I->isDeclaration(*I)
+        getOrCreateGraph(*I);
   return false;
 }
 #endif
@@ -153,6 +154,7 @@ bool TDDataStructures::runOnModule(Module &M) {
 
 void TDDataStructures::ComputePostOrder(Function &F,hash_set<DSGraph*> &Visited,
                                         std::vector<DSGraph*> &PostOrder) {
+  if (F.isDeclaration()) return;
   DSGraph &G = getOrCreateGraph(&F);
   if (Visited.count(&G)) return;
   Visited.insert(&G);
@@ -297,7 +299,8 @@ void TDDataStructures::InlineCallersIntoGraph(DSGraph &DSG) {
 
     // Handle direct calls efficiently.
     if (CI->isDirectCall()) {
-      if (!DSG.getReturnNodes().count(CI->getCalleeFunc()))
+      if (!CI->getCalleeFunc()->isDeclaration() &&
+          !DSG.getReturnNodes().count(CI->getCalleeFunc()))
         CallerEdges[&getOrCreateGraph(CI->getCalleeFunc())]
           .push_back(CallerCallEdge(&DSG, &*CI, CI->getCalleeFunc()));
       continue;
@@ -309,7 +312,7 @@ void TDDataStructures::InlineCallersIntoGraph(DSGraph &DSG) {
       BUInfo->callee_begin(CallI), IPE = BUInfo->callee_end(CallI);
 
     // Skip over all calls to this graph (SCC calls).
-    while (IPI != IPE && &getOrCreateGraph(IPI->second) == &DSG)
+    while (IPI != IPE && &getDSGraph(*IPI->second) == &DSG)
       ++IPI;
 
     // All SCC calls?
@@ -319,14 +322,15 @@ void TDDataStructures::InlineCallersIntoGraph(DSGraph &DSG) {
     ++IPI;
 
     // Skip over more SCC calls.
-    while (IPI != IPE && &getOrCreateGraph(IPI->second) == &DSG)
+    while (IPI != IPE && &getDSGraph(*IPI->second) == &DSG)
       ++IPI;
 
     // If there is exactly one callee from this call site, remember the edge in
     // CallerEdges.
     if (IPI == IPE) {
-      CallerEdges[&getOrCreateGraph(FirstCallee)]
-        .push_back(CallerCallEdge(&DSG, &*CI, FirstCallee));
+      if (!FirstCallee->isDeclaration())
+        CallerEdges[&getOrCreateGraph(FirstCallee)]
+          .push_back(CallerCallEdge(&DSG, &*CI, FirstCallee));
       continue;
     }
 
@@ -339,7 +343,8 @@ void TDDataStructures::InlineCallersIntoGraph(DSGraph &DSG) {
     for (BUDataStructures::ActualCalleesTy::const_iterator I =
            BUInfo->callee_begin(CallI), E = BUInfo->callee_end(CallI);
          I != E; ++I)
-      Callees.push_back(I->second);
+      if (!I->second->isDeclaration())
+        Callees.push_back(I->second);
     std::sort(Callees.begin(), Callees.end());
 
     std::map<std::vector<Function*>, DSGraph*>::iterator IndCallRecI =
@@ -370,7 +375,7 @@ void TDDataStructures::InlineCallersIntoGraph(DSGraph &DSG) {
       // exactly once.
       DSCallSite *NCS = &IndCallGraph->getFunctionCalls().front();
       for (unsigned i = 0, e = Callees.size(); i != e; ++i) {
-        DSGraph& CalleeGraph = getOrCreateGraph(Callees[i]);
+        DSGraph& CalleeGraph = getDSGraph(*Callees[i]);
         if (&CalleeGraph != &DSG)
           CallerEdges[&CalleeGraph].push_back(CallerCallEdge(IndCallGraph, NCS,
                                                              Callees[i]));

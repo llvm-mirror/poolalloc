@@ -137,37 +137,27 @@ namespace {
         if (isa<PointerType>(I->getType())) {
           DSNode * Node = getValueDest(*I).getNode();
 
-          if (!f.hasInternalLinkage() || f.isDeclaration()) {
+          if (!f.hasInternalLinkage())
             Node->setExternalMarker();
-            //pecimistic assumptions on externals
-            if (f.isDeclaration())
-              Node->setReadMarker()->setModifiedMarker();
-          }
+
         }
       }
 
       // Create an entry for the return, which tracks which functions are in the graph
       g.getOrCreateReturnNodeFor(f);
 
-      if (!f.isDeclaration()) {
-        visit(f);  // Single pass over the function
+      visit(f);  // Single pass over the function
 
-        // If there are any constant globals referenced in this function, merge their
-        // initializers into the local graph from the globals graph.
-        if (g.getScalarMap().global_begin() != g.getScalarMap().global_end()) {
-          ReachabilityCloner RC(g, *g.getGlobalsGraph(), 0);
-          
-          for (DSScalarMap::global_iterator I = g.getScalarMap().global_begin();
-               I != g.getScalarMap().global_end(); ++I)
-            if (GlobalVariable *GV = dyn_cast<GlobalVariable>(*I))
-              if (!GV->isDeclaration() && GV->isConstant())
-                RC.merge(g.getNodeForValue(GV), g.getGlobalsGraph()->getNodeForValue(GV));
-        }
-      } else {
-        DSNodeHandle& RNH = g.getOrCreateReturnNodeFor(f);
-        //Make sure return values from externals are marked as such
-        if (isa<PointerType>(f.getReturnType()))
-          RNH.mergeWith(createNode()->setReadMarker()->setModifiedMarker()->setExternalMarker());
+      // If there are any constant globals referenced in this function, merge their
+      // initializers into the local graph from the globals graph.
+      if (g.getScalarMap().global_begin() != g.getScalarMap().global_end()) {
+        ReachabilityCloner RC(g, *g.getGlobalsGraph(), 0);
+        
+        for (DSScalarMap::global_iterator I = g.getScalarMap().global_begin();
+             I != g.getScalarMap().global_end(); ++I)
+          if (GlobalVariable *GV = dyn_cast<GlobalVariable>(*I))
+            if (!GV->isDeclaration() && GV->isConstant())
+              RC.merge(g.getNodeForValue(GV), g.getGlobalsGraph()->getNodeForValue(GV));
       }
       
       g.markIncompleteNodes(DSGraph::MarkFormalArgs);
@@ -762,11 +752,12 @@ bool LocalDataStructures::runOnModule(Module &M) {
   formGlobalECs();
 
   // Calculate all of the graphs...
-  for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I) {
-    DSGraph* G = new DSGraph(GlobalECs, getTargetData(), GlobalsGraph);
-    GraphBuilder GGB(*I, *G);
-    DSInfo.insert(std::make_pair(I, G));
-  }
+  for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I)
+    if (!I->isDeclaration()) {
+      DSGraph* G = new DSGraph(GlobalECs, getTargetData(), GlobalsGraph);
+      GraphBuilder GGB(*I, *G);
+      DSInfo.insert(std::make_pair(I, G));
+    }
 
   GlobalsGraph->removeTriviallyDeadNodes();
   GlobalsGraph->markIncompleteNodes(DSGraph::MarkFormalArgs);

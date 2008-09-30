@@ -186,8 +186,8 @@ const TargetData &DSNode::getTargetData() const {
 
 void DSNode::assertOK() const {
   assert((Ty != Type::VoidTy ||
-          Ty == Type::VoidTy && (Size == 0 ||
-                                 (NodeType & DSNode::ArrayNode))) &&
+          (Ty == Type::VoidTy && (Size == 0 ||
+                                  (NodeType & DSNode::ArrayNode)))) &&
          "Node not OK!");
 
   assert(ParentGraph && "Node has no parent?");
@@ -756,8 +756,8 @@ bool DSNode::mergeTypeInfo(const Type *NewTy, unsigned Offset,
     // Check to see if we have a pointer & integer mismatch going on here,
     // loading a pointer as a long, for example.
     //
-    if (SubType->isInteger() && isa<PointerType>(NewTy) ||
-        NewTy->isInteger() && isa<PointerType>(SubType))
+    if ((SubType->isInteger() && isa<PointerType>(NewTy)) ||
+        (NewTy->isInteger() && isa<PointerType>(SubType)))
       return false;
   } else if (NewTySize > SubTypeSize && NewTySize <= PadSize) {
     // We are accessing the field, plus some structure padding.  Ignore the
@@ -1490,6 +1490,22 @@ void DSNode::remapLinks(DSGraph::NodeMapTy &OldNodeMap) {
     }
 }
 
+void DSGraph::removeFunctionCalls(Function& F) {
+  for (std::list<DSCallSite>::iterator I = FunctionCalls.begin(),
+         E = FunctionCalls.end(); I != E; ++I)
+    if (I->isDirectCall() && &I->getCaller() == &F) {
+      FunctionCalls.erase(I);
+      break;
+    }
+
+  for (std::list<DSCallSite>::iterator I = AuxFunctionCalls.begin(),
+         E = AuxFunctionCalls.end(); I != E; ++I)
+    if (I->isDirectCall() && &I->getCaller() == &F) {
+      AuxFunctionCalls.erase(I);
+      break;
+    }
+}
+
 /// addObjectToGraph - This method can be used to add global, stack, and heap
 /// objects to the graph.  This can be used when updating DSGraphs due to the
 /// introduction of new temporary objects.  The new object is not pointed to
@@ -1891,11 +1907,12 @@ DSCallSite DSGraph::getDSCallSiteForCallSite(CallSite CS) const {
 
   // Calculate the arguments vector...
   for (CallSite::arg_iterator I = CS.arg_begin(), E = CS.arg_end(); I != E; ++I)
-    if (isa<PointerType>((*I)->getType()))
+    if (isa<PointerType>((*I)->getType())) {
       if (isa<ConstantPointerNull>(*I))
         Args.push_back(DSNodeHandle());
       else
         Args.push_back(getNodeForValue(*I));
+    }
 
   // Add a new function call entry...
   if (Function *F = CS.getCalledFunction())
@@ -2730,7 +2747,7 @@ DSGraph& DataStructures::getOrCreateGraph(Function* F) {
     //Clone or Steal the Source Graph
     DSGraph &BaseGraph = GraphSource->getDSGraph(*F);
     if (Clone) {
-      G = new DSGraph(BaseGraph, GlobalECs, DSGraph::DontCloneAuxCallNodes);
+      G = new DSGraph(BaseGraph, GlobalECs);
     } else {
       G = new DSGraph(GlobalECs, GraphSource->getTargetData());
       G->spliceFrom(BaseGraph);

@@ -189,8 +189,6 @@ public:
 
   virtual bool runOnModule(Module &M);
 
-  DSGraph &CreateGraphForExternalFunction(const Function &F);
-
   /// deleteValue/copyValue - Interfaces to update the DSGraphs in the program.
   /// These correspond to the interfaces defined in the AliasAnalysis class.
   void deleteValue(Value *V);
