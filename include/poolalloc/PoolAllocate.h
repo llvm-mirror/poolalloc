@@ -366,7 +366,7 @@ struct PoolAllocatePassAllPools : public PoolAllocate {
 class PoolAllocateSimple : public PoolAllocate {
   Value * TheGlobalPool;
   DSGraph * CombinedDSGraph;
-  EquivalenceClasses<GlobalValue*> * GlobalECs;
+  EquivalenceClasses<GlobalValue*> GlobalECs;
   TargetData * TD;
 public:
   static char ID;

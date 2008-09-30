@@ -120,8 +120,8 @@ bool PoolAllocateSimple::runOnModule(Module &M) {
   //
   // Merge all of the DSNodes in the DSGraphs.
   //
-  GlobalECs = &(TDGraphs->getGlobalECs());
-  CombinedDSGraph = new DSGraph (*GlobalECs, TD, &(ECGraphs->getGlobalsGraph()));
+  GlobalECs = ECGraphs->getGlobalECs();
+  CombinedDSGraph = new DSGraph (GlobalECs, TD, &(ECGraphs->getGlobalsGraph()));
   //CombinedDSGraph.cloneInto (getGlobalsGraph());
   for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I) {
     if (ECGraphs->hasGraph (*I))
