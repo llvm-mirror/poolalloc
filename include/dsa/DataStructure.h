@@ -83,7 +83,7 @@ protected:
 
 public:
 
-  bool hasGraph(const Function &F) const {
+  bool hasDSGraph(const Function &F) const {
     return DSInfo.find(const_cast<Function*>(&F)) != DSInfo.end();
   }
 
@@ -181,6 +181,8 @@ protected:
   std::map<std::vector<Function*>,
            std::pair<DSGraph*, std::vector<DSNodeHandle> > > *IndCallGraphMap;
 
+  std::set<Function*> InlinedSomewhere;
+
   BUDataStructures(intptr_t id) : DataStructures(id) {}
 public:
   static char ID;
@@ -228,6 +230,9 @@ private:
   unsigned calculateGraphs(Function *F, std::vector<Function*> &Stack,
                            unsigned &NextID,
                            hash_map<Function*, unsigned> &ValMap);
+
+
+  void CloneAuxIntoGlobal(DSGraph& G);
 };
 
 
@@ -389,13 +394,7 @@ public:
     return *I->second;
   }
 
-  bool hasGraph(const Function &F) const {
-    return DSInfo.find(&F) != DSInfo.end();
-  }
-
-  /// ContainsDSGraphFor - Return true if we have a graph for the specified
-  /// function.
-  bool ContainsDSGraphFor(const Function &F) const {
+  bool hasDSGraph(const Function &F) const {
     return DSInfo.find(&F) != DSInfo.end();
   }
 

@@ -586,6 +586,8 @@ public:
   ///
   void mergeCallSite(DSCallSite &DestCS, const DSCallSite &SrcCS);
 
+  DSCallSite cloneCallSite(const DSCallSite& SrcCS);
+
   bool clonedAnyNodes() const { return !NodeMap.empty(); }
 
   /// hasClonedNode - Return true if the specified node has been cloned from
