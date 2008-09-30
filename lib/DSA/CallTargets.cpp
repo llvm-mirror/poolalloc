@@ -77,7 +77,6 @@ void CallTargetFinder::findIndTargets(Module &M)
 
 void CallTargetFinder::print(std::ostream &O, const Module *M) const
 {
-  return;
   O << "[* = incomplete] CS: func list\n";
   for (std::map<CallSite, std::vector<Function*> >::const_iterator ii =
        IndMap.begin(),

@@ -1368,7 +1368,6 @@ void ReachabilityCloner::mergeCallSite(DSCallSite &DestCS,
     DestCS.addPtrArg(getClonedNH(SrcCS.getPtrArg(a)));
 }
 
-
 //===----------------------------------------------------------------------===//
 // DSCallSite Implementation
 //===----------------------------------------------------------------------===//
@@ -1493,14 +1492,14 @@ void DSNode::remapLinks(DSGraph::NodeMapTy &OldNodeMap) {
 void DSGraph::removeFunctionCalls(Function& F) {
   for (std::list<DSCallSite>::iterator I = FunctionCalls.begin(),
          E = FunctionCalls.end(); I != E; ++I)
-    if (I->isDirectCall() && &I->getCaller() == &F) {
+    if (I->isDirectCall() && I->getCalleeFunc() == &F) {
       FunctionCalls.erase(I);
       break;
     }
 
   for (std::list<DSCallSite>::iterator I = AuxFunctionCalls.begin(),
          E = AuxFunctionCalls.end(); I != E; ++I)
-    if (I->isDirectCall() && &I->getCaller() == &F) {
+    if (I->isDirectCall() && I->getCalleeFunc() == &F) {
       AuxFunctionCalls.erase(I);
       break;
     }
@@ -2747,7 +2746,7 @@ DSGraph& DataStructures::getOrCreateGraph(Function* F) {
     //Clone or Steal the Source Graph
     DSGraph &BaseGraph = GraphSource->getDSGraph(*F);
     if (Clone) {
-      G = new DSGraph(BaseGraph, GlobalECs);
+      G = new DSGraph(BaseGraph, GlobalECs, DSGraph::DontCloneAuxCallNodes);
     } else {
       G = new DSGraph(GlobalECs, GraphSource->getTargetData());
       G->spliceFrom(BaseGraph);
