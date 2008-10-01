@@ -2000,6 +2000,7 @@ void DSGraph::markIncompleteNodes(unsigned Flags) {
            E = AuxFunctionCalls.end(); I != E; ++I)
       markIncomplete(*I);
 
+#if 0
   // Mark stuff passed into external functions as being incomplete.
   // External functions may not appear in Aux during td, so process
   // them specially
@@ -2007,6 +2008,7 @@ void DSGraph::markIncompleteNodes(unsigned Flags) {
          E = FunctionCalls.end(); I != E; ++I)
     if(I->isDirectCall() && I->getCalleeFunc()->isDeclaration())
       markIncomplete(*I);
+#endif
 
   // Mark all global nodes as incomplete.
   for (DSScalarMap::global_iterator I = ScalarMap.global_begin(),
@@ -2191,38 +2193,39 @@ static void removeIdenticalCalls(std::list<DSCallSite> &Calls) {
 // other nodes in the graph.  These nodes will all be trivially unreachable, so
 // we don't have to perform any non-trivial analysis here.
 //
-void DSGraph::removeTriviallyDeadNodes() {
+void DSGraph::removeTriviallyDeadNodes(bool updateForwarders) {
   TIME_REGION(X, "removeTriviallyDeadNodes");
 
-#if 0
-  /// NOTE: This code is disabled.  This slows down DSA on 177.mesa
-  /// substantially!
+  if (updateForwarders) {
+    /// NOTE: This code is disabled.  This slows down DSA on 177.mesa
+    /// substantially!
+    
+    // Loop over all of the nodes in the graph, calling getNode on each field.
+    // This will cause all nodes to update their forwarding edges, causing
+    // forwarded nodes to be delete-able.
+    { TIME_REGION(X, "removeTriviallyDeadNodes:node_iterate");
+      for (node_iterator NI = node_begin(), E = node_end(); NI != E; ++NI) {
+        DSNode &N = *NI;
+        for (unsigned l = 0, e = N.getNumLinks(); l != e; ++l)
+          N.getLink(l*N.getPointerSize()).getNode();
+      }
+    }
+    
+    // NOTE: This code is disabled.  Though it should, in theory, allow us to
+    // remove more nodes down below, the scan of the scalar map is incredibly
+    // expensive for certain programs (with large SCCs).  In the future, if we can
+    // make the scalar map scan more efficient, then we can reenable this.
+    { TIME_REGION(X, "removeTriviallyDeadNodes:scalarmap");
+      
+      // Likewise, forward any edges from the scalar nodes.  While we are at it,
+      // clean house a bit.
+      for (DSScalarMap::iterator I = ScalarMap.begin(),E = ScalarMap.end();I != E;){
+        I->second.getNode();
+        ++I;
+      }
+    }
+  }
 
-  // Loop over all of the nodes in the graph, calling getNode on each field.
-  // This will cause all nodes to update their forwarding edges, causing
-  // forwarded nodes to be delete-able.
-  { TIME_REGION(X, "removeTriviallyDeadNodes:node_iterate");
-  for (node_iterator NI = node_begin(), E = node_end(); NI != E; ++NI) {
-    DSNode &N = *NI;
-    for (unsigned l = 0, e = N.getNumLinks(); l != e; ++l)
-      N.getLink(l*N.getPointerSize()).getNode();
-  }
-  }
-
-  // NOTE: This code is disabled.  Though it should, in theory, allow us to
-  // remove more nodes down below, the scan of the scalar map is incredibly
-  // expensive for certain programs (with large SCCs).  In the future, if we can
-  // make the scalar map scan more efficient, then we can reenable this.
-  { TIME_REGION(X, "removeTriviallyDeadNodes:scalarmap");
-
-  // Likewise, forward any edges from the scalar nodes.  While we are at it,
-  // clean house a bit.
-  for (DSScalarMap::iterator I = ScalarMap.begin(),E = ScalarMap.end();I != E;){
-    I->second.getNode();
-    ++I;
-  }
-  }
-#endif
   bool isGlobalsGraph = !GlobalsGraph;
 
   for (NodeListTy::iterator NI = Nodes.begin(), E = Nodes.end(); NI != E; ) {
@@ -2262,7 +2265,8 @@ void DSGraph::removeTriviallyDeadNodes() {
       }
     }
 
-    if (Node.getNodeFlags() == 0 && Node.hasNoReferrers()) {
+    if ((Node.getNodeFlags() == 0 && Node.hasNoReferrers())
+        || (isGlobalsGraph && Node.hasNoReferrers() && !Node.isGlobalNode())){
       // This node is dead!
       NI = Nodes.erase(NI);    // Erase & remove from node list.
       ++NumTrivialDNE;

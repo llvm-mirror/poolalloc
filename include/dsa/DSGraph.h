@@ -152,6 +152,17 @@ public:
     ValueMap.erase(I);
   }
 
+  void clear_scalars() {
+    for(iterator ii = begin(); ii != end(); )
+      if (isa<GlobalValue>(ii->first))
+        ++ii;
+      else {
+        iterator next = ii;
+        ++ii;
+        erase(next);
+      }
+  }
+
   void clear() {
     ValueMap.clear();
     GlobalSet.clear();
@@ -542,7 +553,7 @@ public:
   /// merged with other nodes in the graph.  This is used as the first step of
   /// removeDeadNodes.
   ///
-  void removeTriviallyDeadNodes();
+  void removeTriviallyDeadNodes(bool updateForwarders = false);
 };
 
 

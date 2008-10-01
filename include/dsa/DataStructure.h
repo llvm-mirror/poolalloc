@@ -179,7 +179,7 @@ protected:
 
   // This map is only maintained during construction of BU Graphs
   std::map<std::vector<Function*>,
-           std::pair<DSGraph*, std::vector<DSNodeHandle> > > *IndCallGraphMap;
+           std::pair<DSGraph*, std::vector<DSNodeHandle> > > IndCallGraphMap;
 
   std::set<Function*> InlinedSomewhere;
 
@@ -233,6 +233,7 @@ private:
 
 
   void CloneAuxIntoGlobal(DSGraph& G);
+  void finalizeGlobals(void);
 };
 
 

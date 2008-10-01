@@ -93,6 +93,10 @@ bool TDDataStructures::runOnModule(Module &M) {
                                                  Visited);
   Visited.clear();
 
+  // Clear Aux of Globals Graph to be refilled in later by post-TD unresolved 
+  // functions
+  GlobalsGraph->getAuxFunctionCalls().clear();
+
   // Functions without internal linkage also have unknown incoming arguments!
   for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I)
     if (!I->isDeclaration() && !I->hasInternalLinkage())
@@ -102,18 +106,6 @@ bool TDDataStructures::runOnModule(Module &M) {
   // calculate a post-order traversal, then reverse it.
   hash_set<DSGraph*> VisitedGraph;
   std::vector<DSGraph*> PostOrder;
-
-#if 0
-{TIME_REGION(XXX, "td:Copy graphs");
-
-  // Visit each of the graphs in reverse post-order now!
-  for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I)
-    if (!I->isDeclaration(*I)
-        getOrCreateGraph(*I);
-  return false;
-}
-#endif
-
 
 {TIME_REGION(XXX, "td:Compute postorder");
 

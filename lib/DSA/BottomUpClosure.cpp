@@ -49,9 +49,6 @@ bool BUDataStructures::runOnModule(Module &M) {
   GlobalsGraph = new DSGraph(LocalDSA.getGlobalsGraph(), GlobalECs);
   GlobalsGraph->setPrintAuxCalls();
 
-  IndCallGraphMap = new std::map<std::vector<Function*>,
-                           std::pair<DSGraph*, std::vector<DSNodeHandle> > >();
-
   std::vector<Function*> Stack;
   hash_map<Function*, unsigned> ValMap;
   unsigned NextID = 1;
@@ -81,11 +78,11 @@ bool BUDataStructures::runOnModule(Module &M) {
   // If we computed any temporary indcallgraphs, free them now.
   for (std::map<std::vector<Function*>,
          std::pair<DSGraph*, std::vector<DSNodeHandle> > >::iterator I =
-         IndCallGraphMap->begin(), E = IndCallGraphMap->end(); I != E; ++I) {
+         IndCallGraphMap.begin(), E = IndCallGraphMap.end(); I != E; ++I) {
     I->second.second.clear();  // Drop arg refs into the graph.
     delete I->second.first;
   }
-  delete IndCallGraphMap;
+  IndCallGraphMap.clear();
 
   // At the end of the bottom-up pass, the globals graph becomes complete.
   // FIXME: This is not the right way to do this, but it is sorta better than
@@ -93,7 +90,10 @@ bool BUDataStructures::runOnModule(Module &M) {
   // nodes at the end of the BU phase should make things that they point to
   // incomplete in the globals graph.
   //
-  GlobalsGraph->removeTriviallyDeadNodes();
+
+  finalizeGlobals();
+
+  GlobalsGraph->removeTriviallyDeadNodes(true);
   GlobalsGraph->maskIncompleteMarkers();
 
   // Mark external globals incomplete.
@@ -125,6 +125,43 @@ bool BUDataStructures::runOnModule(Module &M) {
   NumCallEdges += ActualCallees.size();
 
   return false;
+}
+
+static inline bool nodeContainsExternalFunction(const DSNode *N) {
+  std::vector<Function*> Funcs;
+  N->addFullFunctionList(Funcs);
+  for (unsigned i = 0, e = Funcs.size(); i != e; ++i)
+    if (Funcs[i]->isDeclaration()) return true;
+  return false;
+}
+
+void BUDataStructures::finalizeGlobals(void) {
+  // Any unresolved call can be removed (resolved) if it does not contain
+  // external functions and it is not reachable from any call that does
+  // contain external functions
+  std::set<DSCallSite> GoodCalls, BadCalls;
+  for (DSGraph::afc_iterator ii = GlobalsGraph->afc_begin(), 
+         ee = GlobalsGraph->afc_end(); ii != ee; ++ii)
+    if (ii->isDirectCall() ||
+        nodeContainsExternalFunction(ii->getCalleeNode()))
+      BadCalls.insert(*ii);
+    else
+      GoodCalls.insert(*ii);
+  hash_set<const DSNode*> reachable;
+  for (std::set<DSCallSite>::iterator ii = BadCalls.begin(),
+         ee = BadCalls.end(); ii != ee; ++ii) {
+    ii->getRetVal().getNode()->markReachableNodes(reachable);
+    for (unsigned x = 0; x < ii->getNumPtrArgs(); ++x)
+      ii->getPtrArg(x).getNode()->markReachableNodes(reachable);
+  }
+  for (std::set<DSCallSite>::iterator ii = GoodCalls.begin(),
+         ee = GoodCalls.end(); ii != ee; ++ii)
+    if (reachable.find(ii->getCalleeNode()) == reachable.end())
+      GlobalsGraph->getAuxFunctionCalls()
+        .erase(std::find(GlobalsGraph->getAuxFunctionCalls().begin(),
+                         GlobalsGraph->getAuxFunctionCalls().end(),
+                         *ii));
+  GlobalsGraph->getScalarMap().clear_scalars();
 }
 
 static void GetAllCallees(const DSCallSite &CS,
@@ -447,7 +484,7 @@ void BUDataStructures::calculateGraph(DSGraph &Graph) {
       // See if we already computed a graph for this set of callees.
       std::sort(CalledFuncs.begin(), CalledFuncs.end());
       std::pair<DSGraph*, std::vector<DSNodeHandle> > &IndCallGraph =
-        (*IndCallGraphMap)[CalledFuncs];
+        IndCallGraphMap[CalledFuncs];
       
       if (IndCallGraph.first == 0) {
         std::vector<Function*>::iterator I = CalledFuncs.begin(),
