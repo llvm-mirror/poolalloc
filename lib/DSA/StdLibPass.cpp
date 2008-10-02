@@ -127,7 +127,8 @@ bool StdLibDataStructures::runOnModule(Module &M) {
               if (recFuncs[x].action.args_read)
                 for (unsigned y = 1; y < CI->getNumOperands(); ++y)
                   if (isa<PointerType>(CI->getOperand(y)->getType()))
-                    Graph.getNodeForValue(CI->getOperand(y)).getNode()->setReadMarker();
+                    if (DSNode * Node=Graph.getNodeForValue(CI->getOperand(y)).getNode())
+                      Node->setReadMarker();
               if (recFuncs[x].action.args_write)
                 for (unsigned y = 1; y < CI->getNumOperands(); ++y)
                   if (isa<PointerType>(CI->getOperand(y)->getType()))
@@ -136,7 +137,8 @@ bool StdLibDataStructures::runOnModule(Module &M) {
               if (recFuncs[x].action.args_heap)
                 for (unsigned y = 1; y < CI->getNumOperands(); ++y)
                   if (isa<PointerType>(CI->getOperand(y)->getType()))
-                    Graph.getNodeForValue(CI->getOperand(y)).getNode()->setHeapMarker();
+                    if (DSNode * Node=Graph.getNodeForValue(CI->getOperand(y)).getNode())
+                      Node->setHeapMarker();
 
               std::vector<DSNodeHandle> toMerge;
               if (recFuncs[x].action.mergeWithRet)
@@ -152,7 +154,8 @@ bool StdLibDataStructures::runOnModule(Module &M) {
                 Graph.getNodeForValue(CI).getNode()->foldNodeCompletely();
                 for (unsigned y = 1; y < CI->getNumOperands(); ++y)
                   if (isa<PointerType>(CI->getOperand(y)->getType()))
-                    Graph.getNodeForValue(CI->getOperand(y)).getNode()->foldNodeCompletely();
+                    if (DSNode * Node=Graph.getNodeForValue(CI->getOperand(y)).getNode())
+                    Node->foldNodeCompletely();
               }
 
               //delete the call
