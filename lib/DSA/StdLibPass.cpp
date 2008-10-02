@@ -131,7 +131,8 @@ bool StdLibDataStructures::runOnModule(Module &M) {
               if (recFuncs[x].action.args_write)
                 for (unsigned y = 1; y < CI->getNumOperands(); ++y)
                   if (isa<PointerType>(CI->getOperand(y)->getType()))
-                    Graph.getNodeForValue(CI->getOperand(y)).getNode()->setModifiedMarker();
+                    if (DSNode * Node=Graph.getNodeForValue(CI->getOperand(y)).getNode())
+                      Node->setModifiedMarker();
               if (recFuncs[x].action.args_heap)
                 for (unsigned y = 1; y < CI->getNumOperands(); ++y)
                   if (isa<PointerType>(CI->getOperand(y)->getType()))
