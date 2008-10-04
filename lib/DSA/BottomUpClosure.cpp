@@ -242,6 +242,9 @@ unsigned BUDataStructures::calculateGraphs(Function *F,
   // Find all callee functions.
   std::vector<Function*> CalleeFunctions;
   GetAnyAuxCallees(Graph, CalleeFunctions);
+  std::sort(CalleeFunctions.begin(), CalleeFunctions.end());
+  std::vector<Function*>::iterator uid = std::unique(CalleeFunctions.begin(), CalleeFunctions.end());
+  CalleeFunctions.resize(uid - CalleeFunctions.begin());
 
   // The edges out of the current node are the call site targets...
   for (unsigned i = 0, e = CalleeFunctions.size(); i != e; ++i) {
@@ -274,10 +277,16 @@ unsigned BUDataStructures::calculateGraphs(Function *F,
     if (MaxSCC < 1) MaxSCC = 1;
 
     // Should we revisit the graph?  Only do it if there are now new resolvable
-    // callees.
-    std::vector<Function*> CalleeFunctionsNew;
-    GetAnyAuxCallees(Graph, CalleeFunctionsNew);
-    if (CalleeFunctionsNew.size() > CalleeFunctions.size()) {
+    // callees or new callees
+    unsigned oldsize = CalleeFunctions.size();
+    GetAnyAuxCallees(Graph, CalleeFunctions);
+    std::sort(CalleeFunctions.begin(), CalleeFunctions.end());
+    std::vector<Function*>::iterator uid = std::unique(CalleeFunctions.begin(), CalleeFunctions.end());
+    CalleeFunctions.resize(uid - CalleeFunctions.begin());
+
+    std::vector<Function*> ResolvedFuncs;
+    GetAllAuxCallees(Graph, ResolvedFuncs);
+    if (ResolvedFuncs.size() || CalleeFunctions.size() > oldsize) {
       DOUT << "Recalculating " << F->getName() << " due to new knowledge\n";
       ValMap.erase(F);
       return calculateGraphs(F, Stack, NextID, ValMap);
