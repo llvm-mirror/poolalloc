@@ -576,6 +576,37 @@ bool GraphBuilder::visitIntrinsic(CallSite CS, Function *F) {
     return true;
   }
 
+  case Intrinsic::atomic_cmp_swap: {
+    DSNodeHandle Ptr = getValueDest(**CS.arg_begin());
+    Ptr.getNode()->setReadMarker();
+    Ptr.getNode()->setModifiedMarker();
+    if (isa<PointerType>(F->getReturnType())) {
+      setDestTo(*(CS.getInstruction()), getValueDest(**(CS.arg_begin() + 1)));
+      getValueDest(**(CS.arg_begin() + 1))
+        .mergeWith(getValueDest(**(CS.arg_begin() + 2)));
+    }
+  }
+  case Intrinsic::atomic_swap:
+  case Intrinsic::atomic_load_add:
+  case Intrinsic::atomic_load_sub:
+  case Intrinsic::atomic_load_and:
+  case Intrinsic::atomic_load_nand:
+  case Intrinsic::atomic_load_or:
+  case Intrinsic::atomic_load_xor:
+  case Intrinsic::atomic_load_max:
+  case Intrinsic::atomic_load_min:
+  case Intrinsic::atomic_load_umax:
+  case Intrinsic::atomic_load_umin:
+    {
+      DSNodeHandle Ptr = getValueDest(**CS.arg_begin());
+      Ptr.getNode()->setReadMarker();
+      Ptr.getNode()->setModifiedMarker();
+      if (isa<PointerType>(F->getReturnType()))
+        setDestTo(*(CS.getInstruction()), getValueDest(**(CS.arg_begin() + 1)));
+    }
+   
+              
+
   case Intrinsic::eh_selector_i32:
   case Intrinsic::eh_selector_i64:
   case Intrinsic::eh_typeid_for_i32:
@@ -594,7 +625,7 @@ bool GraphBuilder::visitIntrinsic(CallSite CS, Function *F) {
         return true;
     }
 
-    DOUT << "[dsa:local] Unhandled intrinsic: " << F->getName() << "\n";
+    cerr << "[dsa:local] Unhandled intrinsic: " << F->getName() << "\n";
     assert(0 && "Unhandled intrinsic");
     return false;
   }
@@ -606,7 +637,7 @@ void GraphBuilder::visitCallSite(CallSite CS) {
 
   // Special case handling of certain libc allocation functions here.
   if (Function *F = dyn_cast<Function>(Callee))
-    if (F->isDeclaration())
+    if (F->isDeclaration()) {
       if (F->isIntrinsic() && visitIntrinsic(CS, F))
         return;
       else {
@@ -628,6 +659,7 @@ void GraphBuilder::visitCallSite(CallSite CS) {
           return;
         }
       }
+    }
 
   // Set up the return value...
   DSNodeHandle RetVal;
