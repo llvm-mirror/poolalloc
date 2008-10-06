@@ -804,6 +804,8 @@ void FuncTransform::visitCallSite(CallSite CS) {
     UpdateNewToOldValueMap(TheCall, NewCall);
   }
 
+  CallSite(NewCall).setCallingConv(CallSite(TheCall).getCallingConv());
+
   TheCall->eraseFromParent();
   visitInstruction(*NewCall);
 }
