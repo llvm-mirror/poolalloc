@@ -151,7 +151,8 @@ bool StdLibDataStructures::runOnModule(Module &M) {
                 toMerge[0].mergeWith(toMerge[y]);
 
               if (recFuncs[x].action.collapse) {
-                Graph.getNodeForValue(CI).getNode()->foldNodeCompletely();
+                if (isa<PointerType>(CI->getType()))
+                  Graph.getNodeForValue(CI).getNode()->foldNodeCompletely();
                 for (unsigned y = 1; y < CI->getNumOperands(); ++y)
                   if (isa<PointerType>(CI->getOperand(y)->getType()))
                     if (DSNode * Node=Graph.getNodeForValue(CI->getOperand(y)).getNode())
