@@ -27,7 +27,7 @@ namespace {
   class Steens : public ModulePass, public AliasAnalysis {
     DSGraph *ResultGraph;
 
-    EquivalenceClasses<GlobalValue*> GlobalECs;  // Always empty
+    EquivalenceClasses<const GlobalValue*> GlobalECs;  // Always empty
   public:
     static char ID;
     Steens() : ModulePass((intptr_t)&ID), ResultGraph(0) {}
@@ -73,7 +73,7 @@ namespace {
     virtual ModRefResult getModRefInfo(CallSite CS1, CallSite CS2);
 
   private:
-    void ResolveFunctionCall(Function *F, const DSCallSite &Call,
+    void ResolveFunctionCall(const Function *F, const DSCallSite &Call,
                              DSNodeHandle &RetVal);
   };
 
@@ -93,7 +93,7 @@ ModulePass *llvm::createSteensgaardPass() { return new Steens(); }
 /// with the specified call site descriptor.  This function links the arguments
 /// and the return value for the call site context-insensitively.
 ///
-void Steens::ResolveFunctionCall(Function *F, const DSCallSite &Call,
+void Steens::ResolveFunctionCall(const Function *F, const DSCallSite &Call,
                                  DSNodeHandle &RetVal) {
   assert(ResultGraph != 0 && "Result graph not allocated!");
   DSGraph::ScalarMapTy &ValMap = ResultGraph->getScalarMap();
@@ -104,7 +104,7 @@ void Steens::ResolveFunctionCall(Function *F, const DSCallSite &Call,
 
   // Loop over all pointer arguments, resolving them to their provided pointers
   unsigned PtrArgIdx = 0;
-  for (Function::arg_iterator AI = F->arg_begin(), AE = F->arg_end();
+  for (Function::const_arg_iterator AI = F->arg_begin(), AE = F->arg_end();
        AI != AE && PtrArgIdx < Call.getNumPtrArgs(); ++AI) {
     DSGraph::ScalarMapTy::iterator I = ValMap.find(AI);
     if (I != ValMap.end())    // If its a pointer argument...
@@ -150,7 +150,7 @@ bool Steens::runOnModule(Module &M) {
     DSCallSite &CurCall = *CI++;
 
     // Loop over the called functions, eliminating as many as possible...
-    std::vector<Function*> CallTargets;
+    std::vector<const Function*> CallTargets;
     if (CurCall.isDirectCall())
       CallTargets.push_back(CurCall.getCalleeFunc());
     else
@@ -158,7 +158,7 @@ bool Steens::runOnModule(Module &M) {
 
     for (unsigned c = 0; c != CallTargets.size(); ) {
       // If we can eliminate this function call, do so!
-      Function *F = CallTargets[c];
+      const Function *F = CallTargets[c];
       if (!F->isDeclaration()) {
         ResolveFunctionCall(F, CurCall, ResultGraph->getReturnNodes()[F]);
         CallTargets[c] = CallTargets.back();

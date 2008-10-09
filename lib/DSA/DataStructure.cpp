@@ -112,14 +112,14 @@ DSNode *DSNodeHandle::HandleForwarding() const {
 // DSScalarMap Implementation
 //===----------------------------------------------------------------------===//
 
-DSNodeHandle &DSScalarMap::AddGlobal(GlobalValue *GV) {
+DSNodeHandle &DSScalarMap::AddGlobal(const GlobalValue *GV) {
   assert(ValueMap.count(GV) == 0 && "GV already exists!");
 
   // If the node doesn't exist, check to see if it's a global that is
   // equated to another global in the program.
-  EquivalenceClasses<GlobalValue*>::iterator ECI = GlobalECs.findValue(GV);
+  EquivalenceClasses<const GlobalValue*>::iterator ECI = GlobalECs.findValue(GV);
   if (ECI != GlobalECs.end()) {
-    GlobalValue *Leader = *GlobalECs.findLeader(ECI);
+    const GlobalValue *Leader = *GlobalECs.findLeader(ECI);
     if (Leader != GV) {
       GV = Leader;
       iterator I = ValueMap.find(GV);
@@ -220,13 +220,13 @@ void DSNode::forwardNode(DSNode *To, unsigned Offset) {
 // addGlobal - Add an entry for a global value to the Globals list.  This also
 // marks the node with the 'G' flag if it does not already have it.
 //
-void DSNode::addGlobal(GlobalValue *GV) {
+void DSNode::addGlobal(const GlobalValue *GV) {
   // First, check to make sure this is the leader if the global is in an
   // equivalence class.
   GV = getParentGraph()->getScalarMap().getLeaderForGlobal(GV);
 
   // Keep the list sorted.
-  std::vector<GlobalValue*>::iterator I =
+  std::vector<const GlobalValue*>::iterator I =
     std::lower_bound(Globals.begin(), Globals.end(), GV);
 
   if (I == Globals.end() || *I != GV) {
@@ -237,8 +237,8 @@ void DSNode::addGlobal(GlobalValue *GV) {
 
 // removeGlobal - Remove the specified global that is explicitly in the globals
 // list.
-void DSNode::removeGlobal(GlobalValue *GV) {
-  std::vector<GlobalValue*>::iterator I =
+void DSNode::removeGlobal(const GlobalValue *GV) {
+  std::vector<const GlobalValue*>::iterator I =
     std::lower_bound(Globals.begin(), Globals.end(), GV);
   assert(I != Globals.end() && *I == GV && "Global not in node!");
   Globals.erase(I);
@@ -316,13 +316,13 @@ bool DSNode::isNodeCompletelyFolded() const {
 /// addFullGlobalsList - Compute the full set of global values that are
 /// represented by this node.  Unlike getGlobalsList(), this requires fair
 /// amount of work to compute, so don't treat this method call as free.
-void DSNode::addFullGlobalsList(std::vector<GlobalValue*> &List) const {
+void DSNode::addFullGlobalsList(std::vector<const GlobalValue*> &List) const {
   if (globals_begin() == globals_end()) return;
 
-  EquivalenceClasses<GlobalValue*> &EC = getParentGraph()->getGlobalECs();
+  EquivalenceClasses<const GlobalValue*> &EC = getParentGraph()->getGlobalECs();
 
   for (globals_iterator I = globals_begin(), E = globals_end(); I != E; ++I) {
-    EquivalenceClasses<GlobalValue*>::iterator ECI = EC.findValue(*I);
+    EquivalenceClasses<const GlobalValue*>::iterator ECI = EC.findValue(*I);
     if (ECI == EC.end())
       List.push_back(*I);
     else
@@ -332,20 +332,20 @@ void DSNode::addFullGlobalsList(std::vector<GlobalValue*> &List) const {
 
 /// addFullFunctionList - Identical to addFullGlobalsList, but only return the
 /// functions in the full list.
-void DSNode::addFullFunctionList(std::vector<Function*> &List) const {
+void DSNode::addFullFunctionList(std::vector<const Function*> &List) const {
   if (globals_begin() == globals_end()) return;
 
-  EquivalenceClasses<GlobalValue*> &EC = getParentGraph()->getGlobalECs();
+  EquivalenceClasses<const GlobalValue*> &EC = getParentGraph()->getGlobalECs();
 
   for (globals_iterator I = globals_begin(), E = globals_end(); I != E; ++I) {
-    EquivalenceClasses<GlobalValue*>::iterator ECI = EC.findValue(*I);
+    EquivalenceClasses<const GlobalValue*>::iterator ECI = EC.findValue(*I);
     if (ECI == EC.end()) {
-      if (Function *F = dyn_cast<Function>(*I))
+      if (const Function *F = dyn_cast<Function>(*I))
         List.push_back(F);
     } else {
-      for (EquivalenceClasses<GlobalValue*>::member_iterator MI =
+      for (EquivalenceClasses<const GlobalValue*>::member_iterator MI =
              EC.member_begin(ECI), E = EC.member_end(); MI != E; ++MI)
-        if (Function *F = dyn_cast<Function>(*MI))
+        if (const Function *F = dyn_cast<Function>(*MI))
           List.push_back(F);
     }
   }
@@ -765,7 +765,7 @@ bool DSNode::mergeTypeInfo(const Type *NewTy, unsigned Offset,
     return false;
   }
 
-  Module *M = 0;
+  const Module *M = 0;
   if (getParentGraph()->retnodes_begin() != getParentGraph()->retnodes_end())
     M = getParentGraph()->retnodes_begin()->first->getParent();
 
@@ -802,51 +802,13 @@ void DSNode::addEdgeTo(unsigned Offset, const DSNodeHandle &NH) {
 }
 
 
-/// MergeSortedVectors - Efficiently merge a vector into another vector where
-/// duplicates are not allowed and both are sorted.  This assumes that 'T's are
-/// efficiently copyable and have sane comparison semantics.
-///
-static void MergeSortedVectors(std::vector<GlobalValue*> &Dest,
-                               const std::vector<GlobalValue*> &Src) {
-  // By far, the most common cases will be the simple ones.  In these cases,
-  // avoid having to allocate a temporary vector...
-  //
-  if (Src.empty()) {             // Nothing to merge in...
-    return;
-  } else if (Dest.empty()) {     // Just copy the result in...
-    Dest = Src;
-  } else if (Src.size() == 1) {  // Insert a single element...
-    const GlobalValue *V = Src[0];
-    std::vector<GlobalValue*>::iterator I =
-      std::lower_bound(Dest.begin(), Dest.end(), V);
-    if (I == Dest.end() || *I != Src[0])  // If not already contained...
-      Dest.insert(I, Src[0]);
-  } else if (Dest.size() == 1) {
-    GlobalValue *Tmp = Dest[0];           // Save value in temporary...
-    Dest = Src;                           // Copy over list...
-    std::vector<GlobalValue*>::iterator I =
-      std::lower_bound(Dest.begin(), Dest.end(), Tmp);
-    if (I == Dest.end() || *I != Tmp)     // If not already contained...
-      Dest.insert(I, Tmp);
-
-  } else {
-    // Make a copy to the side of Dest...
-    std::vector<GlobalValue*> Old(Dest);
-
-    // Make space for all of the type entries now...
-    Dest.resize(Dest.size()+Src.size());
-
-    // Merge the two sorted ranges together... into Dest.
-    std::merge(Old.begin(), Old.end(), Src.begin(), Src.end(), Dest.begin());
-
-    // Now erase any duplicate entries that may have accumulated into the
-    // vectors (because they were in both of the input sets)
-    Dest.erase(std::unique(Dest.begin(), Dest.end()), Dest.end());
-  }
-}
-
-void DSNode::mergeGlobals(const std::vector<GlobalValue*> &RHS) {
-  MergeSortedVectors(Globals, RHS);
+void DSNode::mergeGlobals(const std::vector<const GlobalValue*> &RHS) {
+  std::vector<const GlobalValue*> Temp;
+  std::back_insert_iterator< std::vector<const GlobalValue*> > back_it (Temp);
+  std::set_union(Globals.begin(), Globals.end(), 
+                 RHS.begin(), RHS.end(), 
+                 back_it);
+  Globals.swap(Temp);
 }
 
 // MergeNodes - Helper function for DSNode::mergeWith().
@@ -1002,7 +964,7 @@ void DSNode::MergeNodes(DSNodeHandle& CurNodeH, DSNodeHandle& NH) {
     CurNodeH.getNode()->mergeGlobals(N->Globals);
 
     // Delete the globals from the old node...
-    std::vector<GlobalValue*>().swap(N->Globals);
+    N->Globals.clear();
   }
 }
 
@@ -1081,7 +1043,7 @@ DSNodeHandle ReachabilityCloner::getClonedNH(const DSNodeHandle &SrcNH) {
     DSScalarMap &DestSM = Dest.getScalarMap();
     for (DSNode::globals_iterator I = SN->globals_begin(),E = SN->globals_end();
          I != E; ++I) {
-      GlobalValue *GV = *I;
+      const GlobalValue *GV = *I;
       DSScalarMap::iterator GI = DestSM.find(GV);
       if (GI != DestSM.end() && !GI->second.isNull()) {
         // We found one, use merge instead!
@@ -1137,7 +1099,7 @@ DSNodeHandle ReachabilityCloner::getClonedNH(const DSNodeHandle &SrcNH) {
   // map with the correct offset.
   for (DSNode::globals_iterator I = SN->globals_begin(), E = SN->globals_end();
        I != E; ++I) {
-    GlobalValue *GV = *I;
+    const GlobalValue *GV = *I;
     const DSNodeHandle &SrcGNH = Src.getNodeForValue(GV);
     DSNodeHandle &DestGNH = NodeMap[SrcGNH.getNode()];
     assert(DestGNH.getNode() == NH.getNode() &&"Global mapping inconsistent");
@@ -1226,7 +1188,7 @@ void ReachabilityCloner::merge(const DSNodeHandle &NH,
       // into.
       for (DSNode::globals_iterator I = SN->globals_begin(),
              E = SN->globals_end(); I != E; ++I) {
-        GlobalValue *GV = *I;
+        const GlobalValue *GV = *I;
         const DSNodeHandle &SrcGNH = Src.getNodeForValue(GV);
         DSNodeHandle &DestGNH = NodeMap[SrcGNH.getNode()];
         assert(DestGNH.getNode()==NH.getNode() &&"Global mapping inconsistent");
@@ -1257,7 +1219,7 @@ void ReachabilityCloner::merge(const DSNodeHandle &NH,
     // in the scalar map for them!
     for (DSNode::globals_iterator I = SN->globals_begin(),
            E = SN->globals_end(); I != E; ++I) {
-      GlobalValue *GV = *I;
+      const GlobalValue *GV = *I;
       const DSNodeHandle &SrcGNH = Src.getNodeForValue(GV);
       DSNodeHandle &DestGNH = NodeMap[SrcGNH.getNode()];
       assert(DestGNH.getNode()==NH.getNode() &&"Global mapping inconsistent");
@@ -1389,7 +1351,7 @@ DSCallSite ReachabilityCloner::cloneCallSite(const DSCallSite& SrcCS) {
 //===----------------------------------------------------------------------===//
 
 // Define here to avoid including iOther.h and BasicBlock.h in DSGraph.h
-Function &DSCallSite::getCaller() const {
+const Function &DSCallSite::getCaller() const {
   return *Site.getInstruction()->getParent()->getParent();
 }
 
@@ -1466,7 +1428,7 @@ std::string DSGraph::getFunctionNames() const {
 }
 
 
-DSGraph::DSGraph(DSGraph &G, EquivalenceClasses<GlobalValue*> &ECs,
+DSGraph::DSGraph(DSGraph &G, EquivalenceClasses<const GlobalValue*> &ECs,
                  unsigned CloneFlags)
   : GlobalsGraph(0), ScalarMap(ECs), TD(G.TD) {
   PrintAuxCalls = false;
@@ -1671,10 +1633,10 @@ void DSScalarMap::spliceFrom(DSScalarMap &RHS) {
 /// function arguments.  The vector is filled in with the return value (or
 /// null if it is not pointer compatible), followed by all of the
 /// pointer-compatible arguments.
-void DSGraph::getFunctionArgumentsForCall(Function *F,
+void DSGraph::getFunctionArgumentsForCall(const Function *F,
                                        std::vector<DSNodeHandle> &Args) const {
   Args.push_back(getReturnNodeFor(*F));
-  for (Function::arg_iterator AI = F->arg_begin(), E = F->arg_end();
+  for (Function::const_arg_iterator AI = F->arg_begin(), E = F->arg_end();
        AI != E; ++AI)
     if (isa<PointerType>(AI->getType())) {
       Args.push_back(getNodeForValue(AI));
@@ -1840,7 +1802,7 @@ void DSGraph::mergeInGraph(const DSCallSite &CS,
   // through another global.  Compute the set of node that can reach globals and
   // aux call nodes to copy over, then do it.
   std::vector<const DSCallSite*> AuxCallToCopy;
-  std::vector<GlobalValue*> GlobalsToCopy;
+  std::vector<const GlobalValue*> GlobalsToCopy;
 
   // NodesReachCopiedNodes - Memoize results for efficiency.  Contains a
   // true/false value for every visited node that reaches a copied node without
@@ -1887,7 +1849,7 @@ void DSGraph::mergeInGraph(const DSCallSite &CS,
 /// merges the nodes specified in the call site with the formal arguments in the
 /// graph.
 ///
-void DSGraph::mergeInGraph(const DSCallSite &CS, Function &F,
+void DSGraph::mergeInGraph(const DSCallSite &CS, const Function &F,
                            const DSGraph &Graph, unsigned CloneFlags) {
   // Set up argument bindings.
   std::vector<DSNodeHandle> Args;
@@ -1899,10 +1861,10 @@ void DSGraph::mergeInGraph(const DSCallSite &CS, Function &F,
 /// getCallSiteForArguments - Get the arguments and return value bindings for
 /// the specified function in the current graph.
 ///
-DSCallSite DSGraph::getCallSiteForArguments(Function &F) const {
+DSCallSite DSGraph::getCallSiteForArguments(const Function &F) const {
   std::vector<DSNodeHandle> Args;
 
-  for (Function::arg_iterator I = F.arg_begin(), E = F.arg_end(); I != E; ++I)
+  for (Function::const_arg_iterator I = F.arg_begin(), E = F.arg_end(); I != E; ++I)
     if (isa<PointerType>(I->getType()))
       Args.push_back(getNodeForValue(I));
 
@@ -1982,8 +1944,8 @@ void DSGraph::markIncompleteNodes(unsigned Flags) {
   if (Flags & DSGraph::MarkFormalArgs)
     for (ReturnNodesTy::iterator FI = ReturnNodes.begin(), E =ReturnNodes.end();
          FI != E; ++FI) {
-      Function &F = *FI->first;
-      for (Function::arg_iterator I = F.arg_begin(), E = F.arg_end();
+      const Function &F = *FI->first;
+      for (Function::const_arg_iterator I = F.arg_begin(), E = F.arg_end();
            I != E; ++I)
         if (isa<PointerType>(I->getType()))
           markIncompleteNode(getNodeForValue(I).getNode());
@@ -2013,7 +1975,7 @@ void DSGraph::markIncompleteNodes(unsigned Flags) {
   // Mark all global nodes as incomplete.
   for (DSScalarMap::global_iterator I = ScalarMap.global_begin(),
          E = ScalarMap.global_end(); I != E; ++I)
-    if (GlobalVariable *GV = dyn_cast<GlobalVariable>(*I))
+    if (const GlobalVariable *GV = dyn_cast<GlobalVariable>(*I))
       if (!GV->hasInitializer() ||    // Always mark external globals incomp.
           (!GV->isConstant() && (Flags & DSGraph::IgnoreGlobals) == 0))
         markIncompleteNode(ScalarMap[GV].getNode());
@@ -2029,7 +1991,7 @@ static inline void killIfUselessEdge(DSNodeHandle &Edge) {
 }
 
 static inline bool nodeContainsExternalFunction(const DSNode *N) {
-  std::vector<Function*> Funcs;
+  std::vector<const Function*> Funcs;
   N->addFullFunctionList(Funcs);
   for (unsigned i = 0, e = Funcs.size(); i != e; ++i)
     if (Funcs[i]->isDeclaration()) return true;
@@ -2246,7 +2208,7 @@ void DSGraph::removeTriviallyDeadNodes(bool updateForwarders) {
       // scalar map, so we check those now.
       //
       if (Node.getNumReferrers() == Node.getGlobalsList().size()) {
-        const std::vector<GlobalValue*> &Globals = Node.getGlobalsList();
+        const std::vector<const GlobalValue*> &Globals = Node.getGlobalsList();
 
         // Loop through and make sure all of the globals are referring directly
         // to the node...
@@ -2371,7 +2333,7 @@ void DSGraph::removeDeadNodes(unsigned Flags) {
 
   // Alive - a set that holds all nodes found to be reachable/alive.
   hash_set<const DSNode*> Alive;
-  std::vector<std::pair<Value*, DSNode*> > GlobalNodes;
+  std::vector<std::pair<const Value*, DSNode*> > GlobalNodes;
 
   // Copy and merge all information about globals to the GlobalsGraph if this is
   // not a final pass (where unreachable globals are removed).
@@ -2507,7 +2469,7 @@ void DSGraph::removeDeadNodes(unsigned Flags) {
   DEBUG(AssertGraphOK(); GlobalsGraph->AssertGraphOK());
 }
 
-void DSGraph::AssertNodeContainsGlobal(const DSNode *N, GlobalValue *GV) const {
+void DSGraph::AssertNodeContainsGlobal(const DSNode *N, const GlobalValue *GV) const {
   assert(std::find(N->globals_begin(),N->globals_end(), GV) !=
          N->globals_end() && "Global value not in node!");
 }
@@ -2543,7 +2505,7 @@ void DSGraph::AssertGraphOK() const {
          E = ScalarMap.end(); I != E; ++I) {
     assert(!I->second.isNull() && "Null node in scalarmap!");
     AssertNodeInGraph(I->second.getNode());
-    if (GlobalValue *GV = dyn_cast<GlobalValue>(I->first)) {
+    if (const GlobalValue *GV = dyn_cast<GlobalValue>(I->first)) {
       assert(I->second.getNode()->isGlobalNode() &&
              "Global points to node, but node isn't global?");
       AssertNodeContainsGlobal(I->second.getNode(), GV);
@@ -2557,8 +2519,8 @@ void DSGraph::AssertGraphOK() const {
   for (ReturnNodesTy::const_iterator RI = ReturnNodes.begin(),
          E = ReturnNodes.end();
        RI != E; ++RI) {
-    Function &F = *RI->first;
-    for (Function::arg_iterator AI = F.arg_begin(); AI != F.arg_end(); ++AI)
+    const Function &F = *RI->first;
+    for (Function::const_arg_iterator AI = F.arg_begin(); AI != F.arg_end(); ++AI)
       if (isa<PointerType>(AI->getType()))
         assert(!getNodeForValue(AI).isNull() &&
                "Pointer argument must be in the scalar map!");
@@ -2759,7 +2721,7 @@ void DataStructures::copyValue(Value *From, Value *To) {
   abort();
 }
 
-DSGraph& DataStructures::getOrCreateGraph(Function* F) {
+DSGraph& DataStructures::getOrCreateGraph(const Function* F) {
   assert(F && "No function");
   DSGraph *&G = DSInfo[F];
   if (!G) {
@@ -2789,11 +2751,11 @@ DSGraph& DataStructures::getOrCreateGraph(Function* F) {
 void DataStructures::formGlobalECs() {
   // Grow the equivalence classes for the globals to include anything that we
   // now know to be aliased.
-  std::set<GlobalValue*> ECGlobals;
+  std::set<const GlobalValue*> ECGlobals;
   buildGlobalECs(ECGlobals);
   if (!ECGlobals.empty()) {
     DOUT << "Eliminating " << ECGlobals.size() << " EC Globals!\n";
-    for (hash_map<Function*, DSGraph*>::iterator I = DSInfo.begin(),
+    for (DSInfoTy::iterator I = DSInfo.begin(),
            E = DSInfo.end(); I != E; ++I)
       eliminateUsesOfECGlobals(*I->second, ECGlobals);
   }
@@ -2804,9 +2766,9 @@ void DataStructures::formGlobalECs() {
 /// apart.  Instead of maintaining this information in all of the graphs
 /// throughout the entire program, store only a single global (the "leader") in
 /// the graphs, and build equivalence classes for the rest of the globals.
-void DataStructures::buildGlobalECs(std::set<GlobalValue*> &ECGlobals) {
+void DataStructures::buildGlobalECs(std::set<const GlobalValue*> &ECGlobals) {
   DSScalarMap &SM = GlobalsGraph->getScalarMap();
-  EquivalenceClasses<GlobalValue*> &GlobalECs = SM.getGlobalECs();
+  EquivalenceClasses<const GlobalValue*> &GlobalECs = SM.getGlobalECs();
   for (DSGraph::node_iterator I = GlobalsGraph->node_begin(), 
          E = GlobalsGraph->node_end();
        I != E; ++I) {
@@ -2814,7 +2776,7 @@ void DataStructures::buildGlobalECs(std::set<GlobalValue*> &ECGlobals) {
 
     // First, build up the equivalence set for this block of globals.
     DSNode::globals_iterator i = I->globals_begin();
-    GlobalValue *First = *i++;
+    const GlobalValue *First = *i++;
     for( ; i != I->globals_end(); ++i) {
       GlobalECs.unionSets(First, *i);
       ECGlobals.insert(*i);
@@ -2837,14 +2799,14 @@ void DataStructures::buildGlobalECs(std::set<GlobalValue*> &ECGlobals) {
 /// really just equivalent to some other globals, remove the globals from the
 /// specified DSGraph (if present), and merge any nodes with their leader nodes.
 void DataStructures::eliminateUsesOfECGlobals(DSGraph &G,
-                                              const std::set<GlobalValue*> &ECGlobals) {
+                                              const std::set<const GlobalValue*> &ECGlobals) {
   DSScalarMap &SM = G.getScalarMap();
-  EquivalenceClasses<GlobalValue*> &GlobalECs = SM.getGlobalECs();
+  EquivalenceClasses<const GlobalValue*> &GlobalECs = SM.getGlobalECs();
 
   bool MadeChange = false;
   for (DSScalarMap::global_iterator GI = SM.global_begin(), E = SM.global_end();
        GI != E; ) {
-    GlobalValue *GV = *GI++;
+    const GlobalValue *GV = *GI++;
     if (!ECGlobals.count(GV)) continue;
 
     const DSNodeHandle &GVNH = SM[GV];
@@ -2852,7 +2814,7 @@ void DataStructures::eliminateUsesOfECGlobals(DSGraph &G,
 
     // Okay, this global is in some equivalence class.  Start by finding the
     // leader of the class.
-    GlobalValue *Leader = GlobalECs.getLeaderValue(GV);
+    const GlobalValue *Leader = GlobalECs.getLeaderValue(GV);
 
     // If the leader isn't already in the graph, insert it into the node
     // corresponding to GV.
@@ -2876,4 +2838,38 @@ void DataStructures::eliminateUsesOfECGlobals(DSGraph &G,
   }
 
   DEBUG(if(MadeChange) G.AssertGraphOK());
+}
+
+void DataStructures::init(DataStructures* D, bool clone, bool printAuxCalls) {
+  assert (!GraphSource && "Already init");
+  GraphSource = D;
+  Clone = clone;
+  TD = D->TD;
+  ActualCallees = D->ActualCallees;
+  GlobalECs = D->getGlobalECs();
+  GlobalsGraph = new DSGraph(D->getGlobalsGraph(), GlobalECs);
+  if (printAuxCalls) GlobalsGraph->setPrintAuxCalls();
+}
+
+void DataStructures::init(TargetData* T) {
+  assert (!TD && "Already init");
+  GraphSource = 0;
+  Clone = false;
+  TD = T;
+  GlobalsGraph = new DSGraph(GlobalECs, *T);
+}
+
+void DataStructures::releaseMemory() {
+  for (DSInfoTy::iterator I = DSInfo.begin(), E = DSInfo.end(); I != E; ++I) {
+    I->second->getReturnNodes().erase(I->first);
+    if (I->second->getReturnNodes().empty())
+      delete I->second;
+  }
+
+  // Empty map so next time memory is released, data structures are not
+  // re-deleted.
+  DSInfo.clear();
+  ActualCallees.clear();
+  delete GlobalsGraph;
+  GlobalsGraph = 0;
 }

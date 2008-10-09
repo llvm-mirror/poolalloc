@@ -43,7 +43,7 @@ void DSNode::dump() const { print(cerr, 0); }
 
 static std::string getCaption(const DSNode *N, const DSGraph *G) {
   std::stringstream OS;
-  Module *M = 0;
+  const Module *M = 0;
 
   if (!G) G = N->getParentGraph();
 
@@ -83,7 +83,7 @@ static std::string getCaption(const DSNode *N, const DSGraph *G) {
     OS << "\n";
   }
 
-  EquivalenceClasses<GlobalValue*> *GlobalECs = 0;
+  EquivalenceClasses<const GlobalValue*> *GlobalECs = 0;
   if (G) GlobalECs = &G->getGlobalECs();
 
   for (unsigned i = 0, e = N->getGlobalsList().size(); i != e; ++i) {
@@ -91,7 +91,7 @@ static std::string getCaption(const DSNode *N, const DSGraph *G) {
 
     // Figure out how many globals are equivalent to this one.
     if (GlobalECs) {
-      EquivalenceClasses<GlobalValue*>::iterator I =
+      EquivalenceClasses<const GlobalValue*>::iterator I =
         GlobalECs->findValue(N->getGlobalsList()[i]);
       if (I != GlobalECs->end()) {
         unsigned NumMembers =
@@ -147,7 +147,7 @@ struct DOTGraphTraits<const DSGraph*> : public DefaultDOTGraphTraits {
   ///
   static void addCustomGraphFeatures(const DSGraph *G,
                                      GraphWriter<const DSGraph*> &GW) {
-    Module *CurMod = 0;
+    const Module *CurMod = 0;
     if (G->retnodes_begin() != G->retnodes_end())
       CurMod = G->retnodes_begin()->first->getParent();
     else {
@@ -286,7 +286,7 @@ static void printCollection(const Collection &C, std::ostream &O,
       bool IsDuplicateGraph = false;
 
       if (I->getName() == "main" || !OnlyPrintMain) {
-        Function *SCCFn = Gr.retnodes_begin()->first;
+        const Function *SCCFn = Gr.retnodes_begin()->first;
         if (&*I == SCCFn) {
           Gr.writeGraphToFile(O, Prefix+I->getName());
         } else {
@@ -296,7 +296,7 @@ static void printCollection(const Collection &C, std::ostream &O,
             << "\n";
         }
       } else {
-        Function *SCCFn = Gr.retnodes_begin()->first;
+        const Function *SCCFn = Gr.retnodes_begin()->first;
         if (&*I == SCCFn) {
           O << "Skipped Writing '" << Prefix+I->getName() << ".dot'... ["
             << Gr.getGraphSize() << "+" << NumCalls << "]\n";

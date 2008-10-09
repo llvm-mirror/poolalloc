@@ -70,9 +70,15 @@ namespace {
     void visitMemAlignCall(CallSite CS);
     void visitStrdupCall(CallSite CS);
     void visitFreeInst(FreeInst &FI);
-    void visitCallSite(CallSite CS);
-    void visitCallInst(CallInst &CI) { visitCallSite(&CI); }
-    void visitInvokeInst(InvokeInst &II) { visitCallSite(&II); }
+    void visitCallSite(CallSite &CS);
+    void visitCallInst(CallInst &CI) {
+      CallSite CS(&CI);
+      visitCallSite(CS);
+    }
+    void visitInvokeInst(InvokeInst &II) {
+      CallSite CS(&II);
+      visitCallSite(CS);
+    }
     void visitLoadInst(LoadInst &I);
     void visitStoreInst (StoreInst &I);
 
@@ -532,8 +538,8 @@ void FuncTransform::visitStrdupCall(CallSite CS) {
 }
 
 
-void FuncTransform::visitCallSite(CallSite CS) {
-  Function *CF = CS.getCalledFunction();
+void FuncTransform::visitCallSite(CallSite& CS) {
+  const Function *CF = CS.getCalledFunction();
   Instruction *TheCall = CS.getInstruction();
 
   // If the called function is casted from one function type to another, peer
@@ -614,11 +620,10 @@ void FuncTransform::visitCallSite(CallSite CS) {
 
     if (!CF) 
       for (EquivClassGraphs::callee_iterator I = ECGraphs.callee_begin(OrigInst), 
-           E = ECGraphs.callee_end(OrigInst); I != E; ++I)
-        if (I->second) {
-          CF = I->second;
-          break;
-        }
+             E = ECGraphs.callee_end(OrigInst); I != E; ++I) {
+        CF = *I;
+        break;
+      }
 
     // If we didn't find the callee in the constructed call graph, try
     // checking in the DSNode itself.
@@ -627,11 +632,11 @@ void FuncTransform::visitCallSite(CallSite CS) {
     if (!CF) {
       DSGraph* dg = &ECGraphs.getDSGraph(*OrigInst->getParent()->getParent());
       DSNode* d = dg->getNodeForValue(OrigInst->getOperand(0)).getNode();
-      const std::vector<GlobalValue*> &g = d->getGlobalsList();
-      for(std::vector<GlobalValue*>::const_iterator ii = g.begin(), ee = g.end();
+      const std::vector<const GlobalValue*> &g = d->getGlobalsList();
+      for(std::vector<const GlobalValue*>::const_iterator ii = g.begin(), ee = g.end();
 	  !CF && ii != ee; ++ii) {
-        EquivalenceClasses< GlobalValue *> & EC = ECGraphs.getGlobalECs();
-        for (EquivalenceClasses<GlobalValue *>::member_iterator MI = EC.findLeader(*ii);
+        EquivalenceClasses< const GlobalValue *> & EC = ECGraphs.getGlobalECs();
+        for (EquivalenceClasses<const GlobalValue *>::member_iterator MI = EC.findLeader(*ii);
              MI != EC.member_end(); ++MI)   // Loop over members in this set.
           if ((CF = dyn_cast<Function>(*MI))) {
 	    std::cerr << "\n***\nPA: *** WARNING (FuncTransform::visitCallSite): "
@@ -654,6 +659,7 @@ void FuncTransform::visitCallSite(CallSite CS) {
       std::cerr << "\n***\nPA: *** WARNING (FuncTransform::visitCallSite): "
                 << "Unknown callees for call-site in function "
                 << CS.getCaller()->getName() << "\n***\n";
+      abort();
       return;
     }
 
@@ -665,8 +671,8 @@ void FuncTransform::visitCallSite(CallSite CS) {
     EquivClassGraphs::callee_iterator I =
       ECGraphs.callee_begin(OrigInst), E = ECGraphs.callee_end(OrigInst);
     for (; I != E; ++I)
-      if (!I->second->isDeclaration())
-        assert(CalleeGraph == &ECGraphs.getDSGraph(*I->second) &&
+      if (!(*I)->isDeclaration())
+        assert(CalleeGraph == &ECGraphs.getDSGraph(**I) &&
                "Callees at call site do not have a common graph!");
 #endif    
 
@@ -692,7 +698,7 @@ void FuncTransform::visitCallSite(CallSite CS) {
     NewCallee = CastInst::createPointerCast(CS.getCalledValue(), PFTy, "tmp", TheCall);
   }
 
-  Function::arg_iterator FAI = CF->arg_begin(), E = CF->arg_end();
+  Function::const_arg_iterator FAI = CF->arg_begin(), E = CF->arg_end();
   CallSite::arg_iterator AI = CS.arg_begin(), AE = CS.arg_end();
   for ( ; FAI != E && AI != AE; ++FAI, ++AI)
     if (!isa<Constant>(*AI))

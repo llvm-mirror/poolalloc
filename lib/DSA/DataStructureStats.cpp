@@ -26,7 +26,7 @@ using namespace llvm;
 namespace {
   STATISTIC (TotalNumCallees, "Total number of callee functions at all indirect call sites");
   STATISTIC (NumIndirectCalls, "Total number of indirect call sites in the program");
-  STATISTIC (NumPoolNodes, "Number of allocation nodes that could be pool allocated");
+  //  STATISTIC (NumPoolNodes, "Number of allocation nodes that could be pool allocated");
 
   // Typed/Untyped memory accesses: If DSA can infer that the types the loads
   // and stores are accessing are correct (ie, the node has not been collapsed),
@@ -88,7 +88,7 @@ void DSGraphStats::countCallees(const Function& F) {
        I != E; ++I)
     if (isIndirectCallee(I->getCallSite().getCalledValue())) {
       // This is an indirect function call
-      std::vector<Function*> Callees;
+      std::vector<const Function*> Callees;
       I->getCalleeNode()->addFullFunctionList(Callees);
 
       if (Callees.size() > 0) {

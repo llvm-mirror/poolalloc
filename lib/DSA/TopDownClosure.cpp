@@ -48,7 +48,7 @@ void TDDataStructures::markReachableFunctionsExternallyAccessible(DSNode *N,
   for (unsigned i = 0, e = N->getNumLinks(); i != e; ++i) {
     DSNodeHandle &NH = N->getLink(i*N->getPointerSize());
     if (DSNode *NN = NH.getNode()) {
-      std::vector<Function*> Functions;
+      std::vector<const Function*> Functions;
       NN->addFullFunctionList(Functions);
       ArgsRemainIncomplete.insert(Functions.begin(), Functions.end());
       markReachableFunctionsExternallyAccessible(NN, Visited);
@@ -61,14 +61,7 @@ void TDDataStructures::markReachableFunctionsExternallyAccessible(DSNode *N,
 // program.
 //
 bool TDDataStructures::runOnModule(Module &M) {
-  BUInfo = &getAnalysis<BUDataStructures>();
-  setGraphSource(BUInfo);
-  setTargetData(BUInfo->getTargetData());
-  setGraphClone(true);
-
-  GlobalECs = BUInfo->getGlobalECs();
-  GlobalsGraph = new DSGraph(BUInfo->getGlobalsGraph(), GlobalECs);
-  GlobalsGraph->setPrintAuxCalls();
+  init(&getAnalysis<BUDataStructures>(), true, true);
 
   // Figure out which functions must not mark their arguments complete because
   // they are accessible outside this compilation unit.  Currently, these
@@ -144,7 +137,8 @@ bool TDDataStructures::runOnModule(Module &M) {
 }
 
 
-void TDDataStructures::ComputePostOrder(Function &F,hash_set<DSGraph*> &Visited,
+void TDDataStructures::ComputePostOrder(const Function &F,
+                                        hash_set<DSGraph*> &Visited,
                                         std::vector<DSGraph*> &PostOrder) {
   if (F.isDeclaration()) return;
   DSGraph &G = getOrCreateGraph(&F);
@@ -154,37 +148,12 @@ void TDDataStructures::ComputePostOrder(Function &F,hash_set<DSGraph*> &Visited,
   // Recursively traverse all of the callee graphs.
   for (DSGraph::fc_iterator CI = G.fc_begin(), CE = G.fc_end(); CI != CE; ++CI){
     Instruction *CallI = CI->getCallSite().getInstruction();
-    for (BUDataStructures::callee_iterator I = BUInfo->callee_begin(CallI),
-           E = BUInfo->callee_end(CallI); I != E; ++I)
-      ComputePostOrder(*I->second, Visited, PostOrder);
+    for (callee_iterator I = callee_begin(CallI),
+           E = callee_end(CallI); I != E; ++I)
+      ComputePostOrder(**I, Visited, PostOrder);
   }
 
   PostOrder.push_back(&G);
-}
-
-
-
-
-
-// releaseMemory - If the pass pipeline is done with this pass, we can release
-// our memory... here...
-//
-// FIXME: This should be releaseMemory and will work fine, except that LoadVN
-// has no way to extend the lifetime of the pass, which screws up ds-aa.
-//
-void TDDataStructures::releaseMyMemory() {
-  for (hash_map<Function*, DSGraph*>::iterator I = DSInfo.begin(),
-         E = DSInfo.end(); I != E; ++I) {
-    I->second->getReturnNodes().erase(I->first);
-    if (I->second->getReturnNodes().empty())
-      delete I->second;
-  }
-
-  // Empty map so next time memory is released, data structures are not
-  // re-deleted.
-  DSInfo.clear();
-  delete GlobalsGraph;
-  GlobalsGraph = 0;
 }
 
 /// InlineCallersIntoGraph - Inline all of the callers of the specified DS graph
@@ -235,7 +204,7 @@ void TDDataStructures::InlineCallersIntoGraph(DSGraph &DSG) {
     // Inline all call sites from this caller graph.
     do {
       const DSCallSite &CS = *EdgesFromCaller.back().CS;
-      Function &CF = *EdgesFromCaller.back().CalledFunction;
+      const Function &CF = *EdgesFromCaller.back().CalledFunction;
       DOUT << "   [TD] Inlining graph into Fn '" << CF.getName() << "' from ";
       if (CallerGraph.getReturnNodes().empty())
         DOUT << "SYNTHESIZED INDIRECT GRAPH";
@@ -300,21 +269,21 @@ void TDDataStructures::InlineCallersIntoGraph(DSGraph &DSG) {
 
     Instruction *CallI = CI->getCallSite().getInstruction();
     // For each function in the invoked function list at this call site...
-    BUDataStructures::callee_iterator IPI =
-      BUInfo->callee_begin(CallI), IPE = BUInfo->callee_end(CallI);
+    callee_iterator IPI =
+      callee_begin(CallI), IPE = callee_end(CallI);
 
     // Skip over all calls to this graph (SCC calls).
-    while (IPI != IPE && &getDSGraph(*IPI->second) == &DSG)
+    while (IPI != IPE && &getDSGraph(**IPI) == &DSG)
       ++IPI;
 
     // All SCC calls?
     if (IPI == IPE) continue;
 
-    Function *FirstCallee = IPI->second;
+    const Function *FirstCallee = *IPI;
     ++IPI;
 
     // Skip over more SCC calls.
-    while (IPI != IPE && &getDSGraph(*IPI->second) == &DSG)
+    while (IPI != IPE && &getDSGraph(**IPI) == &DSG)
       ++IPI;
 
     // If there is exactly one callee from this call site, remember the edge in
@@ -331,15 +300,14 @@ void TDDataStructures::InlineCallersIntoGraph(DSGraph &DSG) {
     // this set of targets.  If so, we don't want to do M*N inlining operations,
     // so we build up a new, private, graph that represents the calls of all
     // calls to this set of functions.
-    std::vector<Function*> Callees;
-    for (BUDataStructures::ActualCalleesTy::const_iterator I =
-           BUInfo->callee_begin(CallI), E = BUInfo->callee_end(CallI);
+    std::vector<const Function*> Callees;
+    for (callee_iterator I = callee_begin(CallI), E = callee_end(CallI);
          I != E; ++I)
-      if (!I->second->isDeclaration())
-        Callees.push_back(I->second);
+      if (!(*I)->isDeclaration())
+        Callees.push_back(*I);
     std::sort(Callees.begin(), Callees.end());
 
-    std::map<std::vector<Function*>, DSGraph*>::iterator IndCallRecI =
+    std::map<std::vector<const Function*>, DSGraph*>::iterator IndCallRecI =
       IndCallMap.lower_bound(Callees);
 
     DSGraph *IndCallGraph;

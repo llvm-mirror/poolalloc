@@ -78,7 +78,7 @@ void CallTargetFinder::findIndTargets(Module &M)
 void CallTargetFinder::print(std::ostream &O, const Module *M) const
 {
   O << "[* = incomplete] CS: func list\n";
-  for (std::map<CallSite, std::vector<Function*> >::const_iterator ii =
+  for (std::map<CallSite, std::vector<const Function*> >::const_iterator ii =
        IndMap.begin(),
          ee = IndMap.end(); ii != ee; ++ii) {
     if (!ii->first.getCalledFunction()) { //only print indirect
@@ -90,7 +90,7 @@ void CallTargetFinder::print(std::ostream &O, const Module *M) const
           << cs.getInstruction()->getName() << " ";
       }
       O << ii->first.getInstruction() << ":";
-      for (std::vector<Function*>::const_iterator i = ii->second.begin(),
+      for (std::vector<const Function*>::const_iterator i = ii->second.begin(),
              e = ii->second.end(); i != e; ++i) {
         O << " " << (*i)->getName();
       }
@@ -109,11 +109,11 @@ void CallTargetFinder::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.addRequired<TDDataStructures>();
 }
 
-std::vector<Function*>::iterator CallTargetFinder::begin(CallSite cs) {
+std::vector<const Function*>::iterator CallTargetFinder::begin(CallSite cs) {
   return IndMap[cs].begin();
 }
 
-std::vector<Function*>::iterator CallTargetFinder::end(CallSite cs) {
+std::vector<const Function*>::iterator CallTargetFinder::end(CallSite cs) {
   return IndMap[cs].end();
 }
 

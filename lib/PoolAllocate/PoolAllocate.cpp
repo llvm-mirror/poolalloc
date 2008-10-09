@@ -393,6 +393,7 @@ Function *PoolAllocate::MakeFunctionClone(Function &F) {
                                            OldFuncTy->isVarArg());
   // Create the new function...
   Function *New = Function::Create(FuncTy, Function::InternalLinkage, F.getName());
+  New->copyAttributesFrom(&F);
   F.getParent()->getFunctionList().insert(&F, New);
   CloneToOrigMap[New] = &F;   // Remember original function.
 

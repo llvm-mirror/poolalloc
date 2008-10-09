@@ -155,7 +155,7 @@ namespace {
         
         for (DSScalarMap::global_iterator I = g.getScalarMap().global_begin();
              I != g.getScalarMap().global_end(); ++I)
-          if (GlobalVariable *GV = dyn_cast<GlobalVariable>(*I))
+          if (const GlobalVariable *GV = dyn_cast<GlobalVariable>(*I))
             if (!GV->isDeclaration() && GV->isConstant())
               RC.merge(g.getNodeForValue(GV), g.getGlobalsGraph()->getNodeForValue(GV));
       }
@@ -765,10 +765,9 @@ void GraphBuilder::mergeInGlobalInitializer(GlobalVariable *GV) {
 char LocalDataStructures::ID;
 
 bool LocalDataStructures::runOnModule(Module &M) {
-  setTargetData(getAnalysis<TargetData>());
+  init(&getAnalysis<TargetData>());
 
   // First step, build the globals graph.
-  GlobalsGraph = new DSGraph(GlobalECs, getTargetData());
   {
     GraphBuilder GGB(*GlobalsGraph);
 
@@ -788,7 +787,7 @@ bool LocalDataStructures::runOnModule(Module &M) {
     if (!I->isDeclaration()) {
       DSGraph* G = new DSGraph(GlobalECs, getTargetData(), GlobalsGraph);
       GraphBuilder GGB(*I, *G);
-      DSInfo.insert(std::make_pair(I, G));
+      setDSGraph(*I, G);
     }
 
   GlobalsGraph->removeTriviallyDeadNodes();
@@ -801,23 +800,5 @@ bool LocalDataStructures::runOnModule(Module &M) {
   formGlobalECs();
 
   return false;
-}
-
-// releaseMemory - If the pass pipeline is done with this pass, we can release
-// our memory... here...
-//
-void LocalDataStructures::releaseMemory() {
-  for (hash_map<Function*, DSGraph*>::iterator I = DSInfo.begin(),
-         E = DSInfo.end(); I != E; ++I) {
-    I->second->getReturnNodes().erase(I->first);
-    if (I->second->getReturnNodes().empty())
-      delete I->second;
-  }
-
-  // Empty map so next time memory is released, data structures are not
-  // re-deleted.
-  DSInfo.clear();
-  delete GlobalsGraph;
-  GlobalsGraph = 0;
 }
 
