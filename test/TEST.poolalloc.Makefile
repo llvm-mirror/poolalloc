@@ -21,6 +21,9 @@ PROGDIR := $(shell cd $(LLVM_SRC_ROOT)/projects/test-suite; pwd)/
 RELDIR  := $(subst $(PROGDIR),,$(CURDIR))
 PADIR   := /home/andrewl/Research/llvm/projects/poolalloc
 
+# Bits of runtime to improve analysis
+PA_PRE_RT := $(PADIR)/Release/lib/libpa_pre_rt.bca
+
 # Pool allocator pass shared object
 PA_SO    := $(PADIR)/Debug/lib/libpoolalloc$(SHLIBEXT)
 DSA_SO   := $(PADIR)/Debug/lib/libLLVMDataStructure$(SHLIBEXT)
@@ -28,7 +31,7 @@ DSA_SO   := $(PADIR)/Debug/lib/libLLVMDataStructure$(SHLIBEXT)
 # Pool allocator runtime library
 #PA_RT    := $(PADIR)/Debug/lib/libpoolalloc_fl_rt.bc
 #PA_RT_O  := $(PROJECT_DIR)/lib/$(CONFIGURATION)/poolalloc_rt.o
-PA_RT_O  := $(PADIR)/Release/lib/poolalloc_rt.o
+PA_RT_O  := $(PADIR)/Debug/lib/poolalloc_rt.o
 #PA_RT_O  := $(PROJECT_DIR)/lib/Release/poolalloc_fl_rt.o
 
 # Command to run opt with the pool allocator pass loaded
@@ -41,31 +44,39 @@ OPT_PA_STATS = $(OPT_PA) -info-output-file=$(CURDIR)/$@.info -stats -time-passes
 OPTZN_PASSES := -globaldce -ipsccp -deadargelim -adce -instcombine -simplifycfg
 
 
-# This rule runs the pool allocator on the .llvm.bc file to produce a new .bc
+$(PROGRAMS_TO_TEST:%=Output/%.temp.bc): \
+Output/%.temp.bc: Output/%.llvm.bc 
+	-$(LLVMLD) -link-as-library $< $(PA_PRE_RT) -o $@
+
+$(PROGRAMS_TO_TEST:%=Output/%.base.bc): \
+Output/%.base.bc: Output/%.temp.bc $(LOPT)
+	-$(LOPT) -instnamer -internalize -globaldce $< -f -o $@ 
+
+# This rule runs the pool allocator on the .base.bc file to produce a new .bc
 # file
 $(PROGRAMS_TO_TEST:%=Output/%.poolalloc.bc): \
-Output/%.poolalloc.bc: Output/%.llvm.bc $(PA_SO) $(LOPT)
+Output/%.poolalloc.bc: Output/%.base.bc $(PA_SO) $(LOPT)
 	-@rm -f $(CURDIR)/$@.info
 	-$(OPT_PA_STATS) -poolalloc $(EXTRA_PA_FLAGS) $(OPTZN_PASSES) -pooloptimize $< -o $@ -f 2>&1 > $@.out
 
 $(PROGRAMS_TO_TEST:%=Output/%.basepa.bc): \
-Output/%.basepa.bc: Output/%.llvm.bc $(PA_SO) $(LOPT)
+Output/%.basepa.bc: Output/%.base.bc $(PA_SO) $(LOPT)
 	-@rm -f $(CURDIR)/$@.info
 	-$(OPT_PA_STATS) -poolalloc -poolalloc-disable-alignopt -poolalloc-force-all-poolfrees -poolalloc-heuristic=AllNodes $(OPTZN_PASSES) $< -o $@ -f 2>&1 > $@.out
 
 
 $(PROGRAMS_TO_TEST:%=Output/%.mallocrepl.bc): \
-Output/%.mallocrepl.bc: Output/%.llvm.bc $(PA_SO) $(LOPT)
+Output/%.mallocrepl.bc: Output/%.base.bc $(PA_SO) $(LOPT)
 	-@rm -f $(CURDIR)/$@.info
 	-$(OPT_PA_STATS) -poolalloc -poolalloc-heuristic=AllInOneGlobalPool $(OPTZN_PASSES) $< -o $@ -f 2>&1 > $@.out
 
 $(PROGRAMS_TO_TEST:%=Output/%.onlyoverhead.bc): \
-Output/%.onlyoverhead.bc: Output/%.llvm.bc $(PA_SO) $(LOPT)
+Output/%.onlyoverhead.bc: Output/%.base.bc $(PA_SO) $(LOPT)
 	-@rm -f $(CURDIR)/$@.info
 	-$(OPT_PA_STATS) -poolalloc -poolalloc-heuristic=OnlyOverhead $(OPTZN_PASSES) $< -o $@ -f 2>&1 > $@.out
 
 $(PROGRAMS_TO_TEST:%=Output/%.nonpa.bc): \
-Output/%.nonpa.bc: Output/%.llvm.bc $(LOPT)
+Output/%.nonpa.bc: Output/%.base.bc $(LOPT)
 	-@rm -f $(CURDIR)/$@.info
 	-$(LOPT) $(OPTZN_PASSES) $< -o $@ -f 2>&1 > $@.out
 
