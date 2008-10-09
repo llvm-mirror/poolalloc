@@ -75,7 +75,7 @@ class DSNode {
 
   /// Globals - The list of global values that are merged into this node.
   ///
-  std::vector<GlobalValue*> Globals;
+  std::vector<const GlobalValue*> Globals;
 
   void operator=(const DSNode &); // DO NOT IMPLEMENT
   DSNode(const DSNode &);         // DO NOT IMPLEMENT
@@ -291,34 +291,34 @@ public:
   /// addGlobal - Add an entry for a global value to the Globals list.  This
   /// also marks the node with the 'G' flag if it does not already have it.
   ///
-  void addGlobal(GlobalValue *GV);
+  void addGlobal(const GlobalValue *GV);
 
   /// removeGlobal - Remove the specified global that is explicitly in the
   /// globals list.
-  void removeGlobal(GlobalValue *GV);
+  void removeGlobal(const GlobalValue *GV);
 
-  void mergeGlobals(const std::vector<GlobalValue*> &RHS);
-  void clearGlobals() { std::vector<GlobalValue*>().swap(Globals); }
+  void mergeGlobals(const std::vector<const GlobalValue*> &RHS);
+  void clearGlobals() { Globals.clear(); }
 
   /// getGlobalsList - Return the set of global leaders that are represented by
   /// this node.  Note that globals that are in this equivalence class but are
   /// not leaders are not returned: for that, use addFullGlobalsList().
-  const std::vector<GlobalValue*> &getGlobalsList() const { return Globals; }
+  const std::vector<const GlobalValue*> &getGlobalsList() const { return Globals; }
 
   /// addFullGlobalsList - Compute the full set of global values that are
   /// represented by this node.  Unlike getGlobalsList(), this requires fair
   /// amount of work to compute, so don't treat this method call as free.
-  void addFullGlobalsList(std::vector<GlobalValue*> &List) const;
+  void addFullGlobalsList(std::vector<const GlobalValue*> &List) const;
 
   /// addFullFunctionList - Identical to addFullGlobalsList, but only return the
   /// functions in the full list.
-  void addFullFunctionList(std::vector<Function*> &List) const;
+  void addFullFunctionList(std::vector<const Function*> &List) const;
 
   /// globals_iterator/begin/end - Provide iteration methods over the global
   /// value leaders set that is merged into this node.  Like the getGlobalsList
   /// method, these iterators do not return globals that are part of the
   /// equivalence classes for globals in this node, but aren't leaders.
-  typedef std::vector<GlobalValue*>::const_iterator globals_iterator;
+  typedef std::vector<const GlobalValue*>::const_iterator globals_iterator;
   globals_iterator globals_begin() const { return Globals.begin(); }
   globals_iterator globals_end() const { return Globals.end(); }
 

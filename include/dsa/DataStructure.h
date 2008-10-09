@@ -37,7 +37,12 @@ FunctionPass *createDataStructureStatsPass();
 FunctionPass *createDataStructureGraphCheckerPass();
 
 class DataStructures : public ModulePass {
-
+  typedef std::map<const Instruction*, std::set<const Function*> > ActualCalleesTy;
+  typedef hash_map<const Function*, DSGraph*> DSInfoTy;
+public:
+  typedef std::set<const Function*>::const_iterator callee_iterator;
+  
+private:
   /// TargetData, comes in handy
   TargetData* TD;
 
@@ -47,60 +52,90 @@ class DataStructures : public ModulePass {
   /// Do we clone Graphs or steal them?
   bool Clone;
 
-  void buildGlobalECs(std::set<GlobalValue*>& ECGlobals);
+  void buildGlobalECs(std::set<const GlobalValue*>& ECGlobals);
 
-  void eliminateUsesOfECGlobals(DSGraph& G, const std::set<GlobalValue*> &ECGlobals);
+  void eliminateUsesOfECGlobals(DSGraph& G, const std::set<const GlobalValue*> &ECGlobals);
+
+  // DSInfo, one graph for each function
+  DSInfoTy DSInfo;
+
+  // Callgraph, as computed so far
+  ActualCalleesTy ActualCallees;
 
 protected:
-  // DSInfo, one graph for each function
-  hash_map<Function*, DSGraph*> DSInfo;
 
   /// The Globals Graph contains all information on the globals
   DSGraph *GlobalsGraph;
 
   /// GlobalECs - The equivalence classes for each global value that is merged
   /// with other global values in the DSGraphs.
-  EquivalenceClasses<GlobalValue*> GlobalECs;
+  EquivalenceClasses<const GlobalValue*> GlobalECs;
 
 
-  void setGraphSource(DataStructures* D) {
-    assert(!GraphSource && "Already have a Graph");
-    GraphSource = D;
-  }
-
-  void setGraphClone(bool clone) {
-    Clone = clone;
-  }
-
-  void setTargetData(TargetData& T) {
-    TD = &T;
-  }
+  void init(DataStructures* D, bool clone, bool printAuxCalls);
+  void init(TargetData* T);
 
   void formGlobalECs();
+
+
+  void callee_add(const Instruction* I, const Function* F) {
+    ActualCallees[I].insert(F);
+  }
 
   DataStructures(intptr_t id) 
     :ModulePass(id), TD(0), GraphSource(0), GlobalsGraph(0) {}
 
 public:
+  callee_iterator callee_begin(const Instruction *I) const {
+    ActualCalleesTy::const_iterator ii = ActualCallees.find(I);
+    assert(ii != ActualCallees.end() && "No calls for instruction");
+    return ii->second.begin();
+  }
+
+  callee_iterator callee_end(const Instruction *I) const {
+    ActualCalleesTy::const_iterator ii = ActualCallees.find(I);
+    assert(ii != ActualCallees.end() && "No calls for instruction");
+    return ii->second.end();
+  }
+
+  unsigned callee_size() const {
+    unsigned sum = 0;
+    for (ActualCalleesTy::const_iterator ii = ActualCallees.begin(),
+           ee = ActualCallees.end(); ii != ee; ++ii)
+      sum += ii->second.size();
+    return sum;
+  }
+
+  void callee_get_keys(std::vector<const Instruction*>& keys) {
+    for (ActualCalleesTy::const_iterator ii = ActualCallees.begin(),
+           ee = ActualCallees.end(); ii != ee; ++ii)
+      keys.push_back(ii->first);
+  }
+
+  virtual void releaseMemory();
 
   bool hasDSGraph(const Function &F) const {
-    return DSInfo.find(const_cast<Function*>(&F)) != DSInfo.end();
+    return DSInfo.find(&F) != DSInfo.end();
   }
 
   /// getDSGraph - Return the data structure graph for the specified function.
   ///
   DSGraph &getDSGraph(const Function &F) const {
-    hash_map<Function*, DSGraph*>::const_iterator I =
-      DSInfo.find(const_cast<Function*>(&F));
+    hash_map<const Function*, DSGraph*>::const_iterator I = DSInfo.find(&F);
     assert(I != DSInfo.end() && "Function not in module!");
     return *I->second;
   }
 
-  DSGraph& getOrCreateGraph(Function* F);
+  void setDSGraph(const Function& F, DSGraph* G) {
+    assert(!DSInfo[&F] && "DSGraph already exists");
+    DSInfo[&F] = G;
+  }
+
+  DSGraph& getOrCreateGraph(const Function* F);
 
   DSGraph &getGlobalsGraph() const { return *GlobalsGraph; }
 
-  EquivalenceClasses<GlobalValue*> &getGlobalECs() { return GlobalECs; }
+  EquivalenceClasses<const GlobalValue*> &getGlobalECs() { return GlobalECs; }
 
   TargetData& getTargetData() const { return *TD; }
 
@@ -129,15 +164,9 @@ public:
   ///
   void print(std::ostream &O, const Module *M) const;
 
-  /// releaseMemory - if the pass pipeline is done with this pass, we can
-  /// release our memory...
-  ///
-  virtual void releaseMemory();
-
   /// getAnalysisUsage - This obviously provides a data structure graph.
   ///
   virtual void getAnalysisUsage(AnalysisUsage &AU) const {
-    AU.setPreservesAll();
     AU.addRequired<TargetData>();
   }
 };
@@ -145,6 +174,7 @@ public:
 // StdLibDataStructures - This analysis recognizes common standard c library
 // functions and generates graphs for them.
 class StdLibDataStructures : public DataStructures {
+  void eraseCallsTo(Function* F);
 public:
   static char ID;
   StdLibDataStructures() : DataStructures((intptr_t)&ID) {}
@@ -156,15 +186,9 @@ public:
   ///
   void print(std::ostream &O, const Module *M) const;
 
-  /// releaseMemory - if the pass pipeline is done with this pass, we can
-  /// release our memory...
-  ///
-  virtual void releaseMemory();
-
   /// getAnalysisUsage - This obviously provides a data structure graph.
   ///
   virtual void getAnalysisUsage(AnalysisUsage &AU) const {
-    AU.setPreservesAll();
     AU.addRequired<LocalDataStructures>();
   }
 };
@@ -175,19 +199,16 @@ public:
 ///
 class BUDataStructures : public DataStructures {
 protected:
-  std::set<std::pair<Instruction*, Function*> > ActualCallees;
 
   // This map is only maintained during construction of BU Graphs
-  std::map<std::vector<Function*>,
+  std::map<std::vector<const Function*>,
            std::pair<DSGraph*, std::vector<DSNodeHandle> > > IndCallGraphMap;
-
-  std::set<Function*> InlinedSomewhere;
 
   BUDataStructures(intptr_t id) : DataStructures(id) {}
 public:
   static char ID;
   BUDataStructures() : DataStructures((intptr_t)&ID) {}
-  ~BUDataStructures() { releaseMyMemory(); }
+  ~BUDataStructures() { releaseMemory(); }
 
   virtual bool runOnModule(Module &M);
 
@@ -200,36 +221,19 @@ public:
   ///
   void print(std::ostream &O, const Module *M) const;
 
-  // FIXME: Once the pass manager is straightened out, rename this to
-  // releaseMemory.
-  void releaseMyMemory();
-
   virtual void getAnalysisUsage(AnalysisUsage &AU) const {
-    AU.setPreservesAll();
     AU.addRequired<StdLibDataStructures>();
-  }
-
-  typedef std::set<std::pair<Instruction*, Function*> > ActualCalleesTy;
-  const ActualCalleesTy &getActualCallees() const {
-    return ActualCallees;
-  }
-
-  typedef ActualCalleesTy::const_iterator callee_iterator;
-  callee_iterator callee_begin(Instruction *I) const {
-    return ActualCallees.lower_bound(std::pair<Instruction*,Function*>(I, 0));
-  }
-
-  callee_iterator callee_end(Instruction *I) const {
-    I = (Instruction*)((char*)I + 1);
-    return ActualCallees.lower_bound(std::pair<Instruction*,Function*>(I, 0));
   }
 
 private:
   void calculateGraph(DSGraph &G);
 
-  unsigned calculateGraphs(Function *F, std::vector<Function*> &Stack,
+  void inlineUnresolved(DSGraph &G);
+
+  unsigned calculateGraphs(const Function *F, 
+                           std::vector<const Function*> &Stack,
                            unsigned &NextID,
-                           hash_map<Function*, unsigned> &ValMap);
+                           hash_map<const Function*, unsigned> &ValMap);
 
 
   void CloneAuxIntoGlobal(DSGraph& G);
@@ -242,7 +246,7 @@ private:
 /// by the bottom-up pass.
 ///
 class TDDataStructures : public DataStructures {
-  hash_set<Function*> ArgsRemainIncomplete;
+  hash_set<const Function*> ArgsRemainIncomplete;
   BUDataStructures *BUInfo;
 
   /// CallerCallEdges - For a particular graph, we keep a list of these records
@@ -250,9 +254,9 @@ class TDDataStructures : public DataStructures {
   struct CallerCallEdge {
     DSGraph *CallerGraph;        // The graph of the caller function.
     const DSCallSite *CS;        // The actual call site.
-    Function *CalledFunction;    // The actual function being called.
+    const Function *CalledFunction;    // The actual function being called.
 
-    CallerCallEdge(DSGraph *G, const DSCallSite *cs, Function *CF)
+    CallerCallEdge(DSGraph *G, const DSCallSite *cs, const Function *CF)
       : CallerGraph(G), CS(cs), CalledFunction(CF) {}
 
     bool operator<(const CallerCallEdge &RHS) const {
@@ -269,12 +273,12 @@ class TDDataStructures : public DataStructures {
   // is a sorted set of callee functions, the value is the DSGraph that holds
   // all of the caller graphs merged together, and the DSCallSite to merge with
   // the arguments for each function.
-  std::map<std::vector<Function*>, DSGraph*> IndCallMap;
+  std::map<std::vector<const Function*>, DSGraph*> IndCallMap;
 
 public:
   static char ID;
   TDDataStructures() : DataStructures((intptr_t)&ID) {}
-  ~TDDataStructures() { releaseMyMemory(); }
+  ~TDDataStructures() { releaseMemory(); }
 
   virtual bool runOnModule(Module &M);
 
@@ -282,14 +286,9 @@ public:
   ///
   void print(std::ostream &O, const Module *M) const;
 
-  /// If the pass pipeline is done with this pass, we can release our memory...
-  ///
-  virtual void releaseMyMemory();
-
   /// getAnalysisUsage - This obviously provides a data structure graph.
   ///
   virtual void getAnalysisUsage(AnalysisUsage &AU) const {
-    AU.setPreservesAll();
     AU.addRequired<BUDataStructures>();
   }
 
@@ -298,7 +297,7 @@ private:
                                                   hash_set<DSNode*> &Visited);
 
   void InlineCallersIntoGraph(DSGraph &G);
-  void ComputePostOrder(Function &F, hash_set<DSGraph*> &Visited,
+  void ComputePostOrder(const Function &F, hash_set<DSGraph*> &Visited,
                         std::vector<DSGraph*> &PostOrder);
 };
 
@@ -308,32 +307,28 @@ private:
 /// their callers graphs, making the result more useful for things like pool
 /// allocation.
 ///
-class CompleteBUDataStructures : public BUDataStructures {
+class CompleteBUDataStructures : public  DataStructures {
 public:
   static char ID;
-  CompleteBUDataStructures() : BUDataStructures((intptr_t)&ID) {}
-  ~CompleteBUDataStructures() { releaseMyMemory(); }
+  CompleteBUDataStructures() : DataStructures((intptr_t)&ID) {}
+  ~CompleteBUDataStructures() { releaseMemory(); }
 
   virtual bool runOnModule(Module &M);
 
   virtual void getAnalysisUsage(AnalysisUsage &AU) const {
-    AU.setPreservesAll();
     AU.addRequired<BUDataStructures>();
-
-    // FIXME: TEMPORARY (remove once finalization of indirect call sites in the
-    // globals graph has been implemented in the BU pass)
-    AU.addRequired<TDDataStructures>();
   }
 
   /// print - Print out the analysis results...
   ///
   void print(std::ostream &O, const Module *M) const;
 
+  virtual void releaseMemory();
+
 private:
   unsigned calculateSCCGraphs(DSGraph &FG, std::vector<DSGraph*> &Stack,
                               unsigned &NextID,
                               hash_map<DSGraph*, unsigned> &ValMap);
-  DSGraph &getOrCreateGraph(Function &F);
   void processGraph(DSGraph &G);
 };
 
@@ -343,30 +338,16 @@ private:
 /// DS graph for all functions in an equivalence class.  After this merging,
 /// graphs are inlined bottom-up on the SCCs of the final (CBU) call graph.
 ///
-struct EquivClassGraphs : public ModulePass {
-  CompleteBUDataStructures *CBU;
-
-  DSGraph *GlobalsGraph;
-
-  // DSInfo - one graph for each function.
-  hash_map<const Function*, DSGraph*> DSInfo;
-
-  /// ActualCallees - The actual functions callable from indirect call sites.
-  ///
-  std::set<std::pair<Instruction*, Function*> > ActualCallees;
+struct EquivClassGraphs : public DataStructures {
 
   // Equivalence class where functions that can potentially be called via the
   // same function pointer are in the same class.
-  EquivalenceClasses<Function*> FuncECs;
+  EquivalenceClasses<const Function*> FuncECs;
 
   /// OneCalledFunction - For each indirect call, we keep track of one
   /// target of the call.  This is used to find equivalence class called by
   /// a call site.
-  std::map<DSNode*, Function *> OneCalledFunction;
-
-  /// GlobalECs - The equivalence classes for each global value that is merged
-  /// with other global values in the DSGraphs.
-  EquivalenceClasses<GlobalValue*> GlobalECs;
+  std::map<DSNode*, const Function *> OneCalledFunction;
 
 public:
   static char ID;
@@ -382,49 +363,12 @@ public:
   ///
   void print(std::ostream &O, const Module *M) const;
 
-  EquivalenceClasses<GlobalValue*> &getGlobalECs() { return GlobalECs; }
-
-  /// getDSGraph - Return the data structure graph for the specified function.
-  /// This returns the folded graph.  The folded graph is the same as the CBU
-  /// graph iff the function is in a singleton equivalence class AND all its
-  /// callees also have the same folded graph as the CBU graph.
-  ///
-  DSGraph &getDSGraph(const Function &F) const {
-    hash_map<const Function*, DSGraph*>::const_iterator I = DSInfo.find(&F);
-    assert(I != DSInfo.end() && "No graph computed for that function!");
-    return *I->second;
-  }
-
-  bool hasDSGraph(const Function &F) const {
-    return DSInfo.find(&F) != DSInfo.end();
-  }
-
   /// getSomeCalleeForCallSite - Return any one callee function at
   /// a call site.
   ///
-  Function *getSomeCalleeForCallSite(const CallSite &CS) const;
-
-  DSGraph &getGlobalsGraph() const {
-    return *GlobalsGraph;
-  }
-
-  typedef std::set<std::pair<Instruction*, Function*> > ActualCalleesTy;
-  const ActualCalleesTy &getActualCallees() const {
-    return ActualCallees;
-  }
-
-  typedef ActualCalleesTy::const_iterator callee_iterator;
-  callee_iterator callee_begin(Instruction *I) const {
-    return ActualCallees.lower_bound(std::pair<Instruction*,Function*>(I, 0));
-  }
-
-  callee_iterator callee_end(Instruction *I) const {
-    I = (Instruction*)((char*)I + 1);
-    return ActualCallees.lower_bound(std::pair<Instruction*,Function*>(I, 0));
-  }
+  const Function *getSomeCalleeForCallSite(const CallSite &CS) const;
 
   virtual void getAnalysisUsage(AnalysisUsage &AU) const {
-    AU.setPreservesAll();
     AU.addRequired<CompleteBUDataStructures>();
   }
 
@@ -436,7 +380,6 @@ private:
                       std::map<DSGraph*, unsigned> &ValMap);
   void processGraph(DSGraph &FG);
 
-  DSGraph &getOrCreateGraph(Function &F);
 };
 
 } // End llvm namespace

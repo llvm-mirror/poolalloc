@@ -113,9 +113,9 @@ public:
   bool BoundsChecksEnabled;
 
   virtual ~PoolAllocateGroup () {return;}
-  virtual PA::FuncInfo *getFuncInfo(Function &F) { return 0;}
-  virtual PA::FuncInfo *getFuncInfoOrClone(Function &F) {return 0;}
-  virtual Function *getOrigFunctionFromClone(Function *F) const {return 0;}
+  virtual PA::FuncInfo *getFuncInfo(const Function &F) { return 0;}
+  virtual PA::FuncInfo *getFuncInfoOrClone(const Function &F) {return 0;}
+  virtual Function *getOrigFunctionFromClone(const Function *F) const {return 0;}
 
   virtual const Type * getPoolType() {return 0;}
 
@@ -151,7 +151,7 @@ class PoolAllocate : public ModulePass , public PoolAllocateGroup {
   Module *CurModule;
   CallTargetFinder* CTF;
   
-  std::map<Function*, Function*> CloneToOrigMap;
+  std::map<const Function*, Function*> CloneToOrigMap;
 public:
 
   Constant *PoolInit, *PoolDestroy, *PoolAlloc, *PoolRealloc, *PoolMemAlign;
@@ -169,7 +169,7 @@ public:
   std::map<const DSNode*, Value*> GlobalNodes;
 
 protected:
-  std::map<Function*, PA::FuncInfo> FunctionInfo;
+  std::map<const Function*, PA::FuncInfo> FunctionInfo;
 
  public:
   static char ID;
@@ -188,22 +188,22 @@ protected:
   /// getOrigFunctionFromClone - Given a pointer to a function that was cloned
   /// from another function, return the original function.  If the argument
   /// function is not a clone, return null.
-  Function *getOrigFunctionFromClone(Function *F) const {
-    std::map<Function*, Function*>::const_iterator I = CloneToOrigMap.find(F);
+  Function *getOrigFunctionFromClone(const Function *F) const {
+    std::map<const Function*, Function*>::const_iterator I = CloneToOrigMap.find(F);
     return I != CloneToOrigMap.end() ? I->second : 0;
   }
 
   /// getFuncInfo - Return the FuncInfo object for the specified function.
   ///
-  PA::FuncInfo *getFuncInfo(Function &F) {
-    std::map<Function*, PA::FuncInfo>::iterator I = FunctionInfo.find(&F);
+  PA::FuncInfo *getFuncInfo(const Function &F) {
+    std::map<const Function*, PA::FuncInfo>::iterator I = FunctionInfo.find(&F);
     return I != FunctionInfo.end() ? &I->second : 0;
   }
 
   /// getFuncInfoOrClone - Return the function info object for for the specified
   /// function.  If this function is a clone of another function, return the
   /// function info object for the original function.
-  PA::FuncInfo *getFuncInfoOrClone(Function &F) {
+  PA::FuncInfo *getFuncInfoOrClone(const Function &F) {
     // If it is cloned or not check it out.
     if (PA::FuncInfo *FI = getFuncInfo(F))
       return FI;
@@ -366,7 +366,7 @@ struct PoolAllocatePassAllPools : public PoolAllocate {
 class PoolAllocateSimple : public PoolAllocate {
   Value * TheGlobalPool;
   DSGraph * CombinedDSGraph;
-  EquivalenceClasses<GlobalValue*> GlobalECs;
+  EquivalenceClasses<const GlobalValue*> GlobalECs;
   TargetData * TD;
 public:
   static char ID;

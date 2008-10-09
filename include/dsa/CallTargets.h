@@ -24,7 +24,7 @@
 namespace llvm {
 
   class CallTargetFinder : public ModulePass {
-    std::map<CallSite, std::vector<Function*> > IndMap;
+    std::map<CallSite, std::vector<const Function*> > IndMap;
     std::set<CallSite> CompleteSites;
     std::list<CallSite> AllSites;
 
@@ -40,8 +40,8 @@ namespace llvm {
     virtual void print(std::ostream &O, const Module *M) const;
 
     // Given a CallSite, get an iterator of callees
-    std::vector<Function*>::iterator begin(CallSite cs);
-    std::vector<Function*>::iterator end(CallSite cs);
+    std::vector<const Function*>::iterator begin(CallSite cs);
+    std::vector<const Function*>::iterator end(CallSite cs);
 
     // Iterate over CallSites in program
     std::list<CallSite>::iterator cs_begin();

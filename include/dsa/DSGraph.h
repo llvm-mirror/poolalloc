@@ -39,17 +39,17 @@ class GlobalValue;
 /// globals or unique node handles active in the function.
 ///
 class DSScalarMap {
-  typedef hash_map<Value*, DSNodeHandle> ValueMapTy;
+  typedef hash_map<const Value*, DSNodeHandle> ValueMapTy;
   ValueMapTy ValueMap;
 
-  typedef hash_set<GlobalValue*> GlobalSetTy;
+  typedef hash_set<const GlobalValue*> GlobalSetTy;
   GlobalSetTy GlobalSet;
 
-  EquivalenceClasses<GlobalValue*> &GlobalECs;
+  EquivalenceClasses<const GlobalValue*> &GlobalECs;
 public:
-  DSScalarMap(EquivalenceClasses<GlobalValue*> &ECs) : GlobalECs(ECs) {}
+  DSScalarMap(EquivalenceClasses<const GlobalValue*> &ECs) : GlobalECs(ECs) {}
 
-  EquivalenceClasses<GlobalValue*> &getGlobalECs() const { return GlobalECs; }
+  EquivalenceClasses<const GlobalValue*> &getGlobalECs() const { return GlobalECs; }
 
   // Compatibility methods: provide an interface compatible with a map of
   // Value* to DSNodeHandle's.
@@ -60,56 +60,56 @@ public:
   const_iterator begin() const { return ValueMap.begin(); }
   const_iterator end() const { return ValueMap.end(); }
 
-  GlobalValue *getLeaderForGlobal(GlobalValue *GV) const {
-    EquivalenceClasses<GlobalValue*>::iterator ECI = GlobalECs.findValue(GV);
+  const GlobalValue *getLeaderForGlobal(const GlobalValue *GV) const {
+    EquivalenceClasses<const GlobalValue*>::iterator ECI = GlobalECs.findValue(GV);
     if (ECI == GlobalECs.end()) return GV;
     return *GlobalECs.findLeader(ECI);
   }
 
 
-  iterator find(Value *V) {
+  iterator find(const Value *V) {
     iterator I = ValueMap.find(V);
     if (I != ValueMap.end()) return I;
 
-    if (GlobalValue *GV = dyn_cast<GlobalValue>(V)) {
+    if (const GlobalValue *GV = dyn_cast<GlobalValue>(V)) {
       // If this is a global, check to see if it is equivalenced to something
       // in the map.
-      GlobalValue *Leader = getLeaderForGlobal(GV);
+      const GlobalValue *Leader = getLeaderForGlobal(GV);
       if (Leader != GV)
-        I = ValueMap.find((Value*)Leader);
+        I = ValueMap.find((const Value*)Leader);
     }
     return I;
   }
-  const_iterator find(Value *V) const {
+  const_iterator find(const Value *V) const {
     const_iterator I = ValueMap.find(V);
     if (I != ValueMap.end()) return I;
 
-    if (GlobalValue *GV = dyn_cast<GlobalValue>(V)) {
+    if (const GlobalValue *GV = dyn_cast<GlobalValue>(V)) {
       // If this is a global, check to see if it is equivalenced to something
       // in the map.
-      GlobalValue *Leader = getLeaderForGlobal(GV);
+      const GlobalValue *Leader = getLeaderForGlobal(GV);
       if (Leader != GV)
-        I = ValueMap.find((Value*)Leader);
+        I = ValueMap.find((const Value*)Leader);
     }
     return I;
   }
 
   /// getRawEntryRef - This method can be used by clients that are aware of the
   /// global value equivalence class in effect.
-  DSNodeHandle &getRawEntryRef(Value *V) {
+  DSNodeHandle &getRawEntryRef(const Value *V) {
     std::pair<iterator,bool> IP =
       ValueMap.insert(std::make_pair(V, DSNodeHandle()));
      if (IP.second)   // Inserted the new entry into the map.
-       if (GlobalValue *GV = dyn_cast<GlobalValue>(V))
+       if (const GlobalValue *GV = dyn_cast<GlobalValue>(V))
          GlobalSet.insert(GV);
      return IP.first->second;
   }
 
-  unsigned count(Value *V) const { return ValueMap.find(V) != ValueMap.end(); }
+  unsigned count(const Value *V) const { return ValueMap.find(V) != ValueMap.end(); }
 
-  void erase(Value *V) { erase(ValueMap.find(V)); }
+  void erase(const Value *V) { erase(ValueMap.find(V)); }
 
-  void eraseIfExists(Value *V) {
+  void eraseIfExists(const Value *V) {
     iterator I = find(V);
     if (I != end()) erase(I);
   }
@@ -117,7 +117,7 @@ public:
   /// replaceScalar - When an instruction needs to be modified, this method can
   /// be used to update the scalar map to remove the old and insert the new.
   ///
-  void replaceScalar(Value *Old, Value *New) {
+  void replaceScalar(const Value *Old, const Value *New) {
     iterator I = find(Old);
     assert(I != end() && "Old value is not in the map!");
     ValueMap.insert(std::make_pair(New, I->second));
@@ -126,7 +126,7 @@ public:
 
   /// copyScalarIfExists - If Old exists in the scalar map, make New point to
   /// whatever Old did.
-  void copyScalarIfExists(Value *Old, Value *New) {
+  void copyScalarIfExists(const Value *Old, const Value *New) {
     iterator I = find(Old);
     if (I != end())
       ValueMap.insert(std::make_pair(New, I->second));
@@ -134,12 +134,12 @@ public:
 
   /// operator[] - Return the DSNodeHandle for the specified value, creating a
   /// new null handle if there is no entry yet.
-  DSNodeHandle &operator[](Value *V) {
+  DSNodeHandle &operator[](const Value *V) {
     iterator I = ValueMap.find(V);
     if (I != ValueMap.end())
       return I->second;   // Return value if already exists.
 
-    if (GlobalValue *GV = dyn_cast<GlobalValue>(V))
+    if (const GlobalValue *GV = dyn_cast<GlobalValue>(V))
       return AddGlobal(GV);
 
     return ValueMap.insert(std::make_pair(V, DSNodeHandle())).first->second;
@@ -147,7 +147,7 @@ public:
 
   void erase(iterator I) {
     assert(I != ValueMap.end() && "Cannot erase end!");
-    if (GlobalValue *GV = dyn_cast<GlobalValue>(I->first))
+    if (const GlobalValue *GV = dyn_cast<GlobalValue>(I->first))
       GlobalSet.erase(GV);
     ValueMap.erase(I);
   }
@@ -178,9 +178,9 @@ public:
   global_iterator global_begin() const { return GlobalSet.begin(); }
   global_iterator global_end() const { return GlobalSet.end(); }
   unsigned global_size() const { return GlobalSet.size(); }
-  unsigned global_count(GlobalValue *GV) const { return GlobalSet.count(GV); }
+  unsigned global_count(const GlobalValue *GV) const { return GlobalSet.count(GV); }
 private:
-  DSNodeHandle &AddGlobal(GlobalValue *GV);
+  DSNodeHandle &AddGlobal(const GlobalValue *GV);
 };
 
 //===----------------------------------------------------------------------===//
@@ -190,7 +190,7 @@ class DSGraph {
 public:
   // Public data-type declarations...
   typedef DSScalarMap ScalarMapTy;
-  typedef hash_map<Function*, DSNodeHandle> ReturnNodesTy;
+  typedef hash_map<const Function*, DSNodeHandle> ReturnNodesTy;
   typedef ilist<DSNode> NodeListTy;
 
   /// NodeMapTy - This data type is used when cloning one graph into another to
@@ -236,7 +236,7 @@ private:
   DSGraph(const DSGraph&);         // DO NOT IMPLEMENT
 public:
   // Create a new, empty, DSGraph.
-  DSGraph(EquivalenceClasses<GlobalValue*> &ECs, const TargetData &td,
+  DSGraph(EquivalenceClasses<const GlobalValue*> &ECs, const TargetData &td,
           DSGraph *GG = 0) 
     :GlobalsGraph(GG), PrintAuxCalls(false), 
      ScalarMap(ECs), TD(td)
@@ -250,7 +250,7 @@ public:
   // source.  You need to set a new GlobalsGraph with the setGlobalsGraph
   // method.
   //
-  DSGraph( DSGraph &DSG, EquivalenceClasses<GlobalValue*> &ECs,
+  DSGraph( DSGraph &DSG, EquivalenceClasses<const GlobalValue*> &ECs,
           unsigned CloneFlags = 0);
   ~DSGraph();
 
@@ -259,7 +259,7 @@ public:
 
   /// getGlobalECs - Return the set of equivalence classes that the global
   /// variables in the program form.
-  EquivalenceClasses<GlobalValue*> &getGlobalECs() const {
+  EquivalenceClasses<const GlobalValue*> &getGlobalECs() const {
     return ScalarMap.getGlobalECs();
   }
 
@@ -334,21 +334,21 @@ public:
   /// getNodeForValue - Given a value that is used or defined in the body of the
   /// current function, return the DSNode that it points to.
   ///
-  DSNodeHandle &getNodeForValue(Value *V) { return ScalarMap[V]; }
+  DSNodeHandle &getNodeForValue(const Value *V) { return ScalarMap[V]; }
 
-  const DSNodeHandle &getNodeForValue(Value *V) const {
+  const DSNodeHandle &getNodeForValue(const Value *V) const {
     ScalarMapTy::const_iterator I = ScalarMap.find(V);
     assert(I != ScalarMap.end() &&
            "Use non-const lookup function if node may not be in the map");
     return I->second;
   }
 
-  bool hasNodeForValue(Value* V) const {
+  bool hasNodeForValue(const Value* V) const {
     ScalarMapTy::const_iterator I = ScalarMap.find(V);
     return I != ScalarMap.end();
   }
 
-  void eraseNodeForValue(Value* V) {
+  void eraseNodeForValue(const Value* V) {
     ScalarMap.erase(V);
   }
 
@@ -367,25 +367,25 @@ public:
 
   /// getReturnNodeFor - Return the return node for the specified function.
   ///
-  DSNodeHandle &getReturnNodeFor(Function &F) {
+  DSNodeHandle &getReturnNodeFor(const Function &F) {
     ReturnNodesTy::iterator I = ReturnNodes.find(&F);
     assert(I != ReturnNodes.end() && "F not in this DSGraph!");
     return I->second;
   }
 
-  const DSNodeHandle &getReturnNodeFor(Function &F) const {
+  const DSNodeHandle &getReturnNodeFor(const Function &F) const {
     ReturnNodesTy::const_iterator I = ReturnNodes.find(&F);
     assert(I != ReturnNodes.end() && "F not in this DSGraph!");
     return I->second;
   }
 
-  DSNodeHandle& getOrCreateReturnNodeFor(Function& F) {
+  DSNodeHandle& getOrCreateReturnNodeFor(const Function& F) {
     return ReturnNodes[&F];
   }
 
   /// containsFunction - Return true if this DSGraph contains information for
   /// the specified function.
-  bool containsFunction(Function *F) const {
+  bool containsFunction(const Function *F) const {
     return ReturnNodes.count(F);
   }
 
@@ -508,7 +508,7 @@ public:
   /// function arguments.  The vector is filled in with the return value (or
   /// null if it is not pointer compatible), followed by all of the
   /// pointer-compatible arguments.
-  void getFunctionArgumentsForCall(Function *F,
+  void getFunctionArgumentsForCall(const Function *F,
                                    std::vector<DSNodeHandle> &Args) const;
 
   /// mergeInGraph - This graph merges in the minimal number of
@@ -523,13 +523,13 @@ public:
   /// mergeInGraph - This method is the same as the above method, but the
   /// argument bindings are provided by using the formal arguments of F.
   ///
-  void mergeInGraph(const DSCallSite &CS, Function &F, const DSGraph &Graph,
-                    unsigned CloneFlags);
+  void mergeInGraph(const DSCallSite &CS, const Function &F, 
+                    const DSGraph &Graph, unsigned CloneFlags);
 
   /// getCallSiteForArguments - Get the arguments and return value bindings for
   /// the specified function in the current graph.
   ///
-  DSCallSite getCallSiteForArguments(Function &F) const;
+  DSCallSite getCallSiteForArguments(const Function &F) const;
 
   /// getDSCallSiteForCallSite - Given an LLVM CallSite object that is live in
   /// the context of this graph, return the DSCallSite for it.
@@ -540,7 +540,7 @@ public:
     assert((!N || N->getParentGraph() == this) &&
            "AssertNodeInGraph: Node is not in graph!");
   }
-  void AssertNodeContainsGlobal(const DSNode *N, GlobalValue *GV) const;
+  void AssertNodeContainsGlobal(const DSNode *N, const GlobalValue *GV) const;
 
   void AssertCallSiteInGraph(const DSCallSite &CS) const;
   void AssertCallNodesInGraph() const;

@@ -163,11 +163,11 @@ namespace llvm {
 /// the DSNode handles for the function arguments.
 ///
 class DSCallSite {
-  CallSite     Site;                 // Actual call site
-  Function    *CalleeF;              // The function called (direct call)
-  DSNodeHandle CalleeN;              // The function node called (indirect call)
-  DSNodeHandle RetVal;               // Returned value
-  std::vector<DSNodeHandle> CallArgs;// The pointer arguments
+  CallSite        Site;               // Actual call site
+  const Function *CalleeF;            // The function called (direct call)
+  DSNodeHandle    CalleeN;            // The function node called (indirect call)
+  DSNodeHandle    RetVal;             // Returned value
+  std::vector<DSNodeHandle> CallArgs; // The pointer arguments
 
   static void InitNH(DSNodeHandle &NH, const DSNodeHandle &Src,
                      const hash_map<const DSNode*, DSNode*> &NodeMap) {
@@ -204,7 +204,7 @@ public:
     assert(Callee && "Null callee node specified for call site!");
     Args.swap(CallArgs);
   }
-  DSCallSite(CallSite CS, const DSNodeHandle &rv, Function *Callee,
+  DSCallSite(CallSite CS, const DSNodeHandle &rv, const Function *Callee,
              std::vector<DSNodeHandle> &Args)
     : Site(CS), CalleeF(Callee), RetVal(rv) {
     assert(Callee && "Null callee function specified for call site!");
@@ -249,7 +249,7 @@ public:
 
 
   // Accessor functions...
-  Function           &getCaller()     const;
+  const Function     &getCaller()     const;
   CallSite            getCallSite()   const { return Site; }
         DSNodeHandle &getRetVal()           { return RetVal; }
   const DSNodeHandle &getRetVal()     const { return RetVal; }
@@ -257,7 +257,7 @@ public:
   DSNode *getCalleeNode() const {
     assert(!CalleeF && CalleeN.getNode()); return CalleeN.getNode();
   }
-  Function *getCalleeFunc() const {
+  const Function *getCalleeFunc() const {
     assert(!CalleeN.getNode() && CalleeF); return CalleeF;
   }
 
