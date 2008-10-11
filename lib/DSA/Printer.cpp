@@ -358,10 +358,3 @@ void CompleteBUDataStructures::print(std::ostream &O, const Module *M) const {
   if (DontPrintAnything) return;
   printCollection(*this, O, M, "cbu.");
 }
-
-
-void EquivClassGraphs::print(std::ostream &O, const Module *M) const {
-  if (DontPrintAnything) return;
-  printCollection(*this, O, M, "eq.");
-}
-

@@ -18,16 +18,13 @@
 #include "dsa/DataStructure.h"
 #include "dsa/DSGraph.h"
 #include "llvm/Module.h"
-#include "llvm/DerivedTypes.h"
 #include "llvm/ADT/Statistic.h"
-#include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
-#include "llvm/Support/Timer.h"
 using namespace llvm;
 
 namespace {
   STATISTIC (MaxSCC, "Maximum SCC Size in Call Graph");
-  STATISTIC (NumBUInlines, "Number of graphs inlined");
+  STATISTIC (NumInlines, "Number of graphs inlined");
   STATISTIC (NumCallEdges, "Number of 'actual' call edges");
 
   RegisterPass<BUDataStructures>
@@ -40,8 +37,12 @@ char BUDataStructures::ID;
 // program.
 //
 bool BUDataStructures::runOnModule(Module &M) {
-  init(&getAnalysis<StdLibDataStructures>(), false, true);
+  init(&getAnalysis<StdLibDataStructures>(), false, true, false);
 
+  return runOnModuleInternal(M);
+}
+
+bool BUDataStructures::runOnModuleInternal(Module& M) {
   std::vector<const Function*> Stack;
   hash_map<const Function*, unsigned> ValMap;
   unsigned NextID = 1;
@@ -50,13 +51,15 @@ bool BUDataStructures::runOnModule(Module &M) {
   if (MainFunc) {
     calculateGraphs(MainFunc, Stack, NextID, ValMap);
     CloneAuxIntoGlobal(getDSGraph(*MainFunc));
+  } else {
+    DOUT << debugname << ": No 'main' function found!\n";
   }
 
   // Calculate the graphs for any functions that are unreachable from main...
   for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I)
     if (!I->isDeclaration() && !hasDSGraph(*I)) {
       if (MainFunc)
-        DOUT << "*** BU: Function unreachable from main: "
+        DOUT << debugname << ": Function unreachable from main: "
              << I->getName() << "\n";
       calculateGraphs(I, Stack, NextID, ValMap);     // Calculate all graphs.
       CloneAuxIntoGlobal(getDSGraph(*I));
@@ -348,8 +351,20 @@ void BUDataStructures::CloneAuxIntoGlobal(DSGraph& G) {
   ReachabilityCloner RC(GG, G, 0);
 
   for(DSGraph::afc_iterator ii = G.afc_begin(), ee = G.afc_end();
-      ii != ee; ++ii)
-    GG.getAuxFunctionCalls().push_front(RC.cloneCallSite(*ii));
+      ii != ee; ++ii) {
+    //If we can, merge with an existing call site for this instruction
+    if (GG.hasNodeForValue(ii->getCallSite().getInstruction()->getOperand(0))) {
+      DSGraph::afc_iterator GGii;
+      for(GGii = GG.afc_begin(); GGii != GG.afc_end(); ++GGii)
+        if (GGii->getCallSite().getInstruction()->getOperand(0) ==
+            ii->getCallSite().getInstruction()->getOperand(0))
+          break;
+      assert (GGii != GG.afc_end() && "Callsite should exist but doesn't");
+      RC.cloneCallSite(*ii).mergeWith(*GGii);
+    } else {
+      GG.getAuxFunctionCalls().push_front(RC.cloneCallSite(*ii));
+    }
+  }
 }
 
 void BUDataStructures::calculateGraph(DSGraph &Graph) {
@@ -432,7 +447,7 @@ void BUDataStructures::calculateGraph(DSGraph &Graph) {
       Graph.mergeInGraph(CS, *Callee, *GI,
                          DSGraph::StripAllocaBit|DSGraph::DontCloneCallNodes|
                          (isComplete?0:DSGraph::DontCloneAuxCallNodes));
-      ++NumBUInlines;
+      ++NumInlines;
     } else {
       DEBUG(std::cerr << "In Fns: " << Graph.getFunctionNames() << "\n");
       DEBUG(std::cerr << "  calls " << CalledFuncs.size()
@@ -484,7 +499,7 @@ void BUDataStructures::calculateGraph(DSGraph &Graph) {
           // bother merging it in again.
           if (!GI->containsFunction(*I)) {
             GI->cloneInto(getDSGraph(**I));
-            ++NumBUInlines;
+            ++NumInlines;
           }
           
           std::vector<DSNodeHandle> NextArgs;
@@ -517,7 +532,7 @@ void BUDataStructures::calculateGraph(DSGraph &Graph) {
                          DSGraph::StripAllocaBit |
                          DSGraph::DontCloneCallNodes|
                          (isComplete?0:DSGraph::DontCloneAuxCallNodes));
-      ++NumBUInlines;
+      ++NumInlines;
     }
     if (isComplete)
       TempFCs.erase(TempFCs.begin());
@@ -575,7 +590,7 @@ void BUDataStructures::inlineUnresolved(DSGraph &Graph) {
            << Graph.getAuxFunctionCalls().size() << "]\n";
       Graph.mergeInGraph(CS, *Callee, *GI,
                          DSGraph::StripAllocaBit|DSGraph::DontCloneCallNodes);
-      ++NumBUInlines;
+      ++NumInlines;
     } else {
       DEBUG(std::cerr << "In Fns: " << Graph.getFunctionNames() << "\n");
       DEBUG(std::cerr << "  calls " << CalledFuncs.size()
@@ -627,7 +642,7 @@ void BUDataStructures::inlineUnresolved(DSGraph &Graph) {
           // bother merging it in again.
           if (!GI->containsFunction(*I)) {
             GI->cloneInto(getDSGraph(**I));
-            ++NumBUInlines;
+            ++NumInlines;
           }
           
           std::vector<DSNodeHandle> NextArgs;
@@ -659,7 +674,7 @@ void BUDataStructures::inlineUnresolved(DSGraph &Graph) {
       Graph.mergeInGraph(CS, IndCallGraph.second, *GI,
                          DSGraph::StripAllocaBit |
                          DSGraph::DontCloneCallNodes);
-      ++NumBUInlines;
+      ++NumInlines;
     }
   }
 

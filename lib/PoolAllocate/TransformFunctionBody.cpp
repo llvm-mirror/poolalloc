@@ -556,7 +556,7 @@ void FuncTransform::visitCallSite(CallSite& CS) {
 
   // If this function is one of the memory manipulating functions built into
   // libc, emulate it with pool calls as appropriate.
-  if (CF && CF->isDeclaration())
+  if (CF && CF->isDeclaration()) {
     if (CF->getName() == "calloc") {
       visitCallocCall(CS);
       return;
@@ -576,6 +576,7 @@ void FuncTransform::visitCallSite(CallSite& CS) {
       std::cerr << "VALLOC USED BUT NOT HANDLED!\n";
       abort();
     }
+  }
 
   // We need to figure out which local pool descriptors correspond to the pool
   // descriptor arguments passed into the function call.  Calculate a mapping
@@ -583,7 +584,7 @@ void FuncTransform::visitCallSite(CallSite& CS) {
   // between the graphs to figure out which pool descriptors need to be passed
   // in.  The roots of this mapping is found from arguments and return values.
   //
-  EquivClassGraphs& ECGraphs = PAInfo.getECGraphs();
+  DataStructures& Graphs = PAInfo.getGraphs();
   DSGraph::NodeMapTy NodeMapping;
   Instruction *NewCall;
   Value *NewCallee;
@@ -602,8 +603,8 @@ void FuncTransform::visitCallSite(CallSite& CS) {
     NewCallee = CFI->Clone;
     ArgNodes = CFI->ArgNodes;
     
-    assert ((ECGraphs.hasDSGraph (*CF)) && "Function has no ECGraph!\n");
-    CalleeGraph = &ECGraphs.getDSGraph(*CF);
+    assert ((Graphs.hasDSGraph (*CF)) && "Function has no ECGraph!\n");
+    CalleeGraph = &Graphs.getDSGraph(*CF);
   } else {
     DEBUG(std::cerr << "  Handling indirect call: " << *TheCall);
     
@@ -614,28 +615,24 @@ void FuncTransform::visitCallSite(CallSite& CS) {
     // in CS back to the original call instruction.)
     Instruction *OrigInst =
       cast<Instruction>(getOldValueIfAvailable(CS.getInstruction()));
-    CF = isa<CallInst>(OrigInst)?
-      ECGraphs.getSomeCalleeForCallSite(cast<CallInst>(OrigInst)) :
-      ECGraphs.getSomeCalleeForCallSite(cast<InvokeInst>(OrigInst));
 
-    if (!CF) 
-      for (EquivClassGraphs::callee_iterator I = ECGraphs.callee_begin(OrigInst), 
-             E = ECGraphs.callee_end(OrigInst); I != E; ++I) {
-        CF = *I;
-        break;
-      }
+    for (DataStructures::callee_iterator I = Graphs.callee_begin(OrigInst), 
+           E = Graphs.callee_end(OrigInst); I != E; ++I) {
+      CF = *I;
+      break;
+    }
 
     // If we didn't find the callee in the constructed call graph, try
     // checking in the DSNode itself.
     // This isn't ideal as it means that this call site didn't have inlining
     // happen.
     if (!CF) {
-      DSGraph* dg = &ECGraphs.getDSGraph(*OrigInst->getParent()->getParent());
+      DSGraph* dg = &Graphs.getDSGraph(*OrigInst->getParent()->getParent());
       DSNode* d = dg->getNodeForValue(OrigInst->getOperand(0)).getNode();
       const std::vector<const GlobalValue*> &g = d->getGlobalsList();
       for(std::vector<const GlobalValue*>::const_iterator ii = g.begin(), ee = g.end();
 	  !CF && ii != ee; ++ii) {
-        EquivalenceClasses< const GlobalValue *> & EC = ECGraphs.getGlobalECs();
+        EquivalenceClasses< const GlobalValue *> & EC = Graphs.getGlobalECs();
         for (EquivalenceClasses<const GlobalValue *>::member_iterator MI = EC.findLeader(*ii);
              MI != EC.member_end(); ++MI)   // Loop over members in this set.
           if ((CF = dyn_cast<Function>(*MI))) {
@@ -664,15 +661,15 @@ void FuncTransform::visitCallSite(CallSite& CS) {
     }
 
     // Get the common graph for the set of functions this call may invoke.
-    CalleeGraph = &ECGraphs.getDSGraph(*CF);
+    CalleeGraph = &Graphs.getDSGraph(*CF);
     
 #ifndef NDEBUG
     // Verify that all potential callees at call site have the same DS graph.
-    EquivClassGraphs::callee_iterator I =
-      ECGraphs.callee_begin(OrigInst), E = ECGraphs.callee_end(OrigInst);
+    DataStructures::callee_iterator I =
+      Graphs.callee_begin(OrigInst), E = Graphs.callee_end(OrigInst);
     for (; I != E; ++I)
       if (!(*I)->isDeclaration())
-        assert(CalleeGraph == &ECGraphs.getDSGraph(**I) &&
+        assert(CalleeGraph == &Graphs.getDSGraph(**I) &&
                "Callees at call site do not have a common graph!");
 #endif    
 

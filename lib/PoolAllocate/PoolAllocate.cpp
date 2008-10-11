@@ -85,35 +85,26 @@ namespace {
   DisablePoolFreeOpt("poolalloc-force-all-poolfrees",
                      cl::desc("Do not try to elide poolfree's where possible"));
 
-  cl::opt<bool>
-  UseTDResolve("poolalloc-usetd-resolve",
-	       cl::desc("Use Top-Down Graph as a resolve source"));
 }
 
 void PoolAllocate::getAnalysisUsage(AnalysisUsage &AU) const {
-  AU.addRequiredTransitive<EquivClassGraphs>();
-  AU.addPreserved<EquivClassGraphs>();
+  AU.addRequiredTransitive<CompleteBUDataStructures>();
+  AU.addPreserved<CompleteBUDataStructures>();
 
   // Preserve the pool information across passes
   if (SAFECodeEnabled)
     AU.setPreservesAll();
 
   AU.addRequired<TargetData>();
-  if (UseTDResolve)
-    AU.addRequired<CallTargetFinder>();
 }
 
 bool PoolAllocate::runOnModule(Module &M) {
   if (M.begin() == M.end()) return false;
   CurModule = &M;
-  ECGraphs = &getAnalysis<EquivClassGraphs>();   // folded inlined CBU graphs
-  if (UseTDResolve)
-    CTF = &getAnalysis<CallTargetFinder>();
-  else
-    CTF = 0;
+  Graphs = &getAnalysis<CompleteBUDataStructures>();   // folded inlined CBU graphs
 
   CurHeuristic = Heuristic::create();
-  CurHeuristic->Initialize(M, ECGraphs->getGlobalsGraph(), *this);
+  CurHeuristic->Initialize(M, Graphs->getGlobalsGraph(), *this);
 
   // Add the pool* prototypes to the module
   AddPoolPrototypes(&M);
@@ -125,7 +116,7 @@ bool PoolAllocate::runOnModule(Module &M) {
   // Loop over the functions in the original program finding the pool desc.
   // arguments necessary for each function that is indirectly callable.
   for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I)
-    if (!I->isDeclaration() && ECGraphs->hasDSGraph(*I))
+    if (!I->isDeclaration() && Graphs->hasDSGraph(*I))
       FindFunctionPoolArgs(*I);
 
   std::map<Function*, Function*> FuncMap;
@@ -138,7 +129,7 @@ bool PoolAllocate::runOnModule(Module &M) {
 {TIME_REGION(X, "MakeFunctionClone");
   for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I)
     if (!I->isDeclaration() && !ClonedFunctions.count(I) &&
-        ECGraphs->hasDSGraph(*I))
+        Graphs->hasDSGraph(*I))
       if (Function *Clone = MakeFunctionClone(*I)) {
         FuncMap[I] = Clone;
         ClonedFunctions.insert(Clone);
@@ -150,7 +141,7 @@ bool PoolAllocate::runOnModule(Module &M) {
 {TIME_REGION(X, "ProcessFunctionBody");
   for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I)
     if (!I->isDeclaration() && !ClonedFunctions.count(I) &&
-        ECGraphs->hasDSGraph(*I)) {
+        Graphs->hasDSGraph(*I)) {
       std::map<Function*, Function*>::iterator FI = FuncMap.find(I);
       ProcessFunctionBody(*I, FI != FuncMap.end() ? *FI->second : *I);
     }
@@ -344,7 +335,7 @@ static void MarkNodesWhichMustBePassedIn(hash_set<const DSNode*> &MarkedNodes,
 /// arguments will have to be added for each function, build the FunctionInfo
 /// map and recording this info in the ArgNodes set.
 void PoolAllocate::FindFunctionPoolArgs(Function &F) {
-  DSGraph &G = ECGraphs->getDSGraph(F);
+  DSGraph &G = Graphs->getDSGraph(F);
 
   // Create a new entry for F.
   FuncInfo &FI =
@@ -367,7 +358,7 @@ void PoolAllocate::FindFunctionPoolArgs(Function &F) {
 // necessary, and return it.  If not, just return null.
 //
 Function *PoolAllocate::MakeFunctionClone(Function &F) {
-  DSGraph &G = ECGraphs->getDSGraph(F);
+  DSGraph &G = Graphs->getDSGraph(F);
   if (G.node_begin() == G.node_end()) return 0;
     
   FuncInfo &FI = *getFuncInfo(F);
@@ -472,7 +463,7 @@ Function *PoolAllocate::MakeFunctionClone(Function &F) {
 //
 bool PoolAllocate::SetupGlobalPools(Module &M) {
   // Get the globals graph for the program.
-  DSGraph &GG = ECGraphs->getGlobalsGraph();
+  DSGraph &GG = Graphs->getGlobalsGraph();
 
   // Get all of the nodes reachable from globals.
   hash_set<const DSNode*> GlobalHeapNodes;
@@ -558,7 +549,7 @@ GlobalVariable *PoolAllocate::CreateGlobalPool(unsigned RecSize, unsigned Align,
                        CurModule);
 
   // Update the global DSGraph to include this.
-  DSNode *GNode = ECGraphs->getGlobalsGraph().addObjectToGraph(GV);
+  DSNode *GNode = Graphs->getGlobalsGraph().addObjectToGraph(GV);
   GNode->setModifiedMarker()->setReadMarker();
 
   Function *MainFunc = CurModule->getFunction("main");
@@ -648,7 +639,7 @@ void PoolAllocate::CreatePools(Function &F, DSGraph &DSG,
 // the specified function.
 //
 void PoolAllocate::ProcessFunctionBody(Function &F, Function &NewF) {
-  DSGraph &G = ECGraphs->getDSGraph(F);
+  DSGraph &G = Graphs->getDSGraph(F);
 
   if (G.node_begin() == G.node_end()) return;  // Quick exit if nothing to do.
   
@@ -658,7 +649,7 @@ void PoolAllocate::ProcessFunctionBody(Function &F, Function &NewF) {
   // Calculate which DSNodes are reachable from globals.  If a node is reachable
   // from a global, we will create a global pool for it, so no argument passage
   // is required.
-  ECGraphs->getGlobalsGraph();
+  Graphs->getGlobalsGraph();
 
   // Map all node reachable from this global to the corresponding nodes in
   // the globals graph.
@@ -670,7 +661,7 @@ void PoolAllocate::ProcessFunctionBody(Function &F, Function &NewF) {
   for (DSGraph::node_iterator I = G.node_begin(), E = G.node_end(); I != E;++I){
     // We only need to make a pool if there is a heap object in it...
     DSNode *N = I;
-    if ((N->isHeapNode()) || (BoundsChecksEnabled && (N->isArray())))
+    if ((N->isHeapNode()) || (BoundsChecksEnabled && (N->isArray()))) {
       if (GlobalsGraphNodeMapping.count(N)) {
         // If it is a global pool, set up the pool descriptor appropriately.
         DSNode *GGN = GlobalsGraphNodeMapping[N].getNode();
@@ -682,6 +673,7 @@ void PoolAllocate::ProcessFunctionBody(Function &F, Function &NewF) {
         assert(!N->isGlobalNode() && "Should be in global mapping!");
         FI.NodesToPA.push_back(N);
       }
+    }
   }
 
   if (!FI.NodesToPA.empty()) {

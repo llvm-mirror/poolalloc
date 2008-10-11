@@ -95,7 +95,7 @@ namespace {
   /// data structures to reduce the size of pointers in the program.
   class PointerCompress : public ModulePass {
     PoolAllocate *PoolAlloc;
-    EquivClassGraphs *ECG;
+    CompleteBUDataStructures *ECG;
 
     /// ClonedFunctionMap - Every time we clone a function to compress its
     /// arguments, keep track of the clone and which arguments are compressed.
@@ -918,7 +918,7 @@ void InstructionRewriter::visitPoolAlloc(CallInst &CI) {
 
 
 void InstructionRewriter::visitCallInst(CallInst &CI) {
-  if (Function *F = CI.getCalledFunction())
+  if (Function *F = CI.getCalledFunction()) {
     // These functions are handled specially.
     if (F->getName() == "poolinit") {
       visitPoolInit(CI);
@@ -930,7 +930,8 @@ void InstructionRewriter::visitCallInst(CallInst &CI) {
       visitPoolAlloc(CI);
       return;
     }
-  
+  }
+
   // Normal function call: check to see if this call produces or uses a pointer
   // into a compressed pool.  If so, we will need to transform the callee or use
   // a previously transformed version.
@@ -1136,7 +1137,7 @@ void PointerCompress::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.addRequired<PoolAllocatePassAllPools>();
 
   // Need information from DSA.
-  AU.addRequired<EquivClassGraphs>();
+  AU.addRequired<CompleteBUDataStructures>();
 }
 
 /// PoolIsCompressible - Return true if we can pointer compress this node.
@@ -1190,7 +1191,7 @@ void PointerCompress::FindPoolsToCompress(std::set<const DSNode*> &Pools,
 
     // Ignore potential pools that the pool allocation heuristic decided not to
     // pool allocated.
-    if (!isa<ConstantPointerNull>(FI->PoolDescriptors[N]))
+    if (!isa<ConstantPointerNull>(FI->PoolDescriptors[N])) {
       if (PoolIsCompressible(N)) {
         Pools.insert(N);
         ++NumCompressed;
@@ -1198,6 +1199,7 @@ void PointerCompress::FindPoolsToCompress(std::set<const DSNode*> &Pools,
         DEBUG(std::cerr << "PCF: "; N->dump());
         ++NumNotCompressed;
       }
+    }
   }
 
   // If there are no compressed global pools, don't bother to look for them.
@@ -1482,7 +1484,7 @@ void PointerCompress::HandleGlobalPools(Module &M) {
 
     // Ignore potential pools that the pool allocation heuristic decided not to
     // pool allocated.
-    if (!isa<ConstantPointerNull>(I->second))
+    if (!isa<ConstantPointerNull>(I->second)) {
       if (PoolIsCompressible(N)) {
         CompressedGlobalPools.insert(std::make_pair(N, 
                                              cast<GlobalValue>(I->second)));
@@ -1491,6 +1493,7 @@ void PointerCompress::HandleGlobalPools(Module &M) {
         DEBUG(std::cerr << "PCF: "; N->dump());
         ++NumNotCompressed;
       }
+    }
   }
 }
 
@@ -1512,7 +1515,7 @@ void PointerCompress::InitializePoolLibraryFunctions(Module &M) {
 
 bool PointerCompress::runOnModule(Module &M) {
   PoolAlloc = &getAnalysis<PoolAllocatePassAllPools>();
-  ECG = &getAnalysis<EquivClassGraphs>();
+  ECG = &getAnalysis<CompleteBUDataStructures>();
   
   if (SmallIntCompress)
     MEMUINTTYPE = Type::Int16Ty;

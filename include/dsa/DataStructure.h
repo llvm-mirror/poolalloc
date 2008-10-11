@@ -72,7 +72,7 @@ protected:
   EquivalenceClasses<const GlobalValue*> GlobalECs;
 
 
-  void init(DataStructures* D, bool clone, bool printAuxCalls);
+  void init(DataStructures* D, bool clone, bool printAuxCalls, bool copyGlobalAuxCalls);
   void init(TargetData* T);
 
   void formGlobalECs();
@@ -83,18 +83,23 @@ protected:
   }
 
   DataStructures(intptr_t id) 
-    :ModulePass(id), TD(0), GraphSource(0), GlobalsGraph(0) {}
+    :ModulePass(id), TD(0), GraphSource(0), GlobalsGraph(0) {
+    //a dummy node for empty call sites
+    ActualCallees[0];
+  }
 
 public:
   callee_iterator callee_begin(const Instruction *I) const {
     ActualCalleesTy::const_iterator ii = ActualCallees.find(I);
-    assert(ii != ActualCallees.end() && "No calls for instruction");
+    if (ii == ActualCallees.end())
+      ii = ActualCallees.find(0);
     return ii->second.begin();
   }
 
   callee_iterator callee_end(const Instruction *I) const {
     ActualCalleesTy::const_iterator ii = ActualCallees.find(I);
-    assert(ii != ActualCallees.end() && "No calls for instruction");
+    if (ii == ActualCallees.end())
+      ii = ActualCallees.find(0);
     return ii->second.end();
   }
 
@@ -127,7 +132,6 @@ public:
   }
 
   void setDSGraph(const Function& F, DSGraph* G) {
-    assert(!DSInfo[&F] && "DSGraph already exists");
     DSInfo[&F] = G;
   }
 
@@ -204,10 +208,16 @@ protected:
   std::map<std::vector<const Function*>,
            std::pair<DSGraph*, std::vector<DSNodeHandle> > > IndCallGraphMap;
 
-  BUDataStructures(intptr_t id) : DataStructures(id) {}
+  const char* debugname;
+
 public:
   static char ID;
-  BUDataStructures() : DataStructures((intptr_t)&ID) {}
+  //Child constructor
+  BUDataStructures(intptr_t CID, const char* name)
+    : DataStructures(CID), debugname(name) {}
+  //main constructor
+  BUDataStructures() 
+    : DataStructures((intptr_t)&ID), debugname("dsa-bu") {}
   ~BUDataStructures() { releaseMemory(); }
 
   virtual bool runOnModule(Module &M);
@@ -224,6 +234,9 @@ public:
   virtual void getAnalysisUsage(AnalysisUsage &AU) const {
     AU.addRequired<StdLibDataStructures>();
   }
+
+protected:
+  bool runOnModuleInternal(Module &M);
 
 private:
   void calculateGraph(DSGraph &G);
@@ -247,7 +260,6 @@ private:
 ///
 class TDDataStructures : public DataStructures {
   hash_set<const Function*> ArgsRemainIncomplete;
-  BUDataStructures *BUInfo;
 
   /// CallerCallEdges - For a particular graph, we keep a list of these records
   /// which indicates which graphs call this function and from where.
@@ -307,10 +319,12 @@ private:
 /// their callers graphs, making the result more useful for things like pool
 /// allocation.
 ///
-class CompleteBUDataStructures : public  DataStructures {
+class CompleteBUDataStructures : public  BUDataStructures {
+  void buildIndirectFunctionSets(Module &M);
 public:
   static char ID;
-  CompleteBUDataStructures() : DataStructures((intptr_t)&ID) {}
+  CompleteBUDataStructures()
+    : BUDataStructures((intptr_t)&ID, "dsa-cbu") {}
   ~CompleteBUDataStructures() { releaseMemory(); }
 
   virtual bool runOnModule(Module &M);
@@ -322,64 +336,6 @@ public:
   /// print - Print out the analysis results...
   ///
   void print(std::ostream &O, const Module *M) const;
-
-  virtual void releaseMemory();
-
-private:
-  unsigned calculateSCCGraphs(DSGraph &FG, std::vector<DSGraph*> &Stack,
-                              unsigned &NextID,
-                              hash_map<DSGraph*, unsigned> &ValMap);
-  void processGraph(DSGraph &G);
-};
-
-
-/// EquivClassGraphs - This is the same as the complete bottom-up graphs, but
-/// with functions partitioned into equivalence classes and a single merged
-/// DS graph for all functions in an equivalence class.  After this merging,
-/// graphs are inlined bottom-up on the SCCs of the final (CBU) call graph.
-///
-struct EquivClassGraphs : public DataStructures {
-
-  // Equivalence class where functions that can potentially be called via the
-  // same function pointer are in the same class.
-  EquivalenceClasses<const Function*> FuncECs;
-
-  /// OneCalledFunction - For each indirect call, we keep track of one
-  /// target of the call.  This is used to find equivalence class called by
-  /// a call site.
-  std::map<DSNode*, const Function *> OneCalledFunction;
-
-public:
-  static char ID;
-  EquivClassGraphs();
-
-  /// EquivClassGraphs - Computes the equivalence classes and then the
-  /// folded DS graphs for each class.
-  ///
-
-  virtual bool runOnModule(Module &M);
-
-  /// print - Print out the analysis results...
-  ///
-  void print(std::ostream &O, const Module *M) const;
-
-  /// getSomeCalleeForCallSite - Return any one callee function at
-  /// a call site.
-  ///
-  const Function *getSomeCalleeForCallSite(const CallSite &CS) const;
-
-  virtual void getAnalysisUsage(AnalysisUsage &AU) const {
-    AU.addRequired<CompleteBUDataStructures>();
-  }
-
-private:
-  void buildIndirectFunctionSets(Module &M);
-
-  unsigned processSCC(DSGraph &FG, std::vector<DSGraph*> &Stack,
-                      unsigned &NextID,
-                      std::map<DSGraph*, unsigned> &ValMap);
-  void processGraph(DSGraph &FG);
-
 };
 
 } // End llvm namespace

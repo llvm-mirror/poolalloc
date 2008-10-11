@@ -1607,7 +1607,7 @@ void DSGraph::spliceFrom(DSGraph &RHS) {
     RHS.ReturnNodes.clear();
   }
 
-  // Merge the scalar map in.
+ // Merge the scalar map in.
   ScalarMap.spliceFrom(RHS.ScalarMap);
 }
 
@@ -1810,7 +1810,7 @@ void DSGraph::mergeInGraph(const DSCallSite &CS,
   HackedGraphSCCFinder SCCFinder(RC);
 
   if (!(CloneFlags & DontCloneAuxCallNodes))
-    for (afc_iterator I = Graph.afc_begin(), E = Graph.afc_end(); I!=E; ++I)
+    for (afc_const_iterator I = Graph.afc_begin(), E = Graph.afc_end(); I!=E; ++I)
       if (SCCFinder.PathExistsToClonedNode(*I))
         AuxCallToCopy.push_back(&*I);
 //       else if (I->isIndirectCall()){
@@ -2493,7 +2493,7 @@ void DSGraph::AssertCallNodesInGraph() const {
     AssertCallSiteInGraph(*I);
 }
 void DSGraph::AssertAuxCallNodesInGraph() const {
-  for (afc_iterator I = afc_begin(), E = afc_end(); I != E; ++I)
+  for (afc_const_iterator I = afc_begin(), E = afc_end(); I != E; ++I)
     AssertCallSiteInGraph(*I);
 }
 
@@ -2840,14 +2840,16 @@ void DataStructures::eliminateUsesOfECGlobals(DSGraph &G,
   DEBUG(if(MadeChange) G.AssertGraphOK());
 }
 
-void DataStructures::init(DataStructures* D, bool clone, bool printAuxCalls) {
+void DataStructures::init(DataStructures* D, bool clone, bool printAuxCalls, 
+                          bool copyGlobalAuxCalls) {
   assert (!GraphSource && "Already init");
   GraphSource = D;
   Clone = clone;
   TD = D->TD;
   ActualCallees = D->ActualCallees;
   GlobalECs = D->getGlobalECs();
-  GlobalsGraph = new DSGraph(D->getGlobalsGraph(), GlobalECs);
+  GlobalsGraph = new DSGraph(D->getGlobalsGraph(), GlobalECs, 
+                             copyGlobalAuxCalls?0:DSGraph::DontCloneAuxCallNodes);
   if (printAuxCalls) GlobalsGraph->setPrintAuxCalls();
 }
 

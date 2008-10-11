@@ -164,7 +164,7 @@ void StdLibDataStructures::eraseCallsTo(Function* F) {
 }
 
 bool StdLibDataStructures::runOnModule(Module &M) {
-  init(&getAnalysis<LocalDataStructures>(), false, true);
+  init(&getAnalysis<LocalDataStructures>(), false, true, false);
 
   //Clone Module
   for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I) 

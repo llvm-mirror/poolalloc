@@ -327,9 +327,12 @@ public:
 
 
   // Aux Function Call iteration
-  typedef std::list<DSCallSite>::const_iterator afc_iterator;
-  afc_iterator afc_begin() const { return AuxFunctionCalls.begin(); }
-  afc_iterator afc_end() const { return AuxFunctionCalls.end(); }
+  typedef std::list<DSCallSite>::iterator afc_iterator;
+  afc_iterator afc_begin() { return AuxFunctionCalls.begin(); }
+  afc_iterator afc_end() { return AuxFunctionCalls.end(); }
+  typedef std::list<DSCallSite>::const_iterator afc_const_iterator;
+  afc_const_iterator afc_begin() const { return AuxFunctionCalls.begin(); }
+  afc_const_iterator afc_end() const { return AuxFunctionCalls.end(); }
 
   /// getNodeForValue - Given a value that is used or defined in the body of the
   /// current function, return the DSNode that it points to.

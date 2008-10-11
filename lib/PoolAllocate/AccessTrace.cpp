@@ -27,7 +27,7 @@ namespace {
   /// descriptor loaded from.
   class PoolAccessTrace : public ModulePass {
     PoolAllocate *PoolAlloc;
-    EquivClassGraphs *ECG;
+    DataStructures *G;
     Constant *AccessTraceInitFn, *PoolAccessTraceFn;
     const Type *VoidPtrTy;
   public:
@@ -39,7 +39,7 @@ namespace {
     void getAnalysisUsage(AnalysisUsage &AU) const;
 
     const DSGraph &getGraphForFunc(PA::FuncInfo *FI) const {
-      return ECG->getDSGraph(FI->F);
+      return G->getDSGraph(FI->F);
     }
     static char ID;
 
@@ -59,7 +59,7 @@ void PoolAccessTrace::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.addRequired<PoolAllocatePassAllPools>();
 
   // Need information from DSA.
-  AU.addRequired<EquivClassGraphs>();
+  AU.addRequired<CompleteBUDataStructures>();
 }
 
 void PoolAccessTrace::InitializeLibraryFunctions(Module &M) {
@@ -100,7 +100,7 @@ void PoolAccessTrace::InstrumentAccess(Instruction *I, Value *Ptr,
 
 bool PoolAccessTrace::runOnModule(Module &M) {
   PoolAlloc = &getAnalysis<PoolAllocatePassAllPools>();
-  ECG = &getAnalysis<EquivClassGraphs>();
+  G = &getAnalysis<CompleteBUDataStructures>();
 
   // Create the function prototypes for runtime library.
   InitializeLibraryFunctions(M);
@@ -124,7 +124,7 @@ bool PoolAccessTrace::runOnModule(Module &M) {
       continue;
 
     // Get the DSGraph for this function.
-    DSGraph &DSG = ECG->getDSGraph(FI->F);
+    DSGraph &DSG = G->getDSGraph(FI->F);
 
     for (Function::iterator BB = F->begin(), E = F->end(); BB != E; ++BB)
       for (BasicBlock::iterator I = BB->begin(), E = BB->end(); I != E; ++I)

@@ -34,7 +34,6 @@ class DSNode;
 class DSGraph;
 class Type;
 class AllocaInst;
-class EquivClassGraphs;
 class CallTargetFinder;
 
 namespace PA {
@@ -103,8 +102,7 @@ namespace PA {
 
 class PoolAllocateGroup {
 protected:
-  EquivClassGraphs *ECGraphs;
-  TDDataStructures *TDGraphs;
+  DataStructures *Graphs;
 
 public:
   static char ID;
@@ -120,23 +118,23 @@ public:
   virtual const Type * getPoolType() {return 0;}
 
   virtual bool hasDSGraph (const Function & F) const {
-    return ECGraphs->hasDSGraph (F);
+    return Graphs->hasDSGraph (F);
   }
 
   virtual DSGraph & getDSGraph (const Function & F) const {
-    return ECGraphs->getDSGraph (F);
+    return Graphs->getDSGraph (F);
   }
 
   virtual DSGraph & getGlobalsGraph () const {
-    return ECGraphs->getGlobalsGraph ();
+    return Graphs->getGlobalsGraph ();
   }
 
   virtual Value * getPool (const DSNode * N, Function & F) {return 0;}
 
   virtual Value * getGlobalPool (const DSNode * Node) {return 0;}
 
-  virtual CompleteBUDataStructures::callee_iterator callee_begin (Instruction *I) { return ECGraphs->callee_begin(I);}
-  virtual CompleteBUDataStructures::callee_iterator callee_end   (Instruction *I) { return ECGraphs->callee_end(I);}
+  virtual DataStructures::callee_iterator callee_begin (Instruction *I) { return Graphs->callee_begin(I);}
+  virtual DataStructures::callee_iterator callee_end   (Instruction *I) { return Graphs->callee_end(I);}
 };
 
 /// PoolAllocate - The main pool allocation pass
@@ -183,7 +181,7 @@ protected:
   
   virtual void getAnalysisUsage(AnalysisUsage &AU) const;
   
-  EquivClassGraphs &getECGraphs() const { return *ECGraphs; }
+  DataStructures &getGraphs() const { return *Graphs; }
 
   /// getOrigFunctionFromClone - Given a pointer to a function that was cloned
   /// from another function, return the original function.  If the argument
@@ -240,11 +238,11 @@ protected:
   }
 
   virtual DSGraph & getDSGraph (const Function & F) const {
-    return ECGraphs->getDSGraph (F);
+    return Graphs->getDSGraph (F);
   }
 
   virtual DSGraph & getGlobalsGraph () const {
-    return ECGraphs->getGlobalsGraph ();
+    return Graphs->getGlobalsGraph ();
   }
 
   virtual Value * getPool (const DSNode * N, Function & F) {
@@ -265,14 +263,14 @@ protected:
       return I->second;
   }
 
-  virtual CompleteBUDataStructures::callee_iterator
+  virtual DataStructures::callee_iterator
   callee_begin (Instruction * I) {
-    return ECGraphs->callee_begin(I);
+    return Graphs->callee_begin(I);
   }
 
-  virtual CompleteBUDataStructures::callee_iterator
+  virtual DataStructures::callee_iterator
   callee_end (Instruction * I) {
-    return ECGraphs->callee_end(I);
+    return Graphs->callee_end(I);
   }
 
 protected:
