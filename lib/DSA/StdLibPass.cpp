@@ -65,6 +65,7 @@ const struct {
   {"fprintf",    {NRET_YARGS,  NRET_YNARGS, NRET_NARGS, false, false, false}},
   {"sprintf",    {NRET_YARGS,  NRET_YNARGS, NRET_NARGS, false, false, false}},
   {"snprintf",   {NRET_YARGS,  NRET_YNARGS, NRET_NARGS, false, false, false}},
+  {"puts",       {NRET_NARGS,  NRET_NARGS,  NRET_NARGS, false, false, false}},
 
   {"calloc",     {NRET_NARGS, YRET_NARGS, YRET_NARGS,  false, false, false}},
   {"malloc",     {NRET_NARGS, YRET_NARGS, YRET_NARGS,  false, false, false}},
@@ -164,7 +165,7 @@ void StdLibDataStructures::eraseCallsTo(Function* F) {
 }
 
 bool StdLibDataStructures::runOnModule(Module &M) {
-  init(&getAnalysis<LocalDataStructures>(), false, true, false);
+  init(&getAnalysis<LocalDataStructures>(), false, true, false, false);
 
   //Clone Module
   for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I) 

@@ -37,7 +37,7 @@ char BUDataStructures::ID;
 // program.
 //
 bool BUDataStructures::runOnModule(Module &M) {
-  init(&getAnalysis<StdLibDataStructures>(), false, true, false);
+  init(&getAnalysis<StdLibDataStructures>(), false, true, false, false );
 
   return runOnModuleInternal(M);
 }
@@ -165,11 +165,11 @@ static void GetAllCallees(const DSCallSite &CS,
     CS.getCalleeNode()->addFullFunctionList(Callees);
     
     // If any of the callees are unresolvable, remove the whole batch!
-    for (unsigned i = OldSize; i != Callees.size(); )
+    for (unsigned i = OldSize, e = Callees.size(); i != e; ++i)
       if (Callees[i]->isDeclaration()) {
-        Callees.erase(Callees.begin()+i);
-      } else 
-        ++i;
+        Callees.erase(Callees.begin()+OldSize, Callees.end());
+        return;
+      }
   }
 }
 
@@ -183,12 +183,12 @@ static void GetAnyCallees(const DSCallSite &CS,
     unsigned OldSize = Callees.size();
     CS.getCalleeNode()->addFullFunctionList(Callees);
     
-    // If any of the callees are unresolvable, remove the whole batch!
-    for (unsigned i = OldSize, e = Callees.size(); i != e; ++i)
+    // If any of the callees are unresolvable, remove them
+    for (unsigned i = OldSize; i != Callees.size(); )
       if (Callees[i]->isDeclaration()) {
-        Callees.erase(Callees.begin()+OldSize, Callees.end());
-        return;
-      }
+        Callees.erase(Callees.begin()+i);
+      } else 
+        ++i;
   }
 }
 
@@ -352,6 +352,7 @@ void BUDataStructures::CloneAuxIntoGlobal(DSGraph& G) {
 
   for(DSGraph::afc_iterator ii = G.afc_begin(), ee = G.afc_end();
       ii != ee; ++ii) {
+    //cerr << "Pushing " << ii->getCallSite().getInstruction()->getOperand(0) << "\n";
     //If we can, merge with an existing call site for this instruction
     if (GG.hasNodeForValue(ii->getCallSite().getInstruction()->getOperand(0))) {
       DSGraph::afc_iterator GGii;
@@ -407,35 +408,36 @@ void BUDataStructures::calculateGraph(DSGraph &Graph) {
   std::vector<const Function*> CalledFuncs;
   while (!TempFCs.empty()) {
     DSCallSite &CS = *TempFCs.begin();
+    Instruction *TheCall = CS.getCallSite().getInstruction();
 
     CalledFuncs.clear();
-
-    // Fast path for noop calls.  Note that we don't care about merging globals
-    // in the callee with nodes in the caller here.
-    if (CS.getRetVal().isNull() && CS.getNumPtrArgs() == 0) {
-      TempFCs.erase(TempFCs.begin());
-      continue;
-    }
 
     GetAllCallees(CS, CalledFuncs);
     bool isComplete = true;
 
     if (CalledFuncs.empty()) {
       // Remember that we could not resolve this yet!
-      AuxCallsList.splice(AuxCallsList.end(), TempFCs, TempFCs.begin());
       isComplete = false;
       GetAnyCallees(CS, CalledFuncs);
+      if (useCallGraph)
+        for (callee_iterator ii = callee_begin(CS.getCallSite().getInstruction()),
+               ee = callee_end(CS.getCallSite().getInstruction()); ii != ee; ++ii)
+          CalledFuncs.push_back(*ii);
+      std::sort(CalledFuncs.begin(), CalledFuncs.end());
+      std::vector<const Function*>::iterator uid = std::unique(CalledFuncs.begin(), CalledFuncs.end());
+      CalledFuncs.resize(uid - CalledFuncs.begin());
     }
-    
-    if (CalledFuncs.empty())
-      continue;
+
+    //cerr << "at " << TheCall << " with " << CalledFuncs.size() << "\n";
 
     DSGraph *GI;
-    Instruction *TheCall = CS.getCallSite().getInstruction();
     
+    for (std::vector<const Function*>::iterator ii = CalledFuncs.begin(), ee = CalledFuncs.end();
+         ii != ee; ++ii)
+      callee_add(TheCall, *ii);
+
     if (CalledFuncs.size() == 1 && (isComplete || hasDSGraph(*CalledFuncs[0]))) {
       const Function *Callee = CalledFuncs[0];
-      callee_add(TheCall, Callee);
 
       // Get the data structure graph for the called function.
       GI = &getDSGraph(*Callee);  // Graph to inline
@@ -448,7 +450,7 @@ void BUDataStructures::calculateGraph(DSGraph &Graph) {
                          DSGraph::StripAllocaBit|DSGraph::DontCloneCallNodes|
                          (isComplete?0:DSGraph::DontCloneAuxCallNodes));
       ++NumInlines;
-    } else {
+    } else if (CalledFuncs.size() > 1) {
       DEBUG(std::cerr << "In Fns: " << Graph.getFunctionNames() << "\n");
       DEBUG(std::cerr << "  calls " << CalledFuncs.size()
             << " fns from site: " << CS.getCallSite().getInstruction()
@@ -457,12 +459,8 @@ void BUDataStructures::calculateGraph(DSGraph &Graph) {
       unsigned NumPrinted = 0;
       
       for (std::vector<const Function*>::iterator I = CalledFuncs.begin(),
-             E = CalledFuncs.end(); I != E; ++I) {
+             E = CalledFuncs.end(); I != E; ++I)
         if (NumPrinted++ < 8) DOUT << " " << (*I)->getName();
-        
-        // Add the call edges to the call graph.
-        callee_add(TheCall, *I);
-      }
       DOUT << "\n";
       
       if (!isComplete) {
@@ -534,8 +532,9 @@ void BUDataStructures::calculateGraph(DSGraph &Graph) {
                          (isComplete?0:DSGraph::DontCloneAuxCallNodes));
       ++NumInlines;
     }
-    if (isComplete)
-      TempFCs.erase(TempFCs.begin());
+    if (!isComplete)
+      AuxCallsList.push_front(CS);
+    TempFCs.erase(TempFCs.begin());
   }
 
   // Recompute the Incomplete markers
@@ -561,24 +560,23 @@ void BUDataStructures::calculateGraph(DSGraph &Graph) {
 }
 
 void BUDataStructures::inlineUnresolved(DSGraph &Graph) {
-  std::list<DSCallSite> TempFCs;
-  std::list<DSCallSite> &AuxCallsList = Graph.getAuxFunctionCalls();
-  TempFCs.insert(TempFCs.begin(), AuxCallsList.begin(), AuxCallsList.end());
-
-  std::vector<const Function*> CalledFuncs;
-  while (!TempFCs.empty()) {
-    DSCallSite CS = *TempFCs.begin();
-    TempFCs.erase(TempFCs.begin());
-    CalledFuncs.clear();
+  for (DSGraph::afc_iterator aii = Graph.afc_begin(), aee = Graph.afc_end(); 
+       aii != aee; ++aii) {
+    std::vector<const Function*> CalledFuncs;
+    DSCallSite CS = *aii;
     GetAnyCallees(CS, CalledFuncs);
     if (CalledFuncs.empty())
       continue;
 
     DSGraph *GI;
     Instruction *TheCall = CS.getCallSite().getInstruction();  
+
+    for (std::vector<const Function*>::iterator ii = CalledFuncs.begin(), ee = CalledFuncs.end();
+         ii != ee; ++ii)
+      callee_add(TheCall, *ii);
+
     if (CalledFuncs.size() == 1 && hasDSGraph(*CalledFuncs[0])) {
       const Function *Callee = CalledFuncs[0];
-      callee_add(TheCall, Callee);
 
       // Get the data structure graph for the called function.
       GI = &getDSGraph(*Callee);  // Graph to inline
@@ -600,12 +598,8 @@ void BUDataStructures::inlineUnresolved(DSGraph &Graph) {
       unsigned NumPrinted = 0;
       
       for (std::vector<const Function*>::iterator I = CalledFuncs.begin(),
-             E = CalledFuncs.end(); I != E; ++I) {
+             E = CalledFuncs.end(); I != E; ++I)
         if (NumPrinted++ < 8) DOUT << " " << (*I)->getName();
-        
-        // Add the call edges to the call graph.
-        callee_add(TheCall, *I);
-      }
       DOUT << "\n";
       
       for (unsigned x = 0; x < CalledFuncs.size(); )

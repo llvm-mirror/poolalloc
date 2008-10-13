@@ -61,7 +61,7 @@ void TDDataStructures::markReachableFunctionsExternallyAccessible(DSNode *N,
 // program.
 //
 bool TDDataStructures::runOnModule(Module &M) {
-  init(&getAnalysis<BUDataStructures>(), true, true, true);
+  init(&getAnalysis<BUDataStructures>(), true, true, true, false);
 
   // Figure out which functions must not mark their arguments complete because
   // they are accessible outside this compilation unit.  Currently, these

@@ -16,7 +16,6 @@
 
 #include "dsa/DataStructure.h"
 #include "dsa/DSGraph.h"
-#include "dsa/CallTargets.h"
 #include "poolalloc/PoolAllocate.h"
 #include "Heuristic.h"
 #include "llvm/Constants.h"

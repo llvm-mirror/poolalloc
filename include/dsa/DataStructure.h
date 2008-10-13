@@ -37,10 +37,10 @@ FunctionPass *createDataStructureStatsPass();
 FunctionPass *createDataStructureGraphCheckerPass();
 
 class DataStructures : public ModulePass {
-  typedef std::map<const Instruction*, std::set<const Function*> > ActualCalleesTy;
+  typedef hash_map<const Instruction*, hash_set<const Function*> > ActualCalleesTy;
   typedef hash_map<const Function*, DSGraph*> DSInfoTy;
 public:
-  typedef std::set<const Function*>::const_iterator callee_iterator;
+  typedef hash_set<const Function*>::const_iterator callee_iterator;
   
 private:
   /// TargetData, comes in handy
@@ -52,6 +52,10 @@ private:
   /// Do we clone Graphs or steal them?
   bool Clone;
 
+
+  /// do we reset the aux list to the func list?
+  bool resetAuxCalls;
+
   void buildGlobalECs(std::set<const GlobalValue*>& ECGlobals);
 
   void eliminateUsesOfECGlobals(DSGraph& G, const std::set<const GlobalValue*> &ECGlobals);
@@ -61,6 +65,9 @@ private:
 
   // Callgraph, as computed so far
   ActualCalleesTy ActualCallees;
+
+  // Name for printing
+  const char* printname;
 
 protected:
 
@@ -72,7 +79,7 @@ protected:
   EquivalenceClasses<const GlobalValue*> GlobalECs;
 
 
-  void init(DataStructures* D, bool clone, bool printAuxCalls, bool copyGlobalAuxCalls);
+  void init(DataStructures* D, bool clone, bool printAuxCalls, bool copyGlobalAuxCalls, bool resetAux);
   void init(TargetData* T);
 
   void formGlobalECs();
@@ -82,13 +89,18 @@ protected:
     ActualCallees[I].insert(F);
   }
 
-  DataStructures(intptr_t id) 
-    :ModulePass(id), TD(0), GraphSource(0), GlobalsGraph(0) {
+  DataStructures(intptr_t id, const char* name) 
+    :ModulePass(id), TD(0), GraphSource(0), printname(name), GlobalsGraph(0) {
     //a dummy node for empty call sites
     ActualCallees[0];
   }
 
 public:
+  /// print - Print out the analysis results...
+  ///
+  void print(std::ostream &O, const Module *M) const;
+  void dumpCallGraph() const;
+
   callee_iterator callee_begin(const Instruction *I) const {
     ActualCalleesTy::const_iterator ii = ActualCallees.find(I);
     if (ii == ActualCallees.end())
@@ -101,6 +113,10 @@ public:
     if (ii == ActualCallees.end())
       ii = ActualCallees.find(0);
     return ii->second.end();
+  }
+
+  void callee_site(const Instruction* I) {
+    ActualCallees[I];
   }
 
   unsigned callee_size() const {
@@ -159,14 +175,10 @@ public:
 class LocalDataStructures : public DataStructures {
 public:
   static char ID;
-  LocalDataStructures() : DataStructures((intptr_t)&ID) {}
+  LocalDataStructures() : DataStructures((intptr_t)&ID, "local.") {}
   ~LocalDataStructures() { releaseMemory(); }
 
   virtual bool runOnModule(Module &M);
-
-  /// print - Print out the analysis results...
-  ///
-  void print(std::ostream &O, const Module *M) const;
 
   /// getAnalysisUsage - This obviously provides a data structure graph.
   ///
@@ -181,14 +193,10 @@ class StdLibDataStructures : public DataStructures {
   void eraseCallsTo(Function* F);
 public:
   static char ID;
-  StdLibDataStructures() : DataStructures((intptr_t)&ID) {}
+  StdLibDataStructures() : DataStructures((intptr_t)&ID, "stdlib.") {}
   ~StdLibDataStructures() { releaseMemory(); }
 
   virtual bool runOnModule(Module &M);
-
-  /// print - Print out the analysis results...
-  ///
-  void print(std::ostream &O, const Module *M) const;
 
   /// getAnalysisUsage - This obviously provides a data structure graph.
   ///
@@ -209,15 +217,17 @@ protected:
            std::pair<DSGraph*, std::vector<DSNodeHandle> > > IndCallGraphMap;
 
   const char* debugname;
+  bool useCallGraph;
 
 public:
   static char ID;
   //Child constructor
-  BUDataStructures(intptr_t CID, const char* name)
-    : DataStructures(CID), debugname(name) {}
+  BUDataStructures(intptr_t CID, const char* name, const char* printname)
+    : DataStructures(CID, printname), debugname(name), useCallGraph(true) {}
   //main constructor
   BUDataStructures() 
-    : DataStructures((intptr_t)&ID), debugname("dsa-bu") {}
+    : DataStructures((intptr_t)&ID, "bu."), debugname("dsa-bu"),
+      useCallGraph(false) {}
   ~BUDataStructures() { releaseMemory(); }
 
   virtual bool runOnModule(Module &M);
@@ -226,10 +236,6 @@ public:
   /// These correspond to the interfaces defined in the AliasAnalysis class.
   void deleteValue(Value *V);
   void copyValue(Value *From, Value *To);
-
-  /// print - Print out the analysis results...
-  ///
-  void print(std::ostream &O, const Module *M) const;
 
   virtual void getAnalysisUsage(AnalysisUsage &AU) const {
     AU.addRequired<StdLibDataStructures>();
@@ -289,14 +295,10 @@ class TDDataStructures : public DataStructures {
 
 public:
   static char ID;
-  TDDataStructures() : DataStructures((intptr_t)&ID) {}
+  TDDataStructures() : DataStructures((intptr_t)&ID, "td.") {}
   ~TDDataStructures() { releaseMemory(); }
 
   virtual bool runOnModule(Module &M);
-
-  /// print - Print out the analysis results...
-  ///
-  void print(std::ostream &O, const Module *M) const;
 
   /// getAnalysisUsage - This obviously provides a data structure graph.
   ///
@@ -324,7 +326,7 @@ class CompleteBUDataStructures : public  BUDataStructures {
 public:
   static char ID;
   CompleteBUDataStructures()
-    : BUDataStructures((intptr_t)&ID, "dsa-cbu") {}
+    : BUDataStructures((intptr_t)&ID, "dsa-cbu", "cbu.") {}
   ~CompleteBUDataStructures() { releaseMemory(); }
 
   virtual bool runOnModule(Module &M);
@@ -333,9 +335,6 @@ public:
     AU.addRequired<BUDataStructures>();
   }
 
-  /// print - Print out the analysis results...
-  ///
-  void print(std::ostream &O, const Module *M) const;
 };
 
 } // End llvm namespace

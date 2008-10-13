@@ -146,7 +146,7 @@ DSNode::DSNode(const Type *T, DSGraph *G)
   if (T) mergeTypeInfo(T, 0);
   if (G) G->addNode(this);
   ++NumNodeAllocated;
-  DOUT << "LLVA: Creating (1) DSNode " << this << "\n";
+  //  DOUT << "LLVA: Creating (1) DSNode " << this << "\n";
 }
 
 // DSNode copy constructor... do not copy over the referrers list!
@@ -159,7 +159,7 @@ DSNode::DSNode(const DSNode &N, DSGraph *G, bool NullLinks)
     Links.resize(N.Links.size()); // Create the appropriate number of null links
   G->addNode(this);
   ++NumNodeAllocated;
-  DOUT << "LLVA: Creating (2) DSNode " << this << "\n";
+  //  DOUT << "LLVA: Creating (2) DSNode " << this << "\n";
 }
 
 DSNode::~DSNode() {
@@ -272,7 +272,7 @@ void DSNode::foldNodeCompletely() {
     DestNode->Size = 1;
     DestNode->Globals.swap(Globals);
     
-    DOUT << "LLVA: foldNode: " << this << " becomes " << DestNode << "\n";
+    //    DOUT << "LLVA: foldNode: " << this << " becomes " << DestNode << "\n";
 #ifdef LLVA_KERNEL
     //Again we have created a new DSNode, we need to fill in the
     // pool desc map appropriately
@@ -480,7 +480,7 @@ static bool ElementTypesAreCompatible(const Type *T1, const Type *T2,
 ///
 bool DSNode::mergeTypeInfo(const Type *NewTy, unsigned Offset,
                            bool FoldIfIncompatible) {
-  DOUT << "merging " << *NewTy << " at " << Offset << " with " << *Ty << "\n";
+  //DOUT << "merging " << *NewTy << " at " << Offset << " with " << *Ty << "\n";
   const TargetData &TD = getTargetData();
   // Check to make sure the Size member is up-to-date.  Size can be one of the
   // following:
@@ -978,7 +978,7 @@ void DSNode::MergeNodes(DSNodeHandle& CurNodeH, DSNodeHandle& NH) {
 /// point to this node).
 ///
 void DSNode::mergeWith(const DSNodeHandle &NH, unsigned Offset) {
-  DOUT << "mergeWith: " << this << " becomes " << NH.getNode() << "\n";
+  //DOUT << "mergeWith: " << this << " becomes " << NH.getNode() << "\n";
   DSNode *N = NH.getNode();
   if (N == this && NH.getOffset() == Offset)
     return;  // Noop
@@ -1229,7 +1229,7 @@ void ReachabilityCloner::merge(const DSNodeHandle &NH,
     }
   }
 
-  DOUT << "LLVA: mergeWith: " << SN << " becomes " << DN << "\n";
+  //  DOUT << "LLVA: mergeWith: " << SN << " becomes " << DN << "\n";
 
 #ifdef LLVA_KERNEL
   //Here some merge is going on just like in DSNode::merge
@@ -1670,6 +1670,8 @@ namespace {
 
     bool PathExistsToClonedNode(const DSCallSite &CS) {
       if (PathExistsToClonedNode(CS.getRetVal().getNode()))
+        return true;
+      if (CS.isDirectCall() || PathExistsToClonedNode(CS.getCalleeNode()))
         return true;
       for (unsigned i = 0, e = CS.getNumPtrArgs(); i != e; ++i)
         if (PathExistsToClonedNode(CS.getPtrArg(i).getNode()))
@@ -2134,6 +2136,7 @@ static void removeIdenticalCalls(std::list<DSCallSite> &Calls) {
       // If this call site is now the same as the previous one, we can delete it
       // as a duplicate.
       if (*OldIt == *CI) {
+        cerr << "Deleteing " << CI->getCallSite().getInstruction() << "\n";
         Calls.erase(CI);
         CI = OldIt;
         ++NumDeleted;
@@ -2732,7 +2735,8 @@ DSGraph& DataStructures::getOrCreateGraph(const Function* F) {
     } else {
       G = new DSGraph(GlobalECs, GraphSource->getTargetData());
       G->spliceFrom(BaseGraph);
-      G->getAuxFunctionCalls() = G->getFunctionCalls();
+      if (resetAuxCalls) 
+        G->getAuxFunctionCalls() = G->getFunctionCalls();
     }
     G->setPrintAuxCalls();
     G->setGlobalsGraph(GlobalsGraph);
@@ -2841,10 +2845,11 @@ void DataStructures::eliminateUsesOfECGlobals(DSGraph &G,
 }
 
 void DataStructures::init(DataStructures* D, bool clone, bool printAuxCalls, 
-                          bool copyGlobalAuxCalls) {
+                          bool copyGlobalAuxCalls, bool resetAux) {
   assert (!GraphSource && "Already init");
   GraphSource = D;
   Clone = clone;
+  resetAuxCalls = resetAux;
   TD = D->TD;
   ActualCallees = D->ActualCallees;
   GlobalECs = D->getGlobalECs();

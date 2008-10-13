@@ -32,7 +32,7 @@ char CompleteBUDataStructures::ID;
 // program.
 //
 bool CompleteBUDataStructures::runOnModule(Module &M) {
-  init(&getAnalysis<BUDataStructures>(), false, true, false);
+  init(&getAnalysis<BUDataStructures>(), false, true, false, true);
 
   buildIndirectFunctionSets(M);
 
@@ -49,11 +49,14 @@ void CompleteBUDataStructures::buildIndirectFunctionSets(Module &M) {
   //mege nodes in the global graph for these functions
   for (std::vector<const Instruction*>::iterator ii = keys.begin(), ee = keys.end();
        ii != ee; ++ii) {
-    callee_iterator base = callee_begin(*ii);
-    for (callee_iterator csi = callee_begin(*ii), cse = callee_end(*ii); 
-         csi != cse; ++csi) {
-      GlobalECs.unionSets(*base, *csi);
-      GlobalsGraph->getNodeForValue(*base).mergeWith(GlobalsGraph->getNodeForValue(*csi));
+    if (*ii) {
+      callee_iterator base = callee_begin(*ii);
+      
+      for (callee_iterator csi = callee_begin(*ii), cse = callee_end(*ii); 
+           csi != cse; ++csi) {
+        GlobalECs.unionSets(*base, *csi);
+        GlobalsGraph->getNodeForValue(*base).mergeWith(GlobalsGraph->getNodeForValue(*csi));
+      }
     }
   }
 }

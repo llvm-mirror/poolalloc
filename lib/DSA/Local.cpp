@@ -37,18 +37,6 @@ using namespace llvm;
 static RegisterPass<LocalDataStructures>
 X("dsa-local", "Local Data Structure Analysis");
 
-static cl::list<std::string>
-AllocList("dsa-alloc-list",
-          cl::value_desc("list"),
-          cl::desc("List of functions that allocate memory from the heap"),
-          cl::CommaSeparated, cl::Hidden);
-
-static cl::list<std::string>
-FreeList("dsa-free-list",
-          cl::value_desc("list"),
-          cl::desc("List of functions that free memory from the heap"),
-          cl::CommaSeparated, cl::Hidden);
-
 namespace {
   //===--------------------------------------------------------------------===//
   //  GraphBuilder Class
@@ -60,6 +48,7 @@ namespace {
   class GraphBuilder : InstVisitor<GraphBuilder> {
     DSGraph &G;
     Function* FB;
+    DataStructures* DS;
 
     ////////////////////////////////////////////////////////////////////////////
     // Helper functions used to implement the visitation functions...
@@ -129,8 +118,8 @@ namespace {
     void visitCallSite(CallSite CS);
 
   public:
-    GraphBuilder(Function &f, DSGraph &g)
-      : G(g), FB(&f) {
+    GraphBuilder(Function &f, DSGraph &g, DataStructures& DSi)
+      : G(g), FB(&f), DS(&DSi) {
       // Create scalar nodes for all pointer arguments...
       for (Function::arg_iterator I = f.arg_begin(), E = f.arg_end();
            I != E; ++I) {
@@ -172,6 +161,7 @@ namespace {
     {}
 
     void mergeInGlobalInitializer(GlobalVariable *GV);
+    void mergeFunction(Function& F) { getValueDest(F); }
   };
 }
 
@@ -194,9 +184,13 @@ DSNodeHandle GraphBuilder::getValueDest(Value &Val) {
   // Check first for constant expressions that must be traversed to
   // extract the actual value.
   DSNode* N;
-  if (GlobalValue* GV = dyn_cast<GlobalValue>(V)) {
+  if (GlobalVariable* GV = dyn_cast<GlobalVariable>(V)) {
     // Create a new global node for this global variable.
     N = createNode(GV->getType()->getElementType());
+    N->addGlobal(GV);
+  } else if (Function* GV = dyn_cast<Function>(V)) {
+    // Create a new global node for this global variable.
+    N = createNode();
     N->addGlobal(GV);
   } else if (Constant *C = dyn_cast<Constant>(V)) {
     if (ConstantExpr *CE = dyn_cast<ConstantExpr>(C)) {
@@ -637,29 +631,9 @@ void GraphBuilder::visitCallSite(CallSite CS) {
 
   // Special case handling of certain libc allocation functions here.
   if (Function *F = dyn_cast<Function>(Callee))
-    if (F->isDeclaration()) {
+    if (F->isDeclaration())
       if (F->isIntrinsic() && visitIntrinsic(CS, F))
         return;
-      else {
-        // Determine if the called function is one of the specified heap
-        // allocation functions
-        if (AllocList.end() != std::find(AllocList.begin(), AllocList.end(), F->getName())) {
-          setDestTo(*CS.getInstruction(),
-                    createNode()->setHeapMarker()->setModifiedMarker());
-          return;
-        }
-
-        // Determine if the called function is one of the specified heap
-        // free functions
-        if (FreeList.end() != std::find(FreeList.begin(), FreeList.end(),
-                                        F->getName())) {
-          // Mark that the node is written to...
-          if (DSNode *N = getValueDest(*(CS.getArgument(0))).getNode())
-            N->setModifiedMarker()->setHeapMarker();
-          return;
-        }
-      }
-    }
 
   // Set up the return value...
   DSNodeHandle RetVal;
@@ -685,9 +659,10 @@ void GraphBuilder::visitCallSite(CallSite CS) {
       Args.push_back(getValueDest(**I));
 
   // Add a new function call entry...
-  if (CalleeNode)
+  if (CalleeNode) {
     G.getFunctionCalls().push_back(DSCallSite(CS, RetVal, CalleeNode, Args));
-  else
+    DS->callee_site(CS.getInstruction());
+  }else
     G.getFunctionCalls().push_back(DSCallSite(CS, RetVal, cast<Function>(Callee),
                                               Args));
 }
@@ -776,6 +751,10 @@ bool LocalDataStructures::runOnModule(Module &M) {
          I != E; ++I)
       if (!I->isDeclaration())
         GGB.mergeInGlobalInitializer(I);
+    // Add Functions to the globals graph.
+    for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I)
+      if (!I->isDeclaration())
+        GGB.mergeFunction(*I);
   }
 
   // Next step, iterate through the nodes in the globals graph, unioning
@@ -786,7 +765,8 @@ bool LocalDataStructures::runOnModule(Module &M) {
   for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I)
     if (!I->isDeclaration()) {
       DSGraph* G = new DSGraph(GlobalECs, getTargetData(), GlobalsGraph);
-      GraphBuilder GGB(*I, *G);
+      GraphBuilder GGB(*I, *G, *this);
+      G->getAuxFunctionCalls() = G->getFunctionCalls();
       setDSGraph(*I, G);
     }
 

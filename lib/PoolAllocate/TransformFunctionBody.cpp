@@ -36,7 +36,6 @@ namespace {
     PoolAllocate &PAInfo;
     DSGraph &G;      // The Bottom-up DS Graph
     FuncInfo &FI;
-    CallTargetFinder* CTF;
 
     // PoolUses - For each pool (identified by the pool descriptor) keep track
     // of which blocks require the memory in the pool to not be freed.  This
@@ -50,9 +49,8 @@ namespace {
 
     FuncTransform(PoolAllocate &P, DSGraph &g, FuncInfo &fi,
                   std::multimap<AllocaInst*, Instruction*> &poolUses,
-                  std::multimap<AllocaInst*, CallInst*> &poolFrees,
-		  CallTargetFinder* ctf)
-      : PAInfo(P), G(g), FI(fi), CTF(ctf),
+                  std::multimap<AllocaInst*, CallInst*> &poolFrees)
+      : PAInfo(P), G(g), FI(fi), 
         PoolUses(poolUses), PoolFrees(poolFrees) {
     }
 
@@ -126,7 +124,7 @@ void PoolAllocate::TransformBody(DSGraph &g, PA::FuncInfo &fi,
                               std::multimap<AllocaInst*,Instruction*> &poolUses,
                               std::multimap<AllocaInst*, CallInst*> &poolFrees,
                                  Function &F) {
-  FuncTransform(*this, g, fi, poolUses, poolFrees, CTF).visit(F);
+  FuncTransform(*this, g, fi, poolUses, poolFrees).visit(F);
 }
 
 
@@ -616,57 +614,16 @@ void FuncTransform::visitCallSite(CallSite& CS) {
     Instruction *OrigInst =
       cast<Instruction>(getOldValueIfAvailable(CS.getInstruction()));
 
-    for (DataStructures::callee_iterator I = Graphs.callee_begin(OrigInst), 
-           E = Graphs.callee_end(OrigInst); I != E; ++I) {
-      CF = *I;
-      break;
-    }
-
-    // If we didn't find the callee in the constructed call graph, try
-    // checking in the DSNode itself.
-    // This isn't ideal as it means that this call site didn't have inlining
-    // happen.
-    if (!CF) {
-      DSGraph* dg = &Graphs.getDSGraph(*OrigInst->getParent()->getParent());
-      DSNode* d = dg->getNodeForValue(OrigInst->getOperand(0)).getNode();
-      const std::vector<const GlobalValue*> &g = d->getGlobalsList();
-      for(std::vector<const GlobalValue*>::const_iterator ii = g.begin(), ee = g.end();
-	  !CF && ii != ee; ++ii) {
-        EquivalenceClasses< const GlobalValue *> & EC = Graphs.getGlobalECs();
-        for (EquivalenceClasses<const GlobalValue *>::member_iterator MI = EC.findLeader(*ii);
-             MI != EC.member_end(); ++MI)   // Loop over members in this set.
-          if ((CF = dyn_cast<Function>(*MI))) {
-	    std::cerr << "\n***\nPA: *** WARNING (FuncTransform::visitCallSite): "
-		      << "Using DSNode for callees for call-site in function "
-		      << CS.getCaller()->getName() << "\n***\n";
- 	    break;
-	  }
-      }
-    }
-
-    if (!CF && CTF) {
-      std::cerr << "\nPA: Last Resort TD Indirect Resolve in " << CS.getCaller()->getName() << "\n";
-      CF = *CTF->begin(isa<CallInst>(OrigInst)?CallSite(cast<CallInst>(OrigInst))
-		       :CallSite(cast<InvokeInst>(OrigInst)));
-      if (CF) std::cerr << "TD resolved to " << CF->getName() << "\n";
-    }
-
-    if (!CF) {
-      // FIXME: Unknown callees for a call-site. Warn and ignore.
-      std::cerr << "\n***\nPA: *** WARNING (FuncTransform::visitCallSite): "
-                << "Unknown callees for call-site in function "
-                << CS.getCaller()->getName() << "\n***\n";
-      abort();
-      return;
-    }
+    DataStructures::callee_iterator I = Graphs.callee_begin(OrigInst);
+    assert (I != Graphs.callee_end(OrigInst) && "No call graph info");
+    CF = *I;
 
     // Get the common graph for the set of functions this call may invoke.
     CalleeGraph = &Graphs.getDSGraph(*CF);
     
 #ifndef NDEBUG
     // Verify that all potential callees at call site have the same DS graph.
-    DataStructures::callee_iterator I =
-      Graphs.callee_begin(OrigInst), E = Graphs.callee_end(OrigInst);
+    DataStructures::callee_iterator E = Graphs.callee_end(OrigInst);
     for (; I != E; ++I)
       if (!(*I)->isDeclaration())
         assert(CalleeGraph == &Graphs.getDSGraph(**I) &&

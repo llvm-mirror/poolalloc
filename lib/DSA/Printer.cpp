@@ -35,6 +35,7 @@ using namespace llvm;
 namespace {
   cl::opt<bool> OnlyPrintMain("only-print-main-ds", cl::ReallyHidden);
   cl::opt<bool> DontPrintAnything("dont-print-ds", cl::ReallyHidden);
+  cl::opt<bool> LimitPrint("dsa-limit-print", cl::Hidden);
   STATISTIC (MaxGraphSize   , "Maximum graph size");
   STATISTIC (NumFoldedNodes , "Number of folded nodes (in final graph)");
 }
@@ -158,21 +159,23 @@ struct DOTGraphTraits<const DSGraph*> : public DefaultDOTGraphTraits {
     }
 
 
-    // Add scalar nodes to the graph...
-    const DSGraph::ScalarMapTy &VM = G->getScalarMap();
-    for (DSGraph::ScalarMapTy::const_iterator I = VM.begin(); I != VM.end();++I)
-      if (!isa<GlobalValue>(I->first)) {
-        std::stringstream OS;
-        WriteAsOperand(OS, I->first, false, CurMod);
-        GW.emitSimpleNode(I->first, "", OS.str());
-
-        // Add edge from return node to real destination
-        DSNode *DestNode = I->second.getNode();
-        int EdgeDest = I->second.getOffset() >> DS::PointerShift;
-        if (EdgeDest == 0) EdgeDest = -1;
-        GW.emitEdge(I->first, -1, DestNode,
-                    EdgeDest, "arrowtail=tee,color=gray63");
-      }
+    if (!LimitPrint) {
+      // Add scalar nodes to the graph...
+      const DSGraph::ScalarMapTy &VM = G->getScalarMap();
+      for (DSGraph::ScalarMapTy::const_iterator I = VM.begin(); I != VM.end();++I)
+        if (!isa<GlobalValue>(I->first)) {
+          std::stringstream OS;
+          WriteAsOperand(OS, I->first, false, CurMod);
+          GW.emitSimpleNode(I->first, "", OS.str());
+          
+          // Add edge from return node to real destination
+          DSNode *DestNode = I->second.getNode();
+          int EdgeDest = I->second.getOffset() >> DS::PointerShift;
+          if (EdgeDest == 0) EdgeDest = -1;
+          GW.emitEdge(I->first, -1, DestNode,
+                      EdgeDest, "arrowtail=tee,color=gray63");
+        }
+    }
 
 
     // Output the returned value pointer...
@@ -333,28 +336,23 @@ static void printCollection(const Collection &C, std::ostream &O,
 }
 
 
+void DataStructures::dumpCallGraph() const {
+  for(  ActualCalleesTy::const_iterator ii = ActualCallees.begin(), ee = ActualCallees.end();
+        ii != ee; ++ii) {
+    if (ii->first) cerr << ii->first->getParent()->getParent()->getName() << " ";
+    cerr << ii->first << ": [";
+    for (callee_iterator cbi = ii->second.begin(), cbe = ii->second.end();
+         cbi != cbe; ++cbi) {
+      cerr << (*cbi)->getName() << " ";
+    }
+    cerr << "]\n";
+    if (ii->first) ii->first->dump();
+  }
+}
+
 // print - Print out the analysis results...
-void LocalDataStructures::print(std::ostream &O, const Module *M) const {
+void DataStructures::print(std::ostream &O, const Module *M) const {
   if (DontPrintAnything) return;
-  printCollection(*this, O, M, "ds.");
-}
-
-void StdLibDataStructures::print(std::ostream &O, const Module *M) const {
-  if (DontPrintAnything) return;
-  printCollection(*this, O, M, "ds.");
-}
-
-void BUDataStructures::print(std::ostream &O, const Module *M) const {
-  if (DontPrintAnything) return;
-  printCollection(*this, O, M, "bu.");
-}
-
-void TDDataStructures::print(std::ostream &O, const Module *M) const {
-  if (DontPrintAnything) return;
-  printCollection(*this, O, M, "td.");
-}
-
-void CompleteBUDataStructures::print(std::ostream &O, const Module *M) const {
-  if (DontPrintAnything) return;
-  printCollection(*this, O, M, "cbu.");
+  printCollection(*this, O, M, printname);
+  dumpCallGraph();
 }
