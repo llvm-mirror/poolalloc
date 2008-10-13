@@ -232,11 +232,6 @@ public:
 
   virtual bool runOnModule(Module &M);
 
-  /// deleteValue/copyValue - Interfaces to update the DSGraphs in the program.
-  /// These correspond to the interfaces defined in the AliasAnalysis class.
-  void deleteValue(Value *V);
-  void copyValue(Value *From, Value *To);
-
   virtual void getAnalysisUsage(AnalysisUsage &AU) const {
     AU.addRequired<StdLibDataStructures>();
   }
