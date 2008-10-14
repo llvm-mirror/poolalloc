@@ -1,12 +1,22 @@
+template<typename dataTy>
+struct range_tree_node {
+  range_tree_node* left;
+  range_tree_node* right;
+  void* start;
+  void* end;
+  dataTy data;
+};
 
-class SplayRangeSet {
-  struct tree_node {
-    tree_node* left;
-    tree_node* right;
-    void* start;
-    void* end;
-  };
+template<>
+struct range_tree_node <void>{
+  range_tree_node* left;
+  range_tree_node* right;
+  void* start;
+  void* end;
+};
 
+template<typename tree_node>
+class RangeSplayTree {
   tree_node* Tree;
 
   tree_node* rotate_right(tree_node* p) {
@@ -76,16 +86,16 @@ class SplayRangeSet {
     return 0;
   }
 
- public:
+ protected:
 
-  SplayRangeSet() : Tree(0) {}
-  ~SplayRangeSet() { clear(); }
+  RangeSplayTree() : Tree(0) {}
+  ~RangeSplayTree() { __clear(); }
   
-  bool insert(void* start, void* end) {
+  tree_node* __insert(void* start, void* end) {
     Tree = splay(Tree, start);
     //If the key is already in, fail the insert
     if (Tree && !key_lt(start, Tree) && !key_gt(start, Tree))
-      return false;
+      return 0;
     
     tree_node* n = new tree_node();
     n->start = start;
@@ -103,9 +113,10 @@ class SplayRangeSet {
       }
     }
     Tree = n;
+    return Tree;
   }
 
-  bool remove(void* key) {
+  bool __remove(void* key) {
     if (!Tree) return false;
     Tree = splay(Tree, key);
     if (!key_lt(key, Tree) && !key_gt(key, Tree)) {
@@ -124,32 +135,93 @@ class SplayRangeSet {
     return false; /* not there */
   }
 
-  unsigned count() {
+  unsigned __count() {
     return count_internal(Tree);
   }
 
-  void clear() {
+  void __clear() {
     while (Tree)
-      remove (Tree->start);
+      __remove (Tree->start);
   }
 
-  bool find(void* key, void*& start, void*& end) {
+  tree_node* __find(void* key) {
     if (!Tree) return false;
     Tree = splay(Tree, key);
     if (!key_lt(key, Tree) && !key_gt(key, Tree)) {
-      start = Tree->start;
-      end = Tree->end;
-      return true;
+      return Tree;
     }
-    return false;
+    return 0;
   }
-  bool find(void* key) {
-    if (!Tree) return false;
-    Tree = splay(Tree, key);
-    if (!key_lt(key, Tree) && !key_gt(key, Tree)) {
-      return true;
-    }
-    return false;
-  }
+};
 
+class RangeSplaySet : RangeSplayTree<range_tree_node<void> > {
+ public:
+  RangeSplaySet() : RangeSplayTree<range_tree_node<void> >() {}
+ 
+    bool insert(void* start, void* end) {
+      return 0 != __insert(start,end);
+    }
+
+    bool remove(void* key) {
+      return __remove(key);
+    }
+
+    bool count() { return __count(); }
+
+    void clear() { __clear(); }
+
+    bool find(void* key, void*& start, void*& end) {
+      range_tree_node<void>* t = __find(key);
+      if (!t) return false;
+      start = t->start;
+      end = t->end;
+      return true;
+    }
+    bool find(void* key) {
+      range_tree_node<void>* t = __find(key);
+      if (!t) return false;
+      return true;
+    }
+};
+
+template<typename T>
+class RangeSplayMap : RangeSplayTree<range_tree_node<T> > {
+ public:
+  RangeSplayMap() : RangeSplayTree<range_tree_node<T> >() {}
+ 
+    using RangeSplayTree<range_tree_node<T> >::__insert;
+    using RangeSplayTree<range_tree_node<T> >::__remove;
+    using RangeSplayTree<range_tree_node<T> >::__count;
+    using RangeSplayTree<range_tree_node<T> >::__clear;
+    using RangeSplayTree<range_tree_node<T> >::__find;
+
+
+    bool insert(void* start, void* end, T& d) {
+      range_tree_node<T>* t =  __insert(start,end);
+      if (t == 0) return false;
+      t->data = d;
+      return true;
+    }
+
+    bool remove(void* key) {
+      return __remove(key);
+    }
+
+    bool count() { return __count(); }
+
+    void clear() { __clear(); }
+
+    bool find(void* key, void*& start, void*& end, T& d) {
+      range_tree_node<T>* t = __find(key);
+      if (!t) return false;
+      start = t->start;
+      end = t->end;
+      d = t->data;
+      return true;
+    }
+    bool find(void* key) {
+      range_tree_node<T>* t = __find(key);
+      if (!t) return false;
+      return true;
+    }
 };

@@ -51,7 +51,7 @@ class mmapPageManager {
 
 template<class PageManager>
 class MallocSlabManager {
-  SplayRangeSet objs;
+  RangeSplaySet objs;
   unsigned objsize;
  protected:
   MallocSlabManager(unsigned Osize, unsigned Alignment) : objsize(Osize) {}
@@ -68,7 +68,7 @@ class MallocSlabManager {
   bool slab_valid(void* obj) {
     return objs.find(obj);
   }
-  void* slab_getbounds(void* obj, void*& start, void*& end) {
+  bool slab_getbounds(void* obj, void*& start, void*& end) {
     return objs.find(obj, start, end);
   } 
 
