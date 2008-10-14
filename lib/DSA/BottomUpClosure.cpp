@@ -360,8 +360,10 @@ void BUDataStructures::CloneAuxIntoGlobal(DSGraph& G) {
         if (GGii->getCallSite().getInstruction()->getOperand(0) ==
             ii->getCallSite().getInstruction()->getOperand(0))
           break;
-      assert (GGii != GG.afc_end() && "Callsite should exist but doesn't");
-      RC.cloneCallSite(*ii).mergeWith(*GGii);
+      if (GGii != GG.afc_end())
+        RC.cloneCallSite(*ii).mergeWith(*GGii);
+      else
+        GG.getAuxFunctionCalls().push_front(RC.cloneCallSite(*ii));
     } else {
       GG.getAuxFunctionCalls().push_front(RC.cloneCallSite(*ii));
     }
