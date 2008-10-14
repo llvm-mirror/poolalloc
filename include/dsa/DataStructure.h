@@ -203,7 +203,6 @@ public:
   ///
   virtual void getAnalysisUsage(AnalysisUsage &AU) const {
     AU.addRequired<LocalDataStructures>();
-    AU.setPreservesAll();
   }
 };
 
@@ -236,7 +235,6 @@ public:
 
   virtual void getAnalysisUsage(AnalysisUsage &AU) const {
     AU.addRequired<StdLibDataStructures>();
-    AU.setPreservesAll();
   }
 
 protected:
@@ -332,7 +330,6 @@ public:
 
   virtual void getAnalysisUsage(AnalysisUsage &AU) const {
     AU.addRequired<BUDataStructures>();
-    AU.setPreservesAll();
   }
 
 };
