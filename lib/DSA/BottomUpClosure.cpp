@@ -48,7 +48,7 @@ bool BUDataStructures::runOnModuleInternal(Module& M) {
   unsigned NextID = 1;
 
   Function *MainFunc = M.getFunction("main");
-  if (MainFunc) {
+  if (MainFunc && !MainFunc->isDeclaration()) {
     calculateGraphs(MainFunc, Stack, NextID, ValMap);
     CloneAuxIntoGlobal(getDSGraph(*MainFunc));
   } else {
