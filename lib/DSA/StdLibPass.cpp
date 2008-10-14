@@ -60,7 +60,7 @@ const struct {
   {"fstat",      {NRET_YNARGS, NRET_NYARGS, NRET_NARGS, false, false, false}},
   {"lstat",      {NRET_YNARGS, NRET_NYARGS, NRET_NARGS, false, false, false}},
 
-  //printf not strictly true, %n could cause a write
+  // printf not strictly true, %n could cause a write
   {"printf",     {NRET_YARGS,  NRET_NARGS,  NRET_NARGS, false, false, false}},
   {"fprintf",    {NRET_YARGS,  NRET_YNARGS, NRET_NARGS, false, false, false}},
   {"sprintf",    {NRET_YARGS,  NRET_YNARGS, NRET_NARGS, false, false, false}},
@@ -140,16 +140,17 @@ const struct {
   {"fopen",      {false,  true,  true,  true, false, false, false, false, false}},
   {"getcwd",     { true,  true,  true,  true,  true,  true, false,  true,  true}},
 #endif
-  //C++ functions, as mangled on linux gcc 4.2
-  //operator new(unsigned long)
+  // C++ functions, as mangled on linux gcc 4.2
+  // operator new(unsigned long)
   {"_Znwm",      {NRET_NARGS, YRET_NARGS, YRET_NARGS,  false, false, false}},
-  //operator new[](unsigned long)
+  // operator new[](unsigned long)
   {"_Znam",      {NRET_NARGS, YRET_NARGS, YRET_NARGS,  false, false, false}},
-  //operator delete(void*)
+  // operator delete(void*)
   {"_ZdlPv",     {NRET_NARGS, NRET_NARGS, NRET_YNARGS,  false, false, false}},
-  //operator delete[](void*)
+  // operator delete[](void*)
   {"_ZdaPv",     {NRET_NARGS, NRET_NARGS, NRET_YNARGS,  false, false, false}},
-
+  // Terminate the list of special functions recognized by this pass
+  {0,            {false, false, false, false, false, false}},
 };
 
 void StdLibDataStructures::eraseCallsTo(Function* F) {
