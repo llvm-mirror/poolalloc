@@ -13,22 +13,22 @@ class PoolAllocator : SlabManager<PageManager> {
     {}
     
     
-    //In-place new operator
-    static void* operator new( std::size_t s, void* p ) throw() {
-      return p;
-    }
+  //In-place new operator
+  static void* operator new( std::size_t s, void* p ) throw() {
+    return p;
+  }
     
-    //Allocate an object of size objsize
-    void* alloc() {
-      return slab_alloc(1);
-    }
+  //Allocate an object of size objsize
+  void* alloc() {
+    return slab_alloc(1);
+  }
     
-    //Allocate an array with num objects of size objsize
-    void* alloc_array(unsigned num) {
-      return slab_alloc(num);
-    }
+  //Allocate an array with num objects of size objsize
+  void* alloc_array(unsigned num) {
+    return slab_alloc(num);
+  }
     
-    //Free allocated object
+  //Free allocated object
   void dealloc(void* obj) {
     slab_free(obj);
   }

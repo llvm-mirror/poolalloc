@@ -70,7 +70,7 @@ namespace {
   STATISTIC (NumTSPools  , "Number of typesafe pools");
   STATISTIC (NumPoolFree , "Number of poolfree's elided");
   STATISTIC (NumNonprofit, "Number of DSNodes not profitable");
-  STATISTIC (NumColocated, "Number of DSNodes colocated");
+  //  STATISTIC (NumColocated, "Number of DSNodes colocated");
 
   const Type *VoidPtrTy;
 
