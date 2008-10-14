@@ -68,8 +68,15 @@ class MallocSlabManager {
   bool slab_valid(void* obj) {
     return objs.find(obj);
   }
+  bool slab_contains(void* obj) {
+    return objs.find(obj);
+  }
   bool slab_getbounds(void* obj, void*& start, void*& end) {
     return objs.find(obj, start, end);
-  } 
+  }
+};
+
+template<class PageManager, unsigned PageShiftAmount>
+class BitMaskSlabManager {
 
 };
