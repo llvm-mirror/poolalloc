@@ -332,6 +332,7 @@ public:
 
   virtual void getAnalysisUsage(AnalysisUsage &AU) const {
     AU.addRequired<BUDataStructures>();
+    AU.setPreservesAll();
   }
 
 };
