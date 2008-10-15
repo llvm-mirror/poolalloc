@@ -714,7 +714,7 @@ void InstructionRewriter::visitGetElementPtrInst(GetElementPtrInst &GEPI) {
         uint64_t FieldOffs = TD.getStructLayout(cast<StructType>(NTy))
           ->getElementOffset(Field);
         Constant *FieldOffsCst = ConstantInt::get(SCALARUINTTYPE, FieldOffs);
-        Val = BinaryOperator::createAdd(Val, FieldOffsCst,
+        Val = BinaryOperator::CreateAdd(Val, FieldOffsCst,
                                         GEPI.getName(), &GEPI);
       }
 
@@ -730,12 +730,12 @@ void InstructionRewriter::visitGetElementPtrInst(GetElementPtrInst &GEPI) {
         // Add Idx*sizeof(NewElementType) to the index.
         const Type *ElTy = cast<SequentialType>(NTy)->getElementType();
         if (Idx->getType() != SCALARUINTTYPE)
-          Idx = CastInst::createSExtOrBitCast(Idx, SCALARUINTTYPE, Idx->getName(), &GEPI);
+          Idx = CastInst::CreateSExtOrBitCast(Idx, SCALARUINTTYPE, Idx->getName(), &GEPI);
 
         Constant *Scale = ConstantInt::get(SCALARUINTTYPE,
                                             TD.getABITypeSize(ElTy));
-        Idx = BinaryOperator::createMul(Idx, Scale, "fieldidx", &GEPI);
-        Val = BinaryOperator::createAdd(Val, Idx, GEPI.getName(), &GEPI);
+        Idx = BinaryOperator::CreateMul(Idx, Scale, "fieldidx", &GEPI);
+        Val = BinaryOperator::CreateAdd(Val, Idx, GEPI.getName(), &GEPI);
       }
 
       // If this is a one element array type, NTy may not reflect the array.
@@ -756,7 +756,7 @@ void InstructionRewriter::visitLoadInst(LoadInst &LI) {
     // type.
     if (getPoolInfo(&LI)) {
       Value *NLI = new LoadInst(LI.getOperand(0), LI.getName()+".cp", &LI);
-      Value *NC = CastInst::createZExtOrBitCast(NLI, SCALARUINTTYPE, NLI->getName(), &LI);
+      Value *NC = CastInst::CreateZExtOrBitCast(NLI, SCALARUINTTYPE, NLI->getName(), &LI);
       setTransformedValue(LI, NC);
     }
     return;
@@ -772,11 +772,11 @@ void InstructionRewriter::visitLoadInst(LoadInst &LI) {
   // Get the pointer to load from.
   Value* Ops = getTransformedValue(LI.getOperand(0));
   if (Ops->getType() == Type::Int16Ty)
-    Ops = CastInst::createZExtOrBitCast(Ops, Type::Int32Ty, "extend_idx", &LI);
+    Ops = CastInst::CreateZExtOrBitCast(Ops, Type::Int32Ty, "extend_idx", &LI);
   Value *SrcPtr = GetElementPtrInst::Create(BasePtr, Ops,
                                         LI.getOperand(0)->getName()+".pp", &LI);
   const Type *DestTy = LoadingCompressedPtr ? MEMUINTTYPE : LI.getType();
-  SrcPtr = CastInst::createPointerCast(SrcPtr, PointerType::getUnqual(DestTy),
+  SrcPtr = CastInst::CreatePointerCast(SrcPtr, PointerType::getUnqual(DestTy),
                                       SrcPtr->getName(), &LI);
   std::string OldName = LI.getName(); LI.setName("");
   Value *NewLoad = new LoadInst(SrcPtr, OldName, &LI);
@@ -784,7 +784,7 @@ void InstructionRewriter::visitLoadInst(LoadInst &LI) {
   if (LoadingCompressedPtr) {
     // Convert from MEMUINTTYPE to SCALARUINTTYPE if different.
     if (MEMUINTTYPE != SCALARUINTTYPE)
-      NewLoad = CastInst::createZExtOrBitCast(NewLoad, SCALARUINTTYPE, NewLoad->getName(), &LI);
+      NewLoad = CastInst::CreateZExtOrBitCast(NewLoad, SCALARUINTTYPE, NewLoad->getName(), &LI);
 
     setTransformedValue(LI, NewLoad);
   } else {
@@ -803,7 +803,7 @@ void InstructionRewriter::visitStoreInst(StoreInst &SI) {
     // cast the index to a pointer type and store that.
     if (getPoolInfo(SI.getOperand(0))) {
       Value *SrcVal = getTransformedValue(SI.getOperand(0));
-      SrcVal = CastInst::createPointerCast(SrcVal, SI.getOperand(0)->getType(),
+      SrcVal = CastInst::CreatePointerCast(SrcVal, SI.getOperand(0)->getType(),
                                            SrcVal->getName(), &SI);
       SI.setOperand(0, SrcVal);
     }
@@ -824,7 +824,7 @@ void InstructionRewriter::visitStoreInst(StoreInst &SI) {
 
       // If SCALAR type is not the MEM type, reduce it now.
       if (SrcVal->getType() != MEMUINTTYPE)
-        SrcVal = CastInst::createZExtOrBitCast(SrcVal, MEMUINTTYPE, SrcVal->getName(), &SI);
+        SrcVal = CastInst::CreateZExtOrBitCast(SrcVal, MEMUINTTYPE, SrcVal->getName(), &SI);
     }
   } else {
     // FIXME: This assumes that all null pointers are compressed!
@@ -837,12 +837,12 @@ void InstructionRewriter::visitStoreInst(StoreInst &SI) {
   // Get the pointer to store to.
   Value* Ops = getTransformedValue(SI.getOperand(1));
   if (Ops->getType() == Type::Int16Ty)
-    Ops = CastInst::createZExtOrBitCast(Ops, Type::Int32Ty, "extend_idx", &SI);
+    Ops = CastInst::CreateZExtOrBitCast(Ops, Type::Int32Ty, "extend_idx", &SI);
 
   Value *DestPtr = GetElementPtrInst::Create(BasePtr, Ops,
                                          SI.getOperand(1)->getName()+".pp",
                                          &SI);
-  DestPtr = CastInst::createPointerCast(DestPtr,
+  DestPtr = CastInst::CreatePointerCast(DestPtr,
                                         PointerType::getUnqual(SrcVal->getType()),
                                         DestPtr->getName(), &SI);
   new StoreInst(SrcVal, DestPtr, &SI);
@@ -904,11 +904,11 @@ void InstructionRewriter::visitPoolAlloc(CallInst &CI) {
       Value *OldSize = ConstantInt::get(Type::Int32Ty, OldSizeV);
       Value *NewSize = ConstantInt::get(Type::Int32Ty, PI->getNewSize());
 
-      Size = BinaryOperator::createAdd(Size,
+      Size = BinaryOperator::CreateAdd(Size,
                                   ConstantInt::get(Type::Int32Ty, OldSizeV-1),
                                        "roundup", &CI);
-      Size = BinaryOperator::createUDiv(Size, OldSize, "numnodes", &CI);
-      Size = BinaryOperator::createMul(Size, NewSize, "newbytes", &CI);
+      Size = BinaryOperator::CreateUDiv(Size, OldSize, "numnodes", &CI);
+      Size = BinaryOperator::CreateMul(Size, NewSize, "newbytes", &CI);
     }
 
   Value *Opts[2] = {CI.getOperand(1), Size};
@@ -971,7 +971,7 @@ void InstructionRewriter::visitCallInst(CallInst &CI) {
         Value *BasePtr = DestPI->EmitPoolBaseLoad(CI);
         Value *SrcPtr = GetElementPtrInst::Create(BasePtr, getTransformedValue(CI.getOperand(2)),
                                        CI.getOperand(2)->getName()+".pp", &CI);
-        SrcPtr = CastInst::createPointerCast(SrcPtr, CI.getOperand(2)->getType(), "", &CI);
+        SrcPtr = CastInst::CreatePointerCast(SrcPtr, CI.getOperand(2)->getType(), "", &CI);
         CI.setOperand(2, SrcPtr);
         return;
       }
@@ -980,7 +980,7 @@ void InstructionRewriter::visitCallInst(CallInst &CI) {
         Value *BasePtr = DestPI->EmitPoolBaseLoad(CI);
         Value *SrcPtr = GetElementPtrInst::Create(BasePtr, getTransformedValue(CI.getOperand(1)),
                                        CI.getOperand(1)->getName()+".pp", &CI);
-        SrcPtr = CastInst::createPointerCast(SrcPtr, CI.getOperand(1)->getType(), "", &CI);
+        SrcPtr = CastInst::CreatePointerCast(SrcPtr, CI.getOperand(1)->getType(), "", &CI);
         CI.setOperand(1, SrcPtr);
         return;
       }
@@ -991,7 +991,7 @@ void InstructionRewriter::visitCallInst(CallInst &CI) {
         Value *BasePtr = DestPI->EmitPoolBaseLoad(CI);
         Value *SrcPtr = GetElementPtrInst::Create(BasePtr, getTransformedValue(CI.getOperand(1)),
                                        CI.getOperand(1)->getName()+".pp", &CI);
-        SrcPtr = CastInst::createPointerCast(SrcPtr, CI.getOperand(1)->getType(), "", &CI);
+        SrcPtr = CastInst::CreatePointerCast(SrcPtr, CI.getOperand(1)->getType(), "", &CI);
         CI.setOperand(1, SrcPtr);
         return;
       }
@@ -1003,7 +1003,7 @@ void InstructionRewriter::visitCallInst(CallInst &CI) {
         Value *BasePtr = DestPI->EmitPoolBaseLoad(CI);
         Value *SrcPtr = GetElementPtrInst::Create(BasePtr, getTransformedValue(CI.getOperand(1)),
                                        CI.getOperand(1)->getName()+".pp", &CI);
-        SrcPtr = CastInst::createPointerCast(SrcPtr, CI.getOperand(1)->getType(), "", &CI);
+        SrcPtr = CastInst::CreatePointerCast(SrcPtr, CI.getOperand(1)->getType(), "", &CI);
         CI.setOperand(1, SrcPtr);
         doret = true;
       }
@@ -1011,7 +1011,7 @@ void InstructionRewriter::visitCallInst(CallInst &CI) {
         Value *BasePtr = DestPI->EmitPoolBaseLoad(CI);
         Value *SrcPtr = GetElementPtrInst::Create(BasePtr, getTransformedValue(CI.getOperand(2)),
                                        CI.getOperand(2)->getName()+".pp", &CI);
-        SrcPtr = CastInst::createPointerCast(SrcPtr, CI.getOperand(2)->getType(), "", &CI);
+        SrcPtr = CastInst::CreatePointerCast(SrcPtr, CI.getOperand(2)->getType(), "", &CI);
         CI.setOperand(2, SrcPtr);
         doret = true;
       }

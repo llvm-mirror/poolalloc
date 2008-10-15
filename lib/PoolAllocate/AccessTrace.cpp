@@ -86,10 +86,10 @@ void PoolAccessTrace::InstrumentAccess(Instruction *I, Value *Ptr,
   if (Node == 0) return;
 
   Value *PD = FI->PoolDescriptors[Node];
-  Ptr = CastInst::createPointerCast (Ptr, VoidPtrTy, Ptr->getName(), I);
+  Ptr = CastInst::CreatePointerCast (Ptr, VoidPtrTy, Ptr->getName(), I);
 
   if (PD)
-    PD = CastInst::createPointerCast (PD, VoidPtrTy, PD->getName(), I);
+    PD = CastInst::CreatePointerCast (PD, VoidPtrTy, PD->getName(), I);
   else
     PD = Constant::getNullValue(VoidPtrTy);
 

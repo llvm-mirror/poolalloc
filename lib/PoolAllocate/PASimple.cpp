@@ -68,7 +68,7 @@ castTo (Value * V, const Type * Ty, std::string Name, Instruction * InsertPt) {
   //
   // Otherwise, insert a cast instruction.
   //
-  return CastInst::createZExtOrBitCast (V, Ty, Name, InsertPt);
+  return CastInst::CreateZExtOrBitCast (V, Ty, Name, InsertPt);
 }
 
 void PoolAllocateSimple::getAnalysisUsage(AnalysisUsage &AU) const {
@@ -180,7 +180,7 @@ PoolAllocateSimple::ProcessFunctionBodySimple (Function& F, TargetData & TD) {
           Value * NumElements = MI->getArraySize();
           Value * ElementSize = ConstantInt::get (Type::Int32Ty,
                                                   TD.getABITypeSize(MI->getAllocatedType()));
-          AllocSize = BinaryOperator::create (Instruction::Mul,
+          AllocSize = BinaryOperator::Create (Instruction::Mul,
                                               ElementSize,
                                               NumElements,
                                               "sizetmp",
@@ -192,7 +192,7 @@ PoolAllocateSimple::ProcessFunctionBodySimple (Function& F, TargetData & TD) {
 
         Value* args[] = {TheGlobalPool, AllocSize};
         Instruction* x = CallInst::Create(PoolAlloc, &args[0], &args[2], MI->getName(), ii);
-        ii->replaceAllUsesWith(CastInst::createPointerCast(x, ii->getType(), "", ii));
+        ii->replaceAllUsesWith(CastInst::CreatePointerCast(x, ii->getType(), "", ii));
       } else if (CallInst * CI = dyn_cast<CallInst>(ii)) {
         CallSite CS(CI);
         Function *CF = CS.getCalledFunction();
@@ -215,7 +215,7 @@ PoolAllocateSimple::ProcessFunctionBodySimple (Function& F, TargetData & TD) {
 
           // Ensure the size and pointer arguments are of the correct type
           if (Size->getType() != Type::Int32Ty)
-            Size = CastInst::createIntegerCast (Size,
+            Size = CastInst::CreateIntegerCast (Size,
                                                 Type::Int32Ty,
                                                 false,
                                                 Size->getName(),
@@ -223,7 +223,7 @@ PoolAllocateSimple::ProcessFunctionBodySimple (Function& F, TargetData & TD) {
 
           static Type *VoidPtrTy = PointerType::getUnqual(Type::Int8Ty);
           if (OldPtr->getType() != VoidPtrTy)
-            OldPtr = CastInst::createPointerCast (OldPtr,
+            OldPtr = CastInst::CreatePointerCast (OldPtr,
                                                   VoidPtrTy,
                                                   OldPtr->getName(),
                                                   InsertPt);
@@ -237,7 +237,7 @@ PoolAllocateSimple::ProcessFunctionBodySimple (Function& F, TargetData & TD) {
                                          InsertPt);
           Instruction *Casted = V;
           if (V->getType() != CI->getType())
-            Casted = CastInst::createPointerCast (V, CI->getType(), V->getName(), InsertPt);
+            Casted = CastInst::CreatePointerCast (V, CI->getType(), V->getName(), InsertPt);
 
           // Update def-use info
           CI->replaceAllUsesWith(Casted);
@@ -256,14 +256,14 @@ PoolAllocateSimple::ProcessFunctionBodySimple (Function& F, TargetData & TD) {
 
           // Ensure the size and pointer arguments are of the correct type
           if (Size->getType() != Type::Int32Ty)
-            Size = CastInst::createIntegerCast (Size,
+            Size = CastInst::CreateIntegerCast (Size,
                                                 Type::Int32Ty,
                                                 false,
                                                 Size->getName(),
                                                 InsertPt);
 
           if (NumElements->getType() != Type::Int32Ty)
-            NumElements = CastInst::createIntegerCast (Size,
+            NumElements = CastInst::CreateIntegerCast (Size,
                                                 Type::Int32Ty,
                                                 false,
                                                 NumElements->getName(),
@@ -279,7 +279,7 @@ PoolAllocateSimple::ProcessFunctionBodySimple (Function& F, TargetData & TD) {
 
           Instruction *Casted = V;
           if (V->getType() != CI->getType())
-            Casted = CastInst::createPointerCast (V, CI->getType(), V->getName(), InsertPt);
+            Casted = CastInst::CreatePointerCast (V, CI->getType(), V->getName(), InsertPt);
 
           // Update def-use info
           CI->replaceAllUsesWith(Casted);
@@ -298,7 +298,7 @@ PoolAllocateSimple::ProcessFunctionBodySimple (Function& F, TargetData & TD) {
           // Ensure the size and pointer arguments are of the correct type
           static Type *VoidPtrTy = PointerType::getUnqual(Type::Int8Ty);
           if (OldPtr->getType() != VoidPtrTy)
-            OldPtr = CastInst::createPointerCast (OldPtr,
+            OldPtr = CastInst::CreatePointerCast (OldPtr,
                                                   VoidPtrTy,
                                                   OldPtr->getName(),
                                                   InsertPt);
@@ -312,7 +312,7 @@ PoolAllocateSimple::ProcessFunctionBodySimple (Function& F, TargetData & TD) {
                                          InsertPt);
           Instruction *Casted = V;
           if (V->getType() != CI->getType())
-            Casted = CastInst::createPointerCast (V, CI->getType(), V->getName(), InsertPt);
+            Casted = CastInst::CreatePointerCast (V, CI->getType(), V->getName(), InsertPt);
 
           // Update def-use info
           CI->replaceAllUsesWith(Casted);
