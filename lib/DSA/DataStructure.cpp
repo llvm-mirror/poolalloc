@@ -2136,7 +2136,7 @@ static void removeIdenticalCalls(std::list<DSCallSite> &Calls) {
       // If this call site is now the same as the previous one, we can delete it
       // as a duplicate.
       if (*OldIt == *CI) {
-        cerr << "Deleteing " << CI->getCallSite().getInstruction() << "\n";
+        DOUT << "Deleteing " << CI->getCallSite().getInstruction() << "\n";
         Calls.erase(CI);
         CI = OldIt;
         ++NumDeleted;
