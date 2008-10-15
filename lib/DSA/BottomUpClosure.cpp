@@ -387,17 +387,24 @@ void BUDataStructures::calculateGraph(DSGraph &Graph) {
   // Note that this is *required* for correctness.  If a callee contains a use
   // of a global, we have to make sure to link up nodes due to global-argument
   // bindings.
-  if (ContainsMain) {
+  if (ContainsMain || ReInlineGlobals) {
     const DSGraph &GG = *Graph.getGlobalsGraph();
     ReachabilityCloner RC(Graph, GG,
                           DSGraph::DontCloneCallNodes |
                           DSGraph::DontCloneAuxCallNodes);
-
-    // Clone the global nodes into this graph.
-    for (DSScalarMap::global_iterator I = GG.getScalarMap().global_begin(),
-           E = GG.getScalarMap().global_end(); I != E; ++I)
-      if (isa<GlobalVariable>(*I))
-        RC.getClonedNH(GG.getNodeForValue(*I));
+    if (ContainsMain) {
+      // Clone the global nodes into this graph.
+      for (DSScalarMap::global_iterator I = GG.getScalarMap().global_begin(),
+             E = GG.getScalarMap().global_end(); I != E; ++I)
+        if (isa<GlobalVariable>(*I))
+          RC.getClonedNH(GG.getNodeForValue(*I));
+    } else {
+      // Clone used the global nodes into this graph.
+      for (DSScalarMap::global_iterator I = Graph.getScalarMap().global_begin(),
+             E = Graph.getScalarMap().global_end(); I != E; ++I)
+        if (isa<GlobalVariable>(*I))
+          RC.getClonedNH(GG.getNodeForValue(*I));
+    }
   }
 
 
@@ -471,68 +478,67 @@ void BUDataStructures::calculateGraph(DSGraph &Graph) {
             CalledFuncs.erase(CalledFuncs.begin() + x);
           else
             ++x;
-        if (!CalledFuncs.size())
-          continue;
       }
-
-      // See if we already computed a graph for this set of callees.
-      std::sort(CalledFuncs.begin(), CalledFuncs.end());
-      std::pair<DSGraph*, std::vector<DSNodeHandle> > &IndCallGraph =
-        IndCallGraphMap[CalledFuncs];
-      
-      if (IndCallGraph.first == 0) {
-        std::vector<const Function*>::iterator I = CalledFuncs.begin(),
-          E = CalledFuncs.end();
+      if (CalledFuncs.size()) {
+        // See if we already computed a graph for this set of callees.
+        std::sort(CalledFuncs.begin(), CalledFuncs.end());
+        std::pair<DSGraph*, std::vector<DSNodeHandle> > &IndCallGraph =
+          IndCallGraphMap[CalledFuncs];
         
-        // Start with a copy of the first graph.
-        GI = IndCallGraph.first = new DSGraph(getDSGraph(**I), GlobalECs);
-        GI->setGlobalsGraph(Graph.getGlobalsGraph());
-        std::vector<DSNodeHandle> &Args = IndCallGraph.second;
-        
-        // Get the argument nodes for the first callee.  The return value is
-        // the 0th index in the vector.
-        GI->getFunctionArgumentsForCall(*I, Args);
-        
-        // Merge all of the other callees into this graph.
-        for (++I; I != E; ++I) {
-          // If the graph already contains the nodes for the function, don't
-          // bother merging it in again.
-          if (!GI->containsFunction(*I)) {
-            GI->cloneInto(getDSGraph(**I));
-            ++NumInlines;
+        if (IndCallGraph.first == 0) {
+          std::vector<const Function*>::iterator I = CalledFuncs.begin(),
+            E = CalledFuncs.end();
+          
+          // Start with a copy of the first graph.
+          GI = IndCallGraph.first = new DSGraph(getDSGraph(**I), GlobalECs);
+          GI->setGlobalsGraph(Graph.getGlobalsGraph());
+          std::vector<DSNodeHandle> &Args = IndCallGraph.second;
+          
+          // Get the argument nodes for the first callee.  The return value is
+          // the 0th index in the vector.
+          GI->getFunctionArgumentsForCall(*I, Args);
+          
+          // Merge all of the other callees into this graph.
+          for (++I; I != E; ++I) {
+            // If the graph already contains the nodes for the function, don't
+            // bother merging it in again.
+            if (!GI->containsFunction(*I)) {
+              GI->cloneInto(getDSGraph(**I));
+              ++NumInlines;
+            }
+            
+            std::vector<DSNodeHandle> NextArgs;
+            GI->getFunctionArgumentsForCall(*I, NextArgs);
+            unsigned i = 0, e = Args.size();
+            for (; i != e; ++i) {
+              if (i == NextArgs.size()) break;
+              Args[i].mergeWith(NextArgs[i]);
+            }
+            for (e = NextArgs.size(); i != e; ++i)
+              Args.push_back(NextArgs[i]);
           }
           
-          std::vector<DSNodeHandle> NextArgs;
-          GI->getFunctionArgumentsForCall(*I, NextArgs);
-          unsigned i = 0, e = Args.size();
-          for (; i != e; ++i) {
-            if (i == NextArgs.size()) break;
-            Args[i].mergeWith(NextArgs[i]);
-          }
-          for (e = NextArgs.size(); i != e; ++i)
-            Args.push_back(NextArgs[i]);
+          // Clean up the final graph!
+          GI->removeDeadNodes(DSGraph::KeepUnreachableGlobals);
+        } else {
+          DOUT << "***\n*** RECYCLED GRAPH ***\n***\n";
         }
         
-        // Clean up the final graph!
-        GI->removeDeadNodes(DSGraph::KeepUnreachableGlobals);
-      } else {
-        DOUT << "***\n*** RECYCLED GRAPH ***\n***\n";
+        GI = IndCallGraph.first;
+        
+        // Merge the unified graph into this graph now.
+        DOUT << "    Inlining multi callee graph "
+             << "[" << GI->getGraphSize() << "+"
+             << GI->getAuxFunctionCalls().size() << "] into '"
+             << Graph.getFunctionNames() << "' [" << Graph.getGraphSize() <<"+"
+             << Graph.getAuxFunctionCalls().size() << "]\n";
+        
+        Graph.mergeInGraph(CS, IndCallGraph.second, *GI,
+                           DSGraph::StripAllocaBit |
+                           DSGraph::DontCloneCallNodes|
+                           (isComplete?0:DSGraph::DontCloneAuxCallNodes));
+        ++NumInlines;
       }
-      
-      GI = IndCallGraph.first;
-      
-      // Merge the unified graph into this graph now.
-      DOUT << "    Inlining multi callee graph "
-           << "[" << GI->getGraphSize() << "+"
-           << GI->getAuxFunctionCalls().size() << "] into '"
-           << Graph.getFunctionNames() << "' [" << Graph.getGraphSize() <<"+"
-           << Graph.getAuxFunctionCalls().size() << "]\n";
-      
-      Graph.mergeInGraph(CS, IndCallGraph.second, *GI,
-                         DSGraph::StripAllocaBit |
-                         DSGraph::DontCloneCallNodes|
-                         (isComplete?0:DSGraph::DontCloneAuxCallNodes));
-      ++NumInlines;
     }
     if (!isComplete)
       AuxCallsList.push_front(CS);

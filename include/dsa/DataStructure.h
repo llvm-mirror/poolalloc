@@ -219,16 +219,18 @@ protected:
 
   const char* debugname;
   bool useCallGraph;
+  bool ReInlineGlobals;
 
 public:
   static char ID;
-  //Child constructor
+  //Child constructor (CBU)
   BUDataStructures(intptr_t CID, const char* name, const char* printname)
-    : DataStructures(CID, printname), debugname(name), useCallGraph(true) {}
+    : DataStructures(CID, printname), debugname(name), useCallGraph(true),
+      ReInlineGlobals(true) {}
   //main constructor
   BUDataStructures() 
     : DataStructures((intptr_t)&ID, "bu."), debugname("dsa-bu"),
-      useCallGraph(false) {}
+      useCallGraph(false), ReInlineGlobals(false) {}
   ~BUDataStructures() { releaseMemory(); }
 
   virtual bool runOnModule(Module &M);
