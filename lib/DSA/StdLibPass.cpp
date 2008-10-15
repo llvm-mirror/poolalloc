@@ -65,6 +65,7 @@ const struct {
   {"fprintf",    {NRET_YARGS,  NRET_YNARGS, NRET_NARGS, false, false, false}},
   {"sprintf",    {NRET_YARGS,  NRET_YNARGS, NRET_NARGS, false, false, false}},
   {"snprintf",   {NRET_YARGS,  NRET_YNARGS, NRET_NARGS, false, false, false}},
+  {"fprintf",    {NRET_YARGS,  NRET_YNARGS, NRET_NARGS, false, false, false}},
   {"puts",       {NRET_NARGS,  NRET_NARGS,  NRET_NARGS, false, false, false}},
 
   {"calloc",     {NRET_NARGS, YRET_NARGS, YRET_NARGS,  false, false, false}},
@@ -103,7 +104,12 @@ const struct {
   {"wcsrchr",    {YRET_YARGS, NRET_NARGS, NRET_NARGS, false, true, true}},
   {"strchrhul",  {YRET_YARGS, NRET_NARGS, NRET_NARGS, false, true, true}},
 
-
+  {"fwrite",     {NRET_YARGS, NRET_NYARGS, NRET_NARGS, false, false, false}},
+  {"fread",      {NRET_NYARGS, NRET_YARGS, NRET_NARGS, false, false, false}},
+  {"fflush",     {NRET_YARGS,  NRET_YARGS, NRET_NARGS, false, false, false}},
+  {"fclose",     {NRET_YARGS,  NRET_YARGS, NRET_NARGS, false, false, false}},
+  {"fopen",      {NRET_YARGS,  YRET_NARGS, YRET_NARGS, false, false, false}},
+ 
 #if 0
   {"remove",     {false, false, false,  true, false, false, false, false, false}},
   {"unlink",     {false, false, false,  true, false, false, false, false, false}},
@@ -136,8 +142,6 @@ const struct {
   {"wcscpy",     {false,  true, false,  true,  true, false,  true,  true,  true}},
   {"wcsncpy",    {false,  true, false,  true,  true, false,  true,  true,  true}},
   {"wmemccpy",   {false,  true, false,  true,  true, false,  true,  true,  true}},
-  {"fclose",     {false, false, false,  true,  true, false, false, false, false}},
-  {"fopen",      {false,  true,  true,  true, false, false, false, false, false}},
   {"getcwd",     { true,  true,  true,  true,  true,  true, false,  true,  true}},
 #endif
   // C++ functions, as mangled on linux gcc 4.2
@@ -150,7 +154,7 @@ const struct {
   // operator delete[](void*)
   {"_ZdaPv",     {NRET_NARGS, NRET_NARGS, NRET_YNARGS,  false, false, false}},
   // Terminate the list of special functions recognized by this pass
-  {0,            {false, false, false, false, false, false}},
+  {0,            {NRET_NARGS, NRET_NARGS, NRET_NARGS, false, false, false}},
 };
 
 void StdLibDataStructures::eraseCallsTo(Function* F) {
