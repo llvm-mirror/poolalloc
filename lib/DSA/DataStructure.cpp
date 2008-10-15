@@ -2779,8 +2779,11 @@ void DataStructures::buildGlobalECs(std::set<const GlobalValue*> &ECGlobals) {
     if (I->getGlobalsList().size() <= 1) continue;
 
     // First, build up the equivalence set for this block of globals.
-    DSNode::globals_iterator i = I->globals_begin();
-    const GlobalValue *First = *i++;
+    DSNode::globals_iterator i = I->globals_begin(); 
+    const GlobalValue *First = *i;
+    if (GlobalECs.findValue(*i) != GlobalECs.end())
+      First = GlobalECs.getLeaderValue(*i);
+    if (*i == First) ++i;
     for( ; i != I->globals_end(); ++i) {
       GlobalECs.unionSets(First, *i);
       ECGlobals.insert(*i);
