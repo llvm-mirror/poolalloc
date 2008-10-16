@@ -86,6 +86,13 @@ class RangeSplayTree {
     return 0;
   }
 
+  void __clear_internal(tree_node* t) {
+    if (!t) return;
+    __clear_internal(t->left);
+    __clear_internal(t->right);
+    delete t;
+  }
+
  protected:
 
   RangeSplayTree() : Tree(0) {}
@@ -140,8 +147,8 @@ class RangeSplayTree {
   }
 
   void __clear() {
-    while (Tree)
-      __remove (Tree->start);
+    __clear_internal(Tree);
+    Tree = 0;
   }
 
   tree_node* __find(void* key) {
