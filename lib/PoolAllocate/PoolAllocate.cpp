@@ -87,8 +87,13 @@ namespace {
 }
 
 void PoolAllocate::getAnalysisUsage(AnalysisUsage &AU) const {
-  AU.addRequired<EquivBUDataStructures>();
-  AU.addPreserved<EquivBUDataStructures>();
+  if (SAFECodeEnabled) {
+    AU.addRequired<EQTDDataStructures>();
+    AU.addPreserved<EQTDDataStructures>();
+  } else {
+    AU.addRequired<EquivBUDataStructures>();
+    AU.addPreserved<EquivBUDataStructures>();
+  }
 
   // Preserve the pool information across passes
   if (SAFECodeEnabled)
@@ -100,6 +105,10 @@ void PoolAllocate::getAnalysisUsage(AnalysisUsage &AU) const {
 bool PoolAllocate::runOnModule(Module &M) {
   if (M.begin() == M.end()) return false;
   CurModule = &M;
+
+  if (SAFECodeEnabled)
+    Graphs = &getAnalysis<EQTDDataStructures>();   // folded inlined CBU graphs
+    else
   Graphs = &getAnalysis<EquivBUDataStructures>();   // folded inlined CBU graphs
 
   CurHeuristic = Heuristic::create();
