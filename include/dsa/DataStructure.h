@@ -52,7 +52,6 @@ private:
   /// Do we clone Graphs or steal them?
   bool Clone;
 
-
   /// do we reset the aux list to the func list?
   bool resetAuxCalls;
 
@@ -203,6 +202,8 @@ public:
   ///
   virtual void getAnalysisUsage(AnalysisUsage &AU) const {
     AU.addRequired<LocalDataStructures>();
+    AU.addPreserved<TargetData>();
+    AU.setPreservesCFG();
   }
 };
 
@@ -237,6 +238,8 @@ public:
 
   virtual void getAnalysisUsage(AnalysisUsage &AU) const {
     AU.addRequired<StdLibDataStructures>();
+    AU.addPreserved<TargetData>();
+    AU.setPreservesCFG();
   }
 
 protected:
@@ -257,6 +260,54 @@ private:
   void finalizeGlobals(void);
 };
 
+/// CompleteBUDataStructures - This is the exact same as the bottom-up graphs,
+/// but we use take a completed call graph and inline all indirect callees into
+/// their callers graphs, making the result more useful for things like pool
+/// allocation.
+///
+class CompleteBUDataStructures : public  BUDataStructures {
+protected:
+  void buildIndirectFunctionSets(Module &M);
+public:
+  static char ID;
+  CompleteBUDataStructures(intptr_t CID = (intptr_t)&ID, 
+                           const char* name = "dsa-cbu", 
+                           const char* printname = "cbu.")
+    : BUDataStructures(CID, name, printname) {}
+  ~CompleteBUDataStructures() { releaseMemory(); }
+
+  virtual bool runOnModule(Module &M);
+
+  virtual void getAnalysisUsage(AnalysisUsage &AU) const {
+    AU.addRequired<BUDataStructures>();
+    AU.addPreserved<TargetData>();
+    AU.setPreservesCFG();
+  }
+
+};
+
+/// EquivBUDataStructures - This is the same as the complete bottom-up graphs, but
+/// with functions partitioned into equivalence classes and a single merged
+/// DS graph for all functions in an equivalence class.  After this merging,
+/// graphs are inlined bottom-up on the SCCs of the final (CBU) call graph.
+///
+class EquivBUDataStructures : public CompleteBUDataStructures {
+  void mergeGraphsByGlobalECs();
+public:
+  static char ID;
+  EquivBUDataStructures()
+    : CompleteBUDataStructures((intptr_t)&ID, "dsa-eq", "eq.") {}
+  ~EquivBUDataStructures() { releaseMemory(); }
+
+  virtual bool runOnModule(Module &M);
+
+  virtual void getAnalysisUsage(AnalysisUsage &AU) const {
+    AU.addRequired<CompleteBUDataStructures>();
+    AU.addPreserved<TargetData>();
+    AU.setPreservesCFG();
+  }
+
+};
 
 /// TDDataStructures - Analysis that computes new data structure graphs
 /// for each function using the closed graphs for the callers computed
@@ -291,9 +342,12 @@ class TDDataStructures : public DataStructures {
   // the arguments for each function.
   std::map<std::vector<const Function*>, DSGraph*> IndCallMap;
 
+  bool useEQBU;
+
 public:
   static char ID;
-  TDDataStructures() : DataStructures((intptr_t)&ID, "td.") {}
+  TDDataStructures(intptr_t CID = (intptr_t)&ID, const char* printname = "td.", bool useEQ = false)
+    : DataStructures(CID, "td."), useEQBU(useEQ) {}
   ~TDDataStructures() { releaseMemory(); }
 
   virtual bool runOnModule(Module &M);
@@ -301,8 +355,12 @@ public:
   /// getAnalysisUsage - This obviously provides a data structure graph.
   ///
   virtual void getAnalysisUsage(AnalysisUsage &AU) const {
-    AU.addRequired<BUDataStructures>();
-    AU.setPreservesAll();
+    if (useEQBU)
+      AU.addRequired<EquivBUDataStructures>();
+    else
+      AU.addRequired<BUDataStructures>();
+    AU.addPreserved<TargetData>();
+    AU.setPreservesCFG();
   }
 
 private:
@@ -314,27 +372,19 @@ private:
                         std::vector<DSGraph*> &PostOrder);
 };
 
-
-/// CompleteBUDataStructures - This is the exact same as the bottom-up graphs,
-/// but we use take a completed call graph and inline all indirect callees into
-/// their callers graphs, making the result more useful for things like pool
-/// allocation.
+/// EQTDDataStructures - Analysis that computes new data structure graphs
+/// for each function using the closed graphs for the callers computed
+/// by the EQ bottom-up pass.
 ///
-class CompleteBUDataStructures : public  BUDataStructures {
-  void buildIndirectFunctionSets(Module &M);
+class EQTDDataStructures : public TDDataStructures {
 public:
   static char ID;
-  CompleteBUDataStructures()
-    : BUDataStructures((intptr_t)&ID, "dsa-cbu", "cbu.") {}
-  ~CompleteBUDataStructures() { releaseMemory(); }
-
-  virtual bool runOnModule(Module &M);
-
-  virtual void getAnalysisUsage(AnalysisUsage &AU) const {
-    AU.addRequired<BUDataStructures>();
-  }
-
+  EQTDDataStructures()
+    :TDDataStructures((intptr_t)&ID, "td.", false)
+  {}
 };
+
+
 
 } // End llvm namespace
 

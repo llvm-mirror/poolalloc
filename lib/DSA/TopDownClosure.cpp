@@ -35,10 +35,14 @@ namespace {
   RegisterPass<TDDataStructures>   // Register the pass
   Y("dsa-td", "Top-down Data Structure Analysis");
 
+  RegisterPass<EQTDDataStructures>   // Register the pass
+  Z("dsa-eqtd", "EQ Top-down Data Structure Analysis");
+
   STATISTIC (NumTDInlines, "Number of graphs inlined");
 }
 
 char TDDataStructures::ID;
+char EQTDDataStructures::ID;
 
 void TDDataStructures::markReachableFunctionsExternallyAccessible(DSNode *N,
                                                    hash_set<DSNode*> &Visited) {
@@ -61,7 +65,10 @@ void TDDataStructures::markReachableFunctionsExternallyAccessible(DSNode *N,
 // program.
 //
 bool TDDataStructures::runOnModule(Module &M) {
-  init(&getAnalysis<BUDataStructures>(), true, true, true, false);
+  
+  init(useEQBU ? &getAnalysis<EquivBUDataStructures>()
+       : &getAnalysis<BUDataStructures>(), 
+       true, true, true, false);
 
   // Figure out which functions must not mark their arguments complete because
   // they are accessible outside this compilation unit.  Currently, these

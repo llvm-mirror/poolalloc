@@ -87,8 +87,8 @@ namespace {
 }
 
 void PoolAllocate::getAnalysisUsage(AnalysisUsage &AU) const {
-  AU.addRequiredTransitive<CompleteBUDataStructures>();
-  AU.addPreserved<CompleteBUDataStructures>();
+  AU.addRequired<EquivBUDataStructures>();
+  AU.addPreserved<EquivBUDataStructures>();
 
   // Preserve the pool information across passes
   if (SAFECodeEnabled)
@@ -100,7 +100,7 @@ void PoolAllocate::getAnalysisUsage(AnalysisUsage &AU) const {
 bool PoolAllocate::runOnModule(Module &M) {
   if (M.begin() == M.end()) return false;
   CurModule = &M;
-  Graphs = &getAnalysis<CompleteBUDataStructures>();   // folded inlined CBU graphs
+  Graphs = &getAnalysis<EquivBUDataStructures>();   // folded inlined CBU graphs
 
   CurHeuristic = Heuristic::create();
   CurHeuristic->Initialize(M, Graphs->getGlobalsGraph(), *this);
