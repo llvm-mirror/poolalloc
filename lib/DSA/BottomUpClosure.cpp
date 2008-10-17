@@ -437,12 +437,10 @@ void BUDataStructures::calculateGraph(DSGraph &Graph) {
       CalledFuncs.resize(uid - CalledFuncs.begin());
     }
 
-    //cerr << "at " << TheCall << " with " << CalledFuncs.size() << "\n";
-
     DSGraph *GI;
     
     for (std::vector<const Function*>::iterator ii = CalledFuncs.begin(), ee = CalledFuncs.end();
-         ii != ee; ++ii)
+         ii != ee; ++ii) 
       callee_add(TheCall, *ii);
 
     if (CalledFuncs.size() == 1 && (isComplete || hasDSGraph(*CalledFuncs[0]))) {

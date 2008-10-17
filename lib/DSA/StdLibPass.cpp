@@ -66,7 +66,12 @@ const struct {
   {"sprintf",    {NRET_YARGS,  NRET_YNARGS, NRET_NARGS, false, false, false}},
   {"snprintf",   {NRET_YARGS,  NRET_YNARGS, NRET_NARGS, false, false, false}},
   {"fprintf",    {NRET_YARGS,  NRET_YNARGS, NRET_NARGS, false, false, false}},
-  {"puts",       {NRET_NARGS,  NRET_NARGS,  NRET_NARGS, false, false, false}},
+  {"puts",       {NRET_YARGS,  NRET_NARGS,  NRET_NARGS, false, false, false}},
+  {"putc",       {NRET_NARGS,  NRET_NARGS,  NRET_NARGS, false, false, false}},
+  {"putchar",    {NRET_NARGS,  NRET_NARGS,  NRET_NARGS, false, false, false}},
+  {"fputs",      {NRET_YARGS,  NRET_NYARGS, NRET_NARGS, false, false, false}},
+  {"fputc",      {NRET_YARGS,  NRET_NYARGS, NRET_NARGS, false, false, false}},
+
 
   {"calloc",     {NRET_NARGS, YRET_NARGS, YRET_NARGS,  false, false, false}},
   {"malloc",     {NRET_NARGS, YRET_NARGS, YRET_NARGS,  false, false, false}},
@@ -103,6 +108,9 @@ const struct {
   {"strrchr",    {YRET_YARGS, NRET_NARGS, NRET_NARGS, false, true, true}},
   {"wcsrchr",    {YRET_YARGS, NRET_NARGS, NRET_NARGS, false, true, true}},
   {"strchrhul",  {YRET_YARGS, NRET_NARGS, NRET_NARGS, false, true, true}},
+  {"strcat",     {YRET_YARGS, YRET_YARGS, NRET_NARGS,  true, true, true}},
+  {"strncat",    {YRET_YARGS, YRET_YARGS, NRET_NARGS,  true, true, true}},
+
 
   {"fwrite",     {NRET_YARGS, NRET_NYARGS, NRET_NARGS, false, false, false}},
   {"fread",      {NRET_NYARGS, NRET_YARGS, NRET_NARGS, false, false, false}},

@@ -1058,7 +1058,7 @@ DSNodeHandle ReachabilityCloner::getClonedNH(const DSNodeHandle &SrcNH) {
   DSNode *DN = new DSNode(*SN, &Dest, true /* Null out all links */);
   DN->maskNodeTypes(BitsToKeep);
   NH = DN;
-  DOUT << "getClonedNH: " << SN << " becomes " << DN << "\n";
+  //DOUT << "getClonedNH: " << SN << " becomes " << DN << "\n";
 #if 1
 #ifdef LLVA_KERNEL
     //Again we have created a new DSNode, we need to fill in the
@@ -2001,6 +2001,9 @@ static inline bool nodeContainsExternalFunction(const DSNode *N) {
 }
 
 static void removeIdenticalCalls(std::list<DSCallSite> &Calls) {
+  // Poolalloc doesn't like call sites to be removed if they are indirect
+  // disable this so all indirect call sites get call graph info
+  return;
   // Remove trivially identical function calls
   Calls.sort();  // Sort by callee as primary key!
 
