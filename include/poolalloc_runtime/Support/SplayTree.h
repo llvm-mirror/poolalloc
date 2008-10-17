@@ -1,5 +1,9 @@
+#include <memory>
+
 template<typename dataTy>
 struct range_tree_node {
+  range_tree_node(void* s, void* e) : left(0), right(0), start(s), end(e) {}
+  range_tree_node() : left(0), right(0), start(0), end(0) {}
   range_tree_node* left;
   range_tree_node* right;
   void* start;
@@ -9,23 +13,30 @@ struct range_tree_node {
 
 template<>
 struct range_tree_node <void>{
+  range_tree_node(void* s, void* e) : left(0), right(0), start(s), end(e) {}
+  range_tree_node() : left(0), right(0), start(0), end(0) {}
   range_tree_node* left;
   range_tree_node* right;
   void* start;
   void* end;
 };
 
-template<typename tree_node>
+template<typename T, class _Alloc>
 class RangeSplayTree {
+ public:
+  typedef range_tree_node<T> tree_node;
+ private:
+  typename _Alloc::template rebind<tree_node >::other __node_alloc;
+  
   tree_node* Tree;
-
+    
   tree_node* rotate_right(tree_node* p) {
-    tree_node* x = p->left;
-    p->left = x->right;
+   tree_node* x = p->left;
+   p->left = x->right;
     x->right = p;
     return x;
   }
-
+    
   tree_node* rotate_left(tree_node* p) {
     tree_node* x = p->right;
     p->right = x->left;
@@ -90,12 +101,13 @@ class RangeSplayTree {
     if (!t) return;
     __clear_internal(t->left);
     __clear_internal(t->right);
-    delete t;
+    __node_alloc.destroy(t);
+    __node_alloc.deallocate(t, 1);
   }
 
- protected:
+ public:
 
-  RangeSplayTree() : Tree(0) {}
+  explicit RangeSplayTree(const _Alloc& a) :__node_alloc(a), Tree(0) {}
   ~RangeSplayTree() { __clear(); }
   
   tree_node* __insert(void* start, void* end) {
@@ -104,10 +116,8 @@ class RangeSplayTree {
     if (Tree && !key_lt(start, Tree) && !key_gt(start, Tree))
       return 0;
     
-    tree_node* n = new tree_node();
-    n->start = start;
-    n->end = end;
-    n->right = n->left = 0;
+    tree_node* n = __node_alloc.allocate(1);
+    __node_alloc.construct(n, tree_node(start,end));
     if (Tree) {
       if (key_lt(start, Tree)) {
         n->left = Tree->left;
@@ -136,7 +146,8 @@ class RangeSplayTree {
       }
       tree_node* y = Tree;
       Tree = x;
-      delete y;
+      __node_alloc.destroy(y);
+      __node_alloc.deallocate(y, 1);
       return true;
     }
     return false; /* not there */
@@ -161,74 +172,75 @@ class RangeSplayTree {
   }
 };
 
-class RangeSplaySet : RangeSplayTree<range_tree_node<void> > {
+template<class Allocator = std::allocator<void> >
+class RangeSplaySet 
+{
+  RangeSplayTree<void, Allocator> Tree;
+
  public:
-  RangeSplaySet() : RangeSplayTree<range_tree_node<void> >() {}
- 
-    bool insert(void* start, void* end) {
-      return 0 != __insert(start,end);
-    }
-
-    bool remove(void* key) {
-      return __remove(key);
-    }
-
-    bool count() { return __count(); }
-
-    void clear() { __clear(); }
-
-    bool find(void* key, void*& start, void*& end) {
-      range_tree_node<void>* t = __find(key);
-      if (!t) return false;
-      start = t->start;
-      end = t->end;
-      return true;
-    }
-    bool find(void* key) {
-      range_tree_node<void>* t = __find(key);
-      if (!t) return false;
-      return true;
-    }
+  explicit RangeSplaySet(const Allocator& A = Allocator() )
+  : Tree(A) {}
+  
+  bool insert(void* start, void* end) {
+    return 0 != Tree.__insert(start,end);
+  }
+  
+  bool remove(void* key) {
+    return Tree.__remove(key);
+  }
+  
+  bool count() { return Tree.__count(); }
+  
+  void clear() { Tree.__clear(); }
+  
+  bool find(void* key, void*& start, void*& end) {
+    range_tree_node<void>* t = Tree.__find(key);
+    if (!t) return false;
+    start = t->start;
+    end = t->end;
+    return true;
+  }
+  bool find(void* key) {
+    range_tree_node<void>* t = Tree.__find(key);
+    if (!t) return false;
+    return true;
+  }
 };
 
-template<typename T>
-class RangeSplayMap : RangeSplayTree<range_tree_node<T> > {
+template<typename T, class Allocator = std::allocator<T> >
+class RangeSplayMap {
+  RangeSplayTree<range_tree_node<T>, Allocator> Tree;
+
  public:
-  RangeSplayMap() : RangeSplayTree<range_tree_node<T> >() {}
+ explicit RangeSplayMap(const Allocator& A= Allocator() ) 
+  : Tree(A) {}
  
-    using RangeSplayTree<range_tree_node<T> >::__insert;
-    using RangeSplayTree<range_tree_node<T> >::__remove;
-    using RangeSplayTree<range_tree_node<T> >::__count;
-    using RangeSplayTree<range_tree_node<T> >::__clear;
-    using RangeSplayTree<range_tree_node<T> >::__find;
-
-
-    bool insert(void* start, void* end, T& d) {
-      range_tree_node<T>* t =  __insert(start,end);
-      if (t == 0) return false;
-      t->data = d;
-      return true;
-    }
-
-    bool remove(void* key) {
-      return __remove(key);
-    }
-
-    bool count() { return __count(); }
-
-    void clear() { __clear(); }
-
-    bool find(void* key, void*& start, void*& end, T& d) {
-      range_tree_node<T>* t = __find(key);
-      if (!t) return false;
-      start = t->start;
-      end = t->end;
-      d = t->data;
-      return true;
-    }
-    bool find(void* key) {
-      range_tree_node<T>* t = __find(key);
-      if (!t) return false;
-      return true;
-    }
+ bool insert(void* start, void* end, T& d) {
+   range_tree_node<T>* t = Tree.__insert(start,end);
+   if (t == 0) return false;
+   t->data = d;
+   return true;
+ }
+ 
+ bool remove(void* key) {
+   return Tree.__remove(key);
+ }
+ 
+ bool count() { return Tree.__count(); }
+ 
+ void clear() { Tree.__clear(); }
+ 
+ bool find(void* key, void*& start, void*& end, T& d) {
+   range_tree_node<T>* t = Tree.__find(key);
+   if (!t) return false;
+   start = t->start;
+   end = t->end;
+   d = t->data;
+   return true;
+ }
+ bool find(void* key) {
+   range_tree_node<T>* t = Tree.__find(key);
+   if (!t) return false;
+   return true;
+ }
 };

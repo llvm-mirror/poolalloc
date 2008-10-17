@@ -1,7 +1,7 @@
 #include "PoolAllocator.h"
 #include <iostream>
 
-PoolAllocator<mmapPageManager, MallocSlabManager> a(10, 16);
+PoolAllocator<MallocSlabManager<> > a(10, 16);
 
 RangeSplayMap<unsigned> x;
 
