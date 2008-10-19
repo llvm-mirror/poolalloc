@@ -23,13 +23,8 @@ class PoolAllocator : SlabManager {
     return p;
   }
     
-  // Allocate an object of size objsize
-  void* alloc() {
-    return slab_alloc(1);
-  }
-    
-  // Allocate an array with num objects of size objsize
-  void* alloc_array(unsigned num) {
+  // Allocate num objects of size objsize
+  void* alloc(unsigned num = 1) {
     return slab_alloc(num);
   }
     
@@ -73,7 +68,7 @@ class MallocSlabManager {
     dealloc_actor(MallocSlabManager* _m) : m(_m) {}
   };
 
- protected:
+  public:
   MallocSlabManager(unsigned Osize, unsigned Alignment) : objsize(Osize) {}
   ~MallocSlabManager() {
     dealloc_actor act(this);
@@ -199,7 +194,7 @@ class BitMaskSlabManager {
     }
   }
 
-  protected:
+  public:
   BitMaskSlabManager(unsigned Osize, unsigned Alignment) 
   :objsize(Osize), CurAllocSlab(0), totalslots(0), totalallocs(0)
   {}
@@ -251,6 +246,42 @@ class BitMaskSlabManager {
     start = &(char*)(slab->data)[loc * objsize];
     end = &(char*)(slab->data)[loc * objsize] - 1;
     return true;
+  }
+};
+
+template<class FixedAllocator, class VarAllocator>
+class CompoundSlabManager {
+  FixedAllocator FixedAlloc;
+  VarAllocator   VarAlloc;
+  unsigned objsize;
+ public:
+  CompoundSlabManager(unsigned Osize, unsigned Alignment) 
+    :FixedAlloc(Osize, Alignment), VarAlloc(1, Alignment), objsize(Osize)
+  {}
+  void* slab_alloc(unsigned num) {
+    if (num == 1)
+      return FixedAlloc.slab_alloc(1);
+    else
+      return VarAlloc.slab_alloc(num * sizeof(objsize * num));
+  }
+  void slab_free(void* obj) {
+    if (FixedAlloc.slab_managed(obj))
+      FixedAlloc.slab_free(obj);
+    else
+      VarAlloc.slab_free(obj);
+  }
+  bool slab_valid(void* obj) {
+    return FixedAlloc.slab_valid(obj) || VarAlloc.slab_valid(obj);
+  }
+  bool slab_managed(void* obj) {
+    return FixedAlloc.slab_managed(obj) || VarAlloc.slab_managed(obj);
+  }
+  bool slab_getbounds(void* obj, void*& start, void*& end) {
+    if (FixedAlloc.slab_getbounds(obj, start, end))
+      return true;
+    if (VarAlloc.slab_getbounds(obj, start, end))
+      return true;
+    return false;
   }
 };
 

@@ -4,6 +4,8 @@
 PoolAllocator<MallocSlabManager<> > a(10, 16);
 PoolAllocator<BitMaskSlabManager<LinuxMmap> > b(8, 8);
 
+PoolAllocator<CompoundSlabManager<BitMaskSlabManager<LinuxMmap>, MallocSlabManager<> > > c(8, 8);
+
 RangeSplayMap<unsigned> x;
 
 int main() {
@@ -14,6 +16,15 @@ int main() {
   x = b.alloc();
   std::cerr << b.isAllocated(x) << " " << b.isAllocated((char*)x + 5) << " " << b.isAllocated((char*)x + 10) << "\n";
   b.dealloc(x);
+
+  x = c.alloc();
+  std::cerr << c.isAllocated(x) << " " << c.isAllocated((char*)x + 5) << " " << c.isAllocated((char*)x + 10) << "\n";
+  void* y = c.alloc(4);
+  std::cerr << c.isAllocated(y) << " " << c.isAllocated((char*)y + 5) << " " << c.isAllocated((char*)y + 10) << " " << c.isAllocated((char*)y + 50) << "\n";
+  c.dealloc(x);
+  c.dealloc(y);
+  
+
   return 0;
 }
 
