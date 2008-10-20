@@ -641,6 +641,11 @@ void GraphBuilder::visitCallSite(CallSite CS) {
   if (isa<PointerType>(I->getType()))
     RetVal = getValueDest(*I);
 
+  if (!isa<Function>(Callee))
+    if (ConstantExpr* EX = dyn_cast<ConstantExpr>(Callee))
+      if (EX->isCast() && isa<Function>(EX->getOperand(0)))
+        Callee = cast<Function>(EX->getOperand(0));
+
   DSNode *CalleeNode = 0;
   if (!isa<Function>(Callee)) {
     CalleeNode = getValueDest(*Callee).getNode();

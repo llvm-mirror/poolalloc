@@ -146,7 +146,6 @@ DSNode::DSNode(const Type *T, DSGraph *G)
   if (T) mergeTypeInfo(T, 0);
   if (G) G->addNode(this);
   ++NumNodeAllocated;
-  //  DOUT << "LLVA: Creating (1) DSNode " << this << "\n";
 }
 
 // DSNode copy constructor... do not copy over the referrers list!
@@ -159,7 +158,6 @@ DSNode::DSNode(const DSNode &N, DSGraph *G, bool NullLinks)
     Links.resize(N.Links.size()); // Create the appropriate number of null links
   G->addNode(this);
   ++NumNodeAllocated;
-  //  DOUT << "LLVA: Creating (2) DSNode " << this << "\n";
 }
 
 DSNode::~DSNode() {
@@ -193,6 +191,7 @@ void DSNode::assertOK() const {
   assert(ParentGraph && "Node has no parent?");
   const DSScalarMap &SM = ParentGraph->getScalarMap();
   for (unsigned i = 0, e = Globals.size(); i != e; ++i) {
+    Globals[i]->dump();
     assert(SM.global_count(Globals[i]));
     assert(SM.find(Globals[i])->second.getNode() == this);
   }
@@ -808,6 +807,11 @@ void DSNode::mergeGlobals(const DSNode &RHS) {
   std::set_union(Globals.begin(), Globals.end(), 
                  RHS.Globals.begin(), RHS.Globals.end(), 
                  back_it);
+  DEBUG(
+        for (std::vector<const GlobalValue*>::iterator ii = Temp.begin(), 
+               ee = Temp.end(); ii != ee; ++ii)
+          assert(isa<GlobalValue>(*ii) && "Non global merged");
+        );
   Globals.swap(Temp);
 }
 

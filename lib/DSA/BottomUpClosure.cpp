@@ -462,6 +462,7 @@ void BUDataStructures::calculateGraph(DSGraph* Graph) {
                           DSGraph::StripAllocaBit|DSGraph::DontCloneCallNodes|
                           (isComplete?0:DSGraph::DontCloneAuxCallNodes));
       ++NumInlines;
+      DEBUG(Graph->AssertGraphOK(););
     } else if (CalledFuncs.size() > 1) {
       DEBUG(std::cerr << "In Fns: " << Graph->getFunctionNames() << "\n");
       DEBUG(std::cerr << "  calls " << CalledFuncs.size()
@@ -543,7 +544,8 @@ void BUDataStructures::calculateGraph(DSGraph* Graph) {
         ++NumInlines;
       }
     }
-    DEBUG(Graph->AssertGraphOK(); Graph->getGlobalsGraph()->AssertGraphOK());
+    DEBUG(Graph->AssertGraphOK(););
+    DEBUG(Graph->getGlobalsGraph()->AssertGraphOK());
     if (!isComplete)
       AuxCallsList.push_front(CS);
     TempFCs.erase(TempFCs.begin());

@@ -35,6 +35,7 @@ bool CompleteBUDataStructures::runOnModule(Module &M) {
   init(&getAnalysis<BUDataStructures>(), false, true, false, true);
 
   buildIndirectFunctionSets(M);
+  formGlobalECs();
 
   return runOnModuleInternal(M);
 }
@@ -50,12 +51,13 @@ void CompleteBUDataStructures::buildIndirectFunctionSets(Module &M) {
   for (std::vector<const Instruction*>::iterator ii = keys.begin(), ee = keys.end();
        ii != ee; ++ii) {
     if (*ii) {
-      callee_iterator base = callee_begin(*ii);
-      
-      for (callee_iterator csi = callee_begin(*ii), cse = callee_end(*ii); 
-           csi != cse; ++csi) {
-        GlobalECs.unionSets(*base, *csi);
-        GlobalsGraph->getNodeForValue(*base).mergeWith(GlobalsGraph->getNodeForValue(*csi));
+      callee_iterator csi = callee_begin(*ii), cse = callee_end(*ii); 
+      if (csi != cse) ++csi;
+      DSGraph* G = getOrCreateGraph((*ii)->getParent()->getParent());
+      for ( ; csi != cse; ++csi) {
+        G->getNodeForValue(*csi).mergeWith(G->getNodeForValue((*ii)->getOperand(0)));
+        G->getNodeForValue((*ii)->getOperand(0)).getNode()->setGlobalMarker();
+        G->getNodeForValue((*ii)->getOperand(0)).getNode()->addGlobal(*csi);
       }
     }
   }
