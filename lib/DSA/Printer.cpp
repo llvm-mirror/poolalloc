@@ -87,13 +87,14 @@ static std::string getCaption(const DSNode *N, const DSGraph *G) {
   EquivalenceClasses<const GlobalValue*> *GlobalECs = 0;
   if (G) GlobalECs = &G->getGlobalECs();
 
-  for (unsigned i = 0, e = N->getGlobalsList().size(); i != e; ++i) {
-    WriteAsOperand(OS, N->getGlobalsList()[i], false, M);
+  for (DSNode::globals_iterator i = N->globals_begin(), e = N->globals_end(); 
+       i != e; ++i) {
+    WriteAsOperand(OS, *i, false, M);
 
     // Figure out how many globals are equivalent to this one.
     if (GlobalECs) {
       EquivalenceClasses<const GlobalValue*>::iterator I =
-        GlobalECs->findValue(N->getGlobalsList()[i]);
+        GlobalECs->findValue(*i);
       if (I != GlobalECs->end()) {
         unsigned NumMembers =
           std::distance(GlobalECs->member_begin(I), GlobalECs->member_end());

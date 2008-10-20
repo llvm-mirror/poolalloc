@@ -297,13 +297,11 @@ public:
   /// globals list.
   void removeGlobal(const GlobalValue *GV);
 
-  void mergeGlobals(const std::vector<const GlobalValue*> &RHS);
+  void mergeGlobals(const DSNode& RHS);
   void clearGlobals() { Globals.clear(); }
 
-  /// getGlobalsList - Return the set of global leaders that are represented by
-  /// this node.  Note that globals that are in this equivalence class but are
-  /// not leaders are not returned: for that, use addFullGlobalsList().
-  const std::vector<const GlobalValue*> &getGlobalsList() const { return Globals; }
+  bool isEmptyGlobals() const { return Globals.empty(); }
+  unsigned numGlobals() const { return Globals.size(); }
 
   /// addFullGlobalsList - Compute the full set of global values that are
   /// represented by this node.  Unlike getGlobalsList(), this requires fair

@@ -372,6 +372,8 @@ void BUDataStructures::CloneAuxIntoGlobal(DSGraph* G) {
 }
 
 void BUDataStructures::calculateGraph(DSGraph* Graph) {
+  DEBUG(Graph->AssertGraphOK(); Graph->getGlobalsGraph()->AssertGraphOK());
+
   // If this graph contains the main function, clone the globals graph into this
   // graph before we inline callees and other fun stuff.
   bool ContainsMain = false;
@@ -408,7 +410,6 @@ void BUDataStructures::calculateGraph(DSGraph* Graph) {
     }
   }
 
-
   // Move our call site list into TempFCs so that inline call sites go into the
   // new call site list and doesn't invalidate our iterators!
   std::list<DSCallSite> TempFCs;
@@ -417,6 +418,8 @@ void BUDataStructures::calculateGraph(DSGraph* Graph) {
 
   std::vector<const Function*> CalledFuncs;
   while (!TempFCs.empty()) {
+    DEBUG(Graph->AssertGraphOK(); Graph->getGlobalsGraph()->AssertGraphOK());
+    
     DSCallSite &CS = *TempFCs.begin();
     Instruction *TheCall = CS.getCallSite().getInstruction();
 
@@ -449,6 +452,7 @@ void BUDataStructures::calculateGraph(DSGraph* Graph) {
 
       // Get the data structure graph for the called function.
       GI = getDSGraph(*Callee);  // Graph to inline
+      DEBUG(GI->AssertGraphOK(); GI->getGlobalsGraph()->AssertGraphOK());
       DOUT << "    Inlining graph for " << Callee->getName()
            << "[" << GI->getGraphSize() << "+"
            << GI->getAuxFunctionCalls().size() << "] into '"
@@ -539,6 +543,7 @@ void BUDataStructures::calculateGraph(DSGraph* Graph) {
         ++NumInlines;
       }
     }
+    DEBUG(Graph->AssertGraphOK(); Graph->getGlobalsGraph()->AssertGraphOK());
     if (!isComplete)
       AuxCallsList.push_front(CS);
     TempFCs.erase(TempFCs.begin());

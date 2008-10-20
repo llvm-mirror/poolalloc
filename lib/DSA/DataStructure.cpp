@@ -802,11 +802,11 @@ void DSNode::addEdgeTo(unsigned Offset, const DSNodeHandle &NH) {
 }
 
 
-void DSNode::mergeGlobals(const std::vector<const GlobalValue*> &RHS) {
+void DSNode::mergeGlobals(const DSNode &RHS) {
   std::vector<const GlobalValue*> Temp;
   std::back_insert_iterator< std::vector<const GlobalValue*> > back_it (Temp);
   std::set_union(Globals.begin(), Globals.end(), 
-                 RHS.begin(), RHS.end(), 
+                 RHS.Globals.begin(), RHS.Globals.end(), 
                  back_it);
   Globals.swap(Temp);
 }
@@ -961,7 +961,7 @@ void DSNode::MergeNodes(DSNodeHandle& CurNodeH, DSNodeHandle& NH) {
 
   // Merge the globals list...
   if (!N->Globals.empty()) {
-    CurNodeH.getNode()->mergeGlobals(N->Globals);
+    CurNodeH.getNode()->mergeGlobals(*N);
 
     // Delete the globals from the old node...
     N->Globals.clear();
@@ -1106,7 +1106,7 @@ DSNodeHandle ReachabilityCloner::getClonedNH(const DSNodeHandle &SrcNH) {
     Dest->getNodeForValue(GV).mergeWith(DSNodeHandle(DestGNH.getNode(),
                                         DestGNH.getOffset()+SrcGNH.getOffset()));
   }
-  NH.getNode()->mergeGlobals(SN->getGlobalsList());
+  NH.getNode()->mergeGlobals(*SN);
 
   return DSNodeHandle(NH.getNode(), NH.getOffset()+SrcNH.getOffset());
 }
@@ -1182,7 +1182,7 @@ void ReachabilityCloner::merge(const DSNodeHandle &NH,
     // scalar map with the correct offset.
     if (SN->globals_begin() != SN->globals_end()) {
       // Update the globals in the destination node itself.
-      DN->mergeGlobals(SN->getGlobalsList());
+      DN->mergeGlobals(*SN);
 
       // Update the scalar map for the graph we are merging the source node
       // into.
@@ -1195,7 +1195,7 @@ void ReachabilityCloner::merge(const DSNodeHandle &NH,
         Dest->getNodeForValue(GV).mergeWith(DSNodeHandle(DestGNH.getNode(),
                                       DestGNH.getOffset()+SrcGNH.getOffset()));
       }
-      NH.getNode()->mergeGlobals(SN->getGlobalsList());
+      NH.getNode()->mergeGlobals(*SN);
     }
   } else {
     // We cannot handle this case without allocating a temporary node.  Fall
@@ -2030,7 +2030,7 @@ static void removeIdenticalCalls(std::list<DSCallSite> &Calls) {
       // If the Callee is a useless edge, this must be an unreachable call site,
       // eliminate it.
       if (Callee->getNumReferrers() == 1 && Callee->isCompleteNode() &&
-          Callee->getGlobalsList().empty()) {  // No useful info?
+          Callee->isEmptyGlobals()) {  // No useful info?
         DOUT << "WARNING: Useless call site found.\n";
         Calls.erase(OldIt);
         ++NumDeleted;
@@ -2214,20 +2214,21 @@ void DSGraph::removeTriviallyDeadNodes(bool updateForwarders) {
       // have all of these properties and still have incoming edges, due to the
       // scalar map, so we check those now.
       //
-      if (Node.getNumReferrers() == Node.getGlobalsList().size()) {
-        const std::vector<const GlobalValue*> &Globals = Node.getGlobalsList();
+      if (Node.getNumReferrers() == Node.numGlobals()) {
 
         // Loop through and make sure all of the globals are referring directly
         // to the node...
-        for (unsigned j = 0, e = Globals.size(); j != e; ++j) {
-          DSNode *N = getNodeForValue(Globals[j]).getNode();
+        for (DSNode::globals_iterator j = Node.globals_begin(), e = Node.globals_end();
+             j != e; ++j) {
+          DSNode *N = getNodeForValue(*j).getNode();
           assert(N == &Node && "ScalarMap doesn't match globals list!");
         }
 
         // Make sure NumReferrers still agrees, if so, the node is truly dead.
-        if (Node.getNumReferrers() == Globals.size()) {
-          for (unsigned j = 0, e = Globals.size(); j != e; ++j)
-            ScalarMap.erase(Globals[j]);
+        if (Node.getNumReferrers() == Node.numGlobals()) {
+          for (DSNode::globals_iterator j = Node.globals_begin(), e = Node.globals_end();
+               j != e; ++j) 
+            ScalarMap.erase(*j);
           Node.makeNodeDead();
           ++NumTrivialGlobalDNE;
         }
@@ -2779,7 +2780,7 @@ void DataStructures::buildGlobalECs(std::set<const GlobalValue*> &ECGlobals) {
   for (DSGraph::node_iterator I = GlobalsGraph->node_begin(), 
          E = GlobalsGraph->node_end();
        I != E; ++I) {
-    if (I->getGlobalsList().size() <= 1) continue;
+    if (I->numGlobals() <= 1) continue;
 
     // First, build up the equivalence set for this block of globals.
     DSNode::globals_iterator i = I->globals_begin(); 
