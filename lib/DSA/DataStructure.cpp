@@ -191,7 +191,6 @@ void DSNode::assertOK() const {
   assert(ParentGraph && "Node has no parent?");
   const DSScalarMap &SM = ParentGraph->getScalarMap();
   for (unsigned i = 0, e = Globals.size(); i != e; ++i) {
-    Globals[i]->dump();
     assert(SM.global_count(Globals[i]));
     assert(SM.find(Globals[i])->second.getNode() == this);
   }
