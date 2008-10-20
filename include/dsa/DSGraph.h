@@ -250,7 +250,7 @@ public:
   // source.  You need to set a new GlobalsGraph with the setGlobalsGraph
   // method.
   //
-  DSGraph( DSGraph &DSG, EquivalenceClasses<const GlobalValue*> &ECs,
+  DSGraph( DSGraph* DSG, EquivalenceClasses<const GlobalValue*> &ECs,
           unsigned CloneFlags = 0);
   ~DSGraph();
 
@@ -315,6 +315,10 @@ public:
   const std::list<DSCallSite> &getAuxFunctionCalls() const {
     return AuxFunctionCalls;
   }
+
+  // addAuxFunctionCall - Add a call site to the AuxFunctionCallList
+  void addAuxFunctionCall(DSCallSite D) { AuxFunctionCalls.push_front(D); }
+
 
   /// removeFunction - Specify that all call sites to the function have been
   /// fully specified by a pass such as StdLibPass.
@@ -498,13 +502,13 @@ public:
   /// this graph, then clearing the RHS graph.  Instead of performing this as
   /// two seperate operations, do it as a single, much faster, one.
   ///
-  void spliceFrom(DSGraph &RHS);
+  void spliceFrom(DSGraph* RHS);
 
   /// cloneInto - Clone the specified DSGraph into the current graph.
   ///
   /// The CloneFlags member controls various aspects of the cloning process.
   ///
-  void cloneInto(DSGraph &G, unsigned CloneFlags = 0);
+  void cloneInto(DSGraph* G, unsigned CloneFlags = 0);
 
   /// getFunctionArgumentsForCall - Given a function that is currently in this
   /// graph, return the DSNodeHandles that correspond to the pointer-compatible
@@ -567,8 +571,8 @@ public:
 /// all of the nodes reachable from it are automatically brought over as well.
 ///
 class ReachabilityCloner {
-  DSGraph &Dest;
-  const DSGraph &Src;
+  DSGraph* Dest;
+  const DSGraph* Src;
 
   /// BitsToKeep - These bits are retained from the source node when the
   /// source nodes are merged into the destination graph.
@@ -579,9 +583,9 @@ class ReachabilityCloner {
   // represent them in the destination graph.
   DSGraph::NodeMapTy NodeMap;
 public:
-  ReachabilityCloner(DSGraph &dest, const DSGraph &src, unsigned cloneFlags)
+  ReachabilityCloner(DSGraph* dest, const DSGraph* src, unsigned cloneFlags)
     : Dest(dest), Src(src), CloneFlags(cloneFlags) {
-    assert(&Dest != &Src && "Cannot clone from graph to same graph!");
+    assert(Dest != Src && "Cannot clone from graph to same graph!");
     BitsToKeep = ~DSNode::DeadNode;
     if (CloneFlags & DSGraph::StripAllocaBit)
       BitsToKeep &= ~DSNode::AllocaNode;

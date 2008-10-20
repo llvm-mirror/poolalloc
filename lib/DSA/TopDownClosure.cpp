@@ -125,7 +125,7 @@ bool TDDataStructures::runOnModule(Module &M) {
 
   // Visit each of the graphs in reverse post-order now!
   while (!PostOrder.empty()) {
-    InlineCallersIntoGraph(*PostOrder.back());
+    InlineCallersIntoGraph(PostOrder.back());
     PostOrder.pop_back();
   }
 }
@@ -148,29 +148,29 @@ void TDDataStructures::ComputePostOrder(const Function &F,
                                         hash_set<DSGraph*> &Visited,
                                         std::vector<DSGraph*> &PostOrder) {
   if (F.isDeclaration()) return;
-  DSGraph &G = getOrCreateGraph(&F);
-  if (Visited.count(&G)) return;
-  Visited.insert(&G);
+  DSGraph* G = getOrCreateGraph(&F);
+  if (Visited.count(G)) return;
+  Visited.insert(G);
 
   // Recursively traverse all of the callee graphs.
-  for (DSGraph::fc_iterator CI = G.fc_begin(), CE = G.fc_end(); CI != CE; ++CI){
+  for (DSGraph::fc_iterator CI = G->fc_begin(), CE = G->fc_end(); CI != CE; ++CI){
     Instruction *CallI = CI->getCallSite().getInstruction();
     for (callee_iterator I = callee_begin(CallI),
            E = callee_end(CallI); I != E; ++I)
       ComputePostOrder(**I, Visited, PostOrder);
   }
 
-  PostOrder.push_back(&G);
+  PostOrder.push_back(G);
 }
 
 /// InlineCallersIntoGraph - Inline all of the callers of the specified DS graph
 /// into it, then recompute completeness of nodes in the resultant graph.
-void TDDataStructures::InlineCallersIntoGraph(DSGraph &DSG) {
+void TDDataStructures::InlineCallersIntoGraph(DSGraph* DSG) {
   // Inline caller graphs into this graph.  First step, get the list of call
   // sites that call into this graph.
   std::vector<CallerCallEdge> EdgesFromCaller;
   std::map<DSGraph*, std::vector<CallerCallEdge> >::iterator
-    CEI = CallerEdges.find(&DSG);
+    CEI = CallerEdges.find(DSG);
   if (CEI != CallerEdges.end()) {
     std::swap(CEI->second, EdgesFromCaller);
     CallerEdges.erase(CEI);
@@ -186,21 +186,21 @@ void TDDataStructures::InlineCallersIntoGraph(DSGraph &DSG) {
   // post-pass over all of the graphs.  We need to take cloning out of
   // removeDeadNodes and gut removeDeadNodes at the same time first though. :(
   {
-    DSGraph &GG = *DSG.getGlobalsGraph();
+    DSGraph* GG = DSG->getGlobalsGraph();
     ReachabilityCloner RC(DSG, GG,
                           DSGraph::DontCloneCallNodes |
                           DSGraph::DontCloneAuxCallNodes);
     for (DSScalarMap::global_iterator
-           GI = DSG.getScalarMap().global_begin(),
-           E = DSG.getScalarMap().global_end(); GI != E; ++GI)
-      RC.getClonedNH(GG.getNodeForValue(*GI));
+           GI = DSG->getScalarMap().global_begin(),
+           E = DSG->getScalarMap().global_end(); GI != E; ++GI)
+      RC.getClonedNH(GG->getNodeForValue(*GI));
   }
 
-  DOUT << "[TD] Inlining callers into '" << DSG.getFunctionNames() << "'\n";
+  DOUT << "[TD] Inlining callers into '" << DSG->getFunctionNames() << "'\n";
 
   // Iteratively inline caller graphs into this graph.
   while (!EdgesFromCaller.empty()) {
-    DSGraph &CallerGraph = *EdgesFromCaller.back().CallerGraph;
+    DSGraph* CallerGraph = EdgesFromCaller.back().CallerGraph;
 
     // Iterate through all of the call sites of this graph, cloning and merging
     // any nodes required by the call.
@@ -213,7 +213,7 @@ void TDDataStructures::InlineCallersIntoGraph(DSGraph &DSG) {
       const DSCallSite &CS = *EdgesFromCaller.back().CS;
       const Function &CF = *EdgesFromCaller.back().CalledFunction;
       DOUT << "   [TD] Inlining graph into Fn '" << CF.getName() << "' from ";
-      if (CallerGraph.getReturnNodes().empty())
+      if (CallerGraph->getReturnNodes().empty())
         DOUT << "SYNTHESIZED INDIRECT GRAPH";
       else
         DOUT << "Fn '" << CS.getCallSite().getInstruction()->
@@ -222,25 +222,25 @@ void TDDataStructures::InlineCallersIntoGraph(DSGraph &DSG) {
 
       // Get the formal argument and return nodes for the called function and
       // merge them with the cloned subgraph.
-      DSCallSite T1 = DSG.getCallSiteForArguments(CF);
+      DSCallSite T1 = DSG->getCallSiteForArguments(CF);
       RC.mergeCallSite(T1, CS);
       ++NumTDInlines;
 
       EdgesFromCaller.pop_back();
     } while (!EdgesFromCaller.empty() &&
-             EdgesFromCaller.back().CallerGraph == &CallerGraph);
+             EdgesFromCaller.back().CallerGraph == CallerGraph);
   }
 
 
   // Next, now that this graph is finalized, we need to recompute the
   // incompleteness markers for this graph and remove unreachable nodes.
-  DSG.maskIncompleteMarkers();
+  DSG->maskIncompleteMarkers();
 
   // If any of the functions has incomplete incoming arguments, don't mark any
   // of them as complete.
   bool HasIncompleteArgs = false;
-  for (DSGraph::retnodes_iterator I = DSG.retnodes_begin(),
-         E = DSG.retnodes_end(); I != E; ++I)
+  for (DSGraph::retnodes_iterator I = DSG->retnodes_begin(),
+         E = DSG->retnodes_end(); I != E; ++I)
     if (ArgsRemainIncomplete.count(I->first)) {
       HasIncompleteArgs = true;
       break;
@@ -249,28 +249,28 @@ void TDDataStructures::InlineCallersIntoGraph(DSGraph &DSG) {
   // Recompute the Incomplete markers.  Depends on whether args are complete
   unsigned Flags
     = HasIncompleteArgs ? DSGraph::MarkFormalArgs : DSGraph::IgnoreFormalArgs;
-  DSG.markIncompleteNodes(Flags | DSGraph::IgnoreGlobals);
+  DSG->markIncompleteNodes(Flags | DSGraph::IgnoreGlobals);
 
   // Delete dead nodes.  Treat globals that are unreachable as dead also.
-  DSG.removeDeadNodes(DSGraph::RemoveUnreachableGlobals);
+  DSG->removeDeadNodes(DSGraph::RemoveUnreachableGlobals);
 
   // We are done with computing the current TD Graph!  Finally, before we can
   // finish processing this function, we figure out which functions it calls and
   // records these call graph edges, so that we have them when we process the
   // callee graphs.
-  if (DSG.fc_begin() == DSG.fc_end()) return;
+  if (DSG->fc_begin() == DSG->fc_end()) return;
 
   // Loop over all the call sites and all the callees at each call site, and add
   // edges to the CallerEdges structure for each callee.
-  for (DSGraph::fc_iterator CI = DSG.fc_begin(), E = DSG.fc_end();
+  for (DSGraph::fc_iterator CI = DSG->fc_begin(), E = DSG->fc_end();
        CI != E; ++CI) {
 
     // Handle direct calls efficiently.
     if (CI->isDirectCall()) {
       if (!CI->getCalleeFunc()->isDeclaration() &&
-          !DSG.getReturnNodes().count(CI->getCalleeFunc()))
-        CallerEdges[&getOrCreateGraph(CI->getCalleeFunc())]
-          .push_back(CallerCallEdge(&DSG, &*CI, CI->getCalleeFunc()));
+          !DSG->getReturnNodes().count(CI->getCalleeFunc()))
+        CallerEdges[getOrCreateGraph(CI->getCalleeFunc())]
+          .push_back(CallerCallEdge(DSG, &*CI, CI->getCalleeFunc()));
       continue;
     }
 
@@ -280,7 +280,7 @@ void TDDataStructures::InlineCallersIntoGraph(DSGraph &DSG) {
       callee_begin(CallI), IPE = callee_end(CallI);
 
     // Skip over all calls to this graph (SCC calls).
-    while (IPI != IPE && &getDSGraph(**IPI) == &DSG)
+    while (IPI != IPE && getDSGraph(**IPI) == DSG)
       ++IPI;
 
     // All SCC calls?
@@ -290,15 +290,15 @@ void TDDataStructures::InlineCallersIntoGraph(DSGraph &DSG) {
     ++IPI;
 
     // Skip over more SCC calls.
-    while (IPI != IPE && &getDSGraph(**IPI) == &DSG)
+    while (IPI != IPE && getDSGraph(**IPI) == DSG)
       ++IPI;
 
     // If there is exactly one callee from this call site, remember the edge in
     // CallerEdges.
     if (IPI == IPE) {
       if (!FirstCallee->isDeclaration())
-        CallerEdges[&getOrCreateGraph(FirstCallee)]
-          .push_back(CallerCallEdge(&DSG, &*CI, FirstCallee));
+        CallerEdges[getOrCreateGraph(FirstCallee)]
+          .push_back(CallerCallEdge(DSG, &*CI, FirstCallee));
       continue;
     }
 
@@ -326,7 +326,7 @@ void TDDataStructures::InlineCallersIntoGraph(DSGraph &DSG) {
       IndCallGraph = IndCallRecI->second;
     } else {
       // Otherwise, create a new DSGraph to represent this.
-      IndCallGraph = new DSGraph(DSG.getGlobalECs(), DSG.getTargetData());
+      IndCallGraph = new DSGraph(DSG->getGlobalECs(), DSG->getTargetData());
       // Make a nullary dummy call site, which will eventually get some content
       // merged into it.  The actual callee function doesn't matter here, so we
       // just pass it something to keep the ctor happy.
@@ -342,16 +342,16 @@ void TDDataStructures::InlineCallersIntoGraph(DSGraph &DSG) {
       // exactly once.
       DSCallSite *NCS = &IndCallGraph->getFunctionCalls().front();
       for (unsigned i = 0, e = Callees.size(); i != e; ++i) {
-        DSGraph& CalleeGraph = getDSGraph(*Callees[i]);
-        if (&CalleeGraph != &DSG)
-          CallerEdges[&CalleeGraph].push_back(CallerCallEdge(IndCallGraph, NCS,
-                                                             Callees[i]));
+        DSGraph* CalleeGraph = getDSGraph(*Callees[i]);
+        if (CalleeGraph != DSG)
+          CallerEdges[CalleeGraph].push_back(CallerCallEdge(IndCallGraph, NCS,
+                                                            Callees[i]));
       }
     }
 
     // Now that we know which graph to use for this, merge the caller
     // information into the graph, based on information from the call site.
-    ReachabilityCloner RC(*IndCallGraph, DSG, 0);
+    ReachabilityCloner RC(IndCallGraph, DSG, 0);
     RC.mergeCallSite(IndCallGraph->getFunctionCalls().front(), *CI);
   }
 }

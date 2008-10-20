@@ -18,7 +18,6 @@
 #include "dsa/DSGraph.h"
 #include "dsa/CallTargets.h"
 #include "poolalloc/PoolAllocate.h"
-#include "Heuristic.h"
 #include "llvm/Constants.h"
 #include "llvm/DerivedTypes.h"
 #include "llvm/Instructions.h"
@@ -121,7 +120,7 @@ bool PoolAllocateSimple::runOnModule(Module &M) {
   // Merge all of the DSNodes in the DSGraphs.
   //
   GlobalECs = Graphs->getGlobalECs();
-  CombinedDSGraph = new DSGraph (GlobalECs, TD, &(Graphs->getGlobalsGraph()));
+  CombinedDSGraph = new DSGraph (GlobalECs, TD, Graphs->getGlobalsGraph());
   //CombinedDSGraph.cloneInto (getGlobalsGraph());
   for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I) {
     if (Graphs->hasDSGraph (*I))
@@ -161,13 +160,13 @@ PoolAllocateSimple::ProcessFunctionBodySimple (Function& F, TargetData & TD) {
   //
   // Get the DSGraph for this function.
   //
-  DSGraph &ECG = Graphs->getDSGraph(F);
+  DSGraph* ECG = Graphs->getDSGraph(F);
 
   for (Function::iterator i = F.begin(), e = F.end(); i != e; ++i)
     for (BasicBlock::iterator ii = i->begin(), ee = i->end(); ii != ee; ++ii) {
       if (MallocInst * MI = dyn_cast<MallocInst>(ii)) {
         // Associate the global pool decriptor with the DSNode
-        DSNode * Node = ECG.getNodeForValue(MI).getNode();
+        DSNode * Node = ECG->getNodeForValue(MI).getNode();
         FInfo.PoolDescriptors.insert(std::make_pair(Node,TheGlobalPool));
 
         // Mark the malloc as an instruction to delete
@@ -202,7 +201,7 @@ PoolAllocateSimple::ProcessFunctionBodySimple (Function& F, TargetData & TD) {
             CF = cast<Function>(CE->getOperand(0));
         if (CF && (CF->isDeclaration()) && (CF->getName() == "realloc")) {
           // Associate the global pool decriptor with the DSNode
-          DSNode * Node = ECG.getNodeForValue(CI).getNode();
+          DSNode * Node = ECG->getNodeForValue(CI).getNode();
           FInfo.PoolDescriptors.insert(std::make_pair(Node,TheGlobalPool));
 
           // Mark the realloc as an instruction to delete
@@ -243,7 +242,7 @@ PoolAllocateSimple::ProcessFunctionBodySimple (Function& F, TargetData & TD) {
           CI->replaceAllUsesWith(Casted);
         } else if (CF && (CF->isDeclaration()) && (CF->getName() == "calloc")) {
           // Associate the global pool decriptor with the DSNode
-          DSNode * Node = ECG.getNodeForValue(CI).getNode();
+          DSNode * Node = ECG->getNodeForValue(CI).getNode();
           FInfo.PoolDescriptors.insert(std::make_pair(Node,TheGlobalPool));
 
           // Mark the realloc as an instruction to delete
@@ -285,7 +284,7 @@ PoolAllocateSimple::ProcessFunctionBodySimple (Function& F, TargetData & TD) {
           CI->replaceAllUsesWith(Casted);
         } else if (CF && (CF->isDeclaration()) && (CF->getName() == "strdup")) {
           // Associate the global pool decriptor with the DSNode
-          DSNode * Node = ECG.getNodeForValue(CI).getNode();
+          DSNode * Node = ECG->getNodeForValue(CI).getNode();
           FInfo.PoolDescriptors.insert(std::make_pair(Node,TheGlobalPool));
 
           // Mark the realloc as an instruction to delete

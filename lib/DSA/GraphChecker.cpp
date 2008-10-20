@@ -71,7 +71,7 @@ namespace {
     void print(std::ostream &O, const Module *M) const {}
 
   private:
-    void verify(const DSGraph &G);
+    void verify(const DSGraph* G);
   };
 
   RegisterPass<DSGC> X("datastructure-gc", "DSA Graph Checking Pass");
@@ -120,14 +120,14 @@ bool DSGC::runOnFunction(Function &F) {
 /// verify - This is the function which checks to make sure that all of the
 /// invariants established on the command line are true.
 ///
-void DSGC::verify(const DSGraph &G) {
+void DSGC::verify(const DSGraph* G) {
   // Loop over all of the nodes, checking to see if any are collapsed...
   if (AbortIfAnyCollapsed) {
-    for (DSGraph::node_const_iterator I = G.node_begin(), E = G.node_end();
+    for (DSGraph::node_const_iterator I = G->node_begin(), E = G->node_end();
          I != E; ++I)
       if (I->isNodeCompletelyFolded()) {
         cerr << "Node is collapsed: ";
-        I->print(cerr, &G);
+        I->print(cerr, G);
         abort();
       }
   }
@@ -168,7 +168,7 @@ void DSGC::verify(const DSGraph &G) {
 
     // Now we loop over all of the scalars, checking to see if any are collapsed
     // that are not supposed to be, or if any are merged together.
-    const DSGraph::ScalarMapTy &SM = G.getScalarMap();
+    const DSGraph::ScalarMapTy &SM = G->getScalarMap();
     std::map<DSNode*, std::string> AbortIfMergedNodes;
 
     for (DSGraph::ScalarMapTy::const_iterator I = SM.begin(), E = SM.end();
@@ -180,7 +180,7 @@ void DSGC::verify(const DSGraph &G) {
         // Verify it is not collapsed if it is not supposed to be...
         if (N->isNodeCompletelyFolded() && AbortIfCollapsedS.count(Name)) {
           cerr << "Node for value '%" << Name << "' is collapsed: ";
-          N->print(cerr, &G);
+          N->print(cerr, G);
           abort();
         }
 
@@ -188,7 +188,7 @@ void DSGC::verify(const DSGraph &G) {
           cerr << "Node flags are not as expected for node: " << Name 
                << " (" << CheckFlagsM[Name] << ":" <<N->getNodeFlags()
                << ")\n";
-          N->print(cerr, &G);
+          N->print(cerr, G);
           abort();
         }
 
@@ -197,7 +197,7 @@ void DSGC::verify(const DSGraph &G) {
           if (AbortIfMergedNodes.count(N)) {
             cerr << "Nodes for values '%" << Name << "' and '%"
                  << AbortIfMergedNodes[N] << "' is merged: ";
-            N->print(cerr, &G);
+            N->print(cerr, G);
             abort();
           }
           AbortIfMergedNodes[N] = Name;

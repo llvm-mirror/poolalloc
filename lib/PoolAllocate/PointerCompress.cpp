@@ -134,7 +134,7 @@ namespace {
 
     PoolAllocate *getPoolAlloc() const { return PoolAlloc; }
 
-    const DSGraph &getGraphForFunc(PA::FuncInfo *FI) const {
+    const DSGraph* getGraphForFunc(PA::FuncInfo *FI) const {
       return ECG->getDSGraph(FI->F);
     }
 
@@ -161,7 +161,7 @@ namespace {
 
     void FindPoolsToCompress(std::set<const DSNode*> &Pools,
                              std::map<const DSNode*, Value*> &PreassignedPools,
-                             Function &F, DSGraph &DSG, PA::FuncInfo *FI);
+                             Function &F, DSGraph* DSG, PA::FuncInfo *FI);
   };
 
   char PointerCompress::ID = 0;
@@ -348,7 +348,7 @@ namespace {
     const TargetData &TD;
 
 
-    DSGraph &DSG;
+    DSGraph* DSG;
 
     /// PAFuncInfo - Information about the transformation the pool allocator did
     /// to the original function.
@@ -362,9 +362,9 @@ namespace {
     PointerCompress &PtrComp;
   public:
     InstructionRewriter(const PointerCompress::PoolInfoMap &poolInfo,
-                        DSGraph &dsg, PA::FuncInfo &pafi,
+                        DSGraph* dsg, PA::FuncInfo &pafi,
                         FunctionCloneRecord *fcr, PointerCompress &ptrcomp)
-      : PoolInfo(poolInfo), TD(dsg.getTargetData()), DSG(dsg),
+      : PoolInfo(poolInfo), TD(dsg->getTargetData()), DSG(dsg),
         PAFuncInfo(pafi), FCR(fcr), PtrComp(ptrcomp) {
     }
 
@@ -425,7 +425,7 @@ namespace {
           // Value didn't exist in the orig program (pool desc?).
           return DSNodeHandle();
 
-      return DSG.getNodeForValue(V);
+      return DSG->getNodeForValue(V);
     }
 
     /// getNodeIfCompressed - If the specified value is a pointer that will be
@@ -479,7 +479,7 @@ namespace {
       } else {
         // Otherwise if this was in the original function, remove it from the
         // DSG scalar map if it is there.
-        DSG.getScalarMap().eraseIfExists(V);
+        DSG->getScalarMap().eraseIfExists(V);
       }
     }
 
@@ -507,8 +507,8 @@ namespace {
         // Finally, if this occurred in a function that neither the pool
         // allocator nor the ptr compression implementation had to change,
         // update the DSGraph.
-        if (DSG.getScalarMap().count(&Old))
-          DSG.getScalarMap().replaceScalar(&Old, New);
+        if (DSG->getScalarMap().count(&Old))
+          DSG->getScalarMap().replaceScalar(&Old, New);
       }
     }
 
@@ -946,7 +946,7 @@ void InstructionRewriter::visitCallInst(CallInst &CI) {
   Function *Callee = CI.getCalledFunction();
   if (Callee)
     if ((FI = PtrComp.getPoolAlloc()->getFuncInfoOrClone(*Callee)))
-      CG = &PtrComp.getGraphForFunc(FI);
+      CG = PtrComp.getGraphForFunc(FI);
 
   if (!Callee) {
     // Indirect call: you CAN'T passed compress pointers in.  Don't even think
@@ -1183,7 +1183,7 @@ static bool PoolIsCompressible(const DSNode *N) {
 void PointerCompress::FindPoolsToCompress(std::set<const DSNode*> &Pools,
                                           std::map<const DSNode*,
                                           Value*> &PreassignedPools,
-                                          Function &F, DSGraph &DSG,
+                                          Function &F, DSGraph* DSG,
                                           PA::FuncInfo *FI) {
   DEBUG(std::cerr << "In function '" << F.getName() << "':\n");
   for (unsigned i = 0, e = FI->NodesToPA.size(); i != e; ++i) {
@@ -1212,11 +1212,11 @@ void PointerCompress::FindPoolsToCompress(std::set<const DSNode*> &Pools,
   // Map all node reachable from this global to the corresponding nodes in the
   // globals graph.
   DSGraph::NodeMapTy GlobalsGraphNodeMapping;
-  DSG.computeGToGGMapping(GlobalsGraphNodeMapping);
+  DSG->computeGToGGMapping(GlobalsGraphNodeMapping);
 
   // See if there are nodes in this graph that correspond to nodes in the
   // globals graph, and if so, if it is compressed.
-  for (DSGraph::node_iterator I = DSG.node_begin(), E = DSG.node_end();
+  for (DSGraph::node_iterator I = DSG->node_begin(), E = DSG->node_end();
        I != E;++I)
     if (GlobalsGraphNodeMapping.count(I)) {
       // If it is a global pool, set up the pool descriptor appropriately.
@@ -1262,7 +1262,7 @@ CompressPoolsInFunction(Function &F,
     return false;
 
   // Get the DSGraph for this function.
-  DSGraph &DSG = ECG->getDSGraph(FI->F);
+  DSGraph* DSG = ECG->getDSGraph(FI->F);
 
   std::set<const DSNode*> PoolsToCompressSet;
 
@@ -1301,7 +1301,7 @@ CompressPoolsInFunction(Function &F,
   // Use these to compute the closure of compression information.  In
   // particular, if one pool points to another, we need to know if the outgoing
   // pointer is compressed.
-  const TargetData &TD = DSG.getTargetData();
+  const TargetData &TD = DSG->getTargetData();
   std::cerr << "In function '" << F.getName() << "':\n";
   for (std::map<const DSNode*, CompressedPoolInfo>::iterator
          I = PoolsToCompress.begin(), E = PoolsToCompress.end(); I != E; ++I) {

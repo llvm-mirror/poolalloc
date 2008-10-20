@@ -53,7 +53,7 @@ void CallTargetFinder::findIndTargets(Module &M)
             if (!cs.getCalledFunction()) {
               IndCall++;
               DSNode* N = T->getDSGraph(*cs.getCaller())
-                .getNodeForValue(cs.getCalledValue()).getNode();
+                ->getNodeForValue(cs.getCalledValue()).getNode();
               N->addFullFunctionList(IndMap[cs]);
               if (N->isCompleteNode() && IndMap[cs].size()) {
                 CompleteSites.insert(cs);

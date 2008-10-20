@@ -294,30 +294,30 @@ void PoolAllocate::MicroOptimizePoolCalls() {
 
 
 
-static void GetNodesReachableFromGlobals(DSGraph &G,
+static void GetNodesReachableFromGlobals(DSGraph* G,
                                   hash_set<const DSNode*> &NodesFromGlobals) {
-  for (DSScalarMap::global_iterator I = G.getScalarMap().global_begin(), 
-         E = G.getScalarMap().global_end(); I != E; ++I)
-    G.getNodeForValue(*I).getNode()->markReachableNodes(NodesFromGlobals);
+  for (DSScalarMap::global_iterator I = G->getScalarMap().global_begin(), 
+         E = G->getScalarMap().global_end(); I != E; ++I)
+    G->getNodeForValue(*I).getNode()->markReachableNodes(NodesFromGlobals);
 }
 
 static void MarkNodesWhichMustBePassedIn(hash_set<const DSNode*> &MarkedNodes,
-                                         Function &F, DSGraph &G,
+                                         Function &F, DSGraph* G,
                                          bool PassAllArguments) {
   // Mark globals and incomplete nodes as live... (this handles arguments)
   if (F.getName() != "main") {
     // All DSNodes reachable from arguments must be passed in.
     for (Function::arg_iterator I = F.arg_begin(), E = F.arg_end();
          I != E; ++I) {
-      DSGraph::ScalarMapTy::iterator AI = G.getScalarMap().find(I);
-      if (AI != G.getScalarMap().end())
+      DSGraph::ScalarMapTy::iterator AI = G->getScalarMap().find(I);
+      if (AI != G->getScalarMap().end())
         if (DSNode *N = AI->second.getNode())
           N->markReachableNodes(MarkedNodes);
     }
   }
 
   // Marked the returned node as needing to be passed in.
-  if (DSNode *RetNode = G.getReturnNodeFor(F).getNode())
+  if (DSNode *RetNode = G->getReturnNodeFor(F).getNode())
     RetNode->markReachableNodes(MarkedNodes);
 
   // Calculate which DSNodes are reachable from globals.  If a node is reachable
@@ -343,14 +343,14 @@ static void MarkNodesWhichMustBePassedIn(hash_set<const DSNode*> &MarkedNodes,
 /// arguments will have to be added for each function, build the FunctionInfo
 /// map and recording this info in the ArgNodes set.
 void PoolAllocate::FindFunctionPoolArgs(Function &F) {
-  DSGraph &G = Graphs->getDSGraph(F);
+  DSGraph* G = Graphs->getDSGraph(F);
 
   // Create a new entry for F.
   FuncInfo &FI =
     FunctionInfo.insert(std::make_pair(&F, FuncInfo(F))).first->second;
   hash_set<const DSNode*> &MarkedNodes = FI.MarkedNodes;
 
-  if (G.node_begin() == G.node_end())
+  if (G->node_begin() == G->node_end())
     return;  // No memory activity, nothing is required
 
   // Find DataStructure nodes which are allocated in pools non-local to the
@@ -366,8 +366,8 @@ void PoolAllocate::FindFunctionPoolArgs(Function &F) {
 // necessary, and return it.  If not, just return null.
 //
 Function *PoolAllocate::MakeFunctionClone(Function &F) {
-  DSGraph &G = Graphs->getDSGraph(F);
-  if (G.node_begin() == G.node_end()) return 0;
+  DSGraph* G = Graphs->getDSGraph(F);
+  if (G->node_begin() == G->node_end()) return 0;
     
   FuncInfo &FI = *getFuncInfo(F);
   if (FI.ArgNodes.empty())
@@ -471,7 +471,7 @@ Function *PoolAllocate::MakeFunctionClone(Function &F) {
 //
 bool PoolAllocate::SetupGlobalPools(Module &M) {
   // Get the globals graph for the program.
-  DSGraph &GG = Graphs->getGlobalsGraph();
+  DSGraph* GG = Graphs->getGlobalsGraph();
 
   // Get all of the nodes reachable from globals.
   hash_set<const DSNode*> GlobalHeapNodes;
@@ -557,7 +557,7 @@ GlobalVariable *PoolAllocate::CreateGlobalPool(unsigned RecSize, unsigned Align,
                        CurModule);
 
   // Update the global DSGraph to include this.
-  DSNode *GNode = Graphs->getGlobalsGraph().addObjectToGraph(GV);
+  DSNode *GNode = Graphs->getGlobalsGraph()->addObjectToGraph(GV);
   GNode->setModifiedMarker()->setReadMarker();
 
   Function *MainFunc = CurModule->getFunction("main");
@@ -584,7 +584,7 @@ GlobalVariable *PoolAllocate::CreateGlobalPool(unsigned RecSize, unsigned Align,
 // the DSNodes specified by the NodesToPA list.  This adds an entry to the
 // PoolDescriptors map for each DSNode.
 //
-void PoolAllocate::CreatePools(Function &F, DSGraph &DSG,
+void PoolAllocate::CreatePools(Function &F, DSGraph* DSG,
                                const std::vector<const DSNode*> &NodesToPA,
                                std::map<const DSNode*,
                                         Value*> &PoolDescriptors) {
@@ -592,7 +592,7 @@ void PoolAllocate::CreatePools(Function &F, DSGraph &DSG,
   TIME_REGION(X, "CreatePools");
 
   std::vector<Heuristic::OnePool> ResultPools;
-  CurHeuristic->AssignToPools(NodesToPA, &F, *NodesToPA[0]->getParentGraph(),
+  CurHeuristic->AssignToPools(NodesToPA, &F, NodesToPA[0]->getParentGraph(),
                               ResultPools);
 
   std::set<const DSNode*> UnallocatedNodes(NodesToPA.begin(), NodesToPA.end());
@@ -614,14 +614,14 @@ void PoolAllocate::CreatePools(Function &F, DSGraph &DSG,
         PoolDesc = new AllocaInst(PoolDescType, 0, "PD", InsertPoint);
 
         // Create a node in DSG to represent the new alloca.
-        DSNode *NewNode = DSG.addObjectToGraph(PoolDesc);
+        DSNode *NewNode = DSG->addObjectToGraph(PoolDesc);
         NewNode->setModifiedMarker()->setReadMarker();  // This is M/R
       } else {
         PoolDesc = CreateGlobalPool(Pool.PoolSize, Pool.PoolAlignment,
                                     InsertPoint);
 
         // Add the global node to main's graph.
-        DSNode *NewNode = DSG.addObjectToGraph(PoolDesc);
+        DSNode *NewNode = DSG->addObjectToGraph(PoolDesc);
         NewNode->setModifiedMarker()->setReadMarker();  // This is M/R
 
         if (Pool.NodesInPool.size() == 1 &&
@@ -647,9 +647,9 @@ void PoolAllocate::CreatePools(Function &F, DSGraph &DSG,
 // the specified function.
 //
 void PoolAllocate::ProcessFunctionBody(Function &F, Function &NewF) {
-  DSGraph &G = Graphs->getDSGraph(F);
+  DSGraph* G = Graphs->getDSGraph(F);
 
-  if (G.node_begin() == G.node_end()) return;  // Quick exit if nothing to do.
+  if (G->node_begin() == G->node_end()) return;  // Quick exit if nothing to do.
   
   FuncInfo &FI = *getFuncInfo(F);
   hash_set<const DSNode*> &MarkedNodes = FI.MarkedNodes;
@@ -662,11 +662,11 @@ void PoolAllocate::ProcessFunctionBody(Function &F, Function &NewF) {
   // Map all node reachable from this global to the corresponding nodes in
   // the globals graph.
   DSGraph::NodeMapTy GlobalsGraphNodeMapping;
-  G.computeGToGGMapping(GlobalsGraphNodeMapping);
+  G->computeGToGGMapping(GlobalsGraphNodeMapping);
 
   // Loop over all of the nodes which are non-escaping, adding pool-allocatable
   // ones to the NodesToPA vector.
-  for (DSGraph::node_iterator I = G.node_begin(), E = G.node_end(); I != E;++I){
+  for (DSGraph::node_iterator I = G->node_begin(), E = G->node_end(); I != E;++I){
     // We only need to make a pool if there is a heap object in it...
     DSNode *N = I;
     if ((N->isHeapNode()) || (BoundsChecksEnabled && (N->isArray()))) {

@@ -34,7 +34,7 @@ namespace {
   /// allocated functions.
   struct FuncTransform : public InstVisitor<FuncTransform> {
     PoolAllocate &PAInfo;
-    DSGraph &G;      // The Bottom-up DS Graph
+    DSGraph* G;      // The Bottom-up DS Graph
     FuncInfo &FI;
 
     // PoolUses - For each pool (identified by the pool descriptor) keep track
@@ -47,7 +47,7 @@ namespace {
     // inserted into the code.  This is seperated out from PoolUses.
     std::multimap<AllocaInst*, CallInst*> &PoolFrees;
 
-    FuncTransform(PoolAllocate &P, DSGraph &g, FuncInfo &fi,
+    FuncTransform(PoolAllocate &P, DSGraph* g, FuncInfo &fi,
                   std::multimap<AllocaInst*, Instruction*> &poolUses,
                   std::multimap<AllocaInst*, CallInst*> &poolFrees)
       : PAInfo(P), G(g), FI(fi), 
@@ -105,7 +105,7 @@ namespace {
     }
 
     DSNodeHandle& getDSNodeHFor(Value *V) {
-      return G.getScalarMap()[getOldValueIfAvailable(V)];
+      return G->getScalarMap()[getOldValueIfAvailable(V)];
     }
 
     Value *getPoolHandle(Value *V) {
@@ -120,7 +120,7 @@ namespace {
   };
 }
 
-void PoolAllocate::TransformBody(DSGraph &g, PA::FuncInfo &fi,
+void PoolAllocate::TransformBody(DSGraph* g, PA::FuncInfo &fi,
                               std::multimap<AllocaInst*,Instruction*> &poolUses,
                               std::multimap<AllocaInst*, CallInst*> &poolFrees,
                                  Function &F) {
@@ -180,9 +180,9 @@ Instruction *FuncTransform::TransformAllocationInstr(Instruction *I,
   // If we are modifying the original function, update the DSGraph.
   if (!FI.Clone) {
     // V and Casted now point to whatever the original allocation did.
-    G.getScalarMap().replaceScalar(I, V);
+    G->getScalarMap().replaceScalar(I, V);
     if (V != Casted)
-      G.getScalarMap()[Casted] = G.getScalarMap()[V];
+      G->getScalarMap()[Casted] = G->getScalarMap()[V];
   } else {             // Otherwise, update the NewToOldValueMap
     UpdateNewToOldValueMap(I, V, V != Casted ? Casted : 0);
   }
@@ -296,7 +296,7 @@ Instruction *FuncTransform::InsertPoolFreeInstr(Value *Arg, Instruction *Where){
   if (Arg->getType() != PointerType::getUnqual(Type::Int8Ty)) {
     Casted = CastInst::CreatePointerCast(Arg, PointerType::getUnqual(Type::Int8Ty),
 				 Arg->getName()+".casted", Where);
-    G.getScalarMap()[Casted] = G.getScalarMap()[Arg];
+    G->getScalarMap()[Casted] = G->getScalarMap()[Arg];
   }
 
   Value* Opts[2] = {PH, Casted};
@@ -395,9 +395,9 @@ void FuncTransform::visitReallocCall(CallSite CS) {
   // If we are modifying the original function, update the DSGraph.
   if (!FI.Clone) {
     // V and Casted now point to whatever the original allocation did.
-    G.getScalarMap().replaceScalar(I, V);
+    G->getScalarMap().replaceScalar(I, V);
     if (V != Casted)
-      G.getScalarMap()[Casted] = G.getScalarMap()[V];
+      G->getScalarMap()[Casted] = G->getScalarMap()[V];
   } else {             // Otherwise, update the NewToOldValueMap
     UpdateNewToOldValueMap(I, V, V != Casted ? Casted : 0);
   }
@@ -466,9 +466,9 @@ void FuncTransform::visitMemAlignCall(CallSite CS) {
   // If we are modifying the original function, update the DSGraph.
   if (!FI.Clone) {
     // V and Casted now point to whatever the original allocation did.
-    G.getScalarMap().replaceScalar(I, V);
+    G->getScalarMap().replaceScalar(I, V);
     if (V != Casted)
-      G.getScalarMap()[Casted] = G.getScalarMap()[V];
+      G->getScalarMap()[Casted] = G->getScalarMap()[V];
   } else {             // Otherwise, update the NewToOldValueMap
     UpdateNewToOldValueMap(I, V, V != Casted ? Casted : 0);
   }
@@ -518,9 +518,9 @@ void FuncTransform::visitStrdupCall(CallSite CS) {
   // If we are modifying the original function, update the DSGraph.
   if (!FI.Clone) {
     // V and Casted now point to whatever the original allocation did.
-    G.getScalarMap().replaceScalar(I, V);
+    G->getScalarMap().replaceScalar(I, V);
     if (V != Casted)
-      G.getScalarMap()[Casted] = G.getScalarMap()[V];
+      G->getScalarMap()[Casted] = G->getScalarMap()[V];
   } else {             // Otherwise, update the NewToOldValueMap
     UpdateNewToOldValueMap(I, V, V != Casted ? Casted : 0);
   }
@@ -602,7 +602,7 @@ void FuncTransform::visitCallSite(CallSite& CS) {
     ArgNodes = CFI->ArgNodes;
     
     assert ((Graphs.hasDSGraph (*CF)) && "Function has no ECGraph!\n");
-    CalleeGraph = &Graphs.getDSGraph(*CF);
+    CalleeGraph = Graphs.getDSGraph(*CF);
   } else {
     DEBUG(std::cerr << "  Handling indirect call: " << *TheCall);
     
@@ -619,14 +619,14 @@ void FuncTransform::visitCallSite(CallSite& CS) {
     CF = *I;
 
     // Get the common graph for the set of functions this call may invoke.
-    CalleeGraph = &Graphs.getDSGraph(*CF);
+    CalleeGraph = Graphs.getDSGraph(*CF);
     
 #ifndef NDEBUG
     // Verify that all potential callees at call site have the same DS graph.
     DataStructures::callee_iterator E = Graphs.callee_end(OrigInst);
     for (; I != E; ++I)
       if (!(*I)->isDeclaration())
-        assert(CalleeGraph == &Graphs.getDSGraph(**I) &&
+        assert(CalleeGraph == Graphs.getDSGraph(**I) &&
                "Callees at call site do not have a common graph!");
 #endif    
 
@@ -750,7 +750,7 @@ void FuncTransform::visitCallSite(CallSite& CS) {
 
   if (TheCall->getType() != Type::VoidTy) {
     // If we are modifying the original function, update the DSGraph... 
-    DSGraph::ScalarMapTy &SM = G.getScalarMap();
+    DSGraph::ScalarMapTy &SM = G->getScalarMap();
     DSGraph::ScalarMapTy::iterator CII = SM.find(TheCall);
     if (CII != SM.end()) {
       SM[NewCall] = CII->second;

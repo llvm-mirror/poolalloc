@@ -38,7 +38,7 @@ namespace {
 
     void getAnalysisUsage(AnalysisUsage &AU) const;
 
-    const DSGraph &getGraphForFunc(PA::FuncInfo *FI) const {
+    const DSGraph* getGraphForFunc(PA::FuncInfo *FI) const {
       return G->getDSGraph(FI->F);
     }
     static char ID;
@@ -46,7 +46,7 @@ namespace {
   private:
     void InitializeLibraryFunctions(Module &M);
     void InstrumentAccess(Instruction *I, Value *Ptr, 
-                          PA::FuncInfo *FI, DSGraph &DSG);
+                          PA::FuncInfo *FI, DSGraph* DSG);
   };
 
   char PoolAccessTrace::ID = 0;
@@ -72,7 +72,7 @@ void PoolAccessTrace::InitializeLibraryFunctions(Module &M) {
 }
 
 void PoolAccessTrace::InstrumentAccess(Instruction *I, Value *Ptr, 
-                                       PA::FuncInfo *FI, DSGraph &DSG) {
+                                       PA::FuncInfo *FI, DSGraph* DSG) {
   // Don't trace loads of globals or the stack.
   if (isa<Constant>(Ptr) || isa<AllocaInst>(Ptr)) return;
 
@@ -82,7 +82,7 @@ void PoolAccessTrace::InstrumentAccess(Instruction *I, Value *Ptr,
       // Value didn't exist in the orig program (pool desc?).
       return;
     }
-  DSNode *Node = DSG.getNodeForValue(MappedPtr).getNode();
+  DSNode *Node = DSG->getNodeForValue(MappedPtr).getNode();
   if (Node == 0) return;
 
   Value *PD = FI->PoolDescriptors[Node];
@@ -124,7 +124,7 @@ bool PoolAccessTrace::runOnModule(Module &M) {
       continue;
 
     // Get the DSGraph for this function.
-    DSGraph &DSG = G->getDSGraph(FI->F);
+    DSGraph* DSG = G->getDSGraph(FI->F);
 
     for (Function::iterator BB = F->begin(), E = F->end(); BB != E; ++BB)
       for (BasicBlock::iterator I = BB->begin(), E = BB->end(); I != E; ++I)

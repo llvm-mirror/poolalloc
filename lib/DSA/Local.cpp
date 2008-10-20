@@ -140,7 +140,7 @@ namespace {
       // If there are any constant globals referenced in this function, merge their
       // initializers into the local graph from the globals graph.
       if (g.getScalarMap().global_begin() != g.getScalarMap().global_end()) {
-        ReachabilityCloner RC(g, *g.getGlobalsGraph(), 0);
+        ReachabilityCloner RC(&g, g.getGlobalsGraph(), 0);
         
         for (DSScalarMap::global_iterator I = g.getScalarMap().global_begin();
              I != g.getScalarMap().global_end(); ++I)

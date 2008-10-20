@@ -60,8 +60,8 @@ ModulePass *llvm::createDSOptPass() { return new DSOpt(); }
 /// global variables.
 ///
 bool DSOpt::OptimizeGlobals(Module &M) {
-  DSGraph &GG = TD->getGlobalsGraph();
-  const DSGraph::ScalarMapTy &SM = GG.getScalarMap();
+  DSGraph* GG = TD->getGlobalsGraph();
+  const DSGraph::ScalarMapTy &SM = GG->getScalarMap();
   bool Changed = false;
 
   for (Module::global_iterator I = M.global_begin(), E = M.global_end(); I != E; ++I)

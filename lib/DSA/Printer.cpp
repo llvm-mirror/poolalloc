@@ -283,15 +283,15 @@ static void printCollection(const Collection &C, std::ostream &O,
   unsigned TotalNumNodes = 0, TotalCallNodes = 0;
   for (Module::const_iterator I = M->begin(), E = M->end(); I != E; ++I)
     if (C.hasDSGraph(*I)) {
-      DSGraph &Gr = C.getDSGraph((Function&)*I);
-      unsigned NumCalls = Gr.shouldPrintAuxCalls() ?
-        Gr.getAuxFunctionCalls().size() : Gr.getFunctionCalls().size();
+      DSGraph* Gr = C.getDSGraph((Function&)*I);
+      unsigned NumCalls = Gr->shouldPrintAuxCalls() ?
+        Gr->getAuxFunctionCalls().size() : Gr->getFunctionCalls().size();
       bool IsDuplicateGraph = false;
 
       if (I->getName() == "main" || !OnlyPrintMain) {
-        const Function *SCCFn = Gr.retnodes_begin()->first;
+        const Function *SCCFn = Gr->retnodes_begin()->first;
         if (&*I == SCCFn) {
-          Gr.writeGraphToFile(O, Prefix+I->getName());
+          Gr->writeGraphToFile(O, Prefix+I->getName());
         } else {
           IsDuplicateGraph = true; // Don't double count node/call nodes.
           O << "Didn't write '" << Prefix+I->getName()
@@ -299,36 +299,36 @@ static void printCollection(const Collection &C, std::ostream &O,
             << "\n";
         }
       } else {
-        const Function *SCCFn = Gr.retnodes_begin()->first;
+        const Function *SCCFn = Gr->retnodes_begin()->first;
         if (&*I == SCCFn) {
           O << "Skipped Writing '" << Prefix+I->getName() << ".dot'... ["
-            << Gr.getGraphSize() << "+" << NumCalls << "]\n";
+            << Gr->getGraphSize() << "+" << NumCalls << "]\n";
         } else {
           IsDuplicateGraph = true; // Don't double count node/call nodes.
         }
       }
 
       if (!IsDuplicateGraph) {
-        unsigned GraphSize = Gr.getGraphSize();
+        unsigned GraphSize = Gr->getGraphSize();
         if (MaxGraphSize < GraphSize) MaxGraphSize = GraphSize;
 
-        TotalNumNodes += Gr.getGraphSize();
+        TotalNumNodes += Gr->getGraphSize();
         TotalCallNodes += NumCalls;
-        for (DSGraph::node_iterator NI = Gr.node_begin(), E = Gr.node_end();
+        for (DSGraph::node_iterator NI = Gr->node_begin(), E = Gr->node_end();
              NI != E; ++NI)
           if (NI->isNodeCompletelyFolded())
             ++NumFoldedNodes;
       }
     }
 
-  DSGraph &GG = C.getGlobalsGraph();
-  TotalNumNodes  += GG.getGraphSize();
-  TotalCallNodes += GG.getFunctionCalls().size();
+  DSGraph* GG = C.getGlobalsGraph();
+  TotalNumNodes  += GG->getGraphSize();
+  TotalCallNodes += GG->getFunctionCalls().size();
   if (!OnlyPrintMain) {
-    GG.writeGraphToFile(O, Prefix+"GlobalsGraph");
+    GG->writeGraphToFile(O, Prefix+"GlobalsGraph");
   } else {
     O << "Skipped Writing '" << Prefix << "GlobalsGraph.dot'... ["
-      << GG.getGraphSize() << "+" << GG.getFunctionCalls().size() << "]\n";
+      << GG->getGraphSize() << "+" << GG->getFunctionCalls().size() << "]\n";
   }
 
   O << "\nGraphs contain [" << TotalNumNodes << "+" << TotalCallNodes

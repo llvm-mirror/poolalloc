@@ -1040,14 +1040,14 @@ DSNodeHandle ReachabilityCloner::getClonedNH(const DSNodeHandle &SrcNH) {
   // If SrcNH has globals and the destination graph has one of the same globals,
   // merge this node with the destination node, which is much more efficient.
   if (SN->globals_begin() != SN->globals_end()) {
-    DSScalarMap &DestSM = Dest.getScalarMap();
+    DSScalarMap &DestSM = Dest->getScalarMap();
     for (DSNode::globals_iterator I = SN->globals_begin(),E = SN->globals_end();
          I != E; ++I) {
       const GlobalValue *GV = *I;
       DSScalarMap::iterator GI = DestSM.find(GV);
       if (GI != DestSM.end() && !GI->second.isNull()) {
         // We found one, use merge instead!
-        merge(GI->second, Src.getNodeForValue(GV));
+        merge(GI->second, Src->getNodeForValue(GV));
         assert(!NH.isNull() && "Didn't merge node!");
         DSNode *NHN = NH.getNode();
         return DSNodeHandle(NHN, NH.getOffset()+SrcNH.getOffset());
@@ -1055,7 +1055,7 @@ DSNodeHandle ReachabilityCloner::getClonedNH(const DSNodeHandle &SrcNH) {
     }
   }
 
-  DSNode *DN = new DSNode(*SN, &Dest, true /* Null out all links */);
+  DSNode *DN = new DSNode(*SN, Dest, true /* Null out all links */);
   DN->maskNodeTypes(BitsToKeep);
   NH = DN;
   //DOUT << "getClonedNH: " << SN << " becomes " << DN << "\n";
@@ -1100,11 +1100,11 @@ DSNodeHandle ReachabilityCloner::getClonedNH(const DSNodeHandle &SrcNH) {
   for (DSNode::globals_iterator I = SN->globals_begin(), E = SN->globals_end();
        I != E; ++I) {
     const GlobalValue *GV = *I;
-    const DSNodeHandle &SrcGNH = Src.getNodeForValue(GV);
+    const DSNodeHandle &SrcGNH = Src->getNodeForValue(GV);
     DSNodeHandle &DestGNH = NodeMap[SrcGNH.getNode()];
     assert(DestGNH.getNode() == NH.getNode() &&"Global mapping inconsistent");
-    Dest.getNodeForValue(GV).mergeWith(DSNodeHandle(DestGNH.getNode(),
-                                       DestGNH.getOffset()+SrcGNH.getOffset()));
+    Dest->getNodeForValue(GV).mergeWith(DSNodeHandle(DestGNH.getNode(),
+                                        DestGNH.getOffset()+SrcGNH.getOffset()));
   }
   NH.getNode()->mergeGlobals(SN->getGlobalsList());
 
@@ -1189,10 +1189,10 @@ void ReachabilityCloner::merge(const DSNodeHandle &NH,
       for (DSNode::globals_iterator I = SN->globals_begin(),
              E = SN->globals_end(); I != E; ++I) {
         const GlobalValue *GV = *I;
-        const DSNodeHandle &SrcGNH = Src.getNodeForValue(GV);
+        const DSNodeHandle &SrcGNH = Src->getNodeForValue(GV);
         DSNodeHandle &DestGNH = NodeMap[SrcGNH.getNode()];
         assert(DestGNH.getNode()==NH.getNode() &&"Global mapping inconsistent");
-        Dest.getNodeForValue(GV).mergeWith(DSNodeHandle(DestGNH.getNode(),
+        Dest->getNodeForValue(GV).mergeWith(DSNodeHandle(DestGNH.getNode(),
                                       DestGNH.getOffset()+SrcGNH.getOffset()));
       }
       NH.getNode()->mergeGlobals(SN->getGlobalsList());
@@ -1200,7 +1200,7 @@ void ReachabilityCloner::merge(const DSNodeHandle &NH,
   } else {
     // We cannot handle this case without allocating a temporary node.  Fall
     // back on being simple.
-    DSNode *NewDN = new DSNode(*SN, &Dest, true /* Null out all links */);
+    DSNode *NewDN = new DSNode(*SN, Dest, true /* Null out all links */);
     NewDN->maskNodeTypes(BitsToKeep);
 
     unsigned NHOffset = NH.getOffset();
@@ -1220,11 +1220,11 @@ void ReachabilityCloner::merge(const DSNodeHandle &NH,
     for (DSNode::globals_iterator I = SN->globals_begin(),
            E = SN->globals_end(); I != E; ++I) {
       const GlobalValue *GV = *I;
-      const DSNodeHandle &SrcGNH = Src.getNodeForValue(GV);
+      const DSNodeHandle &SrcGNH = Src->getNodeForValue(GV);
       DSNodeHandle &DestGNH = NodeMap[SrcGNH.getNode()];
       assert(DestGNH.getNode()==NH.getNode() &&"Global mapping inconsistent");
       assert(SrcGNH.getNode() == SN && "Global mapping inconsistent");
-      Dest.getNodeForValue(GV).mergeWith(DSNodeHandle(DestGNH.getNode(),
+      Dest->getNodeForValue(GV).mergeWith(DSNodeHandle(DestGNH.getNode(),
                                     DestGNH.getOffset()+SrcGNH.getOffset()));
     }
   }
@@ -1428,9 +1428,9 @@ std::string DSGraph::getFunctionNames() const {
 }
 
 
-DSGraph::DSGraph(DSGraph &G, EquivalenceClasses<const GlobalValue*> &ECs,
+DSGraph::DSGraph(DSGraph* G, EquivalenceClasses<const GlobalValue*> &ECs,
                  unsigned CloneFlags)
-  : GlobalsGraph(0), ScalarMap(ECs), TD(G.TD) {
+  : GlobalsGraph(0), ScalarMap(ECs), TD(G->TD) {
   PrintAuxCalls = false;
   cloneInto(G, CloneFlags);
 }
@@ -1514,9 +1514,9 @@ DSNode *DSGraph::addObjectToGraph(Value *Ptr, bool UseDeclaredType) {
 ///
 /// The CloneFlags member controls various aspects of the cloning process.
 ///
-void DSGraph::cloneInto( DSGraph &G, unsigned CloneFlags) {
+void DSGraph::cloneInto( DSGraph* G, unsigned CloneFlags) {
   TIME_REGION(X, "cloneInto");
-  assert(&G != this && "Cannot clone graph into itself!");
+  assert(G != this && "Cannot clone graph into itself!");
 
   NodeMapTy OldNodeMap;
 
@@ -1526,7 +1526,7 @@ void DSGraph::cloneInto( DSGraph &G, unsigned CloneFlags) {
     | ((CloneFlags & StripIncompleteBit)? DSNode::IncompleteNode : 0);
   BitsToClear |= DSNode::DeadNode;  // Clear dead flag...
 
-  for (node_const_iterator I = G.node_begin(), E = G.node_end(); I != E; ++I) {
+  for (node_const_iterator I = G->node_begin(), E = G->node_end(); I != E; ++I) {
     assert(!I->isForwarding() &&
            "Forward nodes shouldn't be in node list!");
     DSNode *New = new DSNode(*I, this);
@@ -1550,8 +1550,8 @@ void DSGraph::cloneInto( DSGraph &G, unsigned CloneFlags) {
     I->second.getNode()->remapLinks(OldNodeMap);
 
   // Copy the scalar map... merging all of the global nodes...
-  for (DSScalarMap::const_iterator I = G.ScalarMap.begin(),
-         E = G.ScalarMap.end(); I != E; ++I) {
+  for (DSScalarMap::const_iterator I = G->ScalarMap.begin(),
+         E = G->ScalarMap.end(); I != E; ++I) {
     DSNodeHandle &MappedNode = OldNodeMap[I->second.getNode()];
     DSNodeHandle &H = ScalarMap.getRawEntryRef(I->first);
     DSNode *MappedNodeN = MappedNode.getNode();
@@ -1561,19 +1561,19 @@ void DSGraph::cloneInto( DSGraph &G, unsigned CloneFlags) {
 
   if (!(CloneFlags & DontCloneCallNodes)) {
     // Copy the function calls list.
-    for (fc_iterator I = G.fc_begin(), E = G.fc_end(); I != E; ++I)
+    for (fc_iterator I = G->fc_begin(), E = G->fc_end(); I != E; ++I)
       FunctionCalls.push_back(DSCallSite(*I, OldNodeMap));
   }
 
   if (!(CloneFlags & DontCloneAuxCallNodes)) {
     // Copy the auxiliary function calls list.
-    for (afc_iterator I = G.afc_begin(), E = G.afc_end(); I != E; ++I)
+    for (afc_iterator I = G->afc_begin(), E = G->afc_end(); I != E; ++I)
       AuxFunctionCalls.push_back(DSCallSite(*I, OldNodeMap));
   }
 
   // Map the return node pointers over...
-  for (retnodes_iterator I = G.retnodes_begin(),
-         E = G.retnodes_end(); I != E; ++I) {
+  for (retnodes_iterator I = G->retnodes_begin(),
+         E = G->retnodes_end(); I != E; ++I) {
     const DSNodeHandle &Ret = I->second;
     DSNodeHandle &MappedRet = OldNodeMap[Ret.getNode()];
     DSNode *MappedRetN = MappedRet.getNode();
@@ -1587,28 +1587,29 @@ void DSGraph::cloneInto( DSGraph &G, unsigned CloneFlags) {
 /// this graph, then clearing the RHS graph.  Instead of performing this as
 /// two seperate operations, do it as a single, much faster, one.
 ///
-void DSGraph::spliceFrom(DSGraph &RHS) {
+void DSGraph::spliceFrom(DSGraph* RHS) {
+  assert(this != RHS && "Splicing self");
   // Change all of the nodes in RHS to think we are their parent.
-  for (NodeListTy::iterator I = RHS.Nodes.begin(), E = RHS.Nodes.end();
+  for (NodeListTy::iterator I = RHS->Nodes.begin(), E = RHS->Nodes.end();
        I != E; ++I)
     I->setParentGraph(this);
   // Take all of the nodes.
-  Nodes.splice(Nodes.end(), RHS.Nodes);
+  Nodes.splice(Nodes.end(), RHS->Nodes);
 
   // Take all of the calls.
-  FunctionCalls.splice(FunctionCalls.end(), RHS.FunctionCalls);
-  AuxFunctionCalls.splice(AuxFunctionCalls.end(), RHS.AuxFunctionCalls);
+  FunctionCalls.splice(FunctionCalls.end(), RHS->FunctionCalls);
+  AuxFunctionCalls.splice(AuxFunctionCalls.end(), RHS->AuxFunctionCalls);
 
   // Take all of the return nodes.
   if (ReturnNodes.empty()) {
-    ReturnNodes.swap(RHS.ReturnNodes);
+    ReturnNodes.swap(RHS->ReturnNodes);
   } else {
-    ReturnNodes.insert(RHS.ReturnNodes.begin(), RHS.ReturnNodes.end());
-    RHS.ReturnNodes.clear();
+    ReturnNodes.insert(RHS->ReturnNodes.begin(), RHS->ReturnNodes.end());
+    RHS->ReturnNodes.clear();
   }
 
  // Merge the scalar map in.
-  ScalarMap.spliceFrom(RHS.ScalarMap);
+  ScalarMap.spliceFrom(RHS->ScalarMap);
 }
 
 /// spliceFrom - Copy all entries from RHS, then clear RHS.
@@ -1783,7 +1784,7 @@ void DSGraph::mergeInGraph(const DSCallSite &CS,
   // Clone the callee's graph into the current graph, keeping track of where
   // scalars in the old graph _used_ to point, and of the new nodes matching
   // nodes of the old graph.
-  ReachabilityCloner RC(*this, Graph, CloneFlags);
+  ReachabilityCloner RC(this, &Graph, CloneFlags);
 
   // Map the return node pointer over.
   if (!CS.getRetVal().isNull())
@@ -2348,7 +2349,7 @@ void DSGraph::removeDeadNodes(unsigned Flags) {
   // Strip all incomplete bits since they are short-lived properties and they
   // will be correctly computed when rematerializing nodes into the functions.
   //
-  ReachabilityCloner GGCloner(*GlobalsGraph, *this, DSGraph::StripAllocaBit |
+  ReachabilityCloner GGCloner(GlobalsGraph, this, DSGraph::StripAllocaBit |
                               DSGraph::StripIncompleteBit);
 
   // Mark all nodes reachable by (non-global) scalar nodes as alive...
@@ -2647,7 +2648,7 @@ void DSGraph::computeCalleeCallerMapping(DSCallSite CS, const Function &Callee,
 ///
 void DSGraph::updateFromGlobalGraph() {
   TIME_REGION(X, "updateFromGlobalGraph");
-  ReachabilityCloner RC(*this, *GlobalsGraph, 0);
+  ReachabilityCloner RC(this, GlobalsGraph, 0);
 
   // Clone the non-up-to-date global nodes into this graph.
   for (DSScalarMap::global_iterator I = getScalarMap().global_begin(),
@@ -2678,12 +2679,12 @@ static const Function *getFnForValue(const Value *V) {
 void DataStructures::deleteValue(Value *V) {
   if (const Function *F = getFnForValue(V)) {  // Function local value?
     // If this is a function local value, just delete it from the scalar map!
-    getDSGraph(*F).getScalarMap().eraseIfExists(V);
+    getDSGraph(*F)->getScalarMap().eraseIfExists(V);
     return;
   }
   
   if (Function *F = dyn_cast<Function>(V)) {
-    assert(getDSGraph(*F).getReturnNodes().size() == 1 &&
+    assert(getDSGraph(*F)->getReturnNodes().size() == 1 &&
            "cannot handle scc's");
     delete DSInfo[F];
     DSInfo.erase(F);
@@ -2697,7 +2698,7 @@ void DataStructures::copyValue(Value *From, Value *To) {
   if (From == To) return;
   if (const Function *F = getFnForValue(From)) {  // Function local value?
     // If this is a function local value, just delete it from the scalar map!
-    getDSGraph(*F).getScalarMap().copyScalarIfExists(From, To);
+    getDSGraph(*F)->getScalarMap().copyScalarIfExists(From, To);
     return;
   }
   
@@ -2716,8 +2717,7 @@ void DataStructures::copyValue(Value *From, Value *To) {
   }
   
   if (const Function *F = getFnForValue(To)) {
-    DSGraph &G = getDSGraph(*F);
-    G.getScalarMap().copyScalarIfExists(From, To);
+    getDSGraph(*F)->getScalarMap().copyScalarIfExists(From, To);
     return;
   }
   
@@ -2727,12 +2727,12 @@ void DataStructures::copyValue(Value *From, Value *To) {
   abort();
 }
 
-DSGraph& DataStructures::getOrCreateGraph(const Function* F) {
+DSGraph* DataStructures::getOrCreateGraph(const Function* F) {
   assert(F && "No function");
   DSGraph *&G = DSInfo[F];
   if (!G) {
     //Clone or Steal the Source Graph
-    DSGraph &BaseGraph = GraphSource->getDSGraph(*F);
+    DSGraph* BaseGraph = GraphSource->getDSGraph(*F);
     if (Clone) {
       G = new DSGraph(BaseGraph, GlobalECs, DSGraph::DontCloneAuxCallNodes);
     } else {
@@ -2751,7 +2751,7 @@ DSGraph& DataStructures::getOrCreateGraph(const Function* F) {
       if (RI->first != F)
         DSInfo[RI->first] = G;
   }
-  return *G;
+  return G;
 }
 
 
@@ -2873,11 +2873,13 @@ void DataStructures::init(TargetData* T) {
 }
 
 void DataStructures::releaseMemory() {
+  hash_set<DSGraph*> toDelete;
   for (DSInfoTy::iterator I = DSInfo.begin(), E = DSInfo.end(); I != E; ++I) {
-    I->second->getReturnNodes().erase(I->first);
-    if (I->second->getReturnNodes().empty())
-      delete I->second;
+    I->second->getReturnNodes().clear();
+    toDelete.insert(I->second);
   }
+  for (hash_set<DSGraph*>::iterator I = toDelete.begin(), E = toDelete.end(); I != E; ++I)
+    delete *I;
 
   // Empty map so next time memory is released, data structures are not
   // re-deleted.

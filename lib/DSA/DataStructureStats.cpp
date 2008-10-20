@@ -146,7 +146,7 @@ void DSGraphStats::visitStore(StoreInst &SI) {
 
 
 bool DSGraphStats::runOnFunction(Function& F) {
-  TDGraph = &getAnalysis<TDDataStructures>().getDSGraph(F);
+  TDGraph = getAnalysis<TDDataStructures>().getDSGraph(F);
   countCallees(F);
   visit(F);
   return true;

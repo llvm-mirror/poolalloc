@@ -65,7 +65,7 @@ void EquivBUDataStructures::mergeGraphsByGlobalECs() {
          MI != GlobalECs.member_end(); ++MI) {
       if (const Function* F = dyn_cast<Function>(*MI)) {
         if (!BaseGraph) {
-          BaseGraph = &getOrCreateGraph(F);
+          BaseGraph = getOrCreateGraph(F);
           BaseGraph->getFunctionArgumentsForCall(F, Args);
         } else if (BaseGraph->containsFunction(F)) {
           //already merged

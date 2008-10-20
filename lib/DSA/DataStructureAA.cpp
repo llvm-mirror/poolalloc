@@ -113,11 +113,11 @@ ModulePass *llvm::createDSAAPass() { return new DSAA(); }
 //
 DSGraph *DSAA::getGraphForValue(const Value *V) {
   if (const Instruction *I = dyn_cast<Instruction>(V))
-    return &TD->getDSGraph(*I->getParent()->getParent());
+    return TD->getDSGraph(*I->getParent()->getParent());
   else if (const Argument *A = dyn_cast<Argument>(V))
-    return &TD->getDSGraph(*A->getParent());
+    return TD->getDSGraph(*A->getParent());
   else if (const BasicBlock *BB = dyn_cast<BasicBlock>(V))
-    return &TD->getDSGraph(*BB->getParent());
+    return TD->getDSGraph(*BB->getParent());
   return 0;
 }
 
@@ -130,9 +130,9 @@ AliasAnalysis::AliasResult DSAA::alias(const Value *V1, unsigned V1Size,
   assert((!G1 || !G2 || G1 == G2) && "Alias query for 2 different functions?");
 
   // Get the graph to use...
-  DSGraph &G = *(G1 ? G1 : (G2 ? G2 : &TD->getGlobalsGraph()));
+  DSGraph* G = G1 ? G1 : (G2 ? G2 : TD->getGlobalsGraph());
 
-  const DSGraph::ScalarMapTy &GSM = G.getScalarMap();
+  const DSGraph::ScalarMapTy &GSM = G->getScalarMap();
   DSGraph::ScalarMapTy::const_iterator I = GSM.find((Value*)V1);
   if (I == GSM.end()) return NoAlias;
 
@@ -178,10 +178,10 @@ DSAA::getModRefInfo(CallSite CS, Value *P, unsigned Size) {
   if (CS.getInstruction() == MapCS.getInstruction()) {
     {
       const Function *Caller = CS.getInstruction()->getParent()->getParent();
-      DSGraph &CallerTDGraph = TD->getDSGraph(*Caller);
+      DSGraph* CallerTDGraph = TD->getDSGraph(*Caller);
 
       // Figure out which node in the TD graph this pointer corresponds to.
-      DSScalarMap &CallerSM = CallerTDGraph.getScalarMap();
+      DSScalarMap &CallerSM = CallerTDGraph->getScalarMap();
       DSScalarMap::iterator NI = CallerSM.find(P);
       if (NI == CallerSM.end()) {
         InvalidateCache();
@@ -229,7 +229,7 @@ DSAA::getModRefInfo(CallSite CS, Value *P, unsigned Size) {
     // the portion of the program we have analyzed, we can draw conclusions
     // based on whether the global escapes the program.
     Function *Caller = CS.getInstruction()->getParent()->getParent();
-    DSGraph *G = &TD->getDSGraph(*Caller);
+    DSGraph *G = TD->getDSGraph(*Caller);
     DSScalarMap::iterator NI = G->getScalarMap().find(P);
     if (NI == G->getScalarMap().end()) {
       // If it wasn't in the local function graph, check the global graph.  This
@@ -251,11 +251,11 @@ DSAA::getModRefInfo(CallSite CS, Value *P, unsigned Size) {
   // Get the graphs for the callee and caller.  Note that we want the BU graph
   // for the callee because we don't want all caller's effects incorporated!
   const Function *Caller = CS.getInstruction()->getParent()->getParent();
-  DSGraph &CallerTDGraph = TD->getDSGraph(*Caller);
-  DSGraph &CalleeBUGraph = BU->getDSGraph(*F);
+  DSGraph* CallerTDGraph = TD->getDSGraph(*Caller);
+  DSGraph* CalleeBUGraph = BU->getDSGraph(*F);
 
   // Figure out which node in the TD graph this pointer corresponds to.
-  DSScalarMap &CallerSM = CallerTDGraph.getScalarMap();
+  DSScalarMap &CallerSM = CallerTDGraph->getScalarMap();
   DSScalarMap::iterator NI = CallerSM.find(P);
   if (NI == CallerSM.end()) {
     ModRefResult Result = ModRef;
@@ -267,9 +267,9 @@ DSAA::getModRefInfo(CallSite CS, Value *P, unsigned Size) {
              "This isn't a global that DSA inconsiderately dropped "
              "from the graph?");
 
-      DSGraph &GG = *CallerTDGraph.getGlobalsGraph();
-      DSScalarMap::iterator NI = GG.getScalarMap().find(P);
-      if (NI != GG.getScalarMap().end() && !NI->second.isNull()) {
+      DSGraph* GG = CallerTDGraph->getGlobalsGraph();
+      DSScalarMap::iterator NI = GG->getScalarMap().find(P);
+      if (NI != GG->getScalarMap().end() && !NI->second.isNull()) {
         // Otherwise, if the node is only M or R, return this.  This can be
         // useful for globals that should be marked const but are not.
         DSNode *N = NI->second.getNode();
@@ -287,9 +287,9 @@ DSAA::getModRefInfo(CallSite CS, Value *P, unsigned Size) {
   // Compute the mapping from nodes in the callee graph to the nodes in the
   // caller graph for this call site.
   DSGraph::NodeMapTy CalleeCallerMap;
-  DSCallSite DSCS = CallerTDGraph.getDSCallSiteForCallSite(CS);
-  CallerTDGraph.computeCalleeCallerMapping(DSCS, *F, CalleeBUGraph,
-                                           CalleeCallerMap);
+  DSCallSite DSCS = CallerTDGraph->getDSCallSiteForCallSite(CS);
+  CallerTDGraph->computeCalleeCallerMapping(DSCS, *F, *CalleeBUGraph,
+                                            CalleeCallerMap);
 
   // Remember the mapping and the call site for future queries.
   MapCS = CS;

@@ -140,19 +140,19 @@ public:
 
   /// getDSGraph - Return the data structure graph for the specified function.
   ///
-  DSGraph &getDSGraph(const Function &F) const {
+  DSGraph *getDSGraph(const Function &F) const {
     hash_map<const Function*, DSGraph*>::const_iterator I = DSInfo.find(&F);
     assert(I != DSInfo.end() && "Function not in module!");
-    return *I->second;
+    return I->second;
   }
 
   void setDSGraph(const Function& F, DSGraph* G) {
     DSInfo[&F] = G;
   }
 
-  DSGraph& getOrCreateGraph(const Function* F);
+  DSGraph* getOrCreateGraph(const Function* F);
 
-  DSGraph &getGlobalsGraph() const { return *GlobalsGraph; }
+  DSGraph* getGlobalsGraph() const { return GlobalsGraph; }
 
   EquivalenceClasses<const GlobalValue*> &getGlobalECs() { return GlobalECs; }
 
@@ -246,9 +246,9 @@ protected:
   bool runOnModuleInternal(Module &M);
 
 private:
-  void calculateGraph(DSGraph &G);
+  void calculateGraph(DSGraph* G);
 
-  void inlineUnresolved(DSGraph &G);
+  void inlineUnresolved(DSGraph* G);
 
   unsigned calculateGraphs(const Function *F, 
                            std::vector<const Function*> &Stack,
@@ -256,7 +256,7 @@ private:
                            hash_map<const Function*, unsigned> &ValMap);
 
 
-  void CloneAuxIntoGlobal(DSGraph& G);
+  void CloneAuxIntoGlobal(DSGraph* G);
   void finalizeGlobals(void);
 };
 
@@ -367,7 +367,7 @@ private:
   void markReachableFunctionsExternallyAccessible(DSNode *N,
                                                   hash_set<DSNode*> &Visited);
 
-  void InlineCallersIntoGraph(DSGraph &G);
+  void InlineCallersIntoGraph(DSGraph* G);
   void ComputePostOrder(const Function &F, hash_set<DSGraph*> &Visited,
                         std::vector<DSGraph*> &PostOrder);
 };

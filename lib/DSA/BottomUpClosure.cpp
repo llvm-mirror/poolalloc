@@ -95,21 +95,21 @@ bool BUDataStructures::runOnModuleInternal(Module& M) {
   // into the main function's graph so that the main function contains all of
   // the information about global pools and GV usage in the program.
   if (MainFunc && !MainFunc->isDeclaration()) {
-    DSGraph &MainGraph = getOrCreateGraph(MainFunc);
-    const DSGraph &GG = *MainGraph.getGlobalsGraph();
+    DSGraph* MainGraph = getOrCreateGraph(MainFunc);
+    const DSGraph* GG = MainGraph->getGlobalsGraph();
     ReachabilityCloner RC(MainGraph, GG,
                           DSGraph::DontCloneCallNodes |
                           DSGraph::DontCloneAuxCallNodes);
 
     // Clone the global nodes into this graph.
-    for (DSScalarMap::global_iterator I = GG.getScalarMap().global_begin(),
-           E = GG.getScalarMap().global_end(); I != E; ++I)
+    for (DSScalarMap::global_iterator I = GG->getScalarMap().global_begin(),
+           E = GG->getScalarMap().global_end(); I != E; ++I)
       if (isa<GlobalVariable>(*I))
-        RC.getClonedNH(GG.getNodeForValue(*I));
+        RC.getClonedNH(GG->getNodeForValue(*I));
 
-    MainGraph.maskIncompleteMarkers();
-    MainGraph.markIncompleteNodes(DSGraph::MarkFormalArgs |
-                                  DSGraph::IgnoreGlobals);
+    MainGraph->maskIncompleteMarkers();
+    MainGraph->markIncompleteNodes(DSGraph::MarkFormalArgs |
+                                   DSGraph::IgnoreGlobals);
   }
 
   NumCallEdges += callee_size();
@@ -194,17 +194,17 @@ static void GetAnyCallees(const DSCallSite &CS,
 
 /// GetAllAuxCallees - Return a list containing all of the resolvable callees in
 /// the aux list for the specified graph in the Callees vector.
-static void GetAllAuxCallees(DSGraph &G, std::vector<const Function*> &Callees) {
+static void GetAllAuxCallees(DSGraph* G, std::vector<const Function*> &Callees) {
   Callees.clear();
-  for (DSGraph::afc_iterator I = G.afc_begin(), E = G.afc_end(); I != E; ++I)
+  for (DSGraph::afc_iterator I = G->afc_begin(), E = G->afc_end(); I != E; ++I)
     GetAllCallees(*I, Callees);
 }
 
 /// GetAnyAuxCallees - Return a list containing all of the callees in
 /// the aux list for the specified graph in the Callees vector.
-static void GetAnyAuxCallees(DSGraph &G, std::vector<const Function*> &Callees) {
+static void GetAnyAuxCallees(DSGraph* G, std::vector<const Function*> &Callees) {
   Callees.clear();
-  for (DSGraph::afc_iterator I = G.afc_begin(), E = G.afc_end(); I != E; ++I)
+  for (DSGraph::afc_iterator I = G->afc_begin(), E = G->afc_end(); I != E; ++I)
     GetAnyCallees(*I, Callees);
 }
 
@@ -227,7 +227,7 @@ unsigned BUDataStructures::calculateGraphs(const Function *F,
     return Min;
   }
 
-  DSGraph &Graph = getOrCreateGraph(F);
+  DSGraph* Graph = getOrCreateGraph(F);
 
   // Find all callee functions.
   std::vector<const Function*> CalleeFunctions;
@@ -261,7 +261,7 @@ unsigned BUDataStructures::calculateGraphs(const Function *F,
     DOUT << "  [BU] Calculating graph for: " << F->getName()<< "\n";
     calculateGraph(Graph);
     DOUT << "  [BU] Done inlining: " << F->getName() << " ["
-         << Graph.getGraphSize() << "+" << Graph.getAuxFunctionCalls().size()
+         << Graph->getGraphSize() << "+" << Graph->getAuxFunctionCalls().size()
          << "]\n";
 
     if (MaxSCC < 1) MaxSCC = 1;
@@ -295,7 +295,7 @@ unsigned BUDataStructures::calculateGraphs(const Function *F,
     unsigned SCCSize = 1;
     const Function *NF = Stack.back();
     ValMap[NF] = ~0U;
-    DSGraph &SCCGraph = getDSGraph(*NF);
+    DSGraph* SCCGraph = getDSGraph(*NF);
 
     // First thing first, collapse all of the DSGraphs into a single graph for
     // the entire SCC.  Splice all of the graphs into one and discard all of the
@@ -306,17 +306,18 @@ unsigned BUDataStructures::calculateGraphs(const Function *F,
       NF = Stack.back();
       ValMap[NF] = ~0U;
 
-      DSGraph &NFG = getDSGraph(*NF);
+      DSGraph* NFG = getDSGraph(*NF);
 
-      // Update the Function -> DSG map.
-      for (DSGraph::retnodes_iterator I = NFG.retnodes_begin(),
-             E = NFG.retnodes_end(); I != E; ++I)
-        setDSGraph(*I->first, &SCCGraph);
-
-      SCCGraph.spliceFrom(NFG);
-      delete &NFG;
-
-      ++SCCSize;
+      if (NFG != SCCGraph) {
+        // Update the Function -> DSG map.
+        for (DSGraph::retnodes_iterator I = NFG->retnodes_begin(),
+               E = NFG->retnodes_end(); I != E; ++I)
+          setDSGraph(*I->first, SCCGraph);
+        
+        SCCGraph->spliceFrom(NFG);
+        delete NFG;
+        ++SCCSize;
+      }
     }
     Stack.pop_back();
 
@@ -328,13 +329,13 @@ unsigned BUDataStructures::calculateGraphs(const Function *F,
       MaxSCC = SCCSize;
 
     // Clean up the graph before we start inlining a bunch again...
-    SCCGraph.removeDeadNodes(DSGraph::KeepUnreachableGlobals);
+    SCCGraph->removeDeadNodes(DSGraph::KeepUnreachableGlobals);
 
     // Now that we have one big happy family, resolve all of the call sites in
     // the graph...
     calculateGraph(SCCGraph);
-    DOUT << "  [BU] Done inlining SCC  [" << SCCGraph.getGraphSize()
-         << "+" << SCCGraph.getAuxFunctionCalls().size() << "]\n"
+    DOUT << "  [BU] Done inlining SCC  [" << SCCGraph->getGraphSize()
+         << "+" << SCCGraph->getAuxFunctionCalls().size() << "]\n"
          << "DONE with SCC #: " << MyID << "\n";
 
     // We never have to revisit "SCC" processed functions...
@@ -346,35 +347,35 @@ unsigned BUDataStructures::calculateGraphs(const Function *F,
   return MyID;  // == Min
 }
 
-void BUDataStructures::CloneAuxIntoGlobal(DSGraph& G) {
-  DSGraph& GG = *G.getGlobalsGraph();
+void BUDataStructures::CloneAuxIntoGlobal(DSGraph* G) {
+  DSGraph* GG = G->getGlobalsGraph();
   ReachabilityCloner RC(GG, G, 0);
 
-  for(DSGraph::afc_iterator ii = G.afc_begin(), ee = G.afc_end();
+  for(DSGraph::afc_iterator ii = G->afc_begin(), ee = G->afc_end();
       ii != ee; ++ii) {
     //cerr << "Pushing " << ii->getCallSite().getInstruction()->getOperand(0) << "\n";
     //If we can, merge with an existing call site for this instruction
-    if (GG.hasNodeForValue(ii->getCallSite().getInstruction()->getOperand(0))) {
+    if (GG->hasNodeForValue(ii->getCallSite().getInstruction()->getOperand(0))) {
       DSGraph::afc_iterator GGii;
-      for(GGii = GG.afc_begin(); GGii != GG.afc_end(); ++GGii)
+      for(GGii = GG->afc_begin(); GGii != GG->afc_end(); ++GGii)
         if (GGii->getCallSite().getInstruction()->getOperand(0) ==
             ii->getCallSite().getInstruction()->getOperand(0))
           break;
-      if (GGii != GG.afc_end())
+      if (GGii != GG->afc_end())
         RC.cloneCallSite(*ii).mergeWith(*GGii);
       else
-        GG.getAuxFunctionCalls().push_front(RC.cloneCallSite(*ii));
+        GG->addAuxFunctionCall(RC.cloneCallSite(*ii));
     } else {
-      GG.getAuxFunctionCalls().push_front(RC.cloneCallSite(*ii));
+      GG->addAuxFunctionCall(RC.cloneCallSite(*ii));
     }
   }
 }
 
-void BUDataStructures::calculateGraph(DSGraph &Graph) {
+void BUDataStructures::calculateGraph(DSGraph* Graph) {
   // If this graph contains the main function, clone the globals graph into this
   // graph before we inline callees and other fun stuff.
   bool ContainsMain = false;
-  DSGraph::ReturnNodesTy &ReturnNodes = Graph.getReturnNodes();
+  DSGraph::ReturnNodesTy &ReturnNodes = Graph->getReturnNodes();
 
   for (DSGraph::ReturnNodesTy::iterator I = ReturnNodes.begin(),
          E = ReturnNodes.end(); I != E; ++I)
@@ -388,22 +389,22 @@ void BUDataStructures::calculateGraph(DSGraph &Graph) {
   // of a global, we have to make sure to link up nodes due to global-argument
   // bindings.
   if (ContainsMain || ReInlineGlobals) {
-    const DSGraph &GG = *Graph.getGlobalsGraph();
+    const DSGraph* GG = Graph->getGlobalsGraph();
     ReachabilityCloner RC(Graph, GG,
                           DSGraph::DontCloneCallNodes |
                           DSGraph::DontCloneAuxCallNodes);
     if (ContainsMain) {
       // Clone the global nodes into this graph.
-      for (DSScalarMap::global_iterator I = GG.getScalarMap().global_begin(),
-             E = GG.getScalarMap().global_end(); I != E; ++I)
+      for (DSScalarMap::global_iterator I = GG->getScalarMap().global_begin(),
+             E = GG->getScalarMap().global_end(); I != E; ++I)
         if (isa<GlobalVariable>(*I))
-          RC.getClonedNH(GG.getNodeForValue(*I));
+          RC.getClonedNH(GG->getNodeForValue(*I));
     } else {
       // Clone used the global nodes into this graph.
-      for (DSScalarMap::global_iterator I = Graph.getScalarMap().global_begin(),
-             E = Graph.getScalarMap().global_end(); I != E; ++I)
+      for (DSScalarMap::global_iterator I = Graph->getScalarMap().global_begin(),
+             E = Graph->getScalarMap().global_end(); I != E; ++I)
         if (isa<GlobalVariable>(*I))
-          RC.getClonedNH(GG.getNodeForValue(*I));
+          RC.getClonedNH(GG->getNodeForValue(*I));
     }
   }
 
@@ -411,7 +412,7 @@ void BUDataStructures::calculateGraph(DSGraph &Graph) {
   // Move our call site list into TempFCs so that inline call sites go into the
   // new call site list and doesn't invalidate our iterators!
   std::list<DSCallSite> TempFCs;
-  std::list<DSCallSite> &AuxCallsList = Graph.getAuxFunctionCalls();
+  std::list<DSCallSite> &AuxCallsList = Graph->getAuxFunctionCalls();
   TempFCs.swap(AuxCallsList);
 
   std::vector<const Function*> CalledFuncs;
@@ -447,18 +448,18 @@ void BUDataStructures::calculateGraph(DSGraph &Graph) {
       const Function *Callee = CalledFuncs[0];
 
       // Get the data structure graph for the called function.
-      GI = &getDSGraph(*Callee);  // Graph to inline
+      GI = getDSGraph(*Callee);  // Graph to inline
       DOUT << "    Inlining graph for " << Callee->getName()
            << "[" << GI->getGraphSize() << "+"
            << GI->getAuxFunctionCalls().size() << "] into '"
-           << Graph.getFunctionNames() << "' [" << Graph.getGraphSize() <<"+"
-           << Graph.getAuxFunctionCalls().size() << "]\n";
-      Graph.mergeInGraph(CS, *Callee, *GI,
-                         DSGraph::StripAllocaBit|DSGraph::DontCloneCallNodes|
-                         (isComplete?0:DSGraph::DontCloneAuxCallNodes));
+           << Graph->getFunctionNames() << "' [" << Graph->getGraphSize() <<"+"
+           << Graph->getAuxFunctionCalls().size() << "]\n";
+      Graph->mergeInGraph(CS, *Callee, *GI,
+                          DSGraph::StripAllocaBit|DSGraph::DontCloneCallNodes|
+                          (isComplete?0:DSGraph::DontCloneAuxCallNodes));
       ++NumInlines;
     } else if (CalledFuncs.size() > 1) {
-      DEBUG(std::cerr << "In Fns: " << Graph.getFunctionNames() << "\n");
+      DEBUG(std::cerr << "In Fns: " << Graph->getFunctionNames() << "\n");
       DEBUG(std::cerr << "  calls " << CalledFuncs.size()
             << " fns from site: " << CS.getCallSite().getInstruction()
             << "  " << *CS.getCallSite().getInstruction());
@@ -489,7 +490,7 @@ void BUDataStructures::calculateGraph(DSGraph &Graph) {
           
           // Start with a copy of the first graph.
           GI = IndCallGraph.first = new DSGraph(getDSGraph(**I), GlobalECs);
-          GI->setGlobalsGraph(Graph.getGlobalsGraph());
+          GI->setGlobalsGraph(Graph->getGlobalsGraph());
           std::vector<DSNodeHandle> &Args = IndCallGraph.second;
           
           // Get the argument nodes for the first callee.  The return value is
@@ -528,13 +529,13 @@ void BUDataStructures::calculateGraph(DSGraph &Graph) {
         DOUT << "    Inlining multi callee graph "
              << "[" << GI->getGraphSize() << "+"
              << GI->getAuxFunctionCalls().size() << "] into '"
-             << Graph.getFunctionNames() << "' [" << Graph.getGraphSize() <<"+"
-             << Graph.getAuxFunctionCalls().size() << "]\n";
+             << Graph->getFunctionNames() << "' [" << Graph->getGraphSize() <<"+"
+             << Graph->getAuxFunctionCalls().size() << "]\n";
         
-        Graph.mergeInGraph(CS, IndCallGraph.second, *GI,
-                           DSGraph::StripAllocaBit |
-                           DSGraph::DontCloneCallNodes|
-                           (isComplete?0:DSGraph::DontCloneAuxCallNodes));
+        Graph->mergeInGraph(CS, IndCallGraph.second, *GI,
+                            DSGraph::StripAllocaBit |
+                            DSGraph::DontCloneCallNodes|
+                            (isComplete?0:DSGraph::DontCloneAuxCallNodes));
         ++NumInlines;
       }
     }
@@ -544,17 +545,17 @@ void BUDataStructures::calculateGraph(DSGraph &Graph) {
   }
 
   // Recompute the Incomplete markers
-  Graph.maskIncompleteMarkers();
-  Graph.markIncompleteNodes(DSGraph::MarkFormalArgs);
+  Graph->maskIncompleteMarkers();
+  Graph->markIncompleteNodes(DSGraph::MarkFormalArgs);
 
   // Delete dead nodes.  Treat globals that are unreachable but that can
   // reach live nodes as live.
-  Graph.removeDeadNodes(DSGraph::KeepUnreachableGlobals);
+  Graph->removeDeadNodes(DSGraph::KeepUnreachableGlobals);
 
   // When this graph is finalized, clone the globals in the graph into the
   // globals graph to make sure it has everything, from all graphs.
-  DSScalarMap &MainSM = Graph.getScalarMap();
-  ReachabilityCloner RC(*GlobalsGraph, Graph, DSGraph::StripAllocaBit);
+  DSScalarMap &MainSM = Graph->getScalarMap();
+  ReachabilityCloner RC(GlobalsGraph, Graph, DSGraph::StripAllocaBit);
 
   // Clone everything reachable from globals in the function graph into the
   // globals graph.
@@ -565,8 +566,8 @@ void BUDataStructures::calculateGraph(DSGraph &Graph) {
   //Graph.writeGraphToFile(cerr, "bu_" + F.getName());
 }
 
-void BUDataStructures::inlineUnresolved(DSGraph &Graph) {
-  for (DSGraph::afc_iterator aii = Graph.afc_begin(), aee = Graph.afc_end(); 
+void BUDataStructures::inlineUnresolved(DSGraph* Graph) {
+  for (DSGraph::afc_iterator aii = Graph->afc_begin(), aee = Graph->afc_end(); 
        aii != aee; ++aii) {
     std::vector<const Function*> CalledFuncs;
     DSCallSite CS = *aii;
@@ -585,18 +586,18 @@ void BUDataStructures::inlineUnresolved(DSGraph &Graph) {
       const Function *Callee = CalledFuncs[0];
 
       // Get the data structure graph for the called function.
-      GI = &getDSGraph(*Callee);  // Graph to inline
-      if (GI == &Graph) continue;
+      GI = getDSGraph(*Callee);  // Graph to inline
+      if (GI == Graph) continue;
       DOUT << "    Inlining graph for " << Callee->getName()
            << "[" << GI->getGraphSize() << "+"
            << GI->getAuxFunctionCalls().size() << "] into '"
-           << Graph.getFunctionNames() << "' [" << Graph.getGraphSize() <<"+"
-           << Graph.getAuxFunctionCalls().size() << "]\n";
-      Graph.mergeInGraph(CS, *Callee, *GI,
+           << Graph->getFunctionNames() << "' [" << Graph->getGraphSize() <<"+"
+           << Graph->getAuxFunctionCalls().size() << "]\n";
+      Graph->mergeInGraph(CS, *Callee, *GI,
                          DSGraph::StripAllocaBit|DSGraph::DontCloneCallNodes);
       ++NumInlines;
     } else {
-      DEBUG(std::cerr << "In Fns: " << Graph.getFunctionNames() << "\n");
+      DEBUG(std::cerr << "In Fns: " << Graph->getFunctionNames() << "\n");
       DEBUG(std::cerr << "  calls " << CalledFuncs.size()
             << " fns from site: " << CS.getCallSite().getInstruction()
             << "  " << *CS.getCallSite().getInstruction());
@@ -621,7 +622,7 @@ void BUDataStructures::inlineUnresolved(DSGraph &Graph) {
       std::pair<DSGraph*, std::vector<DSNodeHandle> > &IndCallGraph =
         IndCallGraphMap[CalledFuncs];
       
-      if (IndCallGraph.first == &Graph) continue;
+      if (IndCallGraph.first == Graph) continue;
 
       if (IndCallGraph.first == 0) {
         std::vector<const Function*>::iterator I = CalledFuncs.begin(),
@@ -629,7 +630,7 @@ void BUDataStructures::inlineUnresolved(DSGraph &Graph) {
         
         // Start with a copy of the first graph.
         GI = IndCallGraph.first = new DSGraph(getDSGraph(**I), GlobalECs);
-        GI->setGlobalsGraph(Graph.getGlobalsGraph());
+        GI->setGlobalsGraph(Graph->getGlobalsGraph());
         std::vector<DSNodeHandle> &Args = IndCallGraph.second;
         
         // Get the argument nodes for the first callee.  The return value is
@@ -668,28 +669,28 @@ void BUDataStructures::inlineUnresolved(DSGraph &Graph) {
       DOUT << "    Inlining multi callee graph "
            << "[" << GI->getGraphSize() << "+"
            << GI->getAuxFunctionCalls().size() << "] into '"
-           << Graph.getFunctionNames() << "' [" << Graph.getGraphSize() <<"+"
-           << Graph.getAuxFunctionCalls().size() << "]\n";
+           << Graph->getFunctionNames() << "' [" << Graph->getGraphSize() <<"+"
+           << Graph->getAuxFunctionCalls().size() << "]\n";
       
-      Graph.mergeInGraph(CS, IndCallGraph.second, *GI,
-                         DSGraph::StripAllocaBit |
-                         DSGraph::DontCloneCallNodes);
+      Graph->mergeInGraph(CS, IndCallGraph.second, *GI,
+                          DSGraph::StripAllocaBit |
+                          DSGraph::DontCloneCallNodes);
       ++NumInlines;
     }
   }
 
   // Recompute the Incomplete markers
-  Graph.maskIncompleteMarkers();
-  Graph.markIncompleteNodes(DSGraph::MarkFormalArgs);
+  Graph->maskIncompleteMarkers();
+  Graph->markIncompleteNodes(DSGraph::MarkFormalArgs);
 
   // Delete dead nodes.  Treat globals that are unreachable but that can
   // reach live nodes as live.
-  Graph.removeDeadNodes(DSGraph::KeepUnreachableGlobals);
+  Graph->removeDeadNodes(DSGraph::KeepUnreachableGlobals);
 
   // When this graph is finalized, clone the globals in the graph into the
   // globals graph to make sure it has everything, from all graphs.
-  DSScalarMap &MainSM = Graph.getScalarMap();
-  ReachabilityCloner RC(*GlobalsGraph, Graph, DSGraph::StripAllocaBit);
+  DSScalarMap &MainSM = Graph->getScalarMap();
+  ReachabilityCloner RC(GlobalsGraph, Graph, DSGraph::StripAllocaBit);
 
   // Clone everything reachable from globals in the function graph into the
   // globals graph.

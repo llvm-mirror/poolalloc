@@ -37,8 +37,8 @@ namespace PA {
 
     Heuristic() {}
   public:
-    void Initialize(Module &m, DSGraph &gg, PoolAllocate &pa) {
-      M = &m; GG = &gg; PA = &pa;
+    void Initialize(Module &m, DSGraph* gg, PoolAllocate &pa) {
+      M = &m; GG = gg; PA = &pa;
     }
     virtual ~Heuristic();
 
@@ -79,7 +79,7 @@ namespace PA {
     /// returning the result in ResultPools.  If this is a function being pool
     /// allocated, F will not be null.
     virtual void AssignToPools(const std::vector<const DSNode*> &NodesToPA,
-                               Function *F, DSGraph &G,
+                               Function *F, DSGraph* G,
                                std::vector<OnePool> &ResultPools) = 0;
 
     // Hacks for the OnlyOverhead heuristic.

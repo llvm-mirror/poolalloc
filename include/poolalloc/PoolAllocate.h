@@ -121,11 +121,11 @@ public:
     return Graphs->hasDSGraph (F);
   }
 
-  virtual DSGraph & getDSGraph (const Function & F) const {
+  virtual DSGraph*  getDSGraph (const Function & F) const {
     return Graphs->getDSGraph (F);
   }
 
-  virtual DSGraph & getGlobalsGraph () const {
+  virtual DSGraph* getGlobalsGraph () const {
     return Graphs->getGlobalsGraph ();
   }
 
@@ -237,11 +237,11 @@ protected:
       return ArrayType::get(VoidPtrType, 16);
   }
 
-  virtual DSGraph & getDSGraph (const Function & F) const {
+  virtual DSGraph* getDSGraph (const Function & F) const {
     return Graphs->getDSGraph (F);
   }
 
-  virtual DSGraph & getGlobalsGraph () const {
+  virtual DSGraph* getGlobalsGraph () const {
     return Graphs->getGlobalsGraph ();
   }
 
@@ -320,11 +320,11 @@ protected:
   /// pools specified in the NodesToPA list.  This adds an entry to the
   /// PoolDescriptors map for each DSNode.
   ///
-  void CreatePools(Function &F, DSGraph &G, 
+  void CreatePools(Function &F, DSGraph* G, 
                    const std::vector<const DSNode*> &NodesToPA,
                    std::map<const DSNode*, Value*> &PoolDescriptors);
   
-  void TransformBody(DSGraph &g, PA::FuncInfo &fi,
+  void TransformBody(DSGraph* g, PA::FuncInfo &fi,
                      std::multimap<AllocaInst*, Instruction*> &poolUses,
                      std::multimap<AllocaInst*, CallInst*> &poolFrees,
                      Function &F);
@@ -378,12 +378,12 @@ public:
   void ProcessFunctionBodySimple(Function& F, TargetData & TD);
 
 
-  virtual DSGraph & getDSGraph (const Function & F) const {
-    return *CombinedDSGraph;
+  virtual DSGraph* getDSGraph (const Function & F) const {
+    return CombinedDSGraph;
   }
 
-  virtual DSGraph & getGlobalsGraph () const {
-    return *CombinedDSGraph;
+  virtual DSGraph* getGlobalsGraph () const {
+    return CombinedDSGraph;
   }
 
   virtual Value * getGlobalPool (const DSNode * Node) {
