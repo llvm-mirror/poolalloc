@@ -232,7 +232,7 @@ class RangeSplaySet
 
 template<typename T, class Allocator = std::allocator<T> >
 class RangeSplayMap {
-  RangeSplayTree<range_tree_node<T>, Allocator> Tree;
+  RangeSplayTree<T, Allocator> Tree;
   
   public:
   explicit RangeSplayMap(const Allocator& A= Allocator() ) 
