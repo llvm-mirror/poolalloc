@@ -6,7 +6,7 @@ PoolAllocator<BitMaskSlabManager<LinuxMmap> > b(8, 8);
 
 PoolAllocator<CompoundSlabManager<BitMaskSlabManager<LinuxMmap>, MallocSlabManager<> > > c(8, 8);
 
-RangeSplayMap<unsigned> x;
+RangeSplayMap<unsigned> ma;
 
 int main() {
   void* x = a.alloc();
@@ -24,6 +24,8 @@ int main() {
   c.dealloc(x);
   c.dealloc(y);
   
+  unsigned asdf = 2;
+  ma.insert((void*)0, (void*)1, asdf);
 
   return 0;
 }
