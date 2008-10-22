@@ -89,6 +89,7 @@ const struct {
   {"atoll",      {NRET_YARGS, NRET_NARGS, NRET_NARGS, false, false, false}},
   {"atoq",       {NRET_YARGS, NRET_NARGS, NRET_NARGS, false, false, false}},
 
+  {"memcmp",     {NRET_YARGS, NRET_NARGS, NRET_NARGS, false, false, false}},
   {"strcmp",     {NRET_YARGS, NRET_NARGS, NRET_NARGS, false, false, false}},
   {"wcscmp",     {NRET_YARGS, NRET_NARGS, NRET_NARGS, false, false, false}},
   {"strncmp",    {NRET_YARGS, NRET_NARGS, NRET_NARGS, false, false, false}},
@@ -111,13 +112,22 @@ const struct {
   {"strcat",     {YRET_YARGS, YRET_YARGS, NRET_NARGS,  true, true, true}},
   {"strncat",    {YRET_YARGS, YRET_YARGS, NRET_NARGS,  true, true, true}},
 
+  {"strcpy",     {YRET_YARGS, YRET_YARGS, NRET_NARGS, true, true, true}},
+  {"wcscpy",     {YRET_YARGS, YRET_YARGS, NRET_NARGS, true, true, true}},
+  {"strcpy",     {YRET_YARGS, YRET_YARGS, NRET_NARGS, true, true, true}},
+  {"wcsncpy",    {YRET_YARGS, YRET_YARGS, NRET_NARGS, true, true, true}},
+
 
   {"fwrite",     {NRET_YARGS, NRET_NYARGS, NRET_NARGS, false, false, false}},
   {"fread",      {NRET_NYARGS, NRET_YARGS, NRET_NARGS, false, false, false}},
   {"fflush",     {NRET_YARGS,  NRET_YARGS, NRET_NARGS, false, false, false}},
   {"fclose",     {NRET_YARGS,  NRET_YARGS, NRET_NARGS, false, false, false}},
   {"fopen",      {NRET_YARGS,  YRET_NARGS, YRET_NARGS, false, false, false}},
- 
+  {"fileno",     {NRET_YARGS,  NRET_NARGS, NRET_NARGS, false, false, false}},
+  {"unlink",     {NRET_YARGS,  NRET_NARGS, NRET_NARGS, false, false, false}},
+
+  {"perror",     {NRET_YARGS,  NRET_NARGS, NRET_NARGS, false, false, false}},
+
 #if 0
   {"remove",     {false, false, false,  true, false, false, false, false, false}},
   {"unlink",     {false, false, false,  true, false, false, false, false, false}},
