@@ -574,7 +574,12 @@ void BUDataStructures::calculateGraph(DSGraph* Graph) {
 }
 
 void BUDataStructures::inlineUnresolved(DSGraph* Graph) {
-  for (DSGraph::afc_iterator aii = Graph->afc_begin(), aee = Graph->afc_end(); 
+
+  // Move our call site list into TempFCs so that inline call sites go into the
+  // new call site list and doesn't invalidate our iterators!
+  std::list<DSCallSite> TempFCs = Graph->getAuxFunctionCalls();
+
+  for (DSGraph::afc_iterator aii = TempFCs.begin(), aee = TempFCs.end(); 
        aii != aee; ++aii) {
     std::vector<const Function*> CalledFuncs;
     DSCallSite CS = *aii;
@@ -673,11 +678,12 @@ void BUDataStructures::inlineUnresolved(DSGraph* Graph) {
       GI = IndCallGraph.first;
       
       // Merge the unified graph into this graph now.
-      DOUT << "    Inlining multi callee graph "
-           << "[" << GI->getGraphSize() << "+"
-           << GI->getAuxFunctionCalls().size() << "] into '"
-           << Graph->getFunctionNames() << "' [" << Graph->getGraphSize() <<"+"
-           << Graph->getAuxFunctionCalls().size() << "]\n";
+      DEBUG(
+            DOUT << "    Inlining multi callee graph "
+            << "[" << GI->getGraphSize() << "+"
+            << GI->getAuxFunctionCalls().size() << "] into '"
+            << Graph->getFunctionNames() << "' [" << Graph->getGraphSize() <<"+"
+            << Graph->getAuxFunctionCalls().size() << "]\n"; );
       
       Graph->mergeInGraph(CS, IndCallGraph.second, *GI,
                           DSGraph::StripAllocaBit |
