@@ -271,11 +271,14 @@ void GraphBuilder::visitPHINode(PHINode &PN) {
 }
 
 void GraphBuilder::visitSelectInst(SelectInst &SI) {
-  if (!isa<PointerType>(SI.getType())) return; // Only pointer Selects
+  if (!isa<PointerType>(SI.getType()))
+    return; // Only pointer Selects
 
   DSNodeHandle &Dest = G.getNodeForValue(&SI);
-  Dest.mergeWith(getValueDest(*SI.getOperand(1)));
-  Dest.mergeWith(getValueDest(*SI.getOperand(2)));
+  DSNodeHandle S1 = getValueDest(*SI.getOperand(1));
+  DSNodeHandle S2 = getValueDest(*SI.getOperand(2));
+  Dest.mergeWith(S1);
+  Dest.mergeWith(S2);
 }
 
 void GraphBuilder::visitLoadInst(LoadInst &LI) {
@@ -700,12 +703,13 @@ void GraphBuilder::MergeConstantInitIntoNode(DSNodeHandle &NH, const Type* Ty, C
   DSNode *NHN = NH.getNode();
   NHN->mergeTypeInfo(Ty, NH.getOffset());
 
-  if (Ty->isFirstClassType()) {
-    if (isa<PointerType>(Ty))
-      // Avoid adding edges from null, or processing non-"pointer" stores
-      NH.addEdgeTo(getValueDest(*C));
+  if (isa<PointerType>(Ty)) {
+    // Avoid adding edges from null, or processing non-"pointer" stores
+    NH.addEdgeTo(getValueDest(*C));
     return;
   }
+
+  if (Ty->isIntOrIntVector() || Ty->isFPOrFPVector()) return;
 
   const TargetData &TD = NH.getNode()->getTargetData();
 
