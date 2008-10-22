@@ -42,7 +42,7 @@ char CallTargetFinder::ID;
 
 void CallTargetFinder::findIndTargets(Module &M)
 {
-  TDDataStructures* T = &getAnalysis<TDDataStructures>();
+  EQTDDataStructures* T = &getAnalysis<EQTDDataStructures>();
   for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I)
     if (!I->isDeclaration())
       for (Function::iterator F = I->begin(), FE = I->end(); F != FE; ++F)
@@ -106,7 +106,7 @@ bool CallTargetFinder::runOnModule(Module &M) {
 
 void CallTargetFinder::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.setPreservesAll();
-  AU.addRequired<TDDataStructures>();
+  AU.addRequired<EQTDDataStructures>();
 }
 
 std::vector<const Function*>::iterator CallTargetFinder::begin(CallSite cs) {
