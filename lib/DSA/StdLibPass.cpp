@@ -195,6 +195,24 @@ bool StdLibDataStructures::runOnModule(Module &M) {
     if (!I->isDeclaration())
       getOrCreateGraph(&*I);
 
+  //Trust the readnone annotation
+  for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I) 
+    if (I->isDeclaration() && I->doesNotAccessMemory() && !isa<PointerType>(I->getReturnType()))
+      eraseCallsTo(I);
+
+  //Useless external
+  for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I) 
+    if (I->isDeclaration() && !I->isVarArg() && !isa<PointerType>(I->getReturnType())) {
+      bool hasPtr = false;
+      for (Function::arg_iterator ii = I->arg_begin(), ee = I->arg_end(); ii != ee; ++ii)
+        if (isa<PointerType>(ii->getType())) {
+          hasPtr = true;
+          break;
+        }
+      if (!hasPtr)
+        eraseCallsTo(I);
+    }
+
   //Functions we handle by summary
 
   for (int x = 0; recFuncs[x].name; ++x)
@@ -247,15 +265,7 @@ bool StdLibDataStructures::runOnModule(Module &M) {
                       Node->foldNodeCompletely();
               }
             }
-        for (Value::use_iterator ii = F->use_begin(), ee = F->use_end();
-             ii != ee; ++ii)
-          if (CallInst* CI = dyn_cast<CallInst>(ii))
-            if (CI->getOperand(0) == F) {
-              DSGraph* Graph = getDSGraph(*CI->getParent()->getParent());
-              //delete the call
-              DOUT << "Removing " << F->getName() << " from " << CI->getParent()->getParent()->getName() << "\n";
-              Graph->removeFunctionCalls(*F);
-            }
+        eraseCallsTo(F);
       }
   
   return false;

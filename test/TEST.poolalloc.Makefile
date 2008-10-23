@@ -27,6 +27,7 @@ PA_PRE_RT := $(PADIR)/Release/lib/libpa_pre_rt.bca
 # Pool allocator pass shared object
 PA_SO    := $(PADIR)/Debug/lib/libpoolalloc$(SHLIBEXT)
 DSA_SO   := $(PADIR)/Debug/lib/libLLVMDataStructure$(SHLIBEXT)
+ASSIST_SO := $(PADIR)/Debug/lib/libAssistDS$(SHLIBEXT)
 
 # Pool allocator runtime library
 #PA_RT    := $(PADIR)/Debug/lib/libpoolalloc_fl_rt.bc
@@ -49,8 +50,8 @@ Output/%.temp.bc: Output/%.llvm.bc
 	-$(LLVMLD) -link-as-library $< $(PA_PRE_RT) -o $@
 
 $(PROGRAMS_TO_TEST:%=Output/%.base.bc): \
-Output/%.base.bc: Output/%.temp.bc $(LOPT)
-	-$(LOPT) -instnamer -internalize -globaldce $< -f -o $@ 
+Output/%.base.bc: Output/%.temp.bc $(LOPT) $(ASSIST_SO)
+	-$(LOPT) -load $(ASSIST_SO) -instnamer -internalize -indclone -funcspec -ipsccp -deadargelim -instcombine -globaldce -stats $< -f -o $@ 
 
 # This rule runs the pool allocator on the .base.bc file to produce a new .bc
 # file
