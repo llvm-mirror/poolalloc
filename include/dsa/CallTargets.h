@@ -20,6 +20,7 @@
 
 #include <set>
 #include <list>
+#include <map>
 
 namespace llvm {
 
