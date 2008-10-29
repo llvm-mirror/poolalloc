@@ -615,8 +615,32 @@ void FuncTransform::visitCallSite(CallSite& CS) {
       cast<Instruction>(getOldValueIfAvailable(CS.getInstruction()));
 
     DataStructures::callee_iterator I = Graphs.callee_begin(OrigInst);
-    assert (I != Graphs.callee_end(OrigInst) && "No call graph info");
-    CF = *I;
+    if (I != Graphs.callee_end(OrigInst))
+      CF = *I;
+    
+    // If we didn't find the callee in the constructed call graph, try
+    // checking in the DSNode itself.
+    // This isn't ideal as it means that this call site didn't have inlining
+    // happen.
+    if (!CF) {
+      DSGraph* dg = Graphs.getDSGraph(*OrigInst->getParent()->getParent());
+      DSNode* d = dg->getNodeForValue(OrigInst->getOperand(0)).getNode();
+      std::vector<const Function*> g;
+      d->addFullFunctionList(g);
+      if (g.size()) {
+        EquivalenceClasses< const GlobalValue *> & EC = dg->getGlobalECs();
+        for(std::vector<const Function*>::const_iterator ii = g.begin(), ee = g.end();
+            !CF && ii != ee; ++ii) {
+          for (EquivalenceClasses<const GlobalValue *>::member_iterator MI = EC.findLeader(*ii);
+               MI != EC.member_end(); ++MI)   // Loop over members in this set.
+            if ((CF = dyn_cast<Function>(*MI))) {
+              break;
+            }
+        }
+      }
+    }
+
+    assert (CF && "No call graph info");
 
     // Get the common graph for the set of functions this call may invoke.
     CalleeGraph = Graphs.getDSGraph(*CF);
