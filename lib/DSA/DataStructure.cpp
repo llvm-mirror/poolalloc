@@ -2005,9 +2005,6 @@ static inline bool nodeContainsExternalFunction(const DSNode *N) {
 }
 
 static void removeIdenticalCalls(std::list<DSCallSite> &Calls) {
-  // Poolalloc doesn't like call sites to be removed if they are indirect
-  // disable this so all indirect call sites get call graph info
-  return;
   // Remove trivially identical function calls
   Calls.sort();  // Sort by callee as primary key!
 
