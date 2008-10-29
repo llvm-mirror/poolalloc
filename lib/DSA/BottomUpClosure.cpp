@@ -236,6 +236,12 @@ unsigned BUDataStructures::calculateGraphs(const Function *F,
   std::vector<const Function*>::iterator uid = std::unique(CalleeFunctions.begin(), CalleeFunctions.end());
   CalleeFunctions.resize(uid - CalleeFunctions.begin());
 
+  std::vector<const Function*> PreResolvedFuncs;
+  GetAllAuxCallees(Graph, PreResolvedFuncs);
+  std::sort(PreResolvedFuncs.begin(), PreResolvedFuncs.end());
+  uid = std::unique(PreResolvedFuncs.begin(), PreResolvedFuncs.end());
+  PreResolvedFuncs.resize(uid - PreResolvedFuncs.begin());
+  
   // The edges out of the current node are the call site targets...
   for (unsigned i = 0, e = CalleeFunctions.size(); i != e; ++i) {
     const Function *Callee = CalleeFunctions[i];
@@ -268,15 +274,27 @@ unsigned BUDataStructures::calculateGraphs(const Function *F,
 
     // Should we revisit the graph?  Only do it if there are now new resolvable
     // callees or new callees
-    unsigned oldsize = CalleeFunctions.size();
-    GetAnyAuxCallees(Graph, CalleeFunctions);
-    std::sort(CalleeFunctions.begin(), CalleeFunctions.end());
-    std::vector<const Function*>::iterator uid = std::unique(CalleeFunctions.begin(), CalleeFunctions.end());
-    CalleeFunctions.resize(uid - CalleeFunctions.begin());
+    std::vector<const Function*> NewCalleeFuncs;
+    GetAnyAuxCallees(Graph, NewCalleeFuncs);
+    std::sort(NewCalleeFuncs.begin(), NewCalleeFuncs.end());
+    std::vector<const Function*>::iterator uid = std::unique(NewCalleeFuncs.begin(), NewCalleeFuncs.end());
+    NewCalleeFuncs.resize(uid - NewCalleeFuncs.begin());
+    uid = std::set_difference(NewCalleeFuncs.begin(), NewCalleeFuncs.end(),
+                              CalleeFunctions.begin(), CalleeFunctions.end(),
+                              NewCalleeFuncs.begin());
+    NewCalleeFuncs.resize(uid - NewCalleeFuncs.begin());
 
     std::vector<const Function*> ResolvedFuncs;
     GetAllAuxCallees(Graph, ResolvedFuncs);
-    if (ResolvedFuncs.size() || CalleeFunctions.size() > oldsize) {
+    std::sort(ResolvedFuncs.begin(), ResolvedFuncs.end());
+    uid = std::unique(ResolvedFuncs.begin(), ResolvedFuncs.end());
+    ResolvedFuncs.resize(uid - ResolvedFuncs.begin());
+    uid = std::set_difference(ResolvedFuncs.begin(), ResolvedFuncs.end(),
+                              PreResolvedFuncs.begin(), PreResolvedFuncs.end(),
+                              ResolvedFuncs.begin());
+    ResolvedFuncs.resize(uid - ResolvedFuncs.begin());
+
+    if (ResolvedFuncs.size() || NewCalleeFuncs.size()) {
       DOUT << "Recalculating " << F->getName() << " due to new knowledge\n";
       ValMap.erase(F);
       return calculateGraphs(F, Stack, NextID, ValMap);
