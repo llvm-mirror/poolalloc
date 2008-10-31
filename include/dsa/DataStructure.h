@@ -347,7 +347,7 @@ class TDDataStructures : public DataStructures {
 public:
   static char ID;
   TDDataStructures(intptr_t CID = (intptr_t)&ID, const char* printname = "td.", bool useEQ = false)
-    : DataStructures(CID, "td."), useEQBU(useEQ) {}
+    : DataStructures(CID, printname), useEQBU(useEQ) {}
   ~TDDataStructures() { releaseMemory(); }
 
   virtual bool runOnModule(Module &M);
@@ -380,7 +380,7 @@ class EQTDDataStructures : public TDDataStructures {
 public:
   static char ID;
   EQTDDataStructures()
-    :TDDataStructures((intptr_t)&ID, "td.", false)
+    :TDDataStructures((intptr_t)&ID, "eqtd.", false)
   {}
 };
 
