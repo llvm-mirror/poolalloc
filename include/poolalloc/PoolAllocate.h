@@ -26,6 +26,7 @@
 #include "llvm/ADT/EquivalenceClasses.h"
 #include "llvm/ADT/VectorExtras.h"
 #include "llvm/ADT/hash_set.h"
+#include "llvm/Support/CommandLine.h"
 #include "dsa/DataStructure.h"
 #include "poolalloc/Config/config.h"
 
@@ -40,6 +41,8 @@ class AllocaInst;
 class CallTargetFinder;
 
 namespace PA {
+
+  extern cl::opt<bool>  PA_SAFECODE;
 
   class Heuristic;
 
@@ -179,7 +182,7 @@ protected:
                 intptr_t IDp = (intptr_t) (&ID))
     : ModulePass((intptr_t)IDp),
       PassAllArguments(passAllArguments)
-      {SAFECodeEnabled = BoundsChecksEnabled = SAFECode;}
+  {SAFECodeEnabled = BoundsChecksEnabled = SAFECode |  PA::PA_SAFECODE;}
   virtual bool runOnModule(Module &M);
   
   virtual void getAnalysisUsage(AnalysisUsage &AU) const;

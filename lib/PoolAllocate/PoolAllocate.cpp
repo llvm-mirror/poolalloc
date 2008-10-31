@@ -46,6 +46,8 @@ char PoolAllocateGroup::ID = 0;
 
 const Type *PoolAllocate::PoolDescPtrTy = 0;
 
+cl::opt<bool> PA::PA_SAFECODE("pa-safecode", cl::ReallyHidden);
+
 #if 0
 #define TIME_REGION(VARNAME, DESC) \
    NamedRegionTimer VARNAME(DESC)
