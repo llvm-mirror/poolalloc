@@ -51,21 +51,27 @@ void CallTargetFinder::findIndTargets(Module &M)
             CallSite cs = CallSite::get(B);
             AllSites.push_back(cs);
             if (!cs.getCalledFunction()) {
-              IndCall++;
-              DSNode* N = T->getDSGraph(*cs.getCaller())
-                ->getNodeForValue(cs.getCalledValue()).getNode();
-              N->addFullFunctionList(IndMap[cs]);
-              if (N->isCompleteNode() && IndMap[cs].size()) {
+              if (isa<ConstantPointerNull>(cs.getCalledValue())) {
+                ++DirCall;
                 CompleteSites.insert(cs);
-                ++CompleteInd;
-              } 
-              if (N->isCompleteNode() && !IndMap[cs].size()) {
-                ++CompleteEmpty;
-                cerr << "Call site empty: '"
-                     << cs.getInstruction()->getName() 
-                     << "' In '"
-                     << cs.getInstruction()->getParent()->getParent()->getName()
-                     << "'\n";
+              } else {
+                IndCall++;
+                DSNode* N = T->getDSGraph(*cs.getCaller())
+                  ->getNodeForValue(cs.getCalledValue()).getNode();
+                assert (N && "CallTarget: findIndTargets: No DSNode!\n");
+                N->addFullFunctionList(IndMap[cs]);
+                if (N->isCompleteNode() && IndMap[cs].size()) {
+                  CompleteSites.insert(cs);
+                  ++CompleteInd;
+                } 
+                if (N->isCompleteNode() && !IndMap[cs].size()) {
+                  ++CompleteEmpty;
+                  cerr << "Call site empty: '"
+                       << cs.getInstruction()->getName() 
+                       << "' In '"
+                       << cs.getInstruction()->getParent()->getParent()->getName()
+                       << "'\n";
+                }
               }
             } else {
               ++DirCall;
