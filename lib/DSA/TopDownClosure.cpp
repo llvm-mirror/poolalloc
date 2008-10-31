@@ -136,6 +136,7 @@ bool TDDataStructures::runOnModule(Module &M) {
     IndCallMap.erase(IndCallMap.begin());
   }
 
+  formGlobalECs();
 
   ArgsRemainIncomplete.clear();
   GlobalsGraph->removeTriviallyDeadNodes();
@@ -231,6 +232,17 @@ void TDDataStructures::InlineCallersIntoGraph(DSGraph* DSG) {
              EdgesFromCaller.back().CallerGraph == CallerGraph);
   }
 
+
+  {
+    DSGraph* GG = DSG->getGlobalsGraph();
+    ReachabilityCloner RC(GG, DSG,
+                          DSGraph::DontCloneCallNodes |
+                          DSGraph::DontCloneAuxCallNodes);
+    for (DSScalarMap::global_iterator
+           GI = DSG->getScalarMap().global_begin(),
+           E = DSG->getScalarMap().global_end(); GI != E; ++GI)
+      RC.getClonedNH(DSG->getNodeForValue(*GI));
+  }
 
   // Next, now that this graph is finalized, we need to recompute the
   // incompleteness markers for this graph and remove unreachable nodes.
