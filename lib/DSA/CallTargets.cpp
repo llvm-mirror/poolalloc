@@ -50,7 +50,15 @@ void CallTargetFinder::findIndTargets(Module &M)
           if (isa<CallInst>(B) || isa<InvokeInst>(B)) {
             CallSite cs = CallSite::get(B);
             AllSites.push_back(cs);
-            if (!cs.getCalledFunction()) {
+            Function* CF = cs.getCalledFunction();
+            // If the called function is casted from one function type to another, peer
+            // into the cast instruction and pull out the actual function being called.
+            if (ConstantExpr *CE = dyn_cast<ConstantExpr>(cs.getCalledValue()))
+              if (CE->getOpcode() == Instruction::BitCast &&
+                  isa<Function>(CE->getOperand(0)))
+                CF = cast<Function>(CE->getOperand(0));
+            
+            if (!CF) {
               if (isa<ConstantPointerNull>(cs.getCalledValue())) {
                 ++DirCall;
                 CompleteSites.insert(cs);
