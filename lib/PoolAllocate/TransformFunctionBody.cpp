@@ -29,6 +29,15 @@
 using namespace llvm;
 using namespace PA;
 
+//
+// Flag: UsingBugpoint
+//
+// Description:
+//  There are certain assertions that interfere with bugpoint's ability to
+//  reduce test cases.  When using bugpoint, set this variable to true.
+//
+static bool UsingBugpoint = false;
+
 namespace {
   /// FuncTransform - This class implements transformation required of pool
   /// allocated functions.
@@ -552,6 +561,12 @@ void FuncTransform::visitCallSite(CallSite& CS) {
     return;
   }
 
+  // Ignore calls to NULL pointers.
+  if (isa<ConstantPointerNull>(CS.getCalledValue())) {
+    std::cerr << "WARNING: Ignoring call using NULL function pointer.\n";
+    return;
+  }
+
   // If this function is one of the memory manipulating functions built into
   // libc, emulate it with pool calls as appropriate.
   if (CF && CF->isDeclaration()) {
@@ -625,6 +640,7 @@ void FuncTransform::visitCallSite(CallSite& CS) {
     if (!CF) {
       DSGraph* dg = Graphs.getDSGraph(*OrigInst->getParent()->getParent());
       DSNode* d = dg->getNodeForValue(OrigInst->getOperand(0)).getNode();
+      assert (d && "No DSNode!\n");
       std::vector<const Function*> g;
       d->addFullFunctionList(g);
       if (g.size()) {
@@ -640,7 +656,13 @@ void FuncTransform::visitCallSite(CallSite& CS) {
       }
     }
 
-    assert (CF && "No call graph info");
+    //
+    // Do an assert unless we're bugpointing something.
+    //
+    if (UsingBugpoint)
+      if (!CF) return;
+    else
+      assert (CF && "No call graph info");
 
     // Get the common graph for the set of functions this call may invoke.
     CalleeGraph = Graphs.getDSGraph(*CF);
