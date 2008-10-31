@@ -581,9 +581,7 @@ void FuncTransform::visitCallSite(CallSite& CS) {
       visitMemAlignCall(CS);
       return;
     } else if (CF->getName() == "strdup") {
-#if 1
       visitStrdupCall(CS);
-#endif
       return;
     } else if (CF->getName() == "valloc") {
       std::cerr << "VALLOC USED BUT NOT HANDLED!\n";
