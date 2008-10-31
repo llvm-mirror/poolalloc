@@ -659,10 +659,8 @@ void FuncTransform::visitCallSite(CallSite& CS) {
     //
     // Do an assert unless we're bugpointing something.
     //
-    if (UsingBugpoint)
-      if (!CF) return;
-    else
-      assert (CF && "No call graph info");
+    if ((UsingBugpoint) && (!CF)) return;
+    assert (CF && "No call graph info");
 
     // Get the common graph for the set of functions this call may invoke.
     CalleeGraph = Graphs.getDSGraph(*CF);
