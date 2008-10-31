@@ -17,6 +17,9 @@
 #ifndef POOLALLOCATE_H
 #define POOLALLOCATE_H
 
+#include "llvm/Argument.h"
+#include "llvm/Constants.h"
+#include "llvm/Instructions.h"
 #include "llvm/Pass.h"
 #include "llvm/DerivedTypes.h"
 #include "llvm/Support/CallSite.h"
@@ -172,7 +175,7 @@ protected:
  public:
   static char ID;
   PoolAllocate (bool passAllArguments = false,
-                bool SAFECode = false,
+                bool SAFECode = true,
                 intptr_t IDp = (intptr_t) (&ID))
     : ModulePass((intptr_t)IDp),
       PassAllArguments(passAllArguments)
@@ -245,13 +248,72 @@ protected:
     return Graphs->getGlobalsGraph ();
   }
 
+  //
+  // Method: getPool()
+  //
+  // Description:
+  //  Returns the pool handle associated with the DSNode in the given function.
+  //
+  // Inputs:
+  //  N - The DSNode of the value for which the caller wants a pool handle.
+  //  F - The function in which the value for which we want a pool handle
+  //      exists.
+  //
+  // Notes:
+  //  o) The DSNode N may *not* be in the current function.  The caller may
+  //     have mapped a value in the cloned function back to the original
+  //     function.
+  //
   virtual Value * getPool (const DSNode * N, Function & F) {
+    //
+    // Grab the structure containg information about the function and its
+    // clones.
+    //
     PA::FuncInfo * FI = getFuncInfoOrClone (F);
+    assert (FI && "Function has no FuncInfoOrClone!\n");
+
+    //
+    // Look for a mapping from the DSNode to the pool handle.
+    //
     std::map<const DSNode*, Value*>::iterator I = FI->PoolDescriptors.find(N);
     if (I != FI->PoolDescriptors.end()) {
-      return I->second;
+      Value * Pool = I->second;
+
+      //
+      // Now the fun part:
+      //  The specified function could either be a clone or the original
+      //  function.  This means that the pool descriptor that is matched with
+      //  the DSNode is:
+      //    o) A constant accessible from both the original function and its
+      //       clones.
+      //    o) A global variable accessible from both the original function and
+      //       its clones.
+      //    o) An allocation accessible only to the function.
+      //    o) A function parameter accessible only to the local function.
+      //
+      //  In short, we need to filter out the case where we find a pool handle,
+      //  but it's only accessible from a clone and not the original function.
+      //
+      assert ((isa<GlobalVariable>(Pool) ||
+               isa<AllocationInst>(Pool) ||
+               isa<Argument>(Pool) ||
+               isa<Constant>(Pool)) &&
+               "Pool of unknown type!\n");
+      if ((isa<GlobalVariable>(Pool)) || (isa<Constant>(Pool))) {
+          return Pool;
+      } else if (AllocationInst * AI = dyn_cast<AllocationInst>(Pool)) {
+        if (AI->getParent()->getParent() == &F)
+          return Pool;
+      } else if (Argument * Arg = dyn_cast<Argument>(Pool)) {
+        if (Arg->getParent() == &F)
+          return Pool;
+      }
     }
 
+    //
+    // We either do not have a pool, or the pool is not accessible from the
+    // specified function.  Return NULL.
+    //
     return 0;
   }
 
@@ -368,7 +430,7 @@ class PoolAllocateSimple : public PoolAllocate {
   TargetData * TD;
 public:
   static char ID;
-  PoolAllocateSimple(bool passAllArgs=false, bool SAFECode = false)
+  PoolAllocateSimple(bool passAllArgs=false, bool SAFECode = true)
     : PoolAllocate (passAllArgs, SAFECode, (intptr_t)&ID) {}
   ~PoolAllocateSimple() {return;}
   void getAnalysisUsage(AnalysisUsage &AU) const;
