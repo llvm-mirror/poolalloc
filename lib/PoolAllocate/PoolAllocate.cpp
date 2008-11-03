@@ -129,6 +129,7 @@ bool PoolAllocate::runOnModule(Module &M) {
     if (!I->isDeclaration() && Graphs->hasDSGraph(*I))
       FindFunctionPoolArgs(*I);
 
+  // Map that maps an original function to its clone
   std::map<Function*, Function*> FuncMap;
 
   // Now clone a function using the pool arg list obtained in the previous
@@ -156,11 +157,41 @@ bool PoolAllocate::runOnModule(Module &M) {
       ProcessFunctionBody(*I, FI != FuncMap.end() ? *FI->second : *I);
     }
 }
-  // Replace all uses of original functions with the transformed function.
+
+  //
+  // Replace any remaining uses of original functions with the transformed
+  // function i.e., the cloned function.
+  //
   for (std::map<Function *, Function *>::iterator I = FuncMap.begin(),
-         E = FuncMap.end(); I != E; ++I) {
+                                                  E = FuncMap.end();
+                                                  I != E; ++I) {
     Function *F = I->first;
-    F->replaceAllUsesWith(ConstantExpr::getPointerCast(I->second, F->getType()));
+
+    //
+    // Scan through all uses of the original function.  Replace it as long as
+    // the use is not a Call or Invoke instruction that
+    //  o) is within an original function (all such call instructions should
+    //     have been transformed already), and
+    //  o) the called function is the function that we're replacing
+    //
+    for (Function::use_iterator User = F->use_begin();
+                                User != F->use_end();
+                                ++User) {
+      if (CallInst * CI = dyn_cast<CallInst>(User)) {
+        if (CI->getCalledFunction() == F)
+          if ((FuncMap.find(CI->getParent()->getParent())) != FuncMap.end())
+            continue;
+      }
+
+      if (InvokeInst * CI = dyn_cast<InvokeInst>(User)) {
+        if (CI->getCalledFunction() == F)
+          if ((FuncMap.find(CI->getParent()->getParent())) != FuncMap.end())
+            continue;
+      }
+
+      User->replaceUsesOfWith (F, ConstantExpr::getPointerCast(I->second,
+                                                               F->getType()));
+    }
   }
 
   if (CurHeuristic->IsRealHeuristic())
