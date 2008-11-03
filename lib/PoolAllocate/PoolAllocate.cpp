@@ -108,10 +108,15 @@ bool PoolAllocate::runOnModule(Module &M) {
   if (M.begin() == M.end()) return false;
   CurModule = &M;
 
+  //
+  // Get references to the DSA information.  For SAFECode, we need Top-Down
+  // DSA.  For Automatic Pool Allocation only, we need Bottom-Up DSA.  In all
+  // cases, we need to use the Equivalence-Class version of DSA.
+  //
   if (SAFECodeEnabled)
-    Graphs = &getAnalysis<EQTDDataStructures>();   // folded inlined CBU graphs
-    else
-  Graphs = &getAnalysis<EquivBUDataStructures>();   // folded inlined CBU graphs
+    Graphs = &getAnalysis<EQTDDataStructures>();    
+  else
+    Graphs = &getAnalysis<EquivBUDataStructures>();
 
   CurHeuristic = Heuristic::create();
   CurHeuristic->Initialize(M, Graphs->getGlobalsGraph(), *this);
@@ -446,6 +451,7 @@ Function *PoolAllocate::MakeFunctionClone(Function &F) {
     for (std::map<const Value*, Value*>::iterator I = FI.ValueMap.begin(),
            E = FI.ValueMap.end(); I != E; ++I)
       ValueMap.insert(std::make_pair(I->first, I->second));
+
   for (Function::arg_iterator I = F.arg_begin();
        NI != New->arg_end(); ++I, ++NI) {
     ValueMap[I] = NI;
