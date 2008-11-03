@@ -661,6 +661,8 @@ void FuncTransform::visitCallSite(CallSite& CS) {
     assert (CF && "No call graph info");
 
     // Get the common graph for the set of functions this call may invoke.
+    if (UsingBugpoint && (!(Graphs.hasDSGraph(*CF)))) return;
+    assert ((Graphs.hasDSGraph(*CF)) && "Function has no DSGraph!\n");
     CalleeGraph = Graphs.getDSGraph(*CF);
     
 #ifndef NDEBUG
