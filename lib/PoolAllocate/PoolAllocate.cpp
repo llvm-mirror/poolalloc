@@ -194,8 +194,17 @@ bool PoolAllocate::runOnModule(Module &M) {
             continue;
       }
 
-      User->replaceUsesOfWith (F, ConstantExpr::getPointerCast(I->second,
-                                                               F->getType()));
+      Constant* CEnew = ConstantExpr::getPointerCast(I->second, F->getType());
+
+      // Must handle Constants specially, we cannot call replaceUsesOfWith on a
+      // constant because they are uniqued.
+      if (Constant *C = dyn_cast<Constant>(User)) {
+        if (!isa<GlobalValue>(C)) {
+          C->replaceUsesOfWithOnConstant(F, CEnew, User->op_begin());
+          continue;
+        }
+      }
+      User->replaceUsesOfWith (F, CEnew);
     }
   }
 
