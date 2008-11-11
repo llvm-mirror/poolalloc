@@ -132,13 +132,14 @@ namespace {
         }
       }
 
-      // Create an entry for the return, which tracks which functions are in the graph
+      // Create an entry for the return, which tracks which functions are in
+      // the graph
       g.getOrCreateReturnNodeFor(f);
 
       visit(f);  // Single pass over the function
 
-      // If there are any constant globals referenced in this function, merge their
-      // initializers into the local graph from the globals graph.
+      // If there are any constant globals referenced in this function, merge
+      // their initializers into the local graph from the globals graph.
       if (g.getScalarMap().global_begin() != g.getScalarMap().global_end()) {
         ReachabilityCloner RC(&g, g.getGlobalsGraph(), 0);
         
