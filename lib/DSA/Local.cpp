@@ -520,9 +520,37 @@ void GraphBuilder::visitInvokeInst(InvokeInst &II) {
 /// returns true if the intrinsic is handled
 bool GraphBuilder::visitIntrinsic(CallSite CS, Function *F) {
   switch (F->getIntrinsicID()) {
-  case Intrinsic::vastart:
-    getValueDest(*CS.getInstruction()).getNode()->setAllocaMarker();
+  case Intrinsic::vastart: {
+    // Mark the memory written by the vastart intrinsic as incomplete
+    DSNodeHandle RetNH = getValueDest(**CS.arg_begin());
+    if (DSNode *N = RetNH.getNode()) {
+      N->setModifiedMarker()->setAllocaMarker()->setIncompleteMarker()
+       ->setVAStartMarker()->setUnknownMarker()->foldNodeCompletely();
+    }
+
+    if (RetNH.hasLink(0)) {
+      DSNodeHandle Link = RetNH.getLink(0);
+      if (DSNode *N = Link.getNode()) {
+        N->setModifiedMarker()->setAllocaMarker()->setIncompleteMarker()
+         ->setVAStartMarker()->setUnknownMarker()->foldNodeCompletely();
+      }
+    } else {
+      //
+      // Sometimes the argument to the vastart is casted and has no DSNode.
+      // Peer past the cast.
+      //
+      Value * Operand = CS.getInstruction()->getOperand(1);
+      if (CastInst * CI = dyn_cast<CastInst>(Operand))
+        Operand = CI->getOperand (0);
+      RetNH = getValueDest(*Operand);
+      if (DSNode *N = RetNH.getNode()) {
+        N->setModifiedMarker()->setAllocaMarker()->setIncompleteMarker()
+         ->setVAStartMarker()->setUnknownMarker()->foldNodeCompletely();
+      }
+    }
+
     return true;
+  }
   case Intrinsic::vacopy:
     getValueDest(*CS.getInstruction()).
       mergeWith(getValueDest(**(CS.arg_begin())));
@@ -610,6 +638,18 @@ bool GraphBuilder::visitIntrinsic(CallSite CS, Function *F) {
   case Intrinsic::eh_typeid_for_i32:
   case Intrinsic::eh_typeid_for_i64:
     return true;
+
+  //
+  // The return address aliases with the stack, is type-unknown, and should
+  // have the unknown flag set since we don't know where it goes.
+  //
+  case Intrinsic::returnaddress: {
+    DSNode * Node = createNode();
+    Node->setAllocaMarker()->setIncompleteMarker()->setUnknownMarker();
+    Node->foldNodeCompletely();
+    setDestTo (*(CS.getInstruction()), Node);
+    return true;
+  }
 
   default: {
     //ignore pointer free intrinsics

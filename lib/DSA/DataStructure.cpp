@@ -1985,6 +1985,13 @@ void DSGraph::markIncompleteNodes(unsigned Flags) {
       if (!GV->hasInitializer() ||    // Always mark external globals incomp.
           (!GV->isConstant() && (Flags & DSGraph::IgnoreGlobals) == 0))
         markIncompleteNode(ScalarMap[GV].getNode());
+
+  // Mark any node with the VAStart flag as incomplete.
+  if (Flags & DSGraph::MarkVAStart) {
+    for (node_iterator i=node_begin(); i != node_end(); ++i) {
+      markIncompleteNode(i);
+    }
+  }
 }
 
 static inline void killIfUselessEdge(DSNodeHandle &Edge) {

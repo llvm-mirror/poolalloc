@@ -261,7 +261,8 @@ void TDDataStructures::InlineCallersIntoGraph(DSGraph* DSG) {
   // Recompute the Incomplete markers.  Depends on whether args are complete
   unsigned Flags
     = HasIncompleteArgs ? DSGraph::MarkFormalArgs : DSGraph::IgnoreFormalArgs;
-  DSG->markIncompleteNodes(Flags | DSGraph::IgnoreGlobals);
+  Flags |= DSGraph::IgnoreGlobals | DSGraph::MarkVAStart;
+  DSG->markIncompleteNodes(Flags);
 
   // Delete dead nodes.  Treat globals that are unreachable as dead also.
   DSG->removeDeadNodes(DSGraph::RemoveUnreachableGlobals);

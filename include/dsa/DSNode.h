@@ -95,9 +95,10 @@ public:
     ExternalNode    = 1 << 8,   // This node comes from an external source
     IntToPtrNode    = 1 << 9,   // This node comes from an int cast
     PtrToIntNode    = 1 << 10,  // This node excapes to an int cast
+    VAStartNode     = 1 << 11,  // This node excapes to an int cast
 
     //#ifndef NDEBUG
-    DeadNode        = 1 << 11,   // This node is dead and should not be pointed to
+    DeadNode        = 1 << 12,   // This node is dead and should not be pointed to
     //#endif
 
     Composition = AllocaNode | HeapNode | GlobalNode | UnknownNode
@@ -353,6 +354,7 @@ public:
   bool isExternalNode()   const { return NodeType & ExternalNode;  }
   bool isIntToPtrNode()   const { return NodeType & IntToPtrNode;  }
   bool isPtrToIntNode()   const { return NodeType & PtrToIntNode;  }
+  bool isVAStartNode()    const { return NodeType & VAStartNode;   }
 
   DSNode* setAllocaMarker()     { NodeType |= AllocaNode;     return this; }
   DSNode* setHeapMarker()       { NodeType |= HeapNode;       return this; }
@@ -365,6 +367,7 @@ public:
   DSNode* setExternalMarker()   { NodeType |= ExternalNode;   return this; }
   DSNode* setIntToPtrMarker()   { NodeType |= IntToPtrNode;   return this; }
   DSNode* setPtrToIntMarker()   { NodeType |= PtrToIntNode;   return this; }
+  DSNode* setVAStartMarker()    { NodeType |= VAStartNode;    return this; }
 
   void makeNodeDead() {
     Globals.clear();
