@@ -238,7 +238,7 @@ class RangeSplayMap {
   explicit RangeSplayMap(const Allocator& A= Allocator() ) 
   : Tree(A) {}
   
-  bool insert(void* start, void* end, T& d) {
+  bool insert(void* start, void* end, const T& d) {
     range_tree_node<T>* t = Tree.__insert(start,end);
     if (t == 0) return false;
     t->data = d;
