@@ -1,4 +1,21 @@
+//===-- SplayTree.h - Splay Tree Implementation -----------------*- C++ -*-===//
+// 
+//                         Automatic Pool Allocation
+//
+// This file was developed by the LLVM research group and is distributed under
+// the University of Illinois Open Source License. See LICENSE.TXT for details.
+// 
+//===----------------------------------------------------------------------===//
+//
+// This file implements several splay tree classes.
+//
+//===----------------------------------------------------------------------===//
+
 #include <memory>
+#include <vector>
+
+#ifndef SUPPORT_SPLAYTREE_H
+#define SUPPORT_SPLAYTREE_H
 
 template<typename dataTy>
 struct range_tree_node {
@@ -101,12 +118,40 @@ class RangeSplayTree {
     return 0;
   }
 
-  void __clear_internal(tree_node* t) {
-    if (!t) return;
-    __clear_internal(t->left);
-    __clear_internal(t->right);
+  void __clear_internal(std::vector<tree_node *> & stack) {
+    //
+    // If the stack has no elements, we are done.
+    //
+    if (stack.size() == 0)
+      return;
+
+    //
+    // Otherwise, pop off the last element, add its children to the stack,
+    // and delete it.
+    //
+    tree_node * t = stack.back();
+    if (t == 0)
+      return;
+    stack.pop_back();
+    stack.push_back (t->left);
+    stack.push_back (t->right);
     __node_alloc.destroy(t);
     __node_alloc.deallocate(t, 1);
+    __clear_internal (stack);
+  }
+
+  void __clear_internal(tree_node* t) {
+    //
+    // If there is no node, then simply return.
+    //
+    if (!t) return;
+
+    //
+    // Otherwise, start deleting elements!
+    //
+    std::vector<tree_node *> stack;
+    stack.push_back (t);
+    __clear_internal (stack);
   }
 
   template<class O>
@@ -201,6 +246,16 @@ class RangeSplaySet
   explicit RangeSplaySet(const Allocator& A = Allocator() )
   : Tree(A) {}
   
+  //
+  // Method: insert()
+  //
+  // Description:
+  //  Insert an element into the splay set.
+  //
+  // Inputs:
+  //  start - The first valid address of the object.
+  //  end   - The last valid address of the object.
+  //
   bool insert(void* start, void* end) {
     return 0 != Tree.__insert(start,end);
   }
@@ -270,3 +325,5 @@ class RangeSplayMap {
     return true;
   }
 };
+
+#endif
