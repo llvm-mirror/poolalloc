@@ -118,40 +118,38 @@ class RangeSplayTree {
     return 0;
   }
 
-  void __clear_internal(std::vector<tree_node *> & stack) {
-    //
-    // If the stack has no elements, we are done.
-    //
-    if (stack.size() == 0)
-      return;
-
-    //
-    // Otherwise, pop off the last element, add its children to the stack,
-    // and delete it.
-    //
-    tree_node * t = stack.back();
-    if (t == 0)
-      return;
-    stack.pop_back();
-    stack.push_back (t->left);
-    stack.push_back (t->right);
-    __node_alloc.destroy(t);
-    __node_alloc.deallocate(t, 1);
-    __clear_internal (stack);
-  }
-
-  void __clear_internal(tree_node* t) {
+  void __clear_internal(tree_node* tree) {
     //
     // If there is no node, then simply return.
     //
-    if (!t) return;
+    if (!tree) return;
+
+    // The set of elements yet to process
+    std::vector<tree_node *> stack;
+    stack.push_back (tree);
 
     //
-    // Otherwise, start deleting elements!
+    // Begin deleting elements.
     //
-    std::vector<tree_node *> stack;
-    stack.push_back (t);
-    __clear_internal (stack);
+    while (stack.size()) {
+      //
+      // Remove the last node of the tree.
+      //
+      tree_node * t = stack.back();
+      stack.pop_back();
+
+      //
+      // Push on to the stack for later processing the children.
+      //
+      if (t->left)  stack.push_back (t->left);
+      if (t->right) stack.push_back (t->right);
+
+      //
+      // Delete the element.
+      //
+      __node_alloc.destroy(t);
+      __node_alloc.deallocate(t, 1);
+    }
   }
 
   template<class O>
