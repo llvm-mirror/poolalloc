@@ -399,7 +399,7 @@ namespace {
           const ArrayType *AT = cast<ArrayType>(SS.Ty);
           ++SS.Idx;
           if (SS.Idx != AT->getNumElements()) {
-            SS.Offset += unsigned(TD.getABITypeSize(AT->getElementType()));
+            SS.Offset += unsigned(TD.getTypePaddedSize(AT->getElementType()));
             return;
           }
           Stack.pop_back();  // At the end of the array
@@ -434,7 +434,7 @@ namespace {
             assert(SS.Idx < AT->getNumElements());
             Stack.push_back(StackState(AT->getElementType(),
                                        SS.Offset+SS.Idx*
-                             unsigned(TD.getABITypeSize(AT->getElementType()))));
+                             unsigned(TD.getTypePaddedSize(AT->getElementType()))));
           }
         }
       }
@@ -491,7 +491,7 @@ bool DSNode::mergeTypeInfo(const Type *NewTy, unsigned Offset,
           (Size == 0 && !Ty->isSized() && !isArray()) ||
           (Size == 1 && Ty == Type::VoidTy && isArray()) ||
           (Size == 0 && !Ty->isSized() && !isArray()) ||
-          (TD.getABITypeSize(Ty) == Size)) &&
+          (TD.getTypePaddedSize(Ty) == Size)) &&
          "Size member of DSNode doesn't match the type structure!");
   assert(NewTy != Type::VoidTy && "Cannot merge void type into DSNode!");
 
@@ -514,7 +514,7 @@ bool DSNode::mergeTypeInfo(const Type *NewTy, unsigned Offset,
   }
 
   // Figure out how big the new type we're merging in is...
-  unsigned NewTySize = NewTy->isSized() ? (unsigned)TD.getABITypeSize(NewTy) : 0;
+  unsigned NewTySize = NewTy->isSized() ? (unsigned)TD.getTypePaddedSize(NewTy) : 0;
 
   // Otherwise check to see if we can fold this type into the current node.  If
   // we can't, we fold the node completely, if we can, we potentially update our
@@ -654,7 +654,7 @@ bool DSNode::mergeTypeInfo(const Type *NewTy, unsigned Offset,
   unsigned O = 0;
   const Type *SubType = Ty;
   while (O < Offset) {
-    assert(Offset-O < TD.getABITypeSize(SubType) && "Offset out of range!");
+    assert(Offset-O < TD.getTypePaddedSize(SubType) && "Offset out of range!");
 
     switch (SubType->getTypeID()) {
     case Type::StructTyID: {
@@ -669,7 +669,7 @@ bool DSNode::mergeTypeInfo(const Type *NewTy, unsigned Offset,
     }
     case Type::ArrayTyID: {
       SubType = cast<ArrayType>(SubType)->getElementType();
-      unsigned ElSize = (unsigned)TD.getABITypeSize(SubType);
+      unsigned ElSize = (unsigned)TD.getTypePaddedSize(SubType);
       unsigned Remainder = (Offset-O) % ElSize;
       O = Offset-Remainder;
       break;
@@ -691,7 +691,7 @@ bool DSNode::mergeTypeInfo(const Type *NewTy, unsigned Offset,
       isa<FunctionType>(NewTy)) return false;
 
   unsigned SubTypeSize = SubType->isSized() ?
-       (unsigned)TD.getABITypeSize(SubType) : 0;
+       (unsigned)TD.getTypePaddedSize(SubType) : 0;
 
   // Ok, we are getting desperate now.  Check for physical subtyping, where we
   // just require each element in the node to be compatible.
@@ -719,12 +719,12 @@ bool DSNode::mergeTypeInfo(const Type *NewTy, unsigned Offset,
       else
         NextPadSize = SubTypeSize;
       NextSubType = STy->getElementType(0);
-      NextSubTypeSize = (unsigned)TD.getABITypeSize(NextSubType);
+      NextSubTypeSize = (unsigned)TD.getTypePaddedSize(NextSubType);
       break;
     }
     case Type::ArrayTyID:
       NextSubType = cast<ArrayType>(SubType)->getElementType();
-      NextSubTypeSize = (unsigned)TD.getABITypeSize(NextSubType);
+      NextSubTypeSize = (unsigned)TD.getTypePaddedSize(NextSubType);
       NextPadSize = NextSubTypeSize;
       break;
     default: ;

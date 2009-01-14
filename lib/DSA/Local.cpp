@@ -447,7 +447,7 @@ void GraphBuilder::visitGetElementPtrInst(User &GEP) {
       if (ConstantInt *CS = dyn_cast<ConstantInt>(GEP.getOperand(i))) {
         Offset += 
           (CS->getType()->isSigned() ? CS->getSExtValue() : CS->getZExtValue())
-          * TD.getABITypeSize(CurTy);
+          * TD.getTypePaddedSize(CurTy);
       } else {
         // Variable index into a node.  We must merge all of the elements of the
         // sequential type here.
@@ -455,7 +455,7 @@ void GraphBuilder::visitGetElementPtrInst(User &GEP) {
           cerr << "Pointer indexing not handled yet!\n";
         else {
           const ArrayType *ATy = cast<ArrayType>(STy);
-          unsigned ElSize = TD.getABITypeSize(CurTy);
+          unsigned ElSize = TD.getTypePaddedSize(CurTy);
           DSNode *N = Value.getNode();
           assert(N && "Value must have a node!");
           unsigned RawOffset = Offset+Value.getOffset();

@@ -57,7 +57,7 @@ Heuristic::~Heuristic() {}
 unsigned Heuristic::getRecommendedSize(const DSNode *N) {
   unsigned PoolSize = 0;
   if (!N->isArray() && N->getType()->isSized()) {
-    PoolSize = N->getParentGraph()->getTargetData().getABITypeSize(N->getType());
+    PoolSize = N->getParentGraph()->getTargetData().getTypePaddedSize(N->getType());
   }
   if (PoolSize == 1) PoolSize = 0;
   return PoolSize;

@@ -178,7 +178,7 @@ PoolAllocateSimple::ProcessFunctionBodySimple (Function& F, TargetData & TD) {
         if (MI->isArrayAllocation()) {
           Value * NumElements = MI->getArraySize();
           Value * ElementSize = ConstantInt::get (Type::Int32Ty,
-                                                  TD.getABITypeSize(MI->getAllocatedType()));
+                                                  TD.getTypePaddedSize(MI->getAllocatedType()));
           AllocSize = BinaryOperator::Create (Instruction::Mul,
                                               ElementSize,
                                               NumElements,
@@ -186,7 +186,7 @@ PoolAllocateSimple::ProcessFunctionBodySimple (Function& F, TargetData & TD) {
                                               MI);
         } else {
           AllocSize = ConstantInt::get (Type::Int32Ty,
-                                        TD.getABITypeSize(MI->getAllocatedType()));
+                                        TD.getTypePaddedSize(MI->getAllocatedType()));
         }
 
         Value* args[] = {TheGlobalPool, AllocSize};
