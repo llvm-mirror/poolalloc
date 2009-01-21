@@ -355,10 +355,12 @@ public:
   /// getAnalysisUsage - This obviously provides a data structure graph.
   ///
   virtual void getAnalysisUsage(AnalysisUsage &AU) const {
-    if (useEQBU)
+    if (useEQBU) {
       AU.addRequired<EquivBUDataStructures>();
-    else
+    } else {
       AU.addRequired<BUDataStructures>();
+      AU.addPreserved<BUDataStructures>();
+    }
     AU.addPreserved<TargetData>();
     AU.setPreservesCFG();
   }
