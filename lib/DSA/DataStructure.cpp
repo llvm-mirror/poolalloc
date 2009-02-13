@@ -2870,6 +2870,11 @@ void DataStructures::init(DataStructures* D, bool clone, bool printAuxCalls,
   GlobalsGraph = new DSGraph(D->getGlobalsGraph(), GlobalECs, 
                              copyGlobalAuxCalls?0:DSGraph::DontCloneAuxCallNodes);
   if (printAuxCalls) GlobalsGraph->setPrintAuxCalls();
+
+  //
+  // Tell the other DSA pass if we're stealing its graph.
+  //
+  if (!clone) D->DSGraphsStolen = true;
 }
 
 void DataStructures::init(TargetData* T) {
@@ -2881,6 +2886,11 @@ void DataStructures::init(TargetData* T) {
 }
 
 void DataStructures::releaseMemory() {
+  //
+  // If the DSGraphs were stolen by another pass, free nothing.
+  //
+  if (DSGraphsStolen) return;
+
   hash_set<DSGraph*> toDelete;
   for (DSInfoTy::iterator I = DSInfo.begin(), E = DSInfo.end(); I != E; ++I) {
     I->second->getReturnNodes().clear();

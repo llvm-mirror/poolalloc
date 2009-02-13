@@ -55,6 +55,9 @@ private:
   /// do we reset the aux list to the func list?
   bool resetAuxCalls;
 
+  /// Were are DSGraphs stolen by another pass?
+  bool DSGraphsStolen;
+
   void buildGlobalECs(std::set<const GlobalValue*>& ECGlobals);
 
   void eliminateUsesOfECGlobals(DSGraph& G, const std::set<const GlobalValue*> &ECGlobals);
@@ -89,9 +92,12 @@ protected:
   }
 
   DataStructures(intptr_t id, const char* name) 
-    :ModulePass(id), TD(0), GraphSource(0), printname(name), GlobalsGraph(0) {
+    : ModulePass(id), TD(0), GraphSource(0), printname(name), GlobalsGraph(0) {
     //a dummy node for empty call sites
     ActualCallees[0];
+    
+    // For now, the graphs are owned by this pass
+    DSGraphsStolen = false;
   }
 
 public:
