@@ -15,6 +15,6 @@ LIBRARYNAME=poolalloc
 #
 include $(LEVEL)/Makefile.common
 
-LDFLAGS += -lLLVMDataStructure -r $(LibDir)
+LDFLAGS += -lLLVMDataStructure
 CFLAGS += -fPIC
 
