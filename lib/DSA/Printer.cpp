@@ -24,6 +24,7 @@
 #include "llvm/Support/Streams.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Config/config.h"
+#include "llvm/Support/raw_ostream.h"
 #include <ostream>
 #include <fstream>
 #include <sstream>
@@ -43,7 +44,8 @@ namespace {
 void DSNode::dump() const { print(cerr, 0); }
 
 static std::string getCaption(const DSNode *N, const DSGraph *G) {
-  std::stringstream OS;
+  std::string empty;
+  raw_string_ostream OS(empty);
   const Module *M = 0;
 
   if (!G) G = N->getParentGraph();

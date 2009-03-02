@@ -29,6 +29,7 @@
 #include "llvm/ADT/SCCIterator.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Support/Timer.h"
+#include "llvm/Support/raw_ostream.h"
 #include "llvm/ADT/hash_map.h"
 
 #include <iostream>
@@ -768,12 +769,13 @@ bool DSNode::mergeTypeInfo(const Type *NewTy, unsigned Offset,
     M = getParentGraph()->retnodes_begin()->first->getParent();
 
   DOUT << "MergeTypeInfo Folding OrigTy: ";
-  DEBUG(WriteTypeSymbolic(*cerr.stream(), Ty, M);
-        *cerr.stream() << "\n due to:";
-        WriteTypeSymbolic(*cerr.stream(), NewTy, M);
-        *cerr.stream() << " @ " << Offset << "!\n" << "SubType: ";
-        WriteTypeSymbolic(*cerr.stream(), SubType, M);
-        *cerr.stream() << "\n\n");
+  raw_stderr_ostream stream;
+  DEBUG(WriteTypeSymbolic(stream, Ty, M);
+        stream << "\n due to:";
+        WriteTypeSymbolic(stream, NewTy, M);
+        stream << " @ " << Offset << "!\n" << "SubType: ";
+        WriteTypeSymbolic(stream, SubType, M);
+        stream << "\n\n");
 
   if (FoldIfIncompatible) foldNodeCompletely();
   return true;
