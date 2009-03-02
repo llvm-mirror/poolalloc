@@ -7,7 +7,6 @@ LEVEL=../..
 # Give the name of a library.  This will build a dynamic version.
 #
 BUILD_RELINKED=1
-SHARED_LIBRARY=1
 LIBRARYNAME=poolalloc
 
 #
