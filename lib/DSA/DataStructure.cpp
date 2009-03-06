@@ -147,6 +147,9 @@ DSNode::DSNode(const Type *T, DSGraph *G)
   if (T) mergeTypeInfo(T, 0);
   if (G) G->addNode(this);
   ++NumNodeAllocated;
+
+  // Be good memory stewards and give our pointers a default of NULL
+  Next = Prev = 0;
 }
 
 // DSNode copy constructor... do not copy over the referrers list!
@@ -159,6 +162,9 @@ DSNode::DSNode(const DSNode &N, DSGraph *G, bool NullLinks)
     Links.resize(N.Links.size()); // Create the appropriate number of null links
   G->addNode(this);
   ++NumNodeAllocated;
+
+  // Be good memory stewards and give our pointers a default of NULL
+  Next = Prev = 0;
 }
 
 DSNode::~DSNode() {
