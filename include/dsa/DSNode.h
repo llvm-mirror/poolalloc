@@ -434,6 +434,29 @@ struct ilist_traits<DSNode> {
   void transferNodesFromList(iplist<DSNode, ilist_traits> &L2,
                              ilist_iterator<DSNode> first,
                              ilist_iterator<DSNode> last) {}
+  DSNode *provideInitialHead() const {
+    DSNode * sentinel = createSentinel();
+    setPrev (sentinel, sentinel);
+    return sentinel;
+  }
+
+  /// ensureHead - make sure that Head is either already
+  /// initialized or assigned a fresh sentinel
+  /// @return the sentinel
+  static DSNode *ensureHead(DSNode *&Head) {
+    if (!Head) {
+      Head = createSentinel();
+      noteHead (Head, Head);
+      setNext(Head, Head);
+      return Head;
+    }
+    return getPrev(Head);
+  }
+
+  /// noteHead - stash the sentinel into its default location
+  static void noteHead(DSNode *NewHead, DSNode *Sentinel) {
+    setPrev(NewHead, Sentinel);
+  }
 };
 
 template<>
