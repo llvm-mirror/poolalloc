@@ -12,8 +12,8 @@ TOOLNAME=pa
 
 # Initialize the USEDLIBS so we can add to it
 
-LINK_COMPONENTS := bitreader bitwriter instrumentation scalaropts ipo
-
+LINK_COMPONENTS :=  bitreader bitwriter instrumentation scalaropts ipo \
+                    nativecodegen
 USEDLIBS := poolalloc LLVMDataStructure
 
 # Include this here so we can get the configuration of the targets

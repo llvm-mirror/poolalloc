@@ -27,6 +27,9 @@
 #include "llvm/System/Signals.h"
 #include "llvm/Config/config.h"
 
+#include "dsa/DSSupport.h"
+#include "dsa/DataStructure.h"
+
 #include "poolalloc/PoolAllocate.h"
 
 #include <fstream>
