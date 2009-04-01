@@ -16,12 +16,15 @@
 #define LLVM_ANALYSIS_DSGRAPH_H
 
 #include "dsa/DSNode.h"
-#include "llvm/ADT/hash_map.h"
 #include "llvm/ADT/EquivalenceClasses.h"
+#include "poolalloc/ADT/HashExtras.h"
 
+#include <ext/hash_map>
+#include <ext/hash_set>
 #include <list>
 #include <map>
 #include <iostream>
+
 namespace llvm {
 
 

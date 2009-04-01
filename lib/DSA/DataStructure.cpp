@@ -30,7 +30,7 @@
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Support/Timer.h"
 #include "llvm/Support/raw_ostream.h"
-#include "llvm/ADT/hash_map.h"
+#include "poolalloc/ADT/HashExtras.h"
 
 #include <iostream>
 #include <algorithm>

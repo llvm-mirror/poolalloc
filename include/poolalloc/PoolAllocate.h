@@ -25,9 +25,9 @@
 #include "llvm/Support/CallSite.h"
 #include "llvm/ADT/EquivalenceClasses.h"
 #include "llvm/ADT/VectorExtras.h"
-#include "llvm/ADT/hash_set.h"
 #include "llvm/Support/CommandLine.h"
 #include "dsa/DataStructure.h"
+#include "poolalloc/ADT/HashExtras.h"
 #include "poolalloc/Config/config.h"
 
 #include <set>

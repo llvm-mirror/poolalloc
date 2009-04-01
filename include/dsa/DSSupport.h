@@ -15,9 +15,8 @@
 #define LLVM_ANALYSIS_DSSUPPORT_H
 
 #include <functional>
-#include "llvm/ADT/hash_map.h"
-#include "llvm/ADT/hash_set.h"
 #include "llvm/Support/CallSite.h"
+#include "poolalloc/ADT/HashExtras.h"
 
 namespace llvm {
 
@@ -146,7 +145,7 @@ namespace std {
   inline void swap<llvm::DSNodeHandle>(llvm::DSNodeHandle &NH1, llvm::DSNodeHandle &NH2) { NH1.swap(NH2); }
 }
 
-namespace HASH_NAMESPACE {
+namespace __gnu_cxx {
   // Provide a hash function for arbitrary pointers...
   template <> struct hash<llvm::DSNodeHandle> {
     inline size_t operator()(const llvm::DSNodeHandle &Val) const {

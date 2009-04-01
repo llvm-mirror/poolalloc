@@ -17,9 +17,9 @@
 #include "llvm/Pass.h"
 #include "llvm/Target/TargetData.h"
 #include "llvm/Support/CallSite.h"
-#include "llvm/ADT/hash_map.h"
-#include "llvm/ADT/hash_set.h"
 #include "llvm/ADT/EquivalenceClasses.h"
+
+#include "poolalloc/ADT/HashExtras.h"
 
 #include <map>
 
