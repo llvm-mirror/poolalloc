@@ -132,12 +132,14 @@ bool PoolAllocateSimple::runOnModule(Module &M) {
   //
   // Create the global pool.
   //
-  TheGlobalPool = CreateGlobalPool(32, 1, MainFunc->getEntryBlock().begin(), M);
+  TheGlobalPool = CreateGlobalPool(32, 1, M);
 
   //
   // Now that all call targets are available, rewrite the function bodies of the
   // clones.
   for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I) {
+    std::string name = I->getName();
+    if (name == "poolalloc.init") continue;
     if (!(I->isDeclaration()))
       ProcessFunctionBodySimple(*I, TD);
   }
@@ -349,29 +351,23 @@ PoolAllocateSimple::ProcessFunctionBodySimple (Function& F, TargetData & TD) {
 GlobalVariable *
 PoolAllocateSimple::CreateGlobalPool (unsigned RecSize,
                                       unsigned Align,
-                                      Instruction *IPHint,
                                       Module& M) {
   GlobalVariable *GV =
     new GlobalVariable(getPoolType(), false, GlobalValue::InternalLinkage, 
-                       Constant::getNullValue(getPoolType()), "GlobalPool",
+                       Constant::getNullValue(getPoolType()), "poolalloc.GlobalPool",
                        &M);
 
-  Function *MainFunc = (M.getFunction("main") ? M.getFunction("main")
-                                              : M.getFunction("MAIN__"));
-  assert(MainFunc && "No main in program??");
+  Function *InitFunc = Function::Create
+    (FunctionType::get(Type::VoidTy, std::vector<const Type*>(), false),
+    GlobalValue::InternalLinkage, "poolalloc.init", &M);
 
-  BasicBlock::iterator InsertPt;
-  if (IPHint)
-    InsertPt = IPHint;
-  else {
-    InsertPt = MainFunc->getEntryBlock().begin();
-    while (isa<AllocaInst>(InsertPt)) ++InsertPt;
-  }
-
+  BasicBlock * BB = BasicBlock::Create("entry", InitFunc);
   Value *ElSize = ConstantInt::get(Type::Int32Ty, RecSize);
   Value *AlignV = ConstantInt::get(Type::Int32Ty, Align);
   Value* Opts[3] = {GV, ElSize, AlignV};
-  CallInst::Create(PoolInit, Opts, Opts + 3, "", InsertPt);
+  CallInst::Create(PoolInit, Opts, Opts + 3, "", BB);
+
+  ReturnInst::Create(BB);
   return GV;
 }
 

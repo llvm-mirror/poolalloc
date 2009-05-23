@@ -439,7 +439,7 @@ public:
   void getAnalysisUsage(AnalysisUsage &AU) const;
   bool runOnModule(Module &M);
   GlobalVariable *CreateGlobalPool(unsigned RecSize, unsigned Align,
-                                   Instruction *IPHint, Module& M);
+                                   Module& M);
   void ProcessFunctionBodySimple(Function& F, TargetData & TD);
 
 
