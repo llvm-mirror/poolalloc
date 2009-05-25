@@ -170,6 +170,24 @@ public:
   void copyValue(Value *From, Value *To);
 };
 
+// BasicDataStructures - The analysis is a dummy one -- all pointers can points
+// to all possible locations.
+//
+class BasicDataStructures : public DataStructures {
+public:
+  static char ID;
+  BasicDataStructures() : DataStructures((intptr_t)&ID, "basic.") {}
+  ~BasicDataStructures() { releaseMemory(); }
+
+  virtual bool runOnModule(Module &M);
+
+  /// getAnalysisUsage - This obviously provides a data structure graph.
+  ///
+  virtual void getAnalysisUsage(AnalysisUsage &AU) const {
+    AU.addRequired<TargetData>();
+    AU.setPreservesAll();
+  }
+};
 
 // LocalDataStructures - The analysis that computes the local data structure
 // graphs for all of the functions in the program.
