@@ -216,7 +216,12 @@ DSNodeHandle GraphBuilder::getValueDest(Value &Val) {
     } else if (isa<UndefValue>(C)) {
       G.eraseNodeForValue(V);
       return 0;
+    } else if (isa<GlobalAlias>(C)) {
+      // XXX: Need more investigation
+      NH = getValueDest(*(dynamic_cast<GlobalAlias*>(C)->getAliasee()));
+      return 0;
     } else {
+      llvm::cerr << "Unknown constant: " << *C << std::endl;
       assert(0 && "Unknown constant type!");
     }
     N = createNode(); // just create a shadow node
@@ -335,8 +340,8 @@ void GraphBuilder::visitVAArgInst(VAArgInst &I) {
 }
 
 void GraphBuilder::visitIntToPtrInst(IntToPtrInst &I) {
-  std::cerr << "cast in " << I.getParent()->getParent()->getName() << "\n";
-  I.dump();
+//  std::cerr << "cast in " << I.getParent()->getParent()->getName() << "\n";
+//  I.dump();
   setDestTo(I, createNode()->setUnknownMarker()->setIntToPtrMarker()); 
 }
 
