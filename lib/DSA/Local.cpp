@@ -218,7 +218,10 @@ DSNodeHandle GraphBuilder::getValueDest(Value &Val) {
       return 0;
     } else if (isa<GlobalAlias>(C)) {
       // XXX: Need more investigation
-      NH = getValueDest(*(dynamic_cast<GlobalAlias*>(C)->getAliasee()));
+      // According to Andrew, DSA is broken on global aliasing, since it does
+      // not handle the aliases of parameters correctly. Here is only a quick
+      // fix for some special cases.
+      NH = getValueDest(*(cast<GlobalAlias>(C)->getAliasee()));
       return 0;
     } else {
       llvm::cerr << "Unknown constant: " << *C << std::endl;
