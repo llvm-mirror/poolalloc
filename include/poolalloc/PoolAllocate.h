@@ -431,9 +431,10 @@ class PoolAllocateSimple : public PoolAllocate {
   DSGraph * CombinedDSGraph;
   EquivalenceClasses<const GlobalValue*> GlobalECs;
   TargetData * TD;
+  bool CompleteDSA;
 public:
   static char ID;
-  PoolAllocateSimple(bool passAllArgs=false, bool SAFECode = true)
+  PoolAllocateSimple(bool passAllArgs=false, bool SAFECode = true, bool CompleteDSA = true)
     : PoolAllocate (passAllArgs, SAFECode, (intptr_t)&ID) {}
   ~PoolAllocateSimple() {return;}
   void getAnalysisUsage(AnalysisUsage &AU) const;
@@ -458,7 +459,8 @@ public:
   virtual Value * getPool (const DSNode * N, Function & F) {
     return TheGlobalPool;
   }
-  };
+};
+
 }
 
 #endif

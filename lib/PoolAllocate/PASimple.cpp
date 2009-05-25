@@ -72,9 +72,14 @@ castTo (Value * V, const Type * Ty, std::string Name, Instruction * InsertPt) {
 
 void PoolAllocateSimple::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.addRequired<TargetData>();
-  AU.addRequiredTransitive<EQTDDataStructures>();
-
-  AU.addPreserved<EQTDDataStructures>();
+  // Get the Target Data information and the Graphs
+  if (CompleteDSA) {
+    AU.addRequiredTransitive<EQTDDataStructures>();
+    AU.addPreserved<EQTDDataStructures>();
+  } else {
+    AU.addRequiredTransitive<BasicDataStructures>();
+    AU.addPreserved<BasicDataStructures>();
+  }
 
   AU.setPreservesAll();
 }
@@ -100,21 +105,16 @@ bool PoolAllocateSimple::runOnModule(Module &M) {
   if (M.begin() == M.end()) return false;
 
   // Get the Target Data information and the Graphs
-  Graphs = &getAnalysis<EQTDDataStructures>();   // folded inlined CBU graphs
-  assert (Graphs && "No ECGraphs pass available!\n");
+  if (CompleteDSA) {
+    Graphs = &getAnalysis<EQTDDataStructures>();
+  } else {
+    Graphs = &getAnalysis<BasicDataStructures>();
+  }
+  assert (Graphs && "No DSA pass available!\n");
   TargetData & TD = getAnalysis<TargetData>();
 
   // Add the pool* prototypes to the module
   AddPoolPrototypes(&M);
-
-  // Get the main function to insert the poolinit calls.
-  Function *MainFunc = (M.getFunction("main") ? M.getFunction("main")
-                                              : M.getFunction("MAIN__"));
-  if (MainFunc == 0 || MainFunc->isDeclaration()) {
-    std::cerr << "Cannot pool allocate this program: it has global "
-              << "pools but no 'main' function yet!\n";
-    return true;
-  }
 
   //
   // Merge all of the DSNodes in the DSGraphs.
@@ -370,4 +370,3 @@ PoolAllocateSimple::CreateGlobalPool (unsigned RecSize,
   ReturnInst::Create(BB);
   return GV;
 }
-
