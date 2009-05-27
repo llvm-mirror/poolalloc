@@ -435,7 +435,7 @@ class PoolAllocateSimple : public PoolAllocate {
 public:
   static char ID;
   PoolAllocateSimple(bool passAllArgs=false, bool SAFECode = true, bool CompleteDSA = true)
-    : PoolAllocate (passAllArgs, SAFECode, (intptr_t)&ID) {}
+    : PoolAllocate (passAllArgs, SAFECode, (intptr_t)&ID), CompleteDSA(CompleteDSA) {}
   ~PoolAllocateSimple() {return;}
   void getAnalysisUsage(AnalysisUsage &AU) const;
   bool runOnModule(Module &M);
