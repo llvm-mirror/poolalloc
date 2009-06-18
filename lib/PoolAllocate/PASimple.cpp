@@ -353,8 +353,8 @@ PoolAllocateSimple::CreateGlobalPool (unsigned RecSize,
                                       unsigned Align,
                                       Module& M) {
   GlobalVariable *GV =
-    new GlobalVariable(getPoolType(), false, GlobalValue::InternalLinkage, 
-                       Constant::getNullValue(getPoolType()), "poolalloc.GlobalPool",
+    new GlobalVariable(getPoolType(), false, GlobalValue::ExternalLinkage, 
+                       Constant::getNullValue(getPoolType()), "__poolalloc_GlobalPool",
                        &M);
 
   Function *InitFunc = Function::Create

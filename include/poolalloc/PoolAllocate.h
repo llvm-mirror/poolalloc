@@ -238,7 +238,7 @@ protected:
   const Type * getPoolType() {
     Type * VoidPtrType = PointerType::getUnqual(Type::Int8Ty);
     if (SAFECodeEnabled)
-      return ArrayType::get(VoidPtrType, 50);
+      return ArrayType::get(VoidPtrType, 92);
     else
       return ArrayType::get(VoidPtrType, 16);
   }
