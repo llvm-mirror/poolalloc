@@ -372,13 +372,13 @@ void poolinit_bp(PoolTy<NormalPoolTraits> *Pool, unsigned ObjAlignment) {
   Pool->ObjFreeList = 0;     // This is our bump pointer.
   Pool->OtherFreeList = 0;   // This is our end pointer.
 
-  unsigned PID;
 #ifdef ENABLE_POOL_IDS
+  unsigned PID;
   PID = addPoolNumber(Pool);
-#endif
 
   DO_IF_TRACE(fprintf(stderr, "[%d] poolinit_bp(0x%X, %d)\n",
                       PID, Pool, ObjAlignment));
+#endif
   DO_IF_PNP(++PoolsInited);  // Track # pools initialized
   DO_IF_PNP(InitPrintNumPools<NormalPoolTraits>());
 }
@@ -435,11 +435,11 @@ LargeObject:
 void pooldestroy_bp(PoolTy<NormalPoolTraits> *Pool) {
   assert(Pool && "Null pool pointer passed in to pooldestroy!\n");
 
-  unsigned PID;
 #ifdef ENABLE_POOL_IDS
+  unsigned PID;
   PID = removePoolNumber(Pool);
-#endif
   DO_IF_TRACE(fprintf(stderr, "[%d] pooldestroy_bp", PID));
+#endif
   DO_IF_POOLDESTROY_STATS(PrintPoolStats(Pool));
 
   // Free all allocated slabs.
@@ -494,13 +494,13 @@ static void poolinit_internal(PoolTy<PoolTraits> *Pool,
 
   Pool->DeclaredSize = DeclaredSize;
 
-  unsigned PID;
 #ifdef ENABLE_POOL_IDS
+  unsigned PID;
   PID = addPoolNumber(Pool);
-#endif
   DO_IF_TRACE(fprintf(stderr, "[%d] poolinit%s(0x%X, %d, %d)\n",
                       PID, PoolTraits::getSuffix(),
                       Pool, DeclaredSize, ObjAlignment));
+#endif
   DO_IF_PNP(++PoolsInited);  // Track # pools initialized
   DO_IF_PNP(InitPrintNumPools<PoolTraits>());
 }
@@ -515,11 +515,11 @@ void poolinit(PoolTy<NormalPoolTraits> *Pool,
 void pooldestroy(PoolTy<NormalPoolTraits> *Pool) {
   assert(Pool && "Null pool pointer passed in to pooldestroy!\n");
 
-  unsigned PID;
 #ifdef ENABLE_POOL_IDS
+  unsigned PID;
   PID = removePoolNumber(Pool);
-#endif
   DO_IF_TRACE(fprintf(stderr, "[%d] pooldestroy", PID));
+#endif
   DO_IF_POOLDESTROY_STATS(PrintPoolStats(Pool));
 
   // Free all allocated slabs.
@@ -946,11 +946,11 @@ void pooldestroy_pc(PoolTy<CompressedPoolTraits> *Pool) {
   if (Pool->Slabs == 0)
     return;   // no memory allocated from this pool.
 
-  unsigned PID;
 #ifdef ENABLE_POOL_IDS
+  unsigned PID;
   PID = removePoolNumber(Pool);
-#endif
   DO_IF_TRACE(fprintf(stderr, "[%d] pooldestroy_pc", PID));
+#endif
   DO_IF_POOLDESTROY_STATS(PrintPoolStats(Pool));
 
   // If there is space to remember this pool, do so.
@@ -1028,7 +1028,6 @@ static void *LRUWindow[NUMLRU];
 
 void poolaccesstrace(void *Ptr, void *PD) {
   static unsigned Time = ~0U;
-  static void *LastPtr = 0;
 
   // Not pool memory?
   if (PD == 0) return;

@@ -85,7 +85,6 @@ int main(int argc, char **argv) {
       std::cerr << argv[0] << ": bytecode didn't read correctly.\n";
       return 1;
     }
-    Module &mod = *M.get();
 
     // Build up all of the passes that we want to do to the module...
     PassManager Passes;
