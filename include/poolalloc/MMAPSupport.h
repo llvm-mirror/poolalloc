@@ -32,7 +32,8 @@
 #define MAP_ANONYMOUS MAP_ANON
 #endif /* defined(MAP_ANON) && !defined(MAP_ANONYMOUS) */
 
-static void *AllocateSpaceWithMMAP(size_t Size, bool UseNoReserve = false) {
+static inline void *
+AllocateSpaceWithMMAP(size_t Size, bool UseNoReserve = false) {
   // NOTE: this assumes Size is a multiple of the page size.
   int FD = -1;
 #ifdef NEED_DEV_ZERO_FOR_MMAP
