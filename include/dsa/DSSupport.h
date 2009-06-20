@@ -94,7 +94,7 @@ public:
   bool isNull() const { return N == 0; }
 
   // Allow explicit conversion to DSNode...
-  inline DSNode *getNode() const;  // Defined inline in DSNode.h
+  DSNode *getNode() const;  // Defined inline in DSNode.h
   unsigned getOffset() const {
     assert(!isForwarding() && "This is a forwarding NH, call getNode() first!");
     return Offset;
@@ -109,7 +109,7 @@ public:
     Offset = O;
   }
 
-  inline void setTo(DSNode *N, unsigned O) const; // Defined inline in DSNode.h
+  void setTo(DSNode *N, unsigned O) const; // Defined inline in DSNode.h
 
   void addEdgeTo(unsigned LinkNo, const DSNodeHandle &N);
   void addEdgeTo(const DSNodeHandle &N) { addEdgeTo(0, N); }
