@@ -120,7 +120,8 @@ struct DOTGraphTraits<const DSGraph*> : public DefaultDOTGraphTraits {
     }
   }
 
-  static std::string getNodeLabel(const DSNode *Node, const DSGraph *Graph) {
+  static std::string
+  getNodeLabel(const DSNode *Node, const DSGraph *Graph, bool ShortNames) {
     return getCaption(Node, Graph);
   }
 
@@ -243,7 +244,7 @@ struct DOTGraphTraits<const DSGraph*> : public DefaultDOTGraphTraits {
 }   // end namespace llvm
 
 void DSNode::print(std::ostream &O, const DSGraph *G) const {
-  GraphWriter<const DSGraph *> W(O, G);
+  GraphWriter<const DSGraph *> W(O, G, false);
   W.writeNode(this);
 }
 

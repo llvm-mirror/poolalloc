@@ -254,6 +254,10 @@ class RangeSplaySet
   //  start - The first valid address of the object.
   //  end   - The last valid address of the object.
   //
+  // Return value:
+  //  true  - The insert succeeded.
+  //  false - The insert failed.
+  //
   bool insert(void* start, void* end) {
     return 0 != Tree.__insert(start,end);
   }
