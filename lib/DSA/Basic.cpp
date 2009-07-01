@@ -58,6 +58,18 @@ bool BasicDataStructures::runOnModule(Module &M) {
     if (!F->isDeclaration()) {
       DSGraph* G = new DSGraph(GlobalECs, getTargetData(), GlobalsGraph);
       DSNode * Node = new DSNode(PointerType::getUnqual(Type::Int8Ty), G);
+          
+      if (!F->hasInternalLinkage())
+        Node->setExternalMarker();
+
+      // Create scalar nodes for all pointer arguments...
+      for (Function::arg_iterator I = F->arg_begin(), E = F->arg_end();
+          I != E; ++I) {
+        if (isa<PointerType>(I->getType())) {
+          G->getNodeForValue(&*I).mergeWith(Node);
+        }
+      }
+
       for (inst_iterator I = inst_begin(F), E = inst_end(F); I != E; ++I) {
         G->getNodeForValue(&*I).mergeWith(Node);
       }
