@@ -79,7 +79,7 @@ int main(int argc, char **argv) {
     std::string ErrorMessage;
     if (MemoryBuffer *Buffer
           = MemoryBuffer::getFileOrSTDIN(InputFilename, &ErrorMessage)) {
-      M.reset(ParseBitcodeFile(Buffer, &Context, &ErrorMessage));
+      M.reset(ParseBitcodeFile(Buffer, Context, &ErrorMessage));
       delete Buffer;
     }
 
