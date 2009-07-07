@@ -23,15 +23,14 @@
 
 using namespace llvm;
 
-SteensgaardDataStructures::~SteensgaardDataStructures() {
-  releaseMyMemory();
-  assert(ResultGraph == 0 && "releaseMemory not called?");
-}
+SteensgaardDataStructures::~SteensgaardDataStructures() { }
 
 void
-SteensgaardDataStructures::releaseMyMemory() {
-  delete ResultGraph;
+SteensgaardDataStructures::releaseMemory() {
+	// Here we don't need to delete the result graph, because it aliases with the
+	// GlobalsGraph, which is deleted by DataStructures::releaseMemory().
   ResultGraph = 0;
+	DataStructures::releaseMemory();
 }
 
 // print - Implement the Pass::print method...
@@ -133,6 +132,8 @@ SteensgaardDataStructures::runOnModuleInternal(Module &M) {
   
   ResultGraph->removeDeadNodes(DSGraph::KeepUnreachableGlobals);
 
+	// Assign the result graph to globals graph. It should be the same.
+	GlobalsGraph = ResultGraph;
   print(DOUT, &M);
   return false;
 }

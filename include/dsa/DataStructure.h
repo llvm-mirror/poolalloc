@@ -140,13 +140,13 @@ public:
 
   virtual void releaseMemory();
 
-  bool hasDSGraph(const Function &F) const {
+  virtual bool hasDSGraph(const Function &F) const {
     return DSInfo.find(&F) != DSInfo.end();
   }
 
   /// getDSGraph - Return the data structure graph for the specified function.
   ///
-  DSGraph *getDSGraph(const Function &F) const {
+  virtual DSGraph *getDSGraph(const Function &F) const {
     hash_map<const Function*, DSGraph*>::const_iterator I = DSInfo.find(&F);
     assert(I != DSInfo.end() && "Function not in module!");
     return I->second;
@@ -427,7 +427,7 @@ public:
     ResultGraph(NULL) {}
   ~SteensgaardDataStructures();
   virtual bool runOnModule(Module &M);
-  virtual void releaseMyMemory();
+  virtual void releaseMemory();
 
   virtual void getAnalysisUsage(AnalysisUsage &AU) const {
     AU.addRequired<StdLibDataStructures>();
@@ -436,8 +436,12 @@ public:
   
   /// getDSGraph - Return the data structure graph for the specified function.
   ///
-  DSGraph *getDSGraph(const Function &F) const {
-    return ResultGraph;
+  virtual DSGraph *getDSGraph(const Function &F) const {
+    return getResultGraph() ;
+  }
+  
+	virtual bool hasDSGraph(const Function &F) const {
+    return true;
   }
 
   /// getDSGraph - Return the data structure graph for the whole program.
