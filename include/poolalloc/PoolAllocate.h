@@ -25,7 +25,9 @@
 #include "llvm/Support/CallSite.h"
 #include "llvm/ADT/EquivalenceClasses.h"
 #include "llvm/ADT/VectorExtras.h"
+#include "llvm/ADT/DenseMap.h"
 #include "llvm/Support/CommandLine.h"
+
 #include "dsa/DataStructure.h"
 #include "poolalloc/ADT/HashExtras.h"
 #include "poolalloc/Config/config.h"
@@ -461,6 +463,36 @@ public:
   }
 };
 
-}
+/// PoolAllocateMultipleGlobalPool
+/// Context-insensitive pool allocation. It pool allocates objects into multiple
+/// global pools. It does not need to rewrite the functions declarations, which
+/// simplifies the implementation a lot. Technically, PoolAllocateSimple, which
+/// pool allocates everything into a single global pool, is a
+/// special case of PoolAllocateMultipleGlobalPool.
+///
+/// It requires some work on code clean up to make these two pass integrate
+/// nicely.
 
+class PoolAllocateMultipleGlobalPool : public PoolAllocate {
+  TargetData * TD;
+  void ProcessFunctionBodySimple(Function& F, TargetData & TD);
+  /// Mapping between DSNodes and Pool descriptors. For this pass, it is a
+  /// one-to-one relationship.
+  DenseMap<const DSNode *, GlobalVariable *> PoolMap;
+public:
+  static char ID;
+  PoolAllocateMultipleGlobalPool(bool passAllArgs=false, bool SAFECode = true)
+    : PoolAllocate (passAllArgs, SAFECode, (intptr_t)&ID) {}
+  ~PoolAllocateMultipleGlobalPool();
+  virtual void getAnalysisUsage(AnalysisUsage &AU) const;
+  virtual bool runOnModule(Module &M);
+  void CreateGlobalPool(unsigned RecSize, unsigned Align,
+                                   Module& M);
+
+  virtual Value * getGlobalPool (const DSNode * Node);
+  virtual Value * getPool (const DSNode * N, Function & F);
+
+};
+
+}
 #endif
