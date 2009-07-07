@@ -98,7 +98,7 @@ bool PoolAllocateMultipleGlobalPool::runOnModule(Module &M) {
   // clones.
   for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I) {
     std::string name = I->getName();
-    if (name == "poolalloc.init") continue;
+    if (name == "__poolalloc_init") continue;
     if (!(I->isDeclaration()))
       ProcessFunctionBodySimple(*I, TD);
   }
@@ -308,7 +308,7 @@ PoolAllocateMultipleGlobalPool::CreateGlobalPool (unsigned RecSize,
 
   Function *InitFunc = Function::Create
     (FunctionType::get(Type::VoidTy, std::vector<const Type*>(), false),
-    GlobalValue::InternalLinkage, "poolalloc.init", &M);
+    GlobalValue::ExternalLinkage, "__poolalloc_init", &M);
 
   BasicBlock * BB = BasicBlock::Create("entry", InitFunc);
   
