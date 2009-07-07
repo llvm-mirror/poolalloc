@@ -27,10 +27,10 @@ SteensgaardDataStructures::~SteensgaardDataStructures() { }
 
 void
 SteensgaardDataStructures::releaseMemory() {
-	// Here we don't need to delete the result graph, because it aliases with the
-	// GlobalsGraph, which is deleted by DataStructures::releaseMemory().
+  // Here we don't need to delete the result graph, because it aliases with the
+  // GlobalsGraph, which is deleted by DataStructures::releaseMemory().
   ResultGraph = 0;
-	DataStructures::releaseMemory();
+  DataStructures::releaseMemory();
 }
 
 // print - Implement the Pass::print method...
@@ -51,16 +51,22 @@ SteensgaardDataStructures::print(std::ostream &O, const Module *M) const {
 bool
 SteensgaardDataStructures::runOnModule(Module &M) {
   DS = &getAnalysis<StdLibDataStructures>();
+  init(&getAnalysis<TargetData>());
   return runOnModuleInternal(M);
 }
 
 bool
 SteensgaardDataStructures::runOnModuleInternal(Module &M) {
   assert(ResultGraph == 0 && "Result graph already allocated!");
+	
 
   // Create a new, empty, graph...
   ResultGraph = new DSGraph(GlobalECs, getTargetData());
+  ResultGraph->setGlobalsGraph(ResultGraph);
   ResultGraph->spliceFrom(DS->getGlobalsGraph());
+
+  // Assign the result graph to globals graph. It should be the same.
+  GlobalsGraph = ResultGraph;
 
   // Loop over the rest of the module, merging graphs for non-external functions
   // into this graph.
@@ -130,10 +136,8 @@ SteensgaardDataStructures::runOnModuleInternal(Module &M) {
   // Remove any nodes that are dead after all of the merging we have done...
   // FIXME: We should be able to disable the globals graph for steens!
   
-  ResultGraph->removeDeadNodes(DSGraph::KeepUnreachableGlobals);
+  //  ResultGraph->removeDeadNodes(DSGraph::KeepUnreachableGlobals);
 
-	// Assign the result graph to globals graph. It should be the same.
-	GlobalsGraph = ResultGraph;
   print(DOUT, &M);
   return false;
 }

@@ -430,6 +430,7 @@ public:
   virtual void releaseMemory();
 
   virtual void getAnalysisUsage(AnalysisUsage &AU) const {
+    AU.addRequired<TargetData>();
     AU.addRequired<StdLibDataStructures>();
     AU.setPreservesAll();
   }
