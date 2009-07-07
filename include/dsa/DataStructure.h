@@ -410,6 +410,46 @@ public:
   {}
 };
 
+/// SteensgaardsDataStructures - Analysis that computes a context-insensitive
+/// data structure graphs for the whole program.
+///
+class SteensgaardDataStructures : public DataStructures {
+  DSGraph * ResultGraph;
+  DataStructures * DS;
+  void ResolveFunctionCall(const Function *F, const DSCallSite &Call,
+                             DSNodeHandle &RetVal);
+  bool runOnModuleInternal(Module &M);
+
+public:
+  static char ID;
+  SteensgaardDataStructures() : 
+    DataStructures((intptr_t)&ID, "steensgaard."),
+    ResultGraph(NULL) {}
+  ~SteensgaardDataStructures();
+  virtual bool runOnModule(Module &M);
+  virtual void releaseMyMemory();
+
+  virtual void getAnalysisUsage(AnalysisUsage &AU) const {
+    AU.addRequired<StdLibDataStructures>();
+    AU.setPreservesAll();
+  }
+  
+  /// getDSGraph - Return the data structure graph for the specified function.
+  ///
+  DSGraph *getDSGraph(const Function &F) const {
+    return ResultGraph;
+  }
+
+  /// getDSGraph - Return the data structure graph for the whole program.
+  ///
+  DSGraph *getResultGraph() const {
+    return ResultGraph;
+  }
+
+  void print(OStream O, const Module *M) const;
+  void print(std::ostream &O, const Module *M) const;
+
+};
 
 
 } // End llvm namespace
