@@ -600,7 +600,8 @@ bool PoolAllocate::SetupGlobalPools(Module &M) {
 GlobalVariable *PoolAllocate::CreateGlobalPool(unsigned RecSize, unsigned Align,
                                                Instruction *IPHint) {
   GlobalVariable *GV =
-    new GlobalVariable(PoolDescType, false, GlobalValue::InternalLinkage, 
+    new GlobalVariable(CurModule->getContext(),
+                       PoolDescType, false, GlobalValue::InternalLinkage, 
                        Constant::getNullValue(PoolDescType), "GlobalPool",
                        CurModule);
 

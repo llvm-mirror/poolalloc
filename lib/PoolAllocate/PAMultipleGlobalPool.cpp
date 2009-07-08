@@ -321,7 +321,8 @@ PoolAllocateMultipleGlobalPool::CreateGlobalPool (unsigned RecSize,
         E = G->node_end(); I != E; ++I) {
   
     GlobalVariable *GV =
-      new GlobalVariable(getPoolType(), false, GlobalValue::ExternalLinkage, 
+      new GlobalVariable(M.getContext(),
+                         getPoolType(), false, GlobalValue::ExternalLinkage, 
                          Constant::getNullValue(getPoolType()),
                          "__poolalloc_GlobalPool",
                          &M);
