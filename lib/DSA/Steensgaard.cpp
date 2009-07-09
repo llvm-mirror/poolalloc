@@ -56,14 +56,16 @@ SteensgaardDataStructures::runOnModule(Module &M) {
 bool
 SteensgaardDataStructures::runOnModuleInternal(Module &M) {
   assert(ResultGraph == 0 && "Result graph already allocated!");
+  
+  // Get a copy for the globals graph.
+  DSGraph * GG = DS->getGlobalsGraph();
+  GlobalsGraph = new DSGraph(GG, GG->getGlobalECs());
 
   // Create a new, empty, graph...
   ResultGraph = new DSGraph(GlobalECs, getTargetData());
-  ResultGraph->spliceFrom(DS->getGlobalsGraph());
-
-  // Get a copy for the globals graph.
-  GlobalsGraph = new DSGraph(ResultGraph, ResultGraph->getGlobalECs());
   ResultGraph->setGlobalsGraph(GlobalsGraph);
+//  ResultGraph->spliceFrom(DS->getGlobalsGraph());
+
   
   // Loop over the rest of the module, merging graphs for non-external functions
   // into this graph.
