@@ -321,11 +321,10 @@ PoolAllocateMultipleGlobalPool::CreateGlobalPool (unsigned RecSize,
         E = G->node_end(); I != E; ++I) {
   
     GlobalVariable *GV =
-      new GlobalVariable(M.getContext(),
+      new GlobalVariable(M,
                          getPoolType(), false, GlobalValue::ExternalLinkage, 
                          Constant::getNullValue(getPoolType()),
-                         "__poolalloc_GlobalPool",
-                         &M);
+                         "__poolalloc_GlobalPool");
 
     Value *ElSize = ConstantInt::get(Type::Int32Ty, RecSize);
     Value *AlignV = ConstantInt::get(Type::Int32Ty, Align);

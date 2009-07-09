@@ -353,11 +353,10 @@ PoolAllocateSimple::CreateGlobalPool (unsigned RecSize,
                                       unsigned Align,
                                       Module& M) {
   GlobalVariable *GV =
-    new GlobalVariable(M.getContext(),
+    new GlobalVariable(M,
                        getPoolType(), false, GlobalValue::ExternalLinkage, 
                        Constant::getNullValue(getPoolType()),
-                                              "__poolalloc_GlobalPool",
-                       &M);
+                                              "__poolalloc_GlobalPool");
 
   Function *InitFunc = Function::Create
     (FunctionType::get(Type::VoidTy, std::vector<const Type*>(), false),
