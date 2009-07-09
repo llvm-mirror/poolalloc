@@ -440,11 +440,11 @@ static Value *getDynamicallyNullPool(BasicBlock::iterator I) {
   static Value *NullGlobal = 0;
   if (!NullGlobal) {
     Module *M = I->getParent()->getParent()->getParent();
-    NullGlobal = new GlobalVariable(M->getContext(),
+    NullGlobal = new GlobalVariable(*M,
                                     PoolAllocate::PoolDescPtrTy, false,
                                     GlobalValue::ExternalLinkage,
                          Constant::getNullValue(PoolAllocate::PoolDescPtrTy),
-                                    "llvm-poolalloc-null-init", M);
+                                    "llvm-poolalloc-null-init");
   }
   while (isa<AllocaInst>(I)) ++I;
 

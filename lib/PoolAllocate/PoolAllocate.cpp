@@ -600,10 +600,9 @@ bool PoolAllocate::SetupGlobalPools(Module &M) {
 GlobalVariable *PoolAllocate::CreateGlobalPool(unsigned RecSize, unsigned Align,
                                                Instruction *IPHint) {
   GlobalVariable *GV =
-    new GlobalVariable(CurModule->getContext(),
+    new GlobalVariable(*CurModule,
                        PoolDescType, false, GlobalValue::InternalLinkage, 
-                       Constant::getNullValue(PoolDescType), "GlobalPool",
-                       CurModule);
+                       Constant::getNullValue(PoolDescType), "GlobalPool");
 
   // Update the global DSGraph to include this.
   DSNode *GNode = Graphs->getGlobalsGraph()->addObjectToGraph(GV);
