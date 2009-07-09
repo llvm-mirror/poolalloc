@@ -284,8 +284,9 @@ PoolAllocateMultipleGlobalPool::ProcessFunctionBodySimple (Function& F, TargetDa
       } else if (FreeInst * FI = dyn_cast<FreeInst>(ii)) {
         Type * VoidPtrTy = PointerType::getUnqual(Type::Int8Ty);
         Value * FreedNode = castTo (FI->getPointerOperand(), VoidPtrTy, "cast", ii);
-        DSNode * Node = ECG->getNodeForValue(FreedNode).getNode();
+        DSNode * Node = ECG->getNodeForValue(FI->getPointerOperand()).getNode();
         GlobalVariable * Pool = PoolMap[Node];
+        assert (Pool && "No Pool Handle for poolfree()!");
         toDelete.push_back(ii);
         Value* args[] = {Pool, FreedNode};
         CallInst::Create(PoolFree, &args[0], &args[2], "", ii);
