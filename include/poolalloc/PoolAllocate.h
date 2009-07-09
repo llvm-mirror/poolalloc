@@ -479,6 +479,9 @@ class PoolAllocateMultipleGlobalPool : public PoolAllocate {
   /// Mapping between DSNodes and Pool descriptors. For this pass, it is a
   /// one-to-one relationship.
   DenseMap<const DSNode *, GlobalVariable *> PoolMap;
+  void generatePool(unsigned RecSize, unsigned Align,
+                    Module& M, BasicBlock * InsertAtEnd, const DSNode * Node);
+
 public:
   static char ID;
   PoolAllocateMultipleGlobalPool(bool passAllArgs=false, bool SAFECode = true)

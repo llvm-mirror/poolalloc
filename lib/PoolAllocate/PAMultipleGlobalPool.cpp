@@ -319,23 +319,42 @@ PoolAllocateMultipleGlobalPool::CreateGlobalPool (unsigned RecSize,
   DSGraph * G = DS->getResultGraph();
   for(DSGraph::node_const_iterator I = G->node_begin(), 
         E = G->node_end(); I != E; ++I) {
-  
+    generatePool(RecSize, Align, M, BB, I);
+  }
+
+  DSGraph * GG = DS->getGlobalsGraph();
+  for(DSGraph::node_const_iterator I = GG->node_begin(), 
+        E = GG->node_end(); I != E; ++I) {
+    generatePool(RecSize, Align, M, BB, I);
+  }
+
+  ReturnInst::Create(BB);
+}
+
+void
+PoolAllocateMultipleGlobalPool::generatePool(unsigned RecSize,
+                                             unsigned Align,
+                                             Module& M,
+                                             BasicBlock * InsertAtEnd, 
+                                             const DSNode * Node) {
+
+  if (!PoolMap[Node]) {
     GlobalVariable *GV =
-      new GlobalVariable(M,
-                         getPoolType(), false, GlobalValue::ExternalLinkage, 
-                         Constant::getNullValue(getPoolType()),
-                         "__poolalloc_GlobalPool");
+      new GlobalVariable
+      (M,
+       getPoolType(), false, GlobalValue::ExternalLinkage, 
+       Constant::getNullValue(getPoolType()),
+       "__poolalloc_GlobalPool");
 
     Value *ElSize = ConstantInt::get(Type::Int32Ty, RecSize);
     Value *AlignV = ConstantInt::get(Type::Int32Ty, Align);
     Value* Opts[3] = {GV, ElSize, AlignV};
     
-    CallInst::Create(PoolInit, Opts, Opts + 3, "", BB);
-    PoolMap[&(*I)] = GV;
+    CallInst::Create(PoolInit, Opts, Opts + 3, "", InsertAtEnd);
+    PoolMap[Node] = GV;
   }
-
-  ReturnInst::Create(BB);
 }
+
 
 Value *
 PoolAllocateMultipleGlobalPool::getGlobalPool (const DSNode * Node) {

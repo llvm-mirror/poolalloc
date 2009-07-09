@@ -438,10 +438,10 @@ public:
   /// getDSGraph - Return the data structure graph for the specified function.
   ///
   virtual DSGraph *getDSGraph(const Function &F) const {
-    return getResultGraph() ;
+    return getResultGraph();
   }
   
-	virtual bool hasDSGraph(const Function &F) const {
+  virtual bool hasDSGraph(const Function &F) const {
     return true;
   }
 
