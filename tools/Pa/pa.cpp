@@ -67,6 +67,9 @@ GetFileNameRoot(const std::string &InputFilename) {
 // main - Entry point for the sc compiler.
 //
 int main(int argc, char **argv) {
+  std::string mt;
+  std::string & msg = mt;
+
   LLVMContext Context;
   try {
     cl::ParseCommandLineOptions(argc, argv, " llvm system compiler\n");
@@ -159,7 +162,7 @@ int main(int argc, char **argv) {
     if (Out != &std::cout) delete Out;
   
     return 0;
-  } catch (std::string msg) {
+  } catch (msg) {
     std::cerr << argv[0] << ": " << msg << "\n";
   } catch (...) {
     std::cerr << argv[0] << ": Unexpected unknown exception occurred.\n";
