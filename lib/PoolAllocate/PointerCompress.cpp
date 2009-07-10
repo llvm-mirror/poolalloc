@@ -636,10 +636,10 @@ void InstructionRewriter::visitICmpInst(ICmpInst &SCI) {
   if (SrcPI == 0) return;   // comparing non-compressed pointers.
  
   std::string Name = SCI.getName(); SCI.setName("");
-  Value *New = new ICmpInst(SCI.getPredicate(),
+  Value *New = new ICmpInst(&SCI, SCI.getPredicate(),
                             getTransformedValue(SCI.getOperand(0)),
                             getTransformedValue(SCI.getOperand(1)),
-                            Name, &SCI);
+                            Name);
   SCI.replaceAllUsesWith(New);
   ValueReplaced(SCI, New);
   SCI.eraseFromParent();
@@ -658,10 +658,10 @@ void InstructionRewriter::visitFCmpInst(FCmpInst &SCI) {
   if (SrcPI == 0) return;   // comparing non-compressed pointers.
  
   std::string Name = SCI.getName(); SCI.setName("");
-  Value *New = new FCmpInst(SCI.getPredicate(),
+  Value *New = new FCmpInst(&SCI, SCI.getPredicate(),
                             getTransformedValue(SCI.getOperand(0)),
                             getTransformedValue(SCI.getOperand(1)),
-                            Name, &SCI);
+                            Name);
   SCI.replaceAllUsesWith(New);
   ValueReplaced(SCI, New);
   SCI.eraseFromParent();
