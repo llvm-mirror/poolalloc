@@ -50,7 +50,7 @@ namespace {
 }
 
 static inline Value *
-castTo (Value * V, const Type * Ty, std::string Name, Instruction * InsertPt) {
+castTo (Value * V, const Type * Ty, const std::string & Name, Instruction * InsertPt) {
   //
   // Don't bother creating a cast if it's already the correct type.
   //
@@ -121,6 +121,7 @@ PoolAllocateMultipleGlobalPool::ProcessFunctionBodySimple (Function& F, TargetDa
   // Get the DSGraph for this function.
   //
   DSGraph* ECG = Graphs->getDSGraph(F);
+  DSScalarMap & SM = ECG->getScalarMap();
 
   for (Function::iterator i = F.begin(), e = F.end(); i != e; ++i)
     for (BasicBlock::iterator ii = i->begin(), ee = i->end(); ii != ee; ++ii) {
@@ -152,7 +153,14 @@ PoolAllocateMultipleGlobalPool::ProcessFunctionBodySimple (Function& F, TargetDa
 
         Value* args[] = {Pool, AllocSize};
         Instruction* x = CallInst::Create(PoolAlloc, &args[0], &args[2], MI->getName(), ii);
-        ii->replaceAllUsesWith(CastInst::CreatePointerCast(x, ii->getType(), "", ii));
+        Value * casted = castTo(x, ii->getType(), "", ii);
+        ii->replaceAllUsesWith(casted);
+
+        // Update scalar map
+        DSNodeHandle NH = SM[ii];
+        SM.erase(ii);
+        SM[casted] = SM[x] = NH;
+        
       } else if (CallInst * CI = dyn_cast<CallInst>(ii)) {
         CallSite CS(CI);
         Function *CF = CS.getCalledFunction();
@@ -197,12 +205,15 @@ PoolAllocateMultipleGlobalPool::ProcessFunctionBodySimple (Function& F, TargetDa
                                          Opts + 3,
                                          Name,
                                          InsertPt);
-          Instruction *Casted = V;
-          if (V->getType() != CI->getType())
-            Casted = CastInst::CreatePointerCast (V, CI->getType(), V->getName(), InsertPt);
+          Value *Casted = castTo(V, CI->getType(), V->getName(), InsertPt);
 
           // Update def-use info
           CI->replaceAllUsesWith(Casted);
+
+          // Update scalar map
+          DSNodeHandle NH = SM[CI];
+          SM.erase(CI);
+          SM[Casted] = SM[V] = NH;
         } else if (CF && (CF->isDeclaration()) && (CF->getName() == "calloc")) {
           // Associate the global pool decriptor with the DSNode
           DSNode * Node = ECG->getNodeForValue(CI).getNode();
@@ -240,12 +251,15 @@ PoolAllocateMultipleGlobalPool::ProcessFunctionBodySimple (Function& F, TargetDa
                                              Name,
                                              InsertPt);
 
-          Instruction *Casted = V;
-          if (V->getType() != CI->getType())
-            Casted = CastInst::CreatePointerCast (V, CI->getType(), V->getName(), InsertPt);
+          Value *Casted = castTo(V, CI->getType(), V->getName(), InsertPt);
 
           // Update def-use info
           CI->replaceAllUsesWith(Casted);
+
+          // Update scalar map
+          DSNodeHandle NH = SM[CI];
+          SM.erase(CI);
+          SM[Casted] = SM[V] = NH;
         } else if (CF && (CF->isDeclaration()) && (CF->getName() == "strdup")) {
           // Associate the global pool decriptor with the DSNode
           DSNode * Node = ECG->getNodeForValue(CI).getNode();
@@ -274,12 +288,15 @@ PoolAllocateMultipleGlobalPool::ProcessFunctionBodySimple (Function& F, TargetDa
                                          Opts + 2,
                                          Name,
                                          InsertPt);
-          Instruction *Casted = V;
-          if (V->getType() != CI->getType())
-            Casted = CastInst::CreatePointerCast (V, CI->getType(), V->getName(), InsertPt);
+          Value *Casted = castTo(V, CI->getType(), V->getName(), InsertPt);
 
           // Update def-use info
           CI->replaceAllUsesWith(Casted);
+
+          // Update scalar map
+          DSNodeHandle NH = SM[CI];
+          SM.erase(CI);
+          SM[Casted] = SM[V] = NH;
         }
       } else if (FreeInst * FI = dyn_cast<FreeInst>(ii)) {
         Type * VoidPtrTy = PointerType::getUnqual(Type::Int8Ty);
@@ -289,7 +306,11 @@ PoolAllocateMultipleGlobalPool::ProcessFunctionBodySimple (Function& F, TargetDa
         assert (Pool && "No Pool Handle for poolfree()!");
         toDelete.push_back(ii);
         Value* args[] = {Pool, FreedNode};
-        CallInst::Create(PoolFree, &args[0], &args[2], "", ii);
+        CallInst * CI = CallInst::Create(PoolFree, &args[0], &args[2], "", ii);
+        // Update scalar map
+        DSNodeHandle NH = SM[ii];
+        SM.erase(ii);
+        SM[CI] = NH;
       } else if (isa<ReturnInst>(ii)) {
         Returns.push_back(cast<ReturnInst>(ii));
       }
