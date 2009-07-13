@@ -373,12 +373,14 @@ void GraphBuilder::visitGetElementPtrInst(User &GEP) {
   // As a special case, if all of the index operands of GEP are constant zeros,
   // handle this just like we handle casts (ie, don't do much).
   bool AllZeros = true;
-  for (unsigned i = 1, e = GEP.getNumOperands(); i != e; ++i)
-    if (GEP.getOperand(i) !=
-           ConstantAggregateZero::get(GEP.getOperand(i)->getType())) {
-      AllZeros = false;
-      break;
-    }
+  for (unsigned i = 1, e = GEP.getNumOperands(); i != e; ++i) {
+    if (ConstantInt * CI = dyn_cast<ConstantInt>(GEP.getOperand(i)))
+      if (CI->isZero()) {
+        continue;
+      }
+    AllZeros = false;
+    break;
+  }
 
   // If all of the indices are zero, the result points to the operand without
   // applying the type.
