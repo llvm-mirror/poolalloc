@@ -365,7 +365,7 @@ PoolAllocateMultipleGlobalPool::generatePool(unsigned RecSize,
       new GlobalVariable
       (M,
        getPoolType(), false, GlobalValue::ExternalLinkage, 
-       Constant::getNullValue(getPoolType()),
+       ConstantAggregateZero::get(getPoolType()),
        "__poolalloc_GlobalPool");
 
     Value *ElSize = ConstantInt::get(Type::Int32Ty, RecSize);

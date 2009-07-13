@@ -443,7 +443,7 @@ static Value *getDynamicallyNullPool(BasicBlock::iterator I) {
     NullGlobal = new GlobalVariable(*M,
                                     PoolAllocate::PoolDescPtrTy, false,
                                     GlobalValue::ExternalLinkage,
-                         Constant::getNullValue(PoolAllocate::PoolDescPtrTy),
+                         ConstantAggregateZero::get(PoolAllocate::PoolDescPtrTy),
                                     "llvm-poolalloc-null-init");
   }
   while (isa<AllocaInst>(I)) ++I;

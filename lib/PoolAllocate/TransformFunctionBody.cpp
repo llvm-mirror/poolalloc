@@ -446,7 +446,7 @@ void FuncTransform::visitMemAlignCall(CallSite CS) {
     PH = getPoolHandle(I);
 
     // Return success always.
-    Value *RetVal = Constant::getNullValue(I->getType());
+    Value *RetVal = ConstantAggregateZero::get(I->getType());
     I->replaceAllUsesWith(RetVal);
 
     static const Type *PtrPtr=PointerType::getUnqual(PointerType::getUnqual(Type::Int8Ty));
@@ -727,7 +727,7 @@ void FuncTransform::visitCallSite(CallSite& CS) {
   // pool descriptors to pass in...
   std::vector<Value*> Args;
   for (unsigned i = 0, e = ArgNodes.size(); i != e; ++i) {
-    Value *ArgVal = Constant::getNullValue(PoolAllocate::PoolDescPtrTy);
+    Value *ArgVal = ConstantAggregateZero::get(PoolAllocate::PoolDescPtrTy);
     if (NodeMapping.count(ArgNodes[i]))
       if (DSNode *LocalNode = NodeMapping[ArgNodes[i]].getNode())
         if (FI.PoolDescriptors.count(LocalNode))

@@ -375,7 +375,7 @@ void GraphBuilder::visitGetElementPtrInst(User &GEP) {
   bool AllZeros = true;
   for (unsigned i = 1, e = GEP.getNumOperands(); i != e; ++i)
     if (GEP.getOperand(i) !=
-           Constant::getNullValue(GEP.getOperand(i)->getType())) {
+           ConstantAggregateZero::get(GEP.getOperand(i)->getType())) {
       AllZeros = false;
       break;
     }

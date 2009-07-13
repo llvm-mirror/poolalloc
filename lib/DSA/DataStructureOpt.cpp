@@ -17,6 +17,7 @@
 #include "llvm/Analysis/Passes.h"
 #include "llvm/Module.h"
 #include "llvm/Constant.h"
+#include "llvm/Constants.h"
 #include "llvm/Type.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Support/Debug.h"
@@ -78,7 +79,8 @@ bool DSOpt::OptimizeGlobals(Module &M) {
         // remove anything that references the global: later passes will take
         // care of nuking it.
         if (!I->use_empty()) {
-          I->replaceAllUsesWith(Constant::getNullValue((Type*)I->getType()));
+          Type * Ty = (Type *) I->getType();
+          I->replaceAllUsesWith(ConstantAggregateZero::get(Ty));
           ++NumGlobalsIsolated;
         }
       } else if (GNode && GNode->isCompleteNode()) {
@@ -87,7 +89,8 @@ bool DSOpt::OptimizeGlobals(Module &M) {
         // visible, kill any references to it so it can be DCE'd.
         if (!GNode->isModifiedNode() && !GNode->isReadNode() &&I->hasInternalLinkage()){
           if (!I->use_empty()) {
-            I->replaceAllUsesWith(Constant::getNullValue((Type*)I->getType()));
+            Type * Ty = (Type *) I->getType();
+            I->replaceAllUsesWith(ConstantAggregateZero::get(Ty));
             ++NumGlobalsIsolated;
           }
         }

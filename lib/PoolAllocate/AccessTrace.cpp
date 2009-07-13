@@ -91,7 +91,7 @@ void PoolAccessTrace::InstrumentAccess(Instruction *I, Value *Ptr,
   if (PD)
     PD = CastInst::CreatePointerCast (PD, VoidPtrTy, PD->getName(), I);
   else
-    PD = Constant::getNullValue(VoidPtrTy);
+    PD = ConstantAggregateZero::get(VoidPtrTy);
 
   // Insert the trace call.
   Value *Opts[2] = {Ptr, PD};

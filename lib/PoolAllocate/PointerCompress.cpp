@@ -287,7 +287,7 @@ Value *CompressedPoolInfo::EmitPoolBaseLoad(Instruction &I) const {
     assert(PoolBase == 0 && "Mixing and matching optimized vs not!");
     
     // Get the pool base pointer.
-    Constant *Zero = Constant::getNullValue(Type::Int32Ty);
+    Constant *Zero = ConstantAggregateZero::get(Type::Int32Ty);
     Value *Opts[2] = {Zero, Zero};
     Value *BasePtrPtr = GetElementPtrInst::Create(getPoolDesc(), Opts, Opts + 2,
                                               "poolbaseptrptr", &I);
@@ -299,7 +299,7 @@ Value *CompressedPoolInfo::EmitPoolBaseLoad(Instruction &I) const {
                           isa<GlobalVariable>(PoolDesc))) {
       BasicBlock::iterator IP = I.getParent()->getParent()->begin()->begin();
       while (isa<AllocaInst>(IP)) ++IP;
-      Constant *Zero = Constant::getNullValue(Type::Int32Ty);
+      Constant *Zero = ConstantAggregateZero::get(Type::Int32Ty);
       Value *Opts[2] = {Zero, Zero};
       Value *BasePtrPtr = GetElementPtrInst::Create(getPoolDesc(), Opts, Opts + 2,
                                                 "poolbaseptrptr", IP);
@@ -383,7 +383,7 @@ namespace {
     /// value, creating a new forward ref value as needed.
     Value *getTransformedValue(Value *V) {
       if (isa<ConstantPointerNull>(V))                // null -> uint 0
-        return Constant::getNullValue(SCALARUINTTYPE);
+        return ConstantAggregateZero::get(SCALARUINTTYPE);
       if (isa<UndefValue>(V))                // undef -> uint undef
         return UndefValue::get(SCALARUINTTYPE);
 
@@ -828,7 +828,7 @@ void InstructionRewriter::visitStoreInst(StoreInst &SI) {
     }
   } else {
     // FIXME: This assumes that all null pointers are compressed!
-    SrcVal = Constant::getNullValue(MEMUINTTYPE);
+    SrcVal = ConstantAggregateZero::get(MEMUINTTYPE);
   }
   
   // Get the pool base pointer.
