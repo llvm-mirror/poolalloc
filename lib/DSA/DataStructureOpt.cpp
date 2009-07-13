@@ -79,8 +79,7 @@ bool DSOpt::OptimizeGlobals(Module &M) {
         // remove anything that references the global: later passes will take
         // care of nuking it.
         if (!I->use_empty()) {
-          Type * Ty = (Type *) I->getType();
-          I->replaceAllUsesWith(ConstantAggregateZero::get(Ty));
+          I->replaceAllUsesWith(ConstantPointerNull::get(I->getType()));
           ++NumGlobalsIsolated;
         }
       } else if (GNode && GNode->isCompleteNode()) {
@@ -89,8 +88,7 @@ bool DSOpt::OptimizeGlobals(Module &M) {
         // visible, kill any references to it so it can be DCE'd.
         if (!GNode->isModifiedNode() && !GNode->isReadNode() &&I->hasInternalLinkage()){
           if (!I->use_empty()) {
-            Type * Ty = (Type *) I->getType();
-            I->replaceAllUsesWith(ConstantAggregateZero::get(Ty));
+            I->replaceAllUsesWith(ConstantPointerNull::get(I->getType()));
             ++NumGlobalsIsolated;
           }
         }

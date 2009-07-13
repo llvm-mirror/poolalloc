@@ -29,7 +29,7 @@ namespace {
     PoolAllocate *PoolAlloc;
     DataStructures *G;
     Constant *AccessTraceInitFn, *PoolAccessTraceFn;
-    const Type *VoidPtrTy;
+    const PointerType *VoidPtrTy;
   public:
 
     PoolAccessTrace() : ModulePass((intptr_t)&ID) {}
@@ -91,7 +91,7 @@ void PoolAccessTrace::InstrumentAccess(Instruction *I, Value *Ptr,
   if (PD)
     PD = CastInst::CreatePointerCast (PD, VoidPtrTy, PD->getName(), I);
   else
-    PD = ConstantAggregateZero::get(VoidPtrTy);
+    PD = ConstantPointerNull::get(VoidPtrTy);
 
   // Insert the trace call.
   Value *Opts[2] = {Ptr, PD};

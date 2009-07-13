@@ -587,7 +587,7 @@ bool PoolAllocate::SetupGlobalPools(Module &M) {
   // Any unallocated DSNodes get null pool descriptor pointers.
   for (hash_set<const DSNode*>::iterator I = GlobalHeapNodes.begin(),
          E = GlobalHeapNodes.end(); I != E; ++I) {
-    GlobalNodes[*I] = ConstantAggregateZero::get(PointerType::getUnqual(PoolDescType));
+    GlobalNodes[*I] = ConstantPointerNull::get(PointerType::getUnqual(PoolDescType));
     ++NumNonprofit;
   }
   
@@ -686,7 +686,7 @@ void PoolAllocate::CreatePools(Function &F, DSGraph* DSG,
   // Any unallocated DSNodes get null pool descriptor pointers.
   for (std::set<const DSNode*>::iterator I = UnallocatedNodes.begin(),
          E = UnallocatedNodes.end(); I != E; ++I) {
-    PoolDescriptors[*I] =ConstantAggregateZero::get(PointerType::getUnqual(PoolDescType));
+    PoolDescriptors[*I] = ConstantPointerNull::get(PointerType::getUnqual(PoolDescType));
     ++NumNonprofit;
   }
 }

@@ -446,7 +446,9 @@ void FuncTransform::visitMemAlignCall(CallSite CS) {
     PH = getPoolHandle(I);
 
     // Return success always.
-    Value *RetVal = ConstantAggregateZero::get(I->getType());
+    const PointerType * PT = dyn_cast<PointerType>(I->getType());
+    assert (PT && "memalign() does not return pointer type!\n");
+    Value *RetVal = ConstantPointerNull::get(PT);
     I->replaceAllUsesWith(RetVal);
 
     static const Type *PtrPtr=PointerType::getUnqual(PointerType::getUnqual(Type::Int8Ty));

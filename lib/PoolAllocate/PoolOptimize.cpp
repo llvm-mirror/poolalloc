@@ -130,7 +130,9 @@ bool PoolOptimize::runOnModule(Module &M) {
       // poolrealloc(PD, X, 0) -> poolfree(PD, X)
       Value* Opts[2] = {CI->getOperand(1), CI->getOperand(2)};
       CallInst::Create(PoolFree, Opts, Opts + 2, "", CI);
-      CI->replaceAllUsesWith(ConstantAggregateZero::get(CI->getType()));
+      const PointerType * PT = dyn_cast<PointerType>(CI->getType());
+      assert (PT && "poolrealloc call does not return a pointer!\n");
+      CI->replaceAllUsesWith(ConstantPointerNull::get(PT));
       CI->eraseFromParent();
     } else if (isa<ConstantPointerNull>(CI->getOperand(1))) {
       // poolrealloc(null, X, Y) -> realloc(X, Y)
