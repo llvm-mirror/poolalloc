@@ -288,7 +288,16 @@ static void getCallsOf(Constant *C, std::vector<CallInst*> &Calls) {
     Calls.push_back(cast<CallInst>(*UI));
 }
 
-static void OptimizePointerNotNull(Value *V) {
+//
+// Function: OptimizePointerNotNull()
+//
+// Inputs:
+//  V       - ???
+//  Context - The LLVM Context to which any values we insert into the program
+//            will belong.
+//
+static void
+OptimizePointerNotNull(Value *V, LLVMContext * Context) {
   for (Value::use_iterator I = V->use_begin(), E = V->use_end(); I != E; ++I) {
     Instruction *User = cast<Instruction>(*I);
     if (isa<ICmpInst>(User) && cast<ICmpInst>(User)->isEquality()) {
@@ -296,7 +305,7 @@ static void OptimizePointerNotNull(Value *V) {
       if (isa<Constant>(User->getOperand(1)) && 
           cast<Constant>(User->getOperand(1))->isNullValue()) {
         bool CondIsTrue = ICI->getPredicate() == ICmpInst::ICMP_NE;
-        User->replaceAllUsesWith(ConstantInt::get(Type::Int1Ty, CondIsTrue));
+        User->replaceAllUsesWith(Context->getConstantInt(Type::Int1Ty, CondIsTrue));
       }
     } else if ((User->getOpcode() == Instruction::Trunc) ||
                (User->getOpcode() == Instruction::ZExt) ||
@@ -312,10 +321,10 @@ static void OptimizePointerNotNull(Value *V) {
                (User->getOpcode() == Instruction::BitCast)) {
       // Casted pointers are also not null.
       if (isa<PointerType>(User->getType()))
-        OptimizePointerNotNull(User);
+        OptimizePointerNotNull(User, Context);
     } else if (User->getOpcode() == Instruction::GetElementPtr) {
       // GEP'd pointers are also not null.
-      OptimizePointerNotNull(User);
+      OptimizePointerNotNull(User, Context);
     }
   }
 }
@@ -331,7 +340,7 @@ void PoolAllocate::MicroOptimizePoolCalls() {
     CallInst *CI = Calls[i];
     // poolalloc never returns null.  Loop over all uses of the call looking for
     // set(eq|ne) X, null.
-    OptimizePointerNotNull(CI);
+    OptimizePointerNotNull(CI, Context);
   }
 
   // TODO: poolfree accepts a null pointer, so remove any check above it, like
@@ -619,8 +628,8 @@ GlobalVariable *PoolAllocate::CreateGlobalPool(unsigned RecSize, unsigned Align,
     while (isa<AllocaInst>(InsertPt)) ++InsertPt;
   }
 
-  Value *ElSize = ConstantInt::get(Type::Int32Ty, RecSize);
-  Value *AlignV = ConstantInt::get(Type::Int32Ty, Align);
+  Value *ElSize = Context->getConstantInt(Type::Int32Ty, RecSize);
+  Value *AlignV = Context->getConstantInt(Type::Int32Ty, Align);
   Value* Opts[3] = {GV, ElSize, AlignV};
   CallInst::Create(PoolInit, Opts, Opts + 3, "", InsertPt);
   ++NumPools;
@@ -950,9 +959,9 @@ void PoolAllocate::InitializeAndDestroyPool(Function &F, const DSNode *Node,
 
   // Insert the calls to initialize the pool.
   unsigned ElSizeV = Heuristic::getRecommendedSize(Node);
-  Value *ElSize = ConstantInt::get(Type::Int32Ty, ElSizeV);
+  Value *ElSize = Context->getConstantInt(Type::Int32Ty, ElSizeV);
   unsigned AlignV = Heuristic::getRecommendedAlignment(Node);
-  Value *Align  = ConstantInt::get(Type::Int32Ty, AlignV);
+  Value *Align  = Context->getConstantInt(Type::Int32Ty, AlignV);
 
   for (unsigned i = 0, e = PoolInitPoints.size(); i != e; ++i) {
     Value* Opts[3] = {PD, ElSize, Align};

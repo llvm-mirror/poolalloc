@@ -139,7 +139,7 @@ PoolAllocateMultipleGlobalPool::ProcessFunctionBodySimple (Function& F, TargetDa
         Value * AllocSize;
         if (MI->isArrayAllocation()) {
           Value * NumElements = MI->getArraySize();
-          Value * ElementSize = ConstantInt::get (Type::Int32Ty,
+          Value * ElementSize = Context->getConstantInt (Type::Int32Ty,
                                                   TD.getTypeAllocSize(MI->getAllocatedType()));
           AllocSize = BinaryOperator::Create (Instruction::Mul,
                                               ElementSize,
@@ -147,7 +147,7 @@ PoolAllocateMultipleGlobalPool::ProcessFunctionBodySimple (Function& F, TargetDa
                                               "sizetmp",
                                               MI);
         } else {
-          AllocSize = ConstantInt::get (Type::Int32Ty,
+          AllocSize = Context->getConstantInt (Type::Int32Ty,
                                         TD.getTypeAllocSize(MI->getAllocatedType()));
         }
 
@@ -368,8 +368,8 @@ PoolAllocateMultipleGlobalPool::generatePool(unsigned RecSize,
        ConstantAggregateZero::get(getPoolType()),
        "__poolalloc_GlobalPool");
 
-    Value *ElSize = ConstantInt::get(Type::Int32Ty, RecSize);
-    Value *AlignV = ConstantInt::get(Type::Int32Ty, Align);
+    Value *ElSize = Context->getConstantInt(Type::Int32Ty, RecSize);
+    Value *AlignV = Context->getConstantInt(Type::Int32Ty, Align);
     Value* Opts[3] = {GV, ElSize, AlignV};
     
     CallInst::Create(PoolInit, Opts, Opts + 3, "", InsertAtEnd);

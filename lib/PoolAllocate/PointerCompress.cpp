@@ -287,7 +287,7 @@ Value *CompressedPoolInfo::EmitPoolBaseLoad(Instruction &I) const {
     assert(PoolBase == 0 && "Mixing and matching optimized vs not!");
     
     // Get the pool base pointer.
-    Constant *Zero = ConstantInt::get(Type::Int32Ty, 0);
+    Constant *Zero = getGlobalContext().getConstantInt(Type::Int32Ty, 0);
     Value *Opts[2] = {Zero, Zero};
     Value *BasePtrPtr = GetElementPtrInst::Create(getPoolDesc(), Opts, Opts + 2,
                                               "poolbaseptrptr", &I);
@@ -299,7 +299,7 @@ Value *CompressedPoolInfo::EmitPoolBaseLoad(Instruction &I) const {
                           isa<GlobalVariable>(PoolDesc))) {
       BasicBlock::iterator IP = I.getParent()->getParent()->begin()->begin();
       while (isa<AllocaInst>(IP)) ++IP;
-      Constant *Zero = ConstantInt::get(Type::Int32Ty, 0);
+      Constant *Zero = getGlobalContext().getConstantInt(Type::Int32Ty, 0);
       Value *Opts[2] = {Zero, Zero};
       Value *BasePtrPtr = GetElementPtrInst::Create(getPoolDesc(), Opts, Opts + 2,
                                                 "poolbaseptrptr", IP);
@@ -383,7 +383,7 @@ namespace {
     /// value, creating a new forward ref value as needed.
     Value *getTransformedValue(Value *V) {
       if (isa<ConstantPointerNull>(V))                // null -> uint 0
-        return ConstantInt::get(SCALARUINTTYPE, 0);
+        return getGlobalContext().getConstantInt(SCALARUINTTYPE, 0);
       if (isa<UndefValue>(V))                // undef -> uint undef
         return UndefValue::get(SCALARUINTTYPE);
 
@@ -713,7 +713,7 @@ void InstructionRewriter::visitGetElementPtrInst(GetElementPtrInst &GEPI) {
       if (Field) {
         uint64_t FieldOffs = TD.getStructLayout(cast<StructType>(NTy))
           ->getElementOffset(Field);
-        Constant *FieldOffsCst = ConstantInt::get(SCALARUINTTYPE, FieldOffs);
+        Constant *FieldOffsCst = getGlobalContext().getConstantInt(SCALARUINTTYPE, FieldOffs);
         Val = BinaryOperator::CreateAdd(Val, FieldOffsCst,
                                         GEPI.getName(), &GEPI);
       }
@@ -732,7 +732,7 @@ void InstructionRewriter::visitGetElementPtrInst(GetElementPtrInst &GEPI) {
         if (Idx->getType() != SCALARUINTTYPE)
           Idx = CastInst::CreateSExtOrBitCast(Idx, SCALARUINTTYPE, Idx->getName(), &GEPI);
 
-        Constant *Scale = ConstantInt::get(SCALARUINTTYPE,
+        Constant *Scale = getGlobalContext().getConstantInt(SCALARUINTTYPE,
                                             TD.getTypeAllocSize(ElTy));
         Idx = BinaryOperator::CreateMul(Idx, Scale, "fieldidx", &GEPI);
         Val = BinaryOperator::CreateAdd(Val, Idx, GEPI.getName(), &GEPI);
@@ -828,7 +828,7 @@ void InstructionRewriter::visitStoreInst(StoreInst &SI) {
     }
   } else {
     // FIXME: This assumes that all null pointers are compressed!
-    SrcVal = ConstantInt::get(MEMUINTTYPE, 0);
+    SrcVal = getGlobalContext().getConstantInt(MEMUINTTYPE, 0);
   }
   
   // Get the pool base pointer.
@@ -862,11 +862,11 @@ void InstructionRewriter::visitPoolInit(CallInst &CI) {
   std::vector<Value*> Ops;
   Ops.push_back(CI.getOperand(1));
   // Transform to pass in the compressed size.
-  Ops.push_back(ConstantInt::get(Type::Int32Ty, PI->getNewSize()));
+  Ops.push_back(getGlobalContext().getConstantInt(Type::Int32Ty, PI->getNewSize()));
 
   // Pointer compression can reduce the alignment restriction to 4 bytes from 8.
   // Reevaluate the desired alignment.
-  Ops.push_back(ConstantInt::get(Type::Int32Ty,
+  Ops.push_back(getGlobalContext().getConstantInt(Type::Int32Ty,
              PA::Heuristic::getRecommendedAlignment(PI->getNewType(), TD)));
   // TODO: Compression could reduce the alignment restriction for the pool!
   Value *PB = CallInst::Create(PtrComp.PoolInitPC, Ops.begin(), Ops.end(), "", &CI);
@@ -901,11 +901,11 @@ void InstructionRewriter::visitPoolAlloc(CallInst &CI) {
     if (OldSizeV != PI->getNewSize()) {
       // Emit code to scale the allocated size down by the old size then up by
       // the new size.  We actually compute (N+OS-1)/OS * NS.
-      Value *OldSize = ConstantInt::get(Type::Int32Ty, OldSizeV);
-      Value *NewSize = ConstantInt::get(Type::Int32Ty, PI->getNewSize());
+      Value *OldSize = getGlobalContext().getConstantInt(Type::Int32Ty, OldSizeV);
+      Value *NewSize = getGlobalContext().getConstantInt(Type::Int32Ty, PI->getNewSize());
 
       Size = BinaryOperator::CreateAdd(Size,
-                                  ConstantInt::get(Type::Int32Ty, OldSizeV-1),
+                                  getGlobalContext().getConstantInt(Type::Int32Ty, OldSizeV-1),
                                        "roundup", &CI);
       Size = BinaryOperator::CreateUDiv(Size, OldSize, "numnodes", &CI);
       Size = BinaryOperator::CreateMul(Size, NewSize, "newbytes", &CI);
