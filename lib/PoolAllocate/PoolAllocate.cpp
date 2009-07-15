@@ -668,7 +668,7 @@ void PoolAllocate::CreatePools(Function &F, DSGraph* DSG,
       // Create a pool descriptor for the pool.  The poolinit will be inserted
       // later.
       if (!IsMain) {
-        PoolDesc = new AllocaInst(PoolDescType, 0, "PD", InsertPoint);
+        PoolDesc = new AllocaInst(*Context, PoolDescType, 0, "PD", InsertPoint);
 
         // Create a node in DSG to represent the new alloca.
         DSNode *NewNode = DSG->addObjectToGraph(PoolDesc);
