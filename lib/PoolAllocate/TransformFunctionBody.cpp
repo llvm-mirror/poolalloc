@@ -739,8 +739,7 @@ void FuncTransform::visitCallSite(CallSite& CS) {
           // Dinakar: We need pooldescriptors for allocas in the callee if it
           //          escapes
           BasicBlock::iterator InsertPt = TheCall->getParent()->getParent()->front().begin();
-          ArgVal =  new AllocaInst(getGlobalContext(),
-                                   PAInfo.getPoolType(),
+          ArgVal =  new AllocaInst(PAInfo.getPoolType(),
                                    0,
                                    "PD",
                                    InsertPt);

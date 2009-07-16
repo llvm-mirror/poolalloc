@@ -151,7 +151,7 @@ bool PoolOptimize::runOnModule(Module &M) {
     // poolalloc(null, X) -> malloc(X)
     if (isa<Constant>(CI->getOperand(1)) && 
         cast<Constant>(CI->getOperand(1))->isNullValue()) {
-      Value *New = new MallocInst(*Context, Type::Int8Ty, CI->getOperand(2),
+      Value *New = new MallocInst(Type::Int8Ty, CI->getOperand(2),
                                   CI->getName(), CI);
       CI->replaceAllUsesWith(New);
       CI->eraseFromParent();
