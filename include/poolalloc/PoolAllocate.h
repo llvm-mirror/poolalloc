@@ -118,6 +118,11 @@ public:
   bool SAFECodeEnabled;
   bool BoundsChecksEnabled;
 
+  enum LIE_TYPE {LIE_NONE, LIE_PRESERVE_DSA, LIE_PRESERVE_ALL, LIE_PRESERVE_DEFAULT};
+  LIE_TYPE lie_preserve_passes;
+  enum PASS_TYPE {PASS_EQTD, PASS_BUEQ, PASS_DEFAULT};
+  PASS_TYPE dsa_pass_to_use;
+
   virtual ~PoolAllocateGroup () {return;}
   virtual PA::FuncInfo *getFuncInfo(const Function &F) { return 0;}
   virtual PA::FuncInfo *getFuncInfoOrClone(const Function &F) {return 0;}
@@ -179,12 +184,40 @@ protected:
 
  public:
   static char ID;
+
   PoolAllocate (bool passAllArguments = false,
                 bool SAFECode = true,
-                intptr_t IDp = (intptr_t) (&ID))
+                intptr_t IDp = (intptr_t) (&ID)) __attribute__((__deprecated__))
     : ModulePass((intptr_t)IDp),
       PassAllArguments(passAllArguments)
-  {SAFECodeEnabled = BoundsChecksEnabled = SAFECode |  PA::PA_SAFECODE;}
+      {
+		  SAFECodeEnabled = BoundsChecksEnabled = SAFECode |  PA::PA_SAFECODE;
+		  lie_preserve_passes = SAFECodeEnabled ? LIE_PRESERVE_ALL : LIE_PRESERVE_DSA;
+		  dsa_pass_to_use = SAFECodeEnabled ? PASS_EQTD : PASS_BUEQ;
+      }
+
+  /*TODO: finish removing the SAFECode flag*/
+  PoolAllocate (PASS_TYPE dsa_pass_to_use_,
+				LIE_TYPE lie_preserve_passes_ = LIE_PRESERVE_DEFAULT,
+				bool passAllArguments = false,
+				bool SAFECode = false,
+                intptr_t IDp = (intptr_t) (&ID))
+      : ModulePass((intptr_t)IDp),
+        PassAllArguments(passAllArguments)
+        {
+  		  SAFECodeEnabled = BoundsChecksEnabled = SAFECode |  PA::PA_SAFECODE;
+
+  		  if(lie_preserve_passes_ == LIE_PRESERVE_DEFAULT)
+  			  lie_preserve_passes = SAFECodeEnabled ? LIE_PRESERVE_ALL : LIE_PRESERVE_DSA;
+  		  else
+  			  lie_preserve_passes = lie_preserve_passes_;
+
+  		  if(dsa_pass_to_use_ == PASS_DEFAULT)
+  			  dsa_pass_to_use = SAFECodeEnabled ? PASS_EQTD : PASS_BUEQ;
+  		  else
+  			  dsa_pass_to_use = dsa_pass_to_use_;
+        }
+
   virtual bool runOnModule(Module &M);
   
   virtual void getAnalysisUsage(AnalysisUsage &AU) const;

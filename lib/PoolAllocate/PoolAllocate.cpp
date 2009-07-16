@@ -89,16 +89,18 @@ namespace {
 }
 
 void PoolAllocate::getAnalysisUsage(AnalysisUsage &AU) const {
-  if (SAFECodeEnabled) {
+  if (dsa_pass_to_use == PASS_EQTD) {
     AU.addRequired<EQTDDataStructures>();
-    AU.addPreserved<EQTDDataStructures>();
+    if(lie_preserve_passes != LIE_NONE)
+    	AU.addPreserved<EQTDDataStructures>();
   } else {
     AU.addRequired<EquivBUDataStructures>();
-    AU.addPreserved<EquivBUDataStructures>();
+    if(lie_preserve_passes != LIE_NONE)
+    	AU.addPreserved<EquivBUDataStructures>();
   }
 
   // Preserve the pool information across passes
-  if (SAFECodeEnabled)
+  if (lie_preserve_passes == LIE_PRESERVE_ALL)
     AU.setPreservesAll();
 
   AU.addRequired<TargetData>();
@@ -113,7 +115,7 @@ bool PoolAllocate::runOnModule(Module &M) {
   // DSA.  For Automatic Pool Allocation only, we need Bottom-Up DSA.  In all
   // cases, we need to use the Equivalence-Class version of DSA.
   //
-  if (SAFECodeEnabled)
+  if (dsa_pass_to_use == PASS_EQTD)
     Graphs = &getAnalysis<EQTDDataStructures>();    
   else
     Graphs = &getAnalysis<EquivBUDataStructures>();
