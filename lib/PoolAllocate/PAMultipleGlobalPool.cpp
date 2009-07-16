@@ -338,16 +338,19 @@ PoolAllocateMultipleGlobalPool::CreateGlobalPool (unsigned RecSize,
   
   assert (DS && "PoolAllocateMultipleGlobalPools requires Steensgaard Data Structure!");
 
+  //
+  // Create a pool for each node within the DSGraph.
+  //
   DSGraph * G = DS->getResultGraph();
-  for(DSGraph::node_const_iterator I = G->node_begin(), 
+  for (DSGraph::node_const_iterator I = G->node_begin(), 
         E = G->node_end(); I != E; ++I) {
-    generatePool(RecSize, Align, M, BB, I);
+    generatePool (I->getSize(), Align, M, BB, I);
   }
 
   DSGraph * GG = DS->getGlobalsGraph();
   for(DSGraph::node_const_iterator I = GG->node_begin(), 
         E = GG->node_end(); I != E; ++I) {
-    generatePool(RecSize, Align, M, BB, I);
+    generatePool(I->getSize(), Align, M, BB, I);
   }
 
   ReturnInst::Create(BB);
