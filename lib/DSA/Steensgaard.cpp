@@ -62,9 +62,9 @@ SteensgaardDataStructures::runOnModuleInternal(Module &M) {
   GlobalsGraph = new DSGraph(GG, GG->getGlobalECs());
 
   // Create a new, empty, graph...
-  ResultGraph = new DSGraph(GlobalECs, getTargetData());
+  ResultGraph = new DSGraph(GG->getGlobalECs(), getTargetData());
   ResultGraph->setGlobalsGraph(GlobalsGraph);
-//  ResultGraph->spliceFrom(DS->getGlobalsGraph());
+  // ResultGraph->spliceFrom(DS->getGlobalsGraph());
 
   
   // Loop over the rest of the module, merging graphs for non-external functions
@@ -134,7 +134,25 @@ SteensgaardDataStructures::runOnModuleInternal(Module &M) {
 
   // Remove any nodes that are dead after all of the merging we have done...
 
-  ResultGraph->removeDeadNodes(DSGraph::RemoveUnreachableGlobals);
+  ResultGraph->removeDeadNodes(DSGraph::KeepUnreachableGlobals);
+
+  GlobalsGraph->removeTriviallyDeadNodes(true);
+  GlobalsGraph->maskIncompleteMarkers();
+
+  // Mark external globals incomplete.
+  GlobalsGraph->markIncompleteNodes(DSGraph::IgnoreGlobals);
+
+  formGlobalECs();
+
+  // Clone the global nodes into this graph.
+  ReachabilityCloner RC(ResultGraph, GlobalsGraph,
+      DSGraph::DontCloneCallNodes |
+      DSGraph::DontCloneAuxCallNodes);
+  for (DSScalarMap::global_iterator I = GlobalsGraph->getScalarMap().global_begin(),
+      E = GlobalsGraph->getScalarMap().global_end(); I != E; ++I)
+    if (isa<GlobalVariable>(*I))
+      RC.getClonedNH(GlobalsGraph->getNodeForValue(*I));
+   
 
   print(DOUT, &M);
   return false;
