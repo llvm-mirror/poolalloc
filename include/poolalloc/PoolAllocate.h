@@ -187,7 +187,7 @@ protected:
 
   PoolAllocate (bool passAllArguments,
                 bool SAFECode = true,
-                intptr_t IDp = (intptr_t) (&ID)) __attribute__((__deprecated__))
+                intptr_t IDp = (intptr_t) (&ID))
     : ModulePass((intptr_t)IDp),
       PassAllArguments(passAllArguments)
       {
@@ -511,10 +511,11 @@ class PoolAllocateMultipleGlobalPool : public PoolAllocate {
   void ProcessFunctionBodySimple(Function& F, TargetData & TD);
   /// Mapping between DSNodes and Pool descriptors. For this pass, it is a
   /// one-to-one relationship.
-  DenseMap<const DSNode *, GlobalVariable *> PoolMap;
+  typedef DenseMap<const DSNode *, GlobalVariable *> PoolMapTy;
+  PoolMapTy PoolMap;
   void generatePool(unsigned RecSize, unsigned Align,
                     Module& M, BasicBlock * InsertAtEnd, const DSNode * Node);
-
+  Module * currentModule;
 public:
   static char ID;
   PoolAllocateMultipleGlobalPool(bool passAllArgs=false, bool SAFECode = true)
@@ -527,7 +528,8 @@ public:
 
   virtual Value * getGlobalPool (const DSNode * Node);
   virtual Value * getPool (const DSNode * N, Function & F);
-
+  virtual void print(std::ostream &OS, const Module * M) const;
+  virtual void dump() const;
 };
 
 }

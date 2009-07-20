@@ -79,6 +79,7 @@ void PoolAllocateMultipleGlobalPool::getAnalysisUsage(AnalysisUsage &AU) const {
 }
 
 bool PoolAllocateMultipleGlobalPool::runOnModule(Module &M) {
+  currentModule = &M;
   if (M.begin() == M.end()) return false;
   Graphs = &getAnalysis<SteensgaardDataStructures>();
   assert (Graphs && "No DSA pass available!\n");
@@ -350,7 +351,15 @@ PoolAllocateMultipleGlobalPool::CreateGlobalPool (unsigned RecSize,
   DSGraph * GG = DS->getGlobalsGraph();
   for(DSGraph::node_const_iterator I = GG->node_begin(), 
         E = GG->node_end(); I != E; ++I) {
-    generatePool(I->getSize(), Align, M, BB, I);
+    if (I->globals_begin() != I->globals_end()) {
+      const GlobalValue * GV = *(I->globals_begin());
+      DSNodeHandle NH = G->getNodeForValue(GV);
+      if (!NH.isNull()) {
+        PoolMap[&*I] = PoolMap[NH.getNode()];
+      } else {
+        generatePool(I->getSize(), Align, M, BB, I);
+      }
+    }
   }
 
   ReturnInst::Create(BB);
@@ -391,6 +400,18 @@ PoolAllocateMultipleGlobalPool::getGlobalPool (const DSNode * Node) {
 Value *
 PoolAllocateMultipleGlobalPool::getPool (const DSNode * N, Function & F) {
   return getGlobalPool(N);
+}
+
+void
+PoolAllocateMultipleGlobalPool::print(std::ostream &OS, const Module * M) const {
+  for (PoolMapTy::const_iterator I = PoolMap.begin(), E = PoolMap.end(); I != E; ++I) {
+     OS << I->first << " -> " << I->second->getName() << "\n";
+  } 
+}
+
+void
+PoolAllocateMultipleGlobalPool::dump() const {
+  print (std::cerr, currentModule);
 }
 
 PoolAllocateMultipleGlobalPool::~PoolAllocateMultipleGlobalPool() {}

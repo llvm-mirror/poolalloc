@@ -134,7 +134,7 @@ SteensgaardDataStructures::runOnModuleInternal(Module &M) {
 
   // Remove any nodes that are dead after all of the merging we have done...
 
-  ResultGraph->removeDeadNodes(DSGraph::KeepUnreachableGlobals);
+  ResultGraph->removeDeadNodes(DSGraph::RemoveUnreachableGlobals);
 
   print(DOUT, &M);
   return false;
