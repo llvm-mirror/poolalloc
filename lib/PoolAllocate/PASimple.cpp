@@ -104,6 +104,11 @@ MergeNodesInDSGraph (DSGraph & Graph) {
 bool PoolAllocateSimple::runOnModule(Module &M) {
   if (M.begin() == M.end()) return false;
 
+  //
+  // Get the context from the global context.
+  //
+  Context = &getGlobalContext();
+
   // Get the Target Data information and the Graphs
   if (CompleteDSA) {
     Graphs = &getAnalysis<EQTDDataStructures>();

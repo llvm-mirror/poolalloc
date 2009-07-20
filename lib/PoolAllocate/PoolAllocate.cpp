@@ -111,6 +111,11 @@ bool PoolAllocate::runOnModule(Module &M) {
   CurModule = &M;
 
   //
+  // Get the context from the global context.
+  //
+  Context = &getGlobalContext();
+
+  //
   // Get references to the DSA information.  For SAFECode, we need Top-Down
   // DSA.  For Automatic Pool Allocation only, we need Bottom-Up DSA.  In all
   // cases, we need to use the Equivalence-Class version of DSA.

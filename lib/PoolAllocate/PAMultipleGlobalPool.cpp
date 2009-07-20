@@ -81,6 +81,12 @@ void PoolAllocateMultipleGlobalPool::getAnalysisUsage(AnalysisUsage &AU) const {
 bool PoolAllocateMultipleGlobalPool::runOnModule(Module &M) {
   currentModule = &M;
   if (M.begin() == M.end()) return false;
+
+  //
+  // Get the context from the global context.
+  //
+  Context = &getGlobalContext();
+
   Graphs = &getAnalysis<SteensgaardDataStructures>();
   assert (Graphs && "No DSA pass available!\n");
 
