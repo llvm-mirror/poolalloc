@@ -12,7 +12,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "llvm/ADT/Statistic.h"
 #include "dsa/DataStructure.h"
 #include "dsa/DSGraph.h"
 #include "llvm/Constants.h"
@@ -25,6 +24,9 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/Timer.h"
+#include "llvm/ADT/Statistic.h"
+#include "llvm/ADT/DenseSet.h"
+
 #include <iostream>
 
 // FIXME: This should eventually be a FunctionPass that is automatically
@@ -164,12 +166,35 @@ namespace {
     void mergeInGlobalInitializer(GlobalVariable *GV);
     void mergeFunction(Function& F) { getValueDest(F); }
   };
+
+  /// Traverse the whole DSGraph, and propagate the unknown flags through all 
+  /// out edges.
+  static void propagateUnknownFlag(DSGraph * G) {
+    std::vector<DSNode *> workList;
+    DenseSet<DSNode *> visited;
+    for (DSGraph::node_iterator I = G->node_begin(), E = G->node_end(); I != E; ++I)
+      if (I->isUnknownNode()) 
+        workList.push_back(&*I);
+  
+    while (!workList.empty()) {
+      DSNode * N = workList.back();
+      workList.pop_back();
+      if (visited.count(N) != 0) continue;
+      visited.insert(N);
+      N->setUnknownMarker();
+      for (DSNode::edge_iterator I = N->edge_begin(), E = N->edge_end(); I != E; ++I)
+        if (!I->isNull())
+          workList.push_back(I->getNode());
+    }
+  }
 }
 
 //===----------------------------------------------------------------------===//
 // Helper method implementations...
 //
 
+
+///
 /// getValueDest - Return the DSNode that the actual value points to.
 ///
 DSNodeHandle GraphBuilder::getValueDest(Value &Val) {
@@ -825,6 +850,7 @@ bool LocalDataStructures::runOnModule(Module &M) {
       GraphBuilder GGB(*I, *G, *this);
       G->getAuxFunctionCalls() = G->getFunctionCalls();
       setDSGraph(*I, G);
+      propagateUnknownFlag(G);
     }
 
   GlobalsGraph->removeTriviallyDeadNodes();
@@ -836,6 +862,7 @@ bool LocalDataStructures::runOnModule(Module &M) {
   // program.
   formGlobalECs();
 
+  propagateUnknownFlag(GlobalsGraph);
   return false;
 }
 
