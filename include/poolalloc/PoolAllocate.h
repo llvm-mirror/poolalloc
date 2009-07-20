@@ -185,7 +185,7 @@ protected:
  public:
   static char ID;
 
-  PoolAllocate (bool passAllArguments = false,
+  PoolAllocate (bool passAllArguments,
                 bool SAFECode = true,
                 intptr_t IDp = (intptr_t) (&ID)) __attribute__((__deprecated__))
     : ModulePass((intptr_t)IDp),
@@ -197,7 +197,7 @@ protected:
       }
 
   /*TODO: finish removing the SAFECode flag*/
-  PoolAllocate (PASS_TYPE dsa_pass_to_use_,
+  PoolAllocate (PASS_TYPE dsa_pass_to_use_ = PASS_DEFAULT,
 				LIE_TYPE lie_preserve_passes_ = LIE_PRESERVE_DEFAULT,
 				bool passAllArguments = false,
 				bool SAFECode = false,
@@ -454,7 +454,7 @@ protected:
 /// load or store to that pool is performed.
 struct PoolAllocatePassAllPools : public PoolAllocate {
   static char ID;
-  PoolAllocatePassAllPools() : PoolAllocate(true, false, (intptr_t) &ID) {}
+  PoolAllocatePassAllPools() : PoolAllocate(PASS_DEFAULT, LIE_PRESERVE_DEFAULT, true, false, (intptr_t) &ID) {}
 };
 
 /// PoolAllocateSimple - This class modifies the heap allocations so that they
@@ -470,7 +470,7 @@ class PoolAllocateSimple : public PoolAllocate {
 public:
   static char ID;
   PoolAllocateSimple(bool passAllArgs=false, bool SAFECode = true, bool CompleteDSA = true)
-    : PoolAllocate (passAllArgs, SAFECode, (intptr_t)&ID), CompleteDSA(CompleteDSA) {}
+    : PoolAllocate (PASS_DEFAULT, LIE_PRESERVE_DEFAULT, passAllArgs, SAFECode, (intptr_t)&ID), CompleteDSA(CompleteDSA) {}
   ~PoolAllocateSimple() {return;}
   void getAnalysisUsage(AnalysisUsage &AU) const;
   bool runOnModule(Module &M);
@@ -518,7 +518,7 @@ class PoolAllocateMultipleGlobalPool : public PoolAllocate {
 public:
   static char ID;
   PoolAllocateMultipleGlobalPool(bool passAllArgs=false, bool SAFECode = true)
-    : PoolAllocate (passAllArgs, SAFECode, (intptr_t)&ID) {}
+    : PoolAllocate (PASS_DEFAULT, LIE_PRESERVE_DEFAULT, passAllArgs, SAFECode, (intptr_t)&ID) {}
   ~PoolAllocateMultipleGlobalPool();
   virtual void getAnalysisUsage(AnalysisUsage &AU) const;
   virtual bool runOnModule(Module &M);
