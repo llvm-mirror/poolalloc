@@ -339,6 +339,20 @@ PoolAllocateMultipleGlobalPool::CreateGlobalPool (unsigned RecSize,
     (FunctionType::get(Type::VoidTy, std::vector<const Type*>(), false),
     GlobalValue::ExternalLinkage, "__poolalloc_init", &M);
 
+  // put it into llvm.used so that it won't get killed.
+
+  Type * VoidPtrTy = PointerType::getUnqual(Type::Int8Ty);
+  ArrayType * LLVMUsedTy = ArrayType::get(VoidPtrTy, 1);
+  Constant * C = ConstantExpr::getBitCast (cast<Constant>(InitFunc), VoidPtrTy);
+  std::vector<Constant*> UsedFunctions(1,C);
+  Constant * NewInit = 
+    ConstantArray::get (LLVMUsedTy, UsedFunctions);
+
+  new GlobalVariable (M, LLVMUsedTy, false,
+      GlobalValue::AppendingLinkage,
+      NewInit, "llvm.used");
+
+
   BasicBlock * BB = BasicBlock::Create("entry", InitFunc);
   
   SteensgaardDataStructures * DS = dynamic_cast<SteensgaardDataStructures*>(Graphs);
