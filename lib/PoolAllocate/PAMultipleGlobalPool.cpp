@@ -82,11 +82,6 @@ bool PoolAllocateMultipleGlobalPool::runOnModule(Module &M) {
   currentModule = &M;
   if (M.begin() == M.end()) return false;
 
-  //
-  // Get the context from the global context.
-  //
-  Context = &getGlobalContext();
-
   Graphs = &getAnalysis<SteensgaardDataStructures>();
   assert (Graphs && "No DSA pass available!\n");
 
@@ -146,7 +141,7 @@ PoolAllocateMultipleGlobalPool::ProcessFunctionBodySimple (Function& F, TargetDa
         Value * AllocSize;
         if (MI->isArrayAllocation()) {
           Value * NumElements = MI->getArraySize();
-          Value * ElementSize = Context->getConstantInt (Type::Int32Ty,
+          Value * ElementSize = getGlobalContext().getConstantInt (Type::Int32Ty,
                                                   TD.getTypeAllocSize(MI->getAllocatedType()));
           AllocSize = BinaryOperator::Create (Instruction::Mul,
                                               ElementSize,
@@ -154,7 +149,7 @@ PoolAllocateMultipleGlobalPool::ProcessFunctionBodySimple (Function& F, TargetDa
                                               "sizetmp",
                                               MI);
         } else {
-          AllocSize = Context->getConstantInt (Type::Int32Ty,
+          AllocSize = getGlobalContext().getConstantInt (Type::Int32Ty,
                                         TD.getTypeAllocSize(MI->getAllocatedType()));
         }
 
@@ -346,7 +341,7 @@ PoolAllocateMultipleGlobalPool::CreateGlobalPool (unsigned RecSize,
   Constant * C = ConstantExpr::getBitCast (cast<Constant>(InitFunc), VoidPtrTy);
   std::vector<Constant*> UsedFunctions(1,C);
   Constant * NewInit = 
-    ConstantArray::get (LLVMUsedTy, UsedFunctions);
+    getGlobalContext().getConstantArray (LLVMUsedTy, UsedFunctions);
 
   new GlobalVariable (M, LLVMUsedTy, false,
       GlobalValue::AppendingLinkage,
@@ -397,11 +392,11 @@ PoolAllocateMultipleGlobalPool::generatePool(unsigned RecSize,
       new GlobalVariable
       (M,
        getPoolType(), false, GlobalValue::ExternalLinkage, 
-       ConstantAggregateZero::get(getPoolType()),
+       getGlobalContext().getConstantAggregateZero(getPoolType()),
        "__poolalloc_GlobalPool");
 
-    Value *ElSize = Context->getConstantInt(Type::Int32Ty, RecSize);
-    Value *AlignV = Context->getConstantInt(Type::Int32Ty, Align);
+    Value *ElSize = getGlobalContext().getConstantInt(Type::Int32Ty, RecSize);
+    Value *AlignV = getGlobalContext().getConstantInt(Type::Int32Ty, Align);
     Value* Opts[3] = {GV, ElSize, AlignV};
     
     CallInst::Create(PoolInit, Opts, Opts + 3, "", InsertAtEnd);

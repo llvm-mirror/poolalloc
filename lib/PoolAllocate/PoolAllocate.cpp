@@ -111,11 +111,6 @@ bool PoolAllocate::runOnModule(Module &M) {
   CurModule = &M;
 
   //
-  // Get the context from the global context.
-  //
-  Context = &getGlobalContext();
-
-  //
   // Get references to the DSA information.  For SAFECode, we need Top-Down
   // DSA.  For Automatic Pool Allocation only, we need Bottom-Up DSA.  In all
   // cases, we need to use the Equivalence-Class version of DSA.
@@ -347,7 +342,7 @@ void PoolAllocate::MicroOptimizePoolCalls() {
     CallInst *CI = Calls[i];
     // poolalloc never returns null.  Loop over all uses of the call looking for
     // set(eq|ne) X, null.
-    OptimizePointerNotNull(CI, Context);
+    OptimizePointerNotNull(CI, &getGlobalContext());
   }
 
   // TODO: poolfree accepts a null pointer, so remove any check above it, like
@@ -618,7 +613,7 @@ GlobalVariable *PoolAllocate::CreateGlobalPool(unsigned RecSize, unsigned Align,
   GlobalVariable *GV =
     new GlobalVariable(*CurModule,
                        PoolDescType, false, GlobalValue::InternalLinkage, 
-                       ConstantAggregateZero::get(PoolDescType), "GlobalPool");
+                       getGlobalContext().getConstantAggregateZero(PoolDescType), "GlobalPool");
 
   // Update the global DSGraph to include this.
   DSNode *GNode = Graphs->getGlobalsGraph()->addObjectToGraph(GV);
@@ -635,8 +630,8 @@ GlobalVariable *PoolAllocate::CreateGlobalPool(unsigned RecSize, unsigned Align,
     while (isa<AllocaInst>(InsertPt)) ++InsertPt;
   }
 
-  Value *ElSize = Context->getConstantInt(Type::Int32Ty, RecSize);
-  Value *AlignV = Context->getConstantInt(Type::Int32Ty, Align);
+  Value *ElSize = getGlobalContext().getConstantInt(Type::Int32Ty, RecSize);
+  Value *AlignV = getGlobalContext().getConstantInt(Type::Int32Ty, Align);
   Value* Opts[3] = {GV, ElSize, AlignV};
   CallInst::Create(PoolInit, Opts, Opts + 3, "", InsertPt);
   ++NumPools;
@@ -966,9 +961,9 @@ void PoolAllocate::InitializeAndDestroyPool(Function &F, const DSNode *Node,
 
   // Insert the calls to initialize the pool.
   unsigned ElSizeV = Heuristic::getRecommendedSize(Node);
-  Value *ElSize = Context->getConstantInt(Type::Int32Ty, ElSizeV);
+  Value *ElSize = getGlobalContext().getConstantInt(Type::Int32Ty, ElSizeV);
   unsigned AlignV = Heuristic::getRecommendedAlignment(Node);
-  Value *Align  = Context->getConstantInt(Type::Int32Ty, AlignV);
+  Value *Align  = getGlobalContext().getConstantInt(Type::Int32Ty, AlignV);
 
   for (unsigned i = 0, e = PoolInitPoints.size(); i != e; ++i) {
     Value* Opts[3] = {PD, ElSize, Align};
