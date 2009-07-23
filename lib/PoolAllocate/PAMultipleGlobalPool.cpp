@@ -73,7 +73,7 @@ castTo (Value * V, const Type * Ty, const std::string & Name, Instruction * Inse
 
 void PoolAllocateMultipleGlobalPool::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.addRequired<TargetData>();
-  AU.addRequired<SteensgaardDataStructures>();
+  AU.addRequiredTransitive<SteensgaardDataStructures>();
   // It is a big lie.
   AU.setPreservesAll();
 }
