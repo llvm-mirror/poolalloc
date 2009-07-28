@@ -200,7 +200,7 @@ protected:
   PoolAllocate (PASS_TYPE dsa_pass_to_use_ = PASS_DEFAULT,
 				LIE_TYPE lie_preserve_passes_ = LIE_PRESERVE_DEFAULT,
 				bool passAllArguments = false,
-				bool SAFECode = false,
+				bool SAFECode = true,
                 intptr_t IDp = (intptr_t) (&ID))
       : ModulePass((intptr_t)IDp),
         PassAllArguments(passAllArguments)
