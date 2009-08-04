@@ -426,8 +426,6 @@ struct ilist_traits<DSNode> {
 
   static DSNode *createSentinel() { return new DSNode(0,0); }
   static void destroySentinel(DSNode *N) { delete N; }
-  //static DSNode *createNode(const DSNode &V) { return new DSNode(V); }
-
 
   void addNodeToList(DSNode *NTy) {}
   void removeNodeFromList(DSNode *NTy) {}
