@@ -97,7 +97,7 @@ void DSGraphStats::countCallees(const Function& F) {
         totalNumCallees  += Callees.size();
         ++numIndirectCalls;
       } else {
-        DEBUG(ferrs() << "WARNING: No callee in Function '" 
+        DEBUG(errs() << "WARNING: No callee in Function '" 
 	      << F.getNameStr() << "' at call: \n"
 	      << *I->getCallSite().getInstruction());
       }
@@ -107,7 +107,7 @@ void DSGraphStats::countCallees(const Function& F) {
   NumIndirectCalls += numIndirectCalls;
 
   if (numIndirectCalls) {
-    DEBUG(ferrs() << "  In function " << F.getName() << ":  "
+    DEBUG(errs() << "  In function " << F.getName() << ":  "
 	  << (totalNumCallees / (double) numIndirectCalls)
 	  << " average callees per indirect call\n");
   }

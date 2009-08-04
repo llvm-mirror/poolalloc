@@ -74,7 +74,7 @@ void CallTargetFinder::findIndTargets(Module &M)
                 } 
                 if (N->isCompleteNode() && !IndMap[cs].size()) {
                   ++CompleteEmpty;
-                  DEBUG(ferrs() << "Call site empty: '"
+                  DEBUG(errs() << "Call site empty: '"
 			<< cs.getInstruction()->getName() 
 			<< "' In '"
 			<< cs.getInstruction()->getParent()->getParent()->getName()

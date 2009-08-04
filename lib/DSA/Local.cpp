@@ -250,7 +250,7 @@ DSNodeHandle GraphBuilder::getValueDest(Value &Val) {
       NH = getValueDest(*(cast<GlobalAlias>(C)->getAliasee()));
       return 0;
     } else {
-      DEBUG(ferrs() << "Unknown constant: " << *C << "\n");
+      DEBUG(errs() << "Unknown constant: " << *C << "\n");
       assert(0 && "Unknown constant type!");
     }
     N = createNode(); // just create a shadow node
@@ -488,7 +488,7 @@ void GraphBuilder::visitGetElementPtrInst(User &GEP) {
         // Variable index into a node.  We must merge all of the elements of the
         // sequential type here.
         if (isa<PointerType>(STy)) {
-          DEBUG(ferrs() << "Pointer indexing not handled yet!\n");
+          DEBUG(errs() << "Pointer indexing not handled yet!\n");
 	} else {
           const ArrayType *ATy = cast<ArrayType>(STy);
           unsigned ElSize = TD.getTypeAllocSize(CurTy);
@@ -537,7 +537,7 @@ void GraphBuilder::visitGetElementPtrInst(User &GEP) {
     {
       if (G.getPoolDescriptorsMap().count(N) != 0)
         if (G.getPoolDescriptorsMap()[N]) {
-	  DEBUG(ferrs() << "LLVA: GEP[" << 0 << "]: Pool for " << GEP.getName() << " is " << G.getPoolDescriptorsMap()[N]->getName() << "\n");
+	  DEBUG(errs() << "LLVA: GEP[" << 0 << "]: Pool for " << GEP.getName() << " is " << G.getPoolDescriptorsMap()[N]->getName() << "\n");
 	}
     }
   }
@@ -697,7 +697,7 @@ bool GraphBuilder::visitIntrinsic(CallSite CS, Function *F) {
         return true;
     }
 
-    DEBUG(ferrs() << "[dsa:local] Unhandled intrinsic: " << F->getName() << "\n");
+    DEBUG(errs() << "[dsa:local] Unhandled intrinsic: " << F->getName() << "\n");
     assert(0 && "Unhandled intrinsic");
     return false;
   }
@@ -728,7 +728,7 @@ void GraphBuilder::visitCallSite(CallSite CS) {
   if (!isa<Function>(Callee)) {
     CalleeNode = getValueDest(*Callee).getNode();
     if (CalleeNode == 0) {
-      DEBUG(ferrs() << "WARNING: Program is calling through a null pointer?\n" << *I);
+      DEBUG(errs() << "WARNING: Program is calling through a null pointer?\n" << *I);
       return;  // Calling a null pointer?
     }
   }

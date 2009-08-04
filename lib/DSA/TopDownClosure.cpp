@@ -198,7 +198,7 @@ void TDDataStructures::InlineCallersIntoGraph(DSGraph* DSG) {
       RC.getClonedNH(GG->getNodeForValue(*GI));
   }
 
-  DEBUG(ferrs() << "[TD] Inlining callers into '" 
+  DEBUG(errs() << "[TD] Inlining callers into '" 
 	<< DSG->getFunctionNames() << "'\n");
 
   // Iteratively inline caller graphs into this graph.
@@ -215,15 +215,15 @@ void TDDataStructures::InlineCallersIntoGraph(DSGraph* DSG) {
     do {
       const DSCallSite &CS = *EdgesFromCaller.back().CS;
       const Function &CF = *EdgesFromCaller.back().CalledFunction;
-      DEBUG(ferrs() << "   [TD] Inlining graph into Fn '" 
+      DEBUG(errs() << "   [TD] Inlining graph into Fn '" 
 	    << CF.getNameStr() << "' from ");
       if (CallerGraph->getReturnNodes().empty()) {
-        DEBUG(ferrs() << "SYNTHESIZED INDIRECT GRAPH");
+        DEBUG(errs() << "SYNTHESIZED INDIRECT GRAPH");
       } else {
-        DEBUG(ferrs() << "Fn '" << CS.getCallSite().getInstruction()->
+        DEBUG(errs() << "Fn '" << CS.getCallSite().getInstruction()->
 	      getParent()->getParent()->getNameStr() << "'");
       }
-      DEBUG(ferrs() << ": " << CF.getFunctionType()->getNumParams() 
+      DEBUG(errs() << ": " << CF.getFunctionType()->getNumParams() 
 	    << " args\n");
 
       // Get the formal argument and return nodes for the called function and
@@ -339,7 +339,7 @@ void TDDataStructures::InlineCallersIntoGraph(DSGraph* DSG) {
 
     // If we already have this graph, recycle it.
     if (IndCallRecI != IndCallMap.end() && IndCallRecI->first == Callees) {
-      DEBUG(ferrs() << "  [TD] *** Reuse of indcall graph for " << Callees.size()
+      DEBUG(errs() << "  [TD] *** Reuse of indcall graph for " << Callees.size()
 	    << " callees!\n");
       IndCallGraph = IndCallRecI->second;
     } else {

@@ -343,13 +343,13 @@ static void printCollection(const Collection &C, std::ostream &O,
 void DataStructures::dumpCallGraph() const {
   for(  ActualCalleesTy::const_iterator ii = ActualCallees.begin(), ee = ActualCallees.end();
         ii != ee; ++ii) {
-    if (ii->first) ferrs() << ii->first->getParent()->getParent()->getName() << " ";
-    ferrs() << ii->first << ": [";
+    if (ii->first) errs() << ii->first->getParent()->getParent()->getName() << " ";
+    errs() << ii->first << ": [";
     for (callee_iterator cbi = ii->second.begin(), cbe = ii->second.end();
          cbi != cbe; ++cbi) {
-      ferrs() << (*cbi)->getName() << " ";
+      errs() << (*cbi)->getName() << " ";
     }
-    ferrs() << "]\n";
+    errs() << "]\n";
     if (ii->first) ii->first->dump();
   }
 }
