@@ -24,7 +24,7 @@
 #include "llvm/Support/Streams.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Config/config.h"
-#include "llvm/Support/raw_ostream.h"
+#include "llvm/Support/FormattedStream.h"
 #include <ostream>
 #include <fstream>
 #include <sstream>
@@ -190,7 +190,7 @@ struct DOTGraphTraits<const DSGraph*> : public DefaultDOTGraphTraits {
         if (G->getReturnNodes().size() == 1)
           Label = "returning";
         else
-          Label = I->first->getName() + " ret node";
+          Label = I->first->getNameStr() + " ret node";
         // Output the return node...
         GW.emitSimpleNode((void*)I->first, "plaintext=circle", Label);
 
@@ -295,17 +295,17 @@ static void printCollection(const Collection &C, std::ostream &O,
       if (I->getName() == "main" || !OnlyPrintMain) {
         const Function *SCCFn = Gr->retnodes_begin()->first;
         if (&*I == SCCFn) {
-          Gr->writeGraphToFile(O, Prefix+I->getName());
+          Gr->writeGraphToFile(O, Prefix+I->getNameStr());
         } else {
           IsDuplicateGraph = true; // Don't double count node/call nodes.
-          O << "Didn't write '" << Prefix+I->getName()
-            << ".dot' - Graph already emitted to '" << Prefix+SCCFn->getName()
+          O << "Didn't write '" << Prefix+I->getNameStr()
+            << ".dot' - Graph already emitted to '" << Prefix+SCCFn->getNameStr()
             << "\n";
         }
       } else {
         const Function *SCCFn = Gr->retnodes_begin()->first;
         if (&*I == SCCFn) {
-          O << "Skipped Writing '" << Prefix+I->getName() << ".dot'... ["
+          O << "Skipped Writing '" << Prefix+I->getNameStr() << ".dot'... ["
             << Gr->getGraphSize() << "+" << NumCalls << "]\n";
         } else {
           IsDuplicateGraph = true; // Don't double count node/call nodes.
@@ -343,13 +343,13 @@ static void printCollection(const Collection &C, std::ostream &O,
 void DataStructures::dumpCallGraph() const {
   for(  ActualCalleesTy::const_iterator ii = ActualCallees.begin(), ee = ActualCallees.end();
         ii != ee; ++ii) {
-    if (ii->first) cerr << ii->first->getParent()->getParent()->getName() << " ";
-    cerr << ii->first << ": [";
+    if (ii->first) ferrs() << ii->first->getParent()->getParent()->getName() << " ";
+    ferrs() << ii->first << ": [";
     for (callee_iterator cbi = ii->second.begin(), cbe = ii->second.end();
          cbi != cbe; ++cbi) {
-      cerr << (*cbi)->getName() << " ";
+      ferrs() << (*cbi)->getName() << " ";
     }
-    cerr << "]\n";
+    ferrs() << "]\n";
     if (ii->first) ii->first->dump();
   }
 }

@@ -24,7 +24,7 @@
 #include "dsa/CallTargets.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Support/Debug.h"
-#include "llvm/Support/Streams.h"
+#include "llvm/Support/FormattedStream.h"
 #include "llvm/Constants.h"
 #include <ostream>
 using namespace llvm;
@@ -74,11 +74,11 @@ void CallTargetFinder::findIndTargets(Module &M)
                 } 
                 if (N->isCompleteNode() && !IndMap[cs].size()) {
                   ++CompleteEmpty;
-                  cerr << "Call site empty: '"
-                       << cs.getInstruction()->getName() 
-                       << "' In '"
-                       << cs.getInstruction()->getParent()->getParent()->getName()
-                       << "'\n";
+                  DEBUG(ferrs() << "Call site empty: '"
+			<< cs.getInstruction()->getName() 
+			<< "' In '"
+			<< cs.getInstruction()->getParent()->getParent()->getName()
+			<< "'\n");
                 }
               }
             } else {
@@ -100,13 +100,13 @@ void CallTargetFinder::print(std::ostream &O, const Module *M) const
         O << "* ";
         CallSite cs = ii->first;
         cs.getInstruction()->dump();
-        O << cs.getInstruction()->getParent()->getParent()->getName() << " "
-          << cs.getInstruction()->getName() << " ";
+        O << cs.getInstruction()->getParent()->getParent()->getNameStr() << " "
+          << cs.getInstruction()->getNameStr() << " ";
       }
       O << ii->first.getInstruction() << ":";
       for (std::vector<const Function*>::const_iterator i = ii->second.begin(),
              e = ii->second.end(); i != e; ++i) {
-        O << " " << (*i)->getName();
+        O << " " << (*i)->getNameStr();
       }
       O << "\n";
     }

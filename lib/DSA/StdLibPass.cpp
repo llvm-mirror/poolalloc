@@ -20,6 +20,7 @@
 #include "llvm/Target/TargetData.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
+#include "llvm/Support/FormattedStream.h"
 #include "llvm/Support/Timer.h"
 #include <iostream>
 #include "llvm/Module.h"
@@ -182,7 +183,8 @@ void StdLibDataStructures::eraseCallsTo(Function* F) {
       if (CI->getOperand(0) == F) {
         DSGraph* Graph = getDSGraph(*CI->getParent()->getParent());
         //delete the call
-        DOUT << "Removing " << F->getName() << " from " << CI->getParent()->getParent()->getName() << "\n";
+        DEBUG(ferrs() << "Removing " << F->getNameStr() << " from " 
+	      << CI->getParent()->getParent()->getNameStr() << "\n");
         Graph->removeFunctionCalls(*F);
       }
 }

@@ -20,6 +20,8 @@
 #include "llvm/Support/Streams.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Support/Debug.h"
+#include "llvm/Support/FormattedStream.h"
+
 #include <ostream>
 using namespace llvm;
 
@@ -94,19 +96,21 @@ void DSGraphStats::countCallees(const Function& F) {
       if (Callees.size() > 0) {
         totalNumCallees  += Callees.size();
         ++numIndirectCalls;
-      } else
-        cerr << "WARNING: No callee in Function '" << F.getName()
-             << "' at call: \n"
-             << *I->getCallSite().getInstruction();
+      } else {
+        DEBUG(ferrs() << "WARNING: No callee in Function '" 
+	      << F.getNameStr() << "' at call: \n"
+	      << *I->getCallSite().getInstruction());
+      }
     }
 
   TotalNumCallees  += totalNumCallees;
   NumIndirectCalls += numIndirectCalls;
 
-  if (numIndirectCalls)
-    cout << "  In function " << F.getName() << ":  "
-         << (totalNumCallees / (double) numIndirectCalls)
-         << " average callees per indirect call\n";
+  if (numIndirectCalls) {
+    DEBUG(ferrs() << "  In function " << F.getName() << ":  "
+	  << (totalNumCallees / (double) numIndirectCalls)
+	  << " average callees per indirect call\n");
+  }
 }
 
 DSNode *DSGraphStats::getNodeForValue(Value *V) {

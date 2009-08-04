@@ -20,6 +20,8 @@
 #include "llvm/Module.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Support/Debug.h"
+#include "llvm/Support/FormattedStream.h"
+
 using namespace llvm;
 
 namespace {
@@ -52,15 +54,15 @@ bool BUDataStructures::runOnModuleInternal(Module& M) {
     calculateGraphs(MainFunc, Stack, NextID, ValMap);
     CloneAuxIntoGlobal(getDSGraph(*MainFunc));
   } else {
-    DOUT << debugname << ": No 'main' function found!\n";
+    DEBUG(ferrs() << debugname << ": No 'main' function found!\n");
   }
 
   // Calculate the graphs for any functions that are unreachable from main...
   for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I)
     if (!I->isDeclaration() && !hasDSGraph(*I)) {
       if (MainFunc)
-        DOUT << debugname << ": Function unreachable from main: "
-             << I->getName() << "\n";
+        DEBUG(ferrs() << debugname << ": Function unreachable from main: "
+	      << I->getName() << "\n");
       calculateGraphs(I, Stack, NextID, ValMap);     // Calculate all graphs.
       CloneAuxIntoGlobal(getDSGraph(*I));
     }
@@ -261,14 +263,14 @@ unsigned BUDataStructures::calculateGraphs(const Function *F,
 
   // If this is a new SCC, process it now.
   if (Stack.back() == F) {           // Special case the single "SCC" case here.
-    DOUT << "Visiting single node SCC #: " << MyID << " fn: "
-         << F->getName() << "\n";
+    DEBUG(ferrs() << "Visiting single node SCC #: " << MyID << " fn: "
+	  << F->getName() << "\n");
     Stack.pop_back();
-    DOUT << "  [BU] Calculating graph for: " << F->getName()<< "\n";
+    DEBUG(ferrs() << "  [BU] Calculating graph for: " << F->getName()<< "\n");
     calculateGraph(Graph);
-    DOUT << "  [BU] Done inlining: " << F->getName() << " ["
-         << Graph->getGraphSize() << "+" << Graph->getAuxFunctionCalls().size()
-         << "]\n";
+    DEBUG(ferrs() << "  [BU] Done inlining: " << F->getName() << " ["
+	  << Graph->getGraphSize() << "+" << Graph->getAuxFunctionCalls().size()
+	  << "]\n");
 
     if (MaxSCC < 1) MaxSCC = 1;
 
@@ -295,7 +297,7 @@ unsigned BUDataStructures::calculateGraphs(const Function *F,
     ResolvedFuncs.resize(uid - ResolvedFuncs.begin());
 
     if (ResolvedFuncs.size() || NewCalleeFuncs.size()) {
-      DOUT << "Recalculating " << F->getName() << " due to new knowledge\n";
+      DEBUG(ferrs() << "Recalculating " << F->getName() << " due to new knowledge\n");
       ValMap.erase(F);
       return calculateGraphs(F, Stack, NextID, ValMap);
     } else {
@@ -339,8 +341,8 @@ unsigned BUDataStructures::calculateGraphs(const Function *F,
     }
     Stack.pop_back();
 
-    DOUT << "Calculating graph for SCC #: " << MyID << " of size: "
-         << SCCSize << "\n";
+    DEBUG(ferrs() << "Calculating graph for SCC #: " << MyID << " of size: "
+	  << SCCSize << "\n");
 
     // Compute the Max SCC Size.
     if (MaxSCC < SCCSize)
@@ -352,9 +354,9 @@ unsigned BUDataStructures::calculateGraphs(const Function *F,
     // Now that we have one big happy family, resolve all of the call sites in
     // the graph...
     calculateGraph(SCCGraph);
-    DOUT << "  [BU] Done inlining SCC  [" << SCCGraph->getGraphSize()
-         << "+" << SCCGraph->getAuxFunctionCalls().size() << "]\n"
-         << "DONE with SCC #: " << MyID << "\n";
+    DEBUG(ferrs() << "  [BU] Done inlining SCC  [" << SCCGraph->getGraphSize()
+	  << "+" << SCCGraph->getAuxFunctionCalls().size() << "]\n"
+	  << "DONE with SCC #: " << MyID << "\n");
 
     // We never have to revisit "SCC" processed functions...
     //propagate incomplete call nodes
@@ -471,28 +473,30 @@ void BUDataStructures::calculateGraph(DSGraph* Graph) {
       // Get the data structure graph for the called function.
       GI = getDSGraph(*Callee);  // Graph to inline
       DEBUG(GI->AssertGraphOK(); GI->getGlobalsGraph()->AssertGraphOK());
-      DOUT << "    Inlining graph for " << Callee->getName()
-           << "[" << GI->getGraphSize() << "+"
-           << GI->getAuxFunctionCalls().size() << "] into '"
-           << Graph->getFunctionNames() << "' [" << Graph->getGraphSize() <<"+"
-           << Graph->getAuxFunctionCalls().size() << "]\n";
+      DEBUG(ferrs() << "    Inlining graph for " << Callee->getName()
+	    << "[" << GI->getGraphSize() << "+"
+	    << GI->getAuxFunctionCalls().size() << "] into '"
+	    << Graph->getFunctionNames() << "' [" << Graph->getGraphSize() <<"+"
+	    << Graph->getAuxFunctionCalls().size() << "]\n");
       Graph->mergeInGraph(CS, *Callee, *GI,
                           DSGraph::StripAllocaBit|DSGraph::DontCloneCallNodes|
                           (isComplete?0:DSGraph::DontCloneAuxCallNodes));
       ++NumInlines;
       DEBUG(Graph->AssertGraphOK(););
     } else if (CalledFuncs.size() > 1) {
-      DEBUG(std::cerr << "In Fns: " << Graph->getFunctionNames() << "\n");
-      DEBUG(std::cerr << "  calls " << CalledFuncs.size()
+      DEBUG(ferrs() << "In Fns: " << Graph->getFunctionNames() << "\n");
+      DEBUG(ferrs() << "  calls " << CalledFuncs.size()
             << " fns from site: " << CS.getCallSite().getInstruction()
             << "  " << *CS.getCallSite().getInstruction());
-      DEBUG(std::cerr << "   Fns =");
+      DEBUG(ferrs() << "   Fns =");
       unsigned NumPrinted = 0;
       
       for (std::vector<const Function*>::iterator I = CalledFuncs.begin(),
              E = CalledFuncs.end(); I != E; ++I)
-        if (NumPrinted++ < 8) DOUT << " " << (*I)->getName();
-      DOUT << "\n";
+        if (NumPrinted++ < 8) {
+	  DEBUG(ferrs() << " " << (*I)->getName());
+	}
+      DEBUG(ferrs() << "\n");
       
       if (!isComplete) {
         for (unsigned x = 0; x < CalledFuncs.size(); )
@@ -543,17 +547,17 @@ void BUDataStructures::calculateGraph(DSGraph* Graph) {
           // Clean up the final graph!
           GI->removeDeadNodes(DSGraph::KeepUnreachableGlobals);
         } else {
-          DOUT << "***\n*** RECYCLED GRAPH ***\n***\n";
+          DEBUG(ferrs() << "***\n*** RECYCLED GRAPH ***\n***\n");
         }
         
         GI = IndCallGraph.first;
         
         // Merge the unified graph into this graph now.
-        DOUT << "    Inlining multi callee graph "
-             << "[" << GI->getGraphSize() << "+"
-             << GI->getAuxFunctionCalls().size() << "] into '"
-             << Graph->getFunctionNames() << "' [" << Graph->getGraphSize() <<"+"
-             << Graph->getAuxFunctionCalls().size() << "]\n";
+        DEBUG(ferrs() << "    Inlining multi callee graph "
+	      << "[" << GI->getGraphSize() << "+"
+	      << GI->getAuxFunctionCalls().size() << "] into '"
+	      << Graph->getFunctionNames() << "' [" << Graph->getGraphSize() <<"+"
+	      << Graph->getAuxFunctionCalls().size() << "]\n");
         
         Graph->mergeInGraph(CS, IndCallGraph.second, *GI,
                             DSGraph::StripAllocaBit |
@@ -618,26 +622,28 @@ void BUDataStructures::inlineUnresolved(DSGraph* Graph) {
       // Get the data structure graph for the called function.
       GI = getDSGraph(*Callee);  // Graph to inline
       if (GI == Graph) continue;
-      DOUT << "    Inlining graph for " << Callee->getName()
-           << "[" << GI->getGraphSize() << "+"
-           << GI->getAuxFunctionCalls().size() << "] into '"
-           << Graph->getFunctionNames() << "' [" << Graph->getGraphSize() <<"+"
-           << Graph->getAuxFunctionCalls().size() << "]\n";
+      DEBUG(ferrs() << "    Inlining graph for " << Callee->getName()
+	    << "[" << GI->getGraphSize() << "+"
+	    << GI->getAuxFunctionCalls().size() << "] into '"
+	    << Graph->getFunctionNames() << "' [" << Graph->getGraphSize() <<"+"
+	    << Graph->getAuxFunctionCalls().size() << "]\n");
       Graph->mergeInGraph(CS, *Callee, *GI,
                          DSGraph::StripAllocaBit|DSGraph::DontCloneCallNodes);
       ++NumInlines;
     } else {
-      DEBUG(std::cerr << "In Fns: " << Graph->getFunctionNames() << "\n");
+      DEBUG(ferrs() << "In Fns: " << Graph->getFunctionNames() << "\n");
       DEBUG(std::cerr << "  calls " << CalledFuncs.size()
             << " fns from site: " << CS.getCallSite().getInstruction()
             << "  " << *CS.getCallSite().getInstruction());
-      DEBUG(std::cerr << "   Fns =");
+      DEBUG(ferrs() << "   Fns =");
       unsigned NumPrinted = 0;
       
       for (std::vector<const Function*>::iterator I = CalledFuncs.begin(),
              E = CalledFuncs.end(); I != E; ++I)
-        if (NumPrinted++ < 8) DOUT << " " << (*I)->getName();
-      DOUT << "\n";
+        if (NumPrinted++ < 8) {
+	  DEBUG(ferrs() << " " << (*I)->getName());
+	}
+      DEBUG(ferrs() << "\n");
       
       for (unsigned x = 0; x < CalledFuncs.size(); )
         if (!hasDSGraph(*CalledFuncs[x]))
@@ -690,18 +696,17 @@ void BUDataStructures::inlineUnresolved(DSGraph* Graph) {
         // Clean up the final graph!
         GI->removeDeadNodes(DSGraph::KeepUnreachableGlobals);
       } else {
-        DOUT << "***\n*** RECYCLED GRAPH ***\n***\n";
+        DEBUG(ferrs() << "***\n*** RECYCLED GRAPH ***\n***\n");
       }
       
       GI = IndCallGraph.first;
       
       // Merge the unified graph into this graph now.
-      DEBUG(
-            DOUT << "    Inlining multi callee graph "
+      DEBUG(ferrs() << "    Inlining multi callee graph "
             << "[" << GI->getGraphSize() << "+"
             << GI->getAuxFunctionCalls().size() << "] into '"
             << Graph->getFunctionNames() << "' [" << Graph->getGraphSize() <<"+"
-            << Graph->getAuxFunctionCalls().size() << "]\n"; );
+            << Graph->getAuxFunctionCalls().size() << "]\n" );
       
       Graph->mergeInGraph(CS, IndCallGraph.second, *GI,
                           DSGraph::StripAllocaBit |

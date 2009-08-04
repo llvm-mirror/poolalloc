@@ -23,6 +23,7 @@
 #include "llvm/Target/TargetData.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
+#include "llvm/Support/FormattedStream.h"
 #include "llvm/Support/Timer.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/ADT/DenseSet.h"
@@ -249,7 +250,7 @@ DSNodeHandle GraphBuilder::getValueDest(Value &Val) {
       NH = getValueDest(*(cast<GlobalAlias>(C)->getAliasee()));
       return 0;
     } else {
-      llvm::cerr << "Unknown constant: " << *C << std::endl;
+      DEBUG(ferrs() << "Unknown constant: " << *C << "\n");
       assert(0 && "Unknown constant type!");
     }
     N = createNode(); // just create a shadow node
@@ -486,9 +487,9 @@ void GraphBuilder::visitGetElementPtrInst(User &GEP) {
       } else {
         // Variable index into a node.  We must merge all of the elements of the
         // sequential type here.
-        if (isa<PointerType>(STy))
-          cerr << "Pointer indexing not handled yet!\n";
-        else {
+        if (isa<PointerType>(STy)) {
+          DEBUG(ferrs() << "Pointer indexing not handled yet!\n");
+	} else {
           const ArrayType *ATy = cast<ArrayType>(STy);
           unsigned ElSize = TD.getTypeAllocSize(CurTy);
           DSNode *N = Value.getNode();
@@ -535,8 +536,9 @@ void GraphBuilder::visitGetElementPtrInst(User &GEP) {
     if (IGEP->getParent()->getParent()->getName() == "alloc_vfsmnt")
     {
       if (G.getPoolDescriptorsMap().count(N) != 0)
-        if (G.getPoolDescriptorsMap()[N])
-  std::cerr << "LLVA: GEP[" << 0 << "]: Pool for " << GEP.getName() << " is " << G.getPoolDescriptorsMap()[N]->getName() << "\n";
+        if (G.getPoolDescriptorsMap()[N]) {
+	  DEBUG(ferrs() << "LLVA: GEP[" << 0 << "]: Pool for " << GEP.getName() << " is " << G.getPoolDescriptorsMap()[N]->getName() << "\n");
+	}
     }
   }
 #endif
@@ -695,7 +697,7 @@ bool GraphBuilder::visitIntrinsic(CallSite CS, Function *F) {
         return true;
     }
 
-    cerr << "[dsa:local] Unhandled intrinsic: " << F->getName() << "\n";
+    DEBUG(ferrs() << "[dsa:local] Unhandled intrinsic: " << F->getName() << "\n");
     assert(0 && "Unhandled intrinsic");
     return false;
   }
@@ -726,7 +728,7 @@ void GraphBuilder::visitCallSite(CallSite CS) {
   if (!isa<Function>(Callee)) {
     CalleeNode = getValueDest(*Callee).getNode();
     if (CalleeNode == 0) {
-      cerr << "WARNING: Program is calling through a null pointer?\n"<< *I;
+      DEBUG(ferrs() << "WARNING: Program is calling through a null pointer?\n" << *I);
       return;  // Calling a null pointer?
     }
   }

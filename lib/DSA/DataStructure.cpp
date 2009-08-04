@@ -1426,7 +1426,7 @@ std::string DSGraph::getFunctionNames() const {
     std::string Return;
     for (DSGraph::retnodes_iterator I = retnodes_begin();
          I != retnodes_end(); ++I)
-      Return += I->first->getName() + " ";
+      Return += I->first->getNameStr() + " ";
     Return.erase(Return.end()-1, Return.end());   // Remove last space character
     return Return;
   }
