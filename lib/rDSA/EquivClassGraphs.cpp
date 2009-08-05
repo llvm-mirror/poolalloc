@@ -65,13 +65,13 @@ void EquivBUDataStructures::mergeGraphsByGlobalECs() {
          MI != GlobalECs.member_end(); ++MI) {
       if (const Function* F = dyn_cast<Function>(*MI)) {
         if (!BaseGraph) {
-          BaseGraph = getOrCreateGraph(F);
+          BaseGraph = getOrFetchDSGraph(F);
           BaseGraph->getFunctionArgumentsForCall(F, Args);
         } else if (BaseGraph->containsFunction(F)) {
           //already merged
         } else {
           std::vector<DSNodeHandle> NextArgs;
-          BaseGraph->cloneInto(getOrCreateGraph(F));
+          BaseGraph->cloneInto(getOrFetchDSGraph(F));
           BaseGraph->getFunctionArgumentsForCall(F, NextArgs);
           unsigned i = 0, e = Args.size();
           for (; i != e; ++i) {
@@ -80,7 +80,7 @@ void EquivBUDataStructures::mergeGraphsByGlobalECs() {
           }
           for (e = NextArgs.size(); i != e; ++i)
             Args.push_back(NextArgs[i]);
-          setDSGraph(*F, BaseGraph);
+          setDSGraph(F, BaseGraph);
         }       
       }
     }

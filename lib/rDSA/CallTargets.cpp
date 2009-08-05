@@ -64,7 +64,7 @@ void CallTargetFinder::findIndTargets(Module &M)
                 CompleteSites.insert(cs);
               } else {
                 IndCall++;
-                DSNode* N = T->getDSGraph(*cs.getCaller())
+                DSNode* N = T->getDSGraph(cs.getCaller())
                   ->getNodeForValue(cs.getCalledValue()).getNode();
                 assert (N && "CallTarget: findIndTargets: No DSNode!\n");
                 N->addFullFunctionList(IndMap[cs]);

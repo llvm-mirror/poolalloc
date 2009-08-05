@@ -39,7 +39,7 @@ namespace {
                                 "Number of loads/stores which are untyped");
 
   class DSGraphStats : public FunctionPass, public InstVisitor<DSGraphStats> {
-    void countCallees(const Function &F);
+    void countCallees(const Function* F);
     const DSGraph *TDGraph;
 
     DSNode *getNodeForValue(Value *V);
@@ -83,7 +83,7 @@ static bool isIndirectCallee(Value *V) {
 }
 
 
-void DSGraphStats::countCallees(const Function& F) {
+void DSGraphStats::countCallees(const Function* F) {
   unsigned numIndirectCalls = 0, totalNumCallees = 0;
 
   for (DSGraph::fc_iterator I = TDGraph->fc_begin(), E = TDGraph->fc_end();
@@ -98,7 +98,7 @@ void DSGraphStats::countCallees(const Function& F) {
         ++numIndirectCalls;
       } else {
         DEBUG(errs() << "WARNING: No callee in Function '" 
-	      << F.getNameStr() << "' at call: \n"
+	      << F->getNameStr() << "' at call: \n"
 	      << *I->getCallSite().getInstruction());
       }
     }
@@ -107,7 +107,7 @@ void DSGraphStats::countCallees(const Function& F) {
   NumIndirectCalls += numIndirectCalls;
 
   if (numIndirectCalls) {
-    DEBUG(errs() << "  In function " << F.getName() << ":  "
+    DEBUG(errs() << "  In function " << F->getName() << ":  "
 	  << (totalNumCallees / (double) numIndirectCalls)
 	  << " average callees per indirect call\n");
   }
@@ -150,8 +150,8 @@ void DSGraphStats::visitStore(StoreInst &SI) {
 
 
 bool DSGraphStats::runOnFunction(Function& F) {
-  TDGraph = getAnalysis<TDDataStructures>().getDSGraph(F);
-  countCallees(F);
+  TDGraph = getAnalysis<TDDataStructures>().getDSGraph(&F);
+  countCallees(&F);
   visit(F);
   return true;
 }

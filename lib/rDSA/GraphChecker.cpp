@@ -109,9 +109,9 @@ bool DSGC::doFinalization(Module &M) {
 ///
 bool DSGC::runOnFunction(Function &F) {
   switch (DSPass) {
-  case local: verify(getAnalysis<LocalDataStructures>().getDSGraph(F)); break;
-  case bu:    verify(getAnalysis<BUDataStructures>().getDSGraph(F)); break;
-  case td:    verify(getAnalysis<TDDataStructures>().getDSGraph(F)); break;
+  case local: verify(getAnalysis<LocalDataStructures>().getDSGraph(&F)); break;
+  case bu:    verify(getAnalysis<BUDataStructures>().getDSGraph(&F)); break;
+  case td:    verify(getAnalysis<TDDataStructures>().getDSGraph(&F)); break;
   }
 
   return false;

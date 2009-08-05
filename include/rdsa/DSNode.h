@@ -195,9 +195,7 @@ public:
   /// hasLink - Return true if this memory object has a link in slot LinkNo
   ///
   bool hasLink(unsigned Offset) const {
-    assert((Offset & ((1 << DS::PointerShift)-1)) == 0 &&
-           "Pointer offset not aligned correctly!");
-    unsigned Index = Offset >> DS::PointerShift;
+    unsigned Index = Offset;
     assert(Index < Links.size() && "Link index is out of range!");
     return Links[Index].getNode();
   }
@@ -205,16 +203,12 @@ public:
   /// getLink - Return the link at the specified offset.
   ///
   DSNodeHandle &getLink(unsigned Offset) {
-    assert((Offset & ((1 << DS::PointerShift)-1)) == 0 &&
-           "Pointer offset not aligned correctly!");
-    unsigned Index = Offset >> DS::PointerShift;
+    unsigned Index = Offset;
     assert(Index < Links.size() && "Link index is out of range!");
     return Links[Index];
   }
   const DSNodeHandle &getLink(unsigned Offset) const {
-    assert((Offset & ((1 << DS::PointerShift)-1)) == 0 &&
-           "Pointer offset not aligned correctly!");
-    unsigned Index = Offset >> DS::PointerShift;
+    unsigned Index = Offset;
     assert(Index < Links.size() && "Link index is out of range!");
     return Links[Index];
   }
@@ -264,16 +258,10 @@ public:
   /// instead one of the higher level methods should be used, below.
   ///
   void setLink(unsigned Offset, const DSNodeHandle &NH) {
-    assert((Offset & ((1 << DS::PointerShift)-1)) == 0 &&
-           "Pointer offset not aligned correctly!");
-    unsigned Index = Offset >> DS::PointerShift;
+    unsigned Index = Offset;
     assert(Index < Links.size() && "Link index is out of range!");
     Links[Index] = NH;
   }
-
-  /// getPointerSize - Return the size of a pointer for the current target.
-  ///
-  unsigned getPointerSize() const { return DS::PointerSize; }
 
   /// addEdgeTo - Add an edge from the current node to the specified node.  This
   /// can cause merging of nodes in the graph.

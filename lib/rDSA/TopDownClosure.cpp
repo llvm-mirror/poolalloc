@@ -51,7 +51,7 @@ void TDDataStructures::markReachableFunctionsExternallyAccessible(DSNode *N,
   Visited.insert(N);
 
   for (unsigned i = 0, e = N->getNumLinks(); i != e; ++i) {
-    DSNodeHandle &NH = N->getLink(i*N->getPointerSize());
+    DSNodeHandle &NH = N->getLink(i);
     if (DSNode *NN = NH.getNode()) {
       std::vector<const Function*> Functions;
       NN->addFullFunctionList(Functions);
@@ -112,12 +112,12 @@ bool TDDataStructures::runOnModule(Module &M) {
 
   // Calculate top-down from main...
   if (Function *F = M.getFunction("main"))
-    ComputePostOrder(*F, VisitedGraph, PostOrder);
+    ComputePostOrder(F, VisitedGraph, PostOrder);
 
   // Next calculate the graphs for each unreachable function...
   for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I)
     if (!I->isDeclaration())
-      ComputePostOrder(*I, VisitedGraph, PostOrder);
+      ComputePostOrder(I, VisitedGraph, PostOrder);
 
   VisitedGraph.clear();   // Release memory!
 }
@@ -146,11 +146,11 @@ bool TDDataStructures::runOnModule(Module &M) {
 }
 
 
-void TDDataStructures::ComputePostOrder(const Function &F,
+void TDDataStructures::ComputePostOrder(const Function* F,
                                         hash_set<DSGraph*> &Visited,
                                         std::vector<DSGraph*> &PostOrder) {
-  if (F.isDeclaration()) return;
-  DSGraph* G = getOrCreateGraph(&F);
+  if (F->isDeclaration()) return;
+  DSGraph* G = getOrFetchDSGraph(F);
   if (Visited.count(G)) return;
   Visited.insert(G);
 
@@ -159,7 +159,7 @@ void TDDataStructures::ComputePostOrder(const Function &F,
     Instruction *CallI = CI->getCallSite().getInstruction();
     for (callee_iterator I = callee_begin(CallI),
            E = callee_end(CallI); I != E; ++I)
-      ComputePostOrder(**I, Visited, PostOrder);
+      ComputePostOrder(*I, Visited, PostOrder);
   }
 
   PostOrder.push_back(G);
@@ -287,7 +287,7 @@ void TDDataStructures::InlineCallersIntoGraph(DSGraph* DSG) {
     if (CI->isDirectCall()) {
       if (!CI->getCalleeFunc()->isDeclaration() &&
           !DSG->getReturnNodes().count(CI->getCalleeFunc()))
-        CallerEdges[getOrCreateGraph(CI->getCalleeFunc())]
+        CallerEdges[getOrFetchDSGraph(CI->getCalleeFunc())]
           .push_back(CallerCallEdge(DSG, &*CI, CI->getCalleeFunc()));
       continue;
     }
@@ -298,7 +298,7 @@ void TDDataStructures::InlineCallersIntoGraph(DSGraph* DSG) {
       callee_begin(CallI), IPE = callee_end(CallI);
 
     // Skip over all calls to this graph (SCC calls).
-    while (IPI != IPE && getDSGraph(**IPI) == DSG)
+    while (IPI != IPE && getDSGraph(*IPI) == DSG)
       ++IPI;
 
     // All SCC calls?
@@ -308,14 +308,14 @@ void TDDataStructures::InlineCallersIntoGraph(DSGraph* DSG) {
     ++IPI;
 
     // Skip over more SCC calls.
-    while (IPI != IPE && getDSGraph(**IPI) == DSG)
+    while (IPI != IPE && getDSGraph(*IPI) == DSG)
       ++IPI;
 
     // If there is exactly one callee from this call site, remember the edge in
     // CallerEdges.
     if (IPI == IPE) {
       if (!FirstCallee->isDeclaration())
-        CallerEdges[getOrCreateGraph(FirstCallee)]
+        CallerEdges[getOrFetchDSGraph(FirstCallee)]
           .push_back(CallerCallEdge(DSG, &*CI, FirstCallee));
       continue;
     }
@@ -360,7 +360,7 @@ void TDDataStructures::InlineCallersIntoGraph(DSGraph* DSG) {
       // exactly once.
       DSCallSite *NCS = &IndCallGraph->getFunctionCalls().front();
       for (unsigned i = 0, e = Callees.size(); i != e; ++i) {
-        DSGraph* CalleeGraph = getDSGraph(*Callees[i]);
+        DSGraph* CalleeGraph = getDSGraph(Callees[i]);
         if (CalleeGraph != DSG)
           CallerEdges[CalleeGraph].push_back(CallerCallEdge(IndCallGraph, NCS,
                                                             Callees[i]));

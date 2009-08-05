@@ -72,7 +72,7 @@ SteensgaardDataStructures::runOnModuleInternal(Module &M) {
   //
   for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I) {
     if (!I->isDeclaration()) {
-      ResultGraph->spliceFrom(DS->getDSGraph(*I));
+      ResultGraph->spliceFrom(DS->getDSGraph(I));
     }
   }
 

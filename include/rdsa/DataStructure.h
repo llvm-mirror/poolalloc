@@ -140,23 +140,24 @@ public:
 
   virtual void releaseMemory();
 
-  virtual bool hasDSGraph(const Function &F) const {
-    return DSInfo.find(&F) != DSInfo.end();
+  virtual bool hasDSGraph(const Function* F) const {
+    return DSInfo.find(F) != DSInfo.end();
   }
 
   /// getDSGraph - Return the data structure graph for the specified function.
   ///
-  virtual DSGraph *getDSGraph(const Function &F) const {
-    hash_map<const Function*, DSGraph*>::const_iterator I = DSInfo.find(&F);
+  virtual DSGraph *getDSGraph(const Function* F) const {
+    hash_map<const Function*, DSGraph*>::const_iterator I = DSInfo.find(F);
     assert(I != DSInfo.end() && "Function not in module!");
     return I->second;
   }
 
-  void setDSGraph(const Function& F, DSGraph* G) {
-    DSInfo[&F] = G;
+  void setDSGraph(const Function* F, DSGraph* G) {
+    DSInfo[F] = G;
   }
 
-  DSGraph* getOrCreateGraph(const Function* F);
+  DSGraph* getOrFetchDSGraph(const Function* F);
+
 
   DSGraph* getGlobalsGraph() const { return GlobalsGraph; }
 
@@ -394,7 +395,7 @@ private:
                                                   hash_set<DSNode*> &Visited);
 
   void InlineCallersIntoGraph(DSGraph* G);
-  void ComputePostOrder(const Function &F, hash_set<DSGraph*> &Visited,
+  void ComputePostOrder(const Function* F, hash_set<DSGraph*> &Visited,
                         std::vector<DSGraph*> &PostOrder);
 };
 
@@ -437,11 +438,11 @@ public:
   
   /// getDSGraph - Return the data structure graph for the specified function.
   ///
-  virtual DSGraph *getDSGraph(const Function &F) const {
+  virtual DSGraph *getDSGraph(const Function* F) const {
     return getResultGraph();
   }
   
-  virtual bool hasDSGraph(const Function &F) const {
+  virtual bool hasDSGraph(const Function* F) const {
     return true;
   }
 

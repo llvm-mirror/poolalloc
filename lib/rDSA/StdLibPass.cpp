@@ -181,7 +181,7 @@ void StdLibDataStructures::eraseCallsTo(Function* F) {
        ii != ee; ++ii)
     if (CallInst* CI = dyn_cast<CallInst>(ii))
       if (CI->getOperand(0) == F) {
-        DSGraph* Graph = getDSGraph(*CI->getParent()->getParent());
+        DSGraph* Graph = getDSGraph(CI->getParent()->getParent());
         //delete the call
         DEBUG(errs() << "Removing " << F->getNameStr() << " from " 
 	      << CI->getParent()->getParent()->getNameStr() << "\n");
@@ -195,7 +195,7 @@ bool StdLibDataStructures::runOnModule(Module &M) {
   //Clone Module
   for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I) 
     if (!I->isDeclaration())
-      getOrCreateGraph(&*I);
+      getOrFetchDSGraph(I);
 
   //Trust the readnone annotation
   for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I) 
@@ -224,7 +224,7 @@ bool StdLibDataStructures::runOnModule(Module &M) {
              ii != ee; ++ii)
           if (CallInst* CI = dyn_cast<CallInst>(ii))
             if (CI->getOperand(0) == F) {
-              DSGraph* Graph = getDSGraph(*CI->getParent()->getParent());
+              DSGraph* Graph = getDSGraph(CI->getParent()->getParent());
               if (recFuncs[x].action.read[0])
                 Graph->getNodeForValue(CI).getNode()->setReadMarker();
               if (recFuncs[x].action.write[0])

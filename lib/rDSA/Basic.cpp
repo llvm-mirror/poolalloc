@@ -77,7 +77,7 @@ bool BasicDataStructures::runOnModule(Module &M) {
       Node->foldNodeCompletely();
       Node->maskNodeTypes(DSNode::IncompleteNode);
 
-      setDSGraph(*F, G);
+      setDSGraph(F, G);
     }
   }
  

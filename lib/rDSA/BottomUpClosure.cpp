@@ -52,19 +52,19 @@ bool BUDataStructures::runOnModuleInternal(Module& M) {
   Function *MainFunc = M.getFunction("main");
   if (MainFunc && !MainFunc->isDeclaration()) {
     calculateGraphs(MainFunc, Stack, NextID, ValMap);
-    CloneAuxIntoGlobal(getDSGraph(*MainFunc));
+    CloneAuxIntoGlobal(getDSGraph(MainFunc));
   } else {
     DEBUG(errs() << debugname << ": No 'main' function found!\n");
   }
 
   // Calculate the graphs for any functions that are unreachable from main...
   for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I)
-    if (!I->isDeclaration() && !hasDSGraph(*I)) {
+    if (!I->isDeclaration() && !hasDSGraph(I)) {
       if (MainFunc)
         DEBUG(errs() << debugname << ": Function unreachable from main: "
 	      << I->getName() << "\n");
       calculateGraphs(I, Stack, NextID, ValMap);     // Calculate all graphs.
-      CloneAuxIntoGlobal(getDSGraph(*I));
+      CloneAuxIntoGlobal(getDSGraph(I));
     }
 
   // If we computed any temporary indcallgraphs, free them now.
@@ -97,7 +97,7 @@ bool BUDataStructures::runOnModuleInternal(Module& M) {
   // into the main function's graph so that the main function contains all of
   // the information about global pools and GV usage in the program.
   if (MainFunc && !MainFunc->isDeclaration()) {
-    DSGraph* MainGraph = getOrCreateGraph(MainFunc);
+    DSGraph* MainGraph = getDSGraph(MainFunc);
     const DSGraph* GG = MainGraph->getGlobalsGraph();
     ReachabilityCloner RC(MainGraph, GG,
                           DSGraph::DontCloneCallNodes |
@@ -229,7 +229,7 @@ unsigned BUDataStructures::calculateGraphs(const Function *F,
     return Min;
   }
 
-  DSGraph* Graph = getOrCreateGraph(F);
+  DSGraph* Graph = getOrFetchDSGraph(F);
 
   // Find all callee functions.
   std::vector<const Function*> CalleeFunctions;
@@ -315,7 +315,7 @@ unsigned BUDataStructures::calculateGraphs(const Function *F,
     unsigned SCCSize = 1;
     const Function *NF = Stack.back();
     ValMap[NF] = ~0U;
-    DSGraph* SCCGraph = getDSGraph(*NF);
+    DSGraph* SCCGraph = getDSGraph(NF);
 
     // First thing first, collapse all of the DSGraphs into a single graph for
     // the entire SCC.  Splice all of the graphs into one and discard all of the
@@ -326,13 +326,13 @@ unsigned BUDataStructures::calculateGraphs(const Function *F,
       NF = Stack.back();
       ValMap[NF] = ~0U;
 
-      DSGraph* NFG = getDSGraph(*NF);
+      DSGraph* NFG = getDSGraph(NF);
 
       if (NFG != SCCGraph) {
         // Update the Function -> DSG map.
         for (DSGraph::retnodes_iterator I = NFG->retnodes_begin(),
                E = NFG->retnodes_end(); I != E; ++I)
-          setDSGraph(*I->first, SCCGraph);
+          setDSGraph(I->first, SCCGraph);
         
         SCCGraph->spliceFrom(NFG);
         delete NFG;
@@ -467,11 +467,11 @@ void BUDataStructures::calculateGraph(DSGraph* Graph) {
          ii != ee; ++ii) 
       callee_add(TheCall, *ii);
 
-    if (CalledFuncs.size() == 1 && (isComplete || hasDSGraph(*CalledFuncs[0]))) {
+    if (CalledFuncs.size() == 1 && (isComplete || hasDSGraph(CalledFuncs[0]))) {
       const Function *Callee = CalledFuncs[0];
 
       // Get the data structure graph for the called function.
-      GI = getDSGraph(*Callee);  // Graph to inline
+      GI = getDSGraph(Callee);  // Graph to inline
       DEBUG(GI->AssertGraphOK(); GI->getGlobalsGraph()->AssertGraphOK());
       DEBUG(errs() << "    Inlining graph for " << Callee->getName()
 	    << "[" << GI->getGraphSize() << "+"
@@ -500,7 +500,7 @@ void BUDataStructures::calculateGraph(DSGraph* Graph) {
       
       if (!isComplete) {
         for (unsigned x = 0; x < CalledFuncs.size(); )
-          if (!hasDSGraph(*CalledFuncs[x]))
+          if (!hasDSGraph(CalledFuncs[x]))
             CalledFuncs.erase(CalledFuncs.begin() + x);
           else
             ++x;
@@ -516,7 +516,7 @@ void BUDataStructures::calculateGraph(DSGraph* Graph) {
             E = CalledFuncs.end();
           
           // Start with a copy of the first graph.
-          GI = IndCallGraph.first = new DSGraph(getDSGraph(**I), GlobalECs);
+          GI = IndCallGraph.first = new DSGraph(getDSGraph(*I), GlobalECs);
           GI->setGlobalsGraph(Graph->getGlobalsGraph());
           std::vector<DSNodeHandle> &Args = IndCallGraph.second;
           
@@ -529,7 +529,7 @@ void BUDataStructures::calculateGraph(DSGraph* Graph) {
             // If the graph already contains the nodes for the function, don't
             // bother merging it in again.
             if (!GI->containsFunction(*I)) {
-              GI->cloneInto(getDSGraph(**I));
+              GI->cloneInto(getDSGraph(*I));
               ++NumInlines;
             }
             
@@ -616,11 +616,11 @@ void BUDataStructures::inlineUnresolved(DSGraph* Graph) {
          ii != ee; ++ii)
       callee_add(TheCall, *ii);
 
-    if (CalledFuncs.size() == 1 && hasDSGraph(*CalledFuncs[0])) {
+    if (CalledFuncs.size() == 1 && hasDSGraph(CalledFuncs[0])) {
       const Function *Callee = CalledFuncs[0];
 
       // Get the data structure graph for the called function.
-      GI = getDSGraph(*Callee);  // Graph to inline
+      GI = getDSGraph(Callee);  // Graph to inline
       if (GI == Graph) continue;
       DEBUG(errs() << "    Inlining graph for " << Callee->getName()
 	    << "[" << GI->getGraphSize() << "+"
@@ -646,7 +646,7 @@ void BUDataStructures::inlineUnresolved(DSGraph* Graph) {
       DEBUG(errs() << "\n");
       
       for (unsigned x = 0; x < CalledFuncs.size(); )
-        if (!hasDSGraph(*CalledFuncs[x]))
+        if (!hasDSGraph(CalledFuncs[x]))
           CalledFuncs.erase(CalledFuncs.begin() + x);
         else
           ++x;
@@ -665,7 +665,7 @@ void BUDataStructures::inlineUnresolved(DSGraph* Graph) {
           E = CalledFuncs.end();
         
         // Start with a copy of the first graph.
-        GI = IndCallGraph.first = new DSGraph(getDSGraph(**I), GlobalECs);
+        GI = IndCallGraph.first = new DSGraph(getDSGraph(*I), GlobalECs);
         GI->setGlobalsGraph(Graph->getGlobalsGraph());
         std::vector<DSNodeHandle> &Args = IndCallGraph.second;
         
@@ -678,7 +678,7 @@ void BUDataStructures::inlineUnresolved(DSGraph* Graph) {
           // If the graph already contains the nodes for the function, don't
           // bother merging it in again.
           if (!GI->containsFunction(*I)) {
-            GI->cloneInto(getDSGraph(**I));
+            GI->cloneInto(getDSGraph(*I));
             ++NumInlines;
           }
           

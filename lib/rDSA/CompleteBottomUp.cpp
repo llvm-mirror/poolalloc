@@ -53,7 +53,7 @@ void CompleteBUDataStructures::buildIndirectFunctionSets(Module &M) {
     if (*ii) {
       callee_iterator csi = callee_begin(*ii), cse = callee_end(*ii); 
       if (csi != cse) ++csi;
-      DSGraph* G = getOrCreateGraph((*ii)->getParent()->getParent());
+      DSGraph* G = getOrFetchDSGraph((*ii)->getParent()->getParent());
       for ( ; csi != cse; ++csi) {
         G->getNodeForValue(*csi).mergeWith(G->getNodeForValue((*ii)->getOperand(0)));
         G->getNodeForValue((*ii)->getOperand(0)).getNode()->setGlobalMarker();

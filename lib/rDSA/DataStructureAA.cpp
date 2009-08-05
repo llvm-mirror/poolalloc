@@ -113,11 +113,11 @@ ModulePass *llvm::createDSAAPass() { return new DSAA(); }
 //
 DSGraph *DSAA::getGraphForValue(const Value *V) {
   if (const Instruction *I = dyn_cast<Instruction>(V))
-    return TD->getDSGraph(*I->getParent()->getParent());
+    return TD->getDSGraph(I->getParent()->getParent());
   else if (const Argument *A = dyn_cast<Argument>(V))
-    return TD->getDSGraph(*A->getParent());
+    return TD->getDSGraph(A->getParent());
   else if (const BasicBlock *BB = dyn_cast<BasicBlock>(V))
-    return TD->getDSGraph(*BB->getParent());
+    return TD->getDSGraph(BB->getParent());
   return 0;
 }
 
@@ -178,7 +178,7 @@ DSAA::getModRefInfo(CallSite CS, Value *P, unsigned Size) {
   if (CS.getInstruction() == MapCS.getInstruction()) {
     {
       const Function *Caller = CS.getInstruction()->getParent()->getParent();
-      DSGraph* CallerTDGraph = TD->getDSGraph(*Caller);
+      DSGraph* CallerTDGraph = TD->getDSGraph(Caller);
 
       // Figure out which node in the TD graph this pointer corresponds to.
       DSScalarMap &CallerSM = CallerTDGraph->getScalarMap();
@@ -229,7 +229,7 @@ DSAA::getModRefInfo(CallSite CS, Value *P, unsigned Size) {
     // the portion of the program we have analyzed, we can draw conclusions
     // based on whether the global escapes the program.
     Function *Caller = CS.getInstruction()->getParent()->getParent();
-    DSGraph *G = TD->getDSGraph(*Caller);
+    DSGraph *G = TD->getDSGraph(Caller);
     DSScalarMap::iterator NI = G->getScalarMap().find(P);
     if (NI == G->getScalarMap().end()) {
       // If it wasn't in the local function graph, check the global graph.  This
@@ -251,8 +251,8 @@ DSAA::getModRefInfo(CallSite CS, Value *P, unsigned Size) {
   // Get the graphs for the callee and caller.  Note that we want the BU graph
   // for the callee because we don't want all caller's effects incorporated!
   const Function *Caller = CS.getInstruction()->getParent()->getParent();
-  DSGraph* CallerTDGraph = TD->getDSGraph(*Caller);
-  DSGraph* CalleeBUGraph = BU->getDSGraph(*F);
+  DSGraph* CallerTDGraph = TD->getDSGraph(Caller);
+  DSGraph* CalleeBUGraph = BU->getDSGraph(F);
 
   // Figure out which node in the TD graph this pointer corresponds to.
   DSScalarMap &CallerSM = CallerTDGraph->getScalarMap();

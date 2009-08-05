@@ -30,17 +30,6 @@ class DSNode;                  // Each node in the graph
 class DSGraph;                 // A graph for a function
 class ReachabilityCloner;
 
-namespace DS { // FIXME: After the paper, this should get cleaned up
-  enum { PointerShift = 2,     // 64bit ptrs = 3, 32 bit ptrs = 2
-         PointerSize = 1 << PointerShift
-  };
-
-  /// isPointerType - Return true if this first class type is big enough to hold
-  /// a pointer.
-  ///
-  bool isPointerType(const Type *Ty);
-}
-
 //===----------------------------------------------------------------------===//
 /// DSNodeHandle - Implement a "handle" to a data structure node that takes care
 /// of all of the add/un'refing of the node to prevent the backpointers in the

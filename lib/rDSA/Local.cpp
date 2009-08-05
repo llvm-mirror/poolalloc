@@ -910,7 +910,7 @@ bool LocalDataStructures::runOnModule(Module &M) {
       DSGraph* G = new DSGraph(GlobalECs, getTargetData(), GlobalsGraph);
       GraphBuilderLocal GGB(*I, G->getOrCreateReturnNodeFor(*I), G, *this);
       G->getAuxFunctionCalls() = G->getFunctionCalls();
-      setDSGraph(*I, G);
+      setDSGraph(I, G);
       propagateUnknownFlag(G);
     }
 
