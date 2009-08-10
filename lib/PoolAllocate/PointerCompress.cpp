@@ -268,7 +268,7 @@ ComputeCompressedType(const Type *OrigTy, unsigned NodeOffset,
       Elements.push_back(ComputeCompressedType(STy->getElementType(i),
                                                NodeOffset+SL->getElementOffset(i),
                                                Nodes));
-    return StructType::get(Elements);
+    return StructType::get(STy->getContext(),Elements);
   } else if (const ArrayType *ATy = dyn_cast<ArrayType>(OrigTy)) {
     return ArrayType::get(ComputeCompressedType(ATy->getElementType(),
                                                 NodeOffset, Nodes),
@@ -287,7 +287,7 @@ Value *CompressedPoolInfo::EmitPoolBaseLoad(Instruction &I) const {
     assert(PoolBase == 0 && "Mixing and matching optimized vs not!");
     
     // Get the pool base pointer.
-    Constant *Zero = getGlobalContext().getConstantInt(Type::Int32Ty, 0);
+    Constant *Zero = ConstantInt::get(Type::Int32Ty, 0);
     Value *Opts[2] = {Zero, Zero};
     Value *BasePtrPtr = GetElementPtrInst::Create(getPoolDesc(), Opts, Opts + 2,
                                               "poolbaseptrptr", &I);
@@ -299,7 +299,7 @@ Value *CompressedPoolInfo::EmitPoolBaseLoad(Instruction &I) const {
                           isa<GlobalVariable>(PoolDesc))) {
       BasicBlock::iterator IP = I.getParent()->getParent()->begin()->begin();
       while (isa<AllocaInst>(IP)) ++IP;
-      Constant *Zero = getGlobalContext().getConstantInt(Type::Int32Ty, 0);
+      Constant *Zero = ConstantInt::get(Type::Int32Ty, 0);
       Value *Opts[2] = {Zero, Zero};
       Value *BasePtrPtr = GetElementPtrInst::Create(getPoolDesc(), Opts, Opts + 2,
                                                 "poolbaseptrptr", IP);
@@ -383,7 +383,7 @@ namespace {
     /// value, creating a new forward ref value as needed.
     Value *getTransformedValue(Value *V) {
       if (isa<ConstantPointerNull>(V))                // null -> uint 0
-        return getGlobalContext().getConstantInt(SCALARUINTTYPE, 0);
+        return ConstantInt::get(SCALARUINTTYPE, 0);
       if (isa<UndefValue>(V))                // undef -> uint undef
         return UndefValue::get(SCALARUINTTYPE);
 
@@ -713,7 +713,7 @@ void InstructionRewriter::visitGetElementPtrInst(GetElementPtrInst &GEPI) {
       if (Field) {
         uint64_t FieldOffs = TD.getStructLayout(cast<StructType>(NTy))
           ->getElementOffset(Field);
-        Constant *FieldOffsCst = getGlobalContext().getConstantInt(SCALARUINTTYPE, FieldOffs);
+        Constant *FieldOffsCst = ConstantInt::get(SCALARUINTTYPE, FieldOffs);
         Val = BinaryOperator::CreateAdd(Val, FieldOffsCst,
                                         GEPI.getName(), &GEPI);
       }
@@ -732,8 +732,8 @@ void InstructionRewriter::visitGetElementPtrInst(GetElementPtrInst &GEPI) {
         if (Idx->getType() != SCALARUINTTYPE)
           Idx = CastInst::CreateSExtOrBitCast(Idx, SCALARUINTTYPE, Idx->getName(), &GEPI);
 
-        Constant *Scale = getGlobalContext().getConstantInt(SCALARUINTTYPE,
-                                            TD.getTypeAllocSize(ElTy));
+        Constant *Scale = ConstantInt::get(SCALARUINTTYPE,
+					   TD.getTypeAllocSize(ElTy));
         Idx = BinaryOperator::CreateMul(Idx, Scale, "fieldidx", &GEPI);
         Val = BinaryOperator::CreateAdd(Val, Idx, GEPI.getName(), &GEPI);
       }
@@ -828,7 +828,7 @@ void InstructionRewriter::visitStoreInst(StoreInst &SI) {
     }
   } else {
     // FIXME: This assumes that all null pointers are compressed!
-    SrcVal = getGlobalContext().getConstantInt(MEMUINTTYPE, 0);
+    SrcVal = ConstantInt::get(MEMUINTTYPE, 0);
   }
   
   // Get the pool base pointer.
@@ -862,11 +862,11 @@ void InstructionRewriter::visitPoolInit(CallInst &CI) {
   std::vector<Value*> Ops;
   Ops.push_back(CI.getOperand(1));
   // Transform to pass in the compressed size.
-  Ops.push_back(getGlobalContext().getConstantInt(Type::Int32Ty, PI->getNewSize()));
+  Ops.push_back(ConstantInt::get(Type::Int32Ty, PI->getNewSize()));
 
   // Pointer compression can reduce the alignment restriction to 4 bytes from 8.
   // Reevaluate the desired alignment.
-  Ops.push_back(getGlobalContext().getConstantInt(Type::Int32Ty,
+  Ops.push_back(ConstantInt::get(Type::Int32Ty,
              PA::Heuristic::getRecommendedAlignment(PI->getNewType(), TD)));
   // TODO: Compression could reduce the alignment restriction for the pool!
   Value *PB = CallInst::Create(PtrComp.PoolInitPC, Ops.begin(), Ops.end(), "", &CI);
@@ -901,11 +901,12 @@ void InstructionRewriter::visitPoolAlloc(CallInst &CI) {
     if (OldSizeV != PI->getNewSize()) {
       // Emit code to scale the allocated size down by the old size then up by
       // the new size.  We actually compute (N+OS-1)/OS * NS.
-      Value *OldSize = getGlobalContext().getConstantInt(Type::Int32Ty, OldSizeV);
-      Value *NewSize = getGlobalContext().getConstantInt(Type::Int32Ty, PI->getNewSize());
+      Value *OldSize = ConstantInt::get(Type::Int32Ty, OldSizeV);
+      Value *NewSize = ConstantInt::get(Type::Int32Ty, PI->getNewSize());
 
       Size = BinaryOperator::CreateAdd(Size,
-                                  getGlobalContext().getConstantInt(Type::Int32Ty, OldSizeV-1),
+				       ConstantInt::get(Type::Int32Ty, 
+							OldSizeV-1),
                                        "roundup", &CI);
       Size = BinaryOperator::CreateUDiv(Size, OldSize, "numnodes", &CI);
       Size = BinaryOperator::CreateMul(Size, NewSize, "newbytes", &CI);
@@ -1185,7 +1186,7 @@ void PointerCompress::FindPoolsToCompress(std::set<const DSNode*> &Pools,
                                           Value*> &PreassignedPools,
                                           Function &F, DSGraph* DSG,
                                           PA::FuncInfo *FI) {
-  DEBUG(std::cerr << "In function '" << F.getName() << "':\n");
+  DEBUG(std::cerr << "In function '" << F.getNameStr() << "':\n");
   for (unsigned i = 0, e = FI->NodesToPA.size(); i != e; ++i) {
     const DSNode *N = FI->NodesToPA[i];
 
@@ -1251,7 +1252,7 @@ CompressPoolsInFunction(Function &F,
 
   if (FI == 0) {
     std::cerr << "DIDN'T FIND POOL INFO FOR: "
-              << *F.getType() << F.getName() << "!\n";
+              << *F.getType() << F.getNameStr() << "!\n";
     return false;
   }
 
@@ -1302,7 +1303,7 @@ CompressPoolsInFunction(Function &F,
   // particular, if one pool points to another, we need to know if the outgoing
   // pointer is compressed.
   const TargetData &TD = DSG->getTargetData();
-  std::cerr << "In function '" << F.getName() << "':\n";
+  std::cerr << "In function '" << F.getNameStr() << "':\n";
   for (std::map<const DSNode*, CompressedPoolInfo>::iterator
          I = PoolsToCompress.begin(), E = PoolsToCompress.end(); I != E; ++I) {
 
@@ -1311,7 +1312,7 @@ CompressPoolsInFunction(Function &F,
     // Only dump info about a compressed pool if this is the home for it.
     if (isa<AllocaInst>(I->second.getPoolDesc()) ||
         (isa<GlobalValue>(I->second.getPoolDesc()) &&
-         F.hasExternalLinkage() && F.getName() == "main")) {
+         F.hasExternalLinkage() && F.getNameStr() == "main")) {
       std::cerr << "  COMPRESSING POOL:\nPCS:";
       I->second.dump();
     }
@@ -1356,7 +1357,7 @@ GetExtFunctionClone(Function *F, const std::vector<unsigned> &ArgsToComp) {
 
   // Next, create the clone prototype and insert it into the module.
   Clone = Function::Create (CFTy, GlobalValue::ExternalLinkage,
-                       F->getName()+"_pc");
+                       F->getNameStr()+"_pc");
   F->getParent()->getFunctionList().insert(F, Clone);
   return Clone;
 }
@@ -1402,7 +1403,7 @@ GetFunctionClone(Function *F, std::set<const DSNode*> &PoolsToCompress,
 
   // Next, create the clone prototype and insert it into the module.
   Clone = Function::Create (CFTy, GlobalValue::InternalLinkage,
-                            F->getName()+".pc");
+                            F->getNameStr()+".pc");
   F->getParent()->getFunctionList().insert(F, Clone);
 
   // Remember where this clone came from.
@@ -1410,8 +1411,8 @@ GetFunctionClone(Function *F, std::set<const DSNode*> &PoolsToCompress,
     ClonedFunctionInfoMap.insert(std::make_pair(Clone, F)).first->second;
 
   ++NumCloned;
-  std::cerr << " CLONING FUNCTION: " << F->getName() << " -> "
-            << Clone->getName() << "\n";
+  std::cerr << " CLONING FUNCTION: " << F->getNameStr() << " -> "
+            << Clone->getNameStr() << "\n";
 
   if (F->isDeclaration()) {
     Clone->setLinkage(GlobalValue::ExternalLinkage);
@@ -1430,7 +1431,7 @@ GetFunctionClone(Function *F, std::set<const DSNode*> &PoolsToCompress,
   for (Function::arg_iterator I = F->arg_begin(), E = F->arg_end();
        I != E; ++I, ++CI) {
     // Transfer the argument names over.
-    CI->setName(I->getName());
+    CI->setName(I->getNameStr());
 
     // If we are compressing this argument, set up RemappedArgs.
     if (CI->getType() != I->getType()) {

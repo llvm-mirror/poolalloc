@@ -307,7 +307,7 @@ OptimizePointerNotNull(Value *V, LLVMContext * Context) {
       if (isa<Constant>(User->getOperand(1)) && 
           cast<Constant>(User->getOperand(1))->isNullValue()) {
         bool CondIsTrue = ICI->getPredicate() == ICmpInst::ICMP_NE;
-        User->replaceAllUsesWith(Context->getConstantInt(Type::Int1Ty, CondIsTrue));
+        User->replaceAllUsesWith(ConstantInt::get(Type::Int1Ty, CondIsTrue));
       }
     } else if ((User->getOpcode() == Instruction::Trunc) ||
                (User->getOpcode() == Instruction::ZExt) ||
@@ -613,7 +613,7 @@ GlobalVariable *PoolAllocate::CreateGlobalPool(unsigned RecSize, unsigned Align,
   GlobalVariable *GV =
     new GlobalVariable(*CurModule,
                        PoolDescType, false, GlobalValue::InternalLinkage, 
-                       getGlobalContext().getConstantAggregateZero(PoolDescType), "GlobalPool");
+                       ConstantAggregateZero::get(PoolDescType), "GlobalPool");
 
   // Update the global DSGraph to include this.
   DSNode *GNode = Graphs->getGlobalsGraph()->addObjectToGraph(GV);
@@ -630,8 +630,8 @@ GlobalVariable *PoolAllocate::CreateGlobalPool(unsigned RecSize, unsigned Align,
     while (isa<AllocaInst>(InsertPt)) ++InsertPt;
   }
 
-  Value *ElSize = getGlobalContext().getConstantInt(Type::Int32Ty, RecSize);
-  Value *AlignV = getGlobalContext().getConstantInt(Type::Int32Ty, Align);
+  Value *ElSize = ConstantInt::get(Type::Int32Ty, RecSize);
+  Value *AlignV = ConstantInt::get(Type::Int32Ty, Align);
   Value* Opts[3] = {GV, ElSize, AlignV};
   CallInst::Create(PoolInit, Opts, Opts + 3, "", InsertPt);
   ++NumPools;
@@ -660,7 +660,7 @@ void PoolAllocate::CreatePools(Function &F, DSGraph* DSG,
 
   // Is this main?  If so, make the pool descriptors globals, not automatic
   // vars.
-  bool IsMain = F.getName() == "main" && F.hasExternalLinkage();
+  bool IsMain = F.getNameStr() == "main" && F.hasExternalLinkage();
 
   // Perform all global assignments as specified.
   for (unsigned i = 0, e = ResultPools.size(); i != e; ++i) {
@@ -744,11 +744,11 @@ void PoolAllocate::ProcessFunctionBody(Function &F, Function &NewF) {
   }
 
   if (!FI.NodesToPA.empty()) {
-    std::cerr << "[" << F.getName() << "] " << FI.NodesToPA.size()
+    std::cerr << "[" << F.getNameStr() << "] " << FI.NodesToPA.size()
               << " nodes pool allocatable\n";
     CreatePools(NewF, G, FI.NodesToPA, FI.PoolDescriptors);
   } else {
-    DEBUG(std::cerr << "[" << F.getName() << "] transforming body.\n");
+    DEBUG(std::cerr << "[" << F.getNameStr() << "] transforming body.\n");
   }
   
   // Transform the body of the function now... collecting information about uses
@@ -850,11 +850,11 @@ void PoolAllocate::InitializeAndDestroyPool(Function &F, const DSNode *Node,
   InitializedBefore.clear();
   DestroyedAfter.clear();
     
-  DEBUG(std::cerr << "POOL: " << PD->getName() << " information:\n");
+  DEBUG(std::cerr << "POOL: " << PD->getNameStr() << " information:\n");
   DEBUG(std::cerr << "  Live in blocks: ");
   DEBUG(for (std::set<BasicBlock*>::iterator I = LiveBlocks.begin(),
                E = LiveBlocks.end(); I != E; ++I)
-          std::cerr << (*I)->getName() << " ");
+          std::cerr << (*I)->getNameStr() << " ");
   DEBUG(std::cerr << "\n");
     
  
@@ -869,7 +869,7 @@ void PoolAllocate::InitializeAndDestroyPool(Function &F, const DSNode *Node,
       /*empty*/;
     PoolInitPoints.push_back(InsertPoint);
 
-    if (F.getName() != "main")
+    if (F.getNameStr() != "main")
       for (Function::iterator BB = F.begin(), E = F.end(); BB != E; ++BB)
         if (isa<ReturnInst>(BB->getTerminator()) ||
             isa<UnwindInst>(BB->getTerminator()))
@@ -961,14 +961,14 @@ void PoolAllocate::InitializeAndDestroyPool(Function &F, const DSNode *Node,
 
   // Insert the calls to initialize the pool.
   unsigned ElSizeV = Heuristic::getRecommendedSize(Node);
-  Value *ElSize = getGlobalContext().getConstantInt(Type::Int32Ty, ElSizeV);
+  Value *ElSize = ConstantInt::get(Type::Int32Ty, ElSizeV);
   unsigned AlignV = Heuristic::getRecommendedAlignment(Node);
-  Value *Align  = getGlobalContext().getConstantInt(Type::Int32Ty, AlignV);
+  Value *Align  = ConstantInt::get(Type::Int32Ty, AlignV);
 
   for (unsigned i = 0, e = PoolInitPoints.size(); i != e; ++i) {
     Value* Opts[3] = {PD, ElSize, Align};
     CallInst::Create(PoolInit, Opts, Opts + 3,  "", PoolInitPoints[i]);
-    DEBUG(std::cerr << PoolInitPoints[i]->getParent()->getName() << " ");
+    DEBUG(std::cerr << PoolInitPoints[i]->getParent()->getNameStr() << " ");
   }
 
   DEBUG(std::cerr << "\n  Destroy in blocks: ");
@@ -977,7 +977,7 @@ void PoolAllocate::InitializeAndDestroyPool(Function &F, const DSNode *Node,
   for (unsigned i = 0, e = PoolDestroyPoints.size(); i != e; ++i) {
     // Insert the pooldestroy call for this pool.
     CallInst::Create(PoolDestroy, PD, "", PoolDestroyPoints[i]);
-    DEBUG(std::cerr << PoolDestroyPoints[i]->getParent()->getName()<<" ");
+    DEBUG(std::cerr << PoolDestroyPoints[i]->getParent()->getNameStr()<<" ");
   }
   DEBUG(std::cerr << "\n\n");
 

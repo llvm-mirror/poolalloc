@@ -141,16 +141,16 @@ PoolAllocateMultipleGlobalPool::ProcessFunctionBodySimple (Function& F, TargetDa
         Value * AllocSize;
         if (MI->isArrayAllocation()) {
           Value * NumElements = MI->getArraySize();
-          Value * ElementSize = getGlobalContext().getConstantInt (Type::Int32Ty,
-                                                  TD.getTypeAllocSize(MI->getAllocatedType()));
+          Value * ElementSize = ConstantInt::get(Type::Int32Ty,
+						 TD.getTypeAllocSize(MI->getAllocatedType()));
           AllocSize = BinaryOperator::Create (Instruction::Mul,
                                               ElementSize,
                                               NumElements,
                                               "sizetmp",
                                               MI);
         } else {
-          AllocSize = getGlobalContext().getConstantInt (Type::Int32Ty,
-                                        TD.getTypeAllocSize(MI->getAllocatedType()));
+          AllocSize = ConstantInt::get(Type::Int32Ty,
+				       TD.getTypeAllocSize(MI->getAllocatedType()));
         }
 
         Value* args[] = {Pool, AllocSize};
@@ -340,8 +340,7 @@ PoolAllocateMultipleGlobalPool::CreateGlobalPool (unsigned RecSize,
   ArrayType * LLVMUsedTy = ArrayType::get(VoidPtrTy, 1);
   Constant * C = ConstantExpr::getBitCast (cast<Constant>(InitFunc), VoidPtrTy);
   std::vector<Constant*> UsedFunctions(1,C);
-  Constant * NewInit = 
-    getGlobalContext().getConstantArray (LLVMUsedTy, UsedFunctions);
+  Constant * NewInit = ConstantArray::get(LLVMUsedTy, UsedFunctions);
 
   new GlobalVariable (M, LLVMUsedTy, false,
       GlobalValue::AppendingLinkage,
@@ -392,11 +391,10 @@ PoolAllocateMultipleGlobalPool::generatePool(unsigned RecSize,
       new GlobalVariable
       (M,
        getPoolType(), false, GlobalValue::ExternalLinkage, 
-       getGlobalContext().getConstantAggregateZero(getPoolType()),
-       "__poolalloc_GlobalPool");
+       ConstantAggregateZero::get(getPoolType()), "__poolalloc_GlobalPool");
 
-    Value *ElSize = getGlobalContext().getConstantInt(Type::Int32Ty, RecSize);
-    Value *AlignV = getGlobalContext().getConstantInt(Type::Int32Ty, Align);
+    Value *ElSize = ConstantInt::get(Type::Int32Ty, RecSize);
+    Value *AlignV = ConstantInt::get(Type::Int32Ty, Align);
     Value* Opts[3] = {GV, ElSize, AlignV};
     
     CallInst::Create(PoolInit, Opts, Opts + 3, "", InsertAtEnd);
@@ -420,7 +418,7 @@ PoolAllocateMultipleGlobalPool::getPool (const DSNode * N, Function & F) {
 void
 PoolAllocateMultipleGlobalPool::print(std::ostream &OS, const Module * M) const {
   for (PoolMapTy::const_iterator I = PoolMap.begin(), E = PoolMap.end(); I != E; ++I) {
-     OS << I->first << " -> " << I->second->getName() << "\n";
+     OS << I->first << " -> " << I->second->getNameStr() << "\n";
   } 
 }
 

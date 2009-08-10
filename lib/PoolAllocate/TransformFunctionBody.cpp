@@ -215,8 +215,8 @@ void FuncTransform::visitMallocInst(MallocInst &MI) {
   if (PH == 0 || isa<ConstantPointerNull>(PH)) return;
 
   TargetData &TD = PAInfo.getAnalysis<TargetData>();
-  Value *AllocSize = getGlobalContext().getConstantInt(Type::Int32Ty,
-                                                       TD.getTypeAllocSize(MI.getAllocatedType()));
+  Value *AllocSize = ConstantInt::get(Type::Int32Ty,
+				      TD.getTypeAllocSize(MI.getAllocatedType()));
 
   if (MI.isArrayAllocation())
     AllocSize = BinaryOperator::Create(Instruction::Mul, AllocSize,
@@ -273,7 +273,7 @@ void FuncTransform::visitAllocaInst(AllocaInst &MI) {
     Value *PH = getPoolHandle(&MI);
     if (PH == 0 || isa<ConstantPointerNull>(PH)) return;
     TargetData &TD = PAInfo.getAnalysis<TargetData>();
-    Value *AllocSize = getGlobalContext().getConstantInt(Type::Int32Ty, TD.getTypeAllocSize(MI.getAllocatedType()));
+    Value *AllocSize = ConstantInt::get(Type::Int32Ty, TD.getTypeAllocSize(MI.getAllocatedType()));
     
     if (MI.isArrayAllocation())
       AllocSize = BinaryOperator::Create(Instruction::Mul, AllocSize,
@@ -367,8 +367,8 @@ void FuncTransform::visitCallocCall(CallSite CS) {
                        BBI);
   
   // We know that the memory returned by poolalloc is at least 4 byte aligned.
-  Value* Opts[4] = {Ptr, getGlobalContext().getConstantInt(Type::Int8Ty, 0),
-                    V2,  getGlobalContext().getConstantInt(Type::Int32Ty, 4)};
+  Value* Opts[4] = {Ptr, ConstantInt::get(Type::Int8Ty, 0),
+                    V2,  ConstantInt::get(Type::Int32Ty, 4)};
   CallInst::Create(MemSet, Opts, Opts + 4, "", BBI);
 }
 
@@ -728,7 +728,7 @@ void FuncTransform::visitCallSite(CallSite& CS) {
   // pool descriptors to pass in...
   std::vector<Value*> Args;
   for (unsigned i = 0, e = ArgNodes.size(); i != e; ++i) {
-    Value *ArgVal = getGlobalContext().getConstantAggregateZero(PoolAllocate::PoolDescPtrTy);
+    Value *ArgVal = ConstantAggregateZero::get(PoolAllocate::PoolDescPtrTy);
     if (NodeMapping.count(ArgNodes[i]))
       if (DSNode *LocalNode = NodeMapping[ArgNodes[i]].getNode())
         if (FI.PoolDescriptors.count(LocalNode))
@@ -743,8 +743,8 @@ void FuncTransform::visitCallSite(CallSite& CS) {
                                    0,
                                    "PD",
                                    InsertPt);
-          Value *ElSize = getGlobalContext().getConstantInt(Type::Int32Ty,0);
-          Value *Align  = getGlobalContext().getConstantInt(Type::Int32Ty,0);
+          Value *ElSize = ConstantInt::get(Type::Int32Ty,0);
+          Value *Align  = ConstantInt::get(Type::Int32Ty,0);
           Value* Opts[3] = {ArgVal, ElSize, Align};
           CallInst::Create(PAInfo.PoolInit, Opts, Opts + 3,"", TheCall);
           BasicBlock::iterator BBI = TheCall;

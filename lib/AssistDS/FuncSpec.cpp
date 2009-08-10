@@ -40,11 +40,11 @@ namespace {
             if (const PointerType* Ty = dyn_cast<PointerType>(ii->getType())) {
               if (isa<FunctionType>(Ty->getElementType())) {
                 FPArgs.push_back(ii->getArgNo());
-                cerr << "Eligable: " << I->getName() << "\n";
+                cerr << "Eligable: " << I->getNameStr() << "\n";
               }
             } else if (isa<FunctionType>(ii->getType())) {
               FPArgs.push_back(ii->getArgNo());
-              cerr << "Eligable: " << I->getName() << "\n";
+              cerr << "Eligable: " << I->getNameStr() << "\n";
             }
           for(Value::use_iterator ui = I->use_begin(), ue = I->use_end();
               ui != ue; ++ui)
@@ -66,7 +66,7 @@ namespace {
 
       for (std::map<std::pair<Function*, std::vector<std::pair<unsigned, Constant*> > >, Function* >::iterator I = toClone.begin(), E = toClone.end(); I != E; ++I) {
         Function* DirectF = CloneFunction(I->first.first);
-        DirectF->setName(I->first.first->getName() + "_SPEC");
+        DirectF->setName(I->first.first->getNameStr() + "_SPEC");
         DirectF->setLinkage(GlobalValue::InternalLinkage);
         I->first.first->getParent()->getFunctionList().push_back(DirectF);
         I->second = DirectF;

@@ -179,16 +179,16 @@ PoolAllocateSimple::ProcessFunctionBodySimple (Function& F, TargetData & TD) {
         Value * AllocSize;
         if (MI->isArrayAllocation()) {
           Value * NumElements = MI->getArraySize();
-          Value * ElementSize = getGlobalContext().getConstantInt (Type::Int32Ty,
-                                                  TD.getTypeAllocSize(MI->getAllocatedType()));
+          Value * ElementSize = ConstantInt::get(Type::Int32Ty,
+						 TD.getTypeAllocSize(MI->getAllocatedType()));
           AllocSize = BinaryOperator::Create (Instruction::Mul,
                                               ElementSize,
                                               NumElements,
                                               "sizetmp",
                                               MI);
         } else {
-          AllocSize = getGlobalContext().getConstantInt (Type::Int32Ty,
-                                        TD.getTypeAllocSize(MI->getAllocatedType()));
+          AllocSize = ConstantInt::get(Type::Int32Ty,
+				       TD.getTypeAllocSize(MI->getAllocatedType()));
         }
 
         Value* args[] = {TheGlobalPool, AllocSize};
@@ -355,16 +355,16 @@ PoolAllocateSimple::CreateGlobalPool (unsigned RecSize,
   GlobalVariable *GV =
     new GlobalVariable(M,
                        getPoolType(), false, GlobalValue::ExternalLinkage, 
-                       getGlobalContext().getConstantAggregateZero(getPoolType()),
-                                              "__poolalloc_GlobalPool");
+                       ConstantAggregateZero::get(getPoolType()),
+		       "__poolalloc_GlobalPool");
 
   Function *InitFunc = Function::Create
     (FunctionType::get(Type::VoidTy, std::vector<const Type*>(), false),
     GlobalValue::ExternalLinkage, "__poolalloc_init", &M);
 
   BasicBlock * BB = BasicBlock::Create("entry", InitFunc);
-  Value *ElSize = getGlobalContext().getConstantInt(Type::Int32Ty, RecSize);
-  Value *AlignV = getGlobalContext().getConstantInt(Type::Int32Ty, Align);
+  Value *ElSize = ConstantInt::get(Type::Int32Ty, RecSize);
+  Value *AlignV = ConstantInt::get(Type::Int32Ty, Align);
   Value* Opts[3] = {GV, ElSize, AlignV};
   CallInst::Create(PoolInit, Opts, Opts + 3, "", BB);
 

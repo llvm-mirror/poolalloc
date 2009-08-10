@@ -586,7 +586,7 @@ bool DSNode::mergeTypeInfo(const Type *NewTy, unsigned Offset,
         STy = cast<StructType>(NewTy);
         nt.insert(nt.end(), STy->element_begin(), STy->element_end());
         //and merge
-        STy = StructType::get(nt);
+        STy = StructType::get(STy->getContext(), nt);
         DOUT << "Trying with: " << *STy << "\n";
         return mergeTypeInfo(STy, 0);
       }
@@ -610,7 +610,7 @@ bool DSNode::mergeTypeInfo(const Type *NewTy, unsigned Offset,
           nt.push_back(STy->getElementType(x));
         nt.push_back(NewTy);
         //and merge
-        STy = StructType::get(nt);
+        STy = StructType::get(STy->getContext(), nt);
         DOUT << "Trying with: " << *STy << "\n";
         return mergeTypeInfo(STy, 0);
       }

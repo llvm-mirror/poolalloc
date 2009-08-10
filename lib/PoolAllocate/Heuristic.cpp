@@ -441,7 +441,7 @@ static Value *getDynamicallyNullPool(BasicBlock::iterator I) {
   if (!NullGlobal) {
     Module *M = I->getParent()->getParent()->getParent();
     const Type * PoolTy = PoolAllocate::PoolDescPtrTy;
-    Constant * Init = getGlobalContext().getConstantAggregateZero (PoolTy);
+    Constant * Init = ConstantAggregateZero::get(PoolTy);
     NullGlobal = new GlobalVariable(*M,
                                     PoolAllocate::PoolDescPtrTy, false,
                                     GlobalValue::ExternalLinkage,
