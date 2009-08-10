@@ -240,7 +240,7 @@ private:
 public:
   // Create a new, empty, DSGraph.
   DSGraph(EquivalenceClasses<const GlobalValue*> &ECs, const TargetData &td,
-          DSGraph *GG = 0) 
+          DSGraph *GG) 
     :GlobalsGraph(GG), PrintAuxCalls(false), 
      ScalarMap(ECs), TD(td)
   { }
@@ -254,11 +254,10 @@ public:
   // method.
   //
   DSGraph( DSGraph* DSG, EquivalenceClasses<const GlobalValue*> &ECs,
-          unsigned CloneFlags = 0);
+	   DSGraph *GG, unsigned CloneFlags);
   ~DSGraph();
 
   DSGraph *getGlobalsGraph() const { return GlobalsGraph; }
-  void setGlobalsGraph(DSGraph *G) { GlobalsGraph = G; }
 
   /// getGlobalECs - Return the set of equivalence classes that the global
   /// variables in the program form.
