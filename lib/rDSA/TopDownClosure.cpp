@@ -344,7 +344,7 @@ void TDDataStructures::InlineCallersIntoGraph(DSGraph* DSG) {
       IndCallGraph = IndCallRecI->second;
     } else {
       // Otherwise, create a new DSGraph to represent this.
-      IndCallGraph = new DSGraph(DSG->getGlobalECs(), DSG->getTargetData());
+      IndCallGraph = new DSGraph(DSG->getGlobalECs(), DSG->getTargetData(), GlobalsGraph);
       // Make a nullary dummy call site, which will eventually get some content
       // merged into it.  The actual callee function doesn't matter here, so we
       // just pass it something to keep the ctor happy.

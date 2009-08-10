@@ -516,8 +516,8 @@ void BUDataStructures::calculateGraph(DSGraph* Graph) {
             E = CalledFuncs.end();
           
           // Start with a copy of the first graph.
-          GI = IndCallGraph.first = new DSGraph(getDSGraph(*I), GlobalECs);
-          GI->setGlobalsGraph(Graph->getGlobalsGraph());
+          GI = IndCallGraph.first = 
+	    new DSGraph(getDSGraph(*I), GlobalECs, Graph->getGlobalsGraph(), 0);
           std::vector<DSNodeHandle> &Args = IndCallGraph.second;
           
           // Get the argument nodes for the first callee.  The return value is
@@ -665,8 +665,8 @@ void BUDataStructures::inlineUnresolved(DSGraph* Graph) {
           E = CalledFuncs.end();
         
         // Start with a copy of the first graph.
-        GI = IndCallGraph.first = new DSGraph(getDSGraph(*I), GlobalECs);
-        GI->setGlobalsGraph(Graph->getGlobalsGraph());
+        GI = IndCallGraph.first = 
+	  new DSGraph(getDSGraph(*I), GlobalECs, Graph->getGlobalsGraph(), 0);
         std::vector<DSNodeHandle> &Args = IndCallGraph.second;
         
         // Get the argument nodes for the first callee.  The return value is

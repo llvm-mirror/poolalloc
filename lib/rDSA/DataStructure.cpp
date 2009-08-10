@@ -1420,8 +1420,8 @@ std::string DSGraph::getFunctionNames() const {
 
 
 DSGraph::DSGraph(DSGraph* G, EquivalenceClasses<const GlobalValue*> &ECs,
-                 unsigned CloneFlags)
-  : GlobalsGraph(0), ScalarMap(ECs), TD(G->TD) {
+                 DSGraph* GG, unsigned CloneFlags)
+  : GlobalsGraph(GG), ScalarMap(ECs), TD(G->TD) {
   PrintAuxCalls = false;
   cloneInto(G, CloneFlags);
 }
@@ -2684,7 +2684,7 @@ void DataStructures::copyValue(Value *From, Value *To) {
   if (Function *FromF = dyn_cast<Function>(From)) {
     Function *ToF = cast<Function>(To);
     assert(!DSInfo.count(ToF) && "New Function already exists!");
-    DSGraph *NG = new DSGraph(getDSGraph(FromF), GlobalECs);
+    DSGraph *NG = new DSGraph(getDSGraph(FromF), GlobalECs, GlobalsGraph, 0);
     DSInfo[ToF] = NG;
     assert(NG->getReturnNodes().size() == 1 && "Cannot copy SCC's yet!");
     
@@ -2713,15 +2713,16 @@ DSGraph* DataStructures::getOrFetchDSGraph(const Function* F) {
     //Clone or Steal the Source Graph
     DSGraph* BaseGraph = GraphSource->getDSGraph(F);
     if (Clone) {
-      G = new DSGraph(BaseGraph, GlobalECs, DSGraph::DontCloneAuxCallNodes);
+      G = new DSGraph(BaseGraph, GlobalECs, GlobalsGraph, 
+		      DSGraph::DontCloneAuxCallNodes);
     } else {
-      G = new DSGraph(GlobalECs, GraphSource->getTargetData());
+      G = new DSGraph(GlobalECs, GraphSource->getTargetData(),
+		      GlobalsGraph);
       G->spliceFrom(BaseGraph);
       if (resetAuxCalls) 
         G->getAuxFunctionCalls() = G->getFunctionCalls();
     }
     G->setPrintAuxCalls();
-    G->setGlobalsGraph(GlobalsGraph);
     
     // Note that this graph is the graph for ALL of the function in the SCC, not
     // just F.
@@ -2838,7 +2839,7 @@ void DataStructures::init(DataStructures* D, bool clone, bool printAuxCalls,
   TD = D->TD;
   ActualCallees = D->ActualCallees;
   GlobalECs = D->getGlobalECs();
-  GlobalsGraph = new DSGraph(D->getGlobalsGraph(), GlobalECs, 
+  GlobalsGraph = new DSGraph(D->getGlobalsGraph(), GlobalECs, 0,
                              copyGlobalAuxCalls?0:DSGraph::DontCloneAuxCallNodes);
   if (printAuxCalls) GlobalsGraph->setPrintAuxCalls();
 
@@ -2853,7 +2854,7 @@ void DataStructures::init(TargetData* T) {
   GraphSource = 0;
   Clone = false;
   TD = T;
-  GlobalsGraph = new DSGraph(GlobalECs, *T);
+  GlobalsGraph = new DSGraph(GlobalECs, *T, 0);
 }
 
 void DataStructures::releaseMemory() {

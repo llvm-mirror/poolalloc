@@ -59,13 +59,10 @@ SteensgaardDataStructures::runOnModuleInternal(Module &M) {
   
   // Get a copy for the globals graph.
   DSGraph * GG = DS->getGlobalsGraph();
-  GlobalsGraph = new DSGraph(GG, GG->getGlobalECs());
+  GlobalsGraph = new DSGraph(GG, GG->getGlobalECs(), 0, 0);
 
   // Create a new, empty, graph...
-  ResultGraph = new DSGraph(GG->getGlobalECs(), getTargetData());
-  ResultGraph->setGlobalsGraph(GlobalsGraph);
-  // ResultGraph->spliceFrom(DS->getGlobalsGraph());
-
+  ResultGraph = new DSGraph(GG->getGlobalECs(), getTargetData(), GlobalsGraph);
   
   // Loop over the rest of the module, merging graphs for non-external functions
   // into this graph.
