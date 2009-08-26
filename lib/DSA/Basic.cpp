@@ -23,6 +23,7 @@
 #include "llvm/Support/InstIterator.h"
 #include "llvm/Support/InstVisitor.h"
 #include "llvm/Support/GetElementPtrTypeIterator.h"
+#include "llvm/Support/TypeBuilder.h"
 
 using namespace llvm;
 
@@ -34,8 +35,14 @@ char BasicDataStructures::ID = 0;
 bool BasicDataStructures::runOnModule(Module &M) {
   init(&getAnalysis<TargetData>());
 
-  DSNode * GVNodeInternal = new DSNode(PointerType::getUnqual(Type::Int8Ty), GlobalsGraph);
-  DSNode * GVNodeExternal = new DSNode(PointerType::getUnqual(Type::Int8Ty), GlobalsGraph);
+  //
+  // Create a void pointer type.  This is simply a pointer to an 8 bit value.
+  //
+  const IntegerType * IT = IntegerType::getInt8Ty(getGlobalContext());
+  const PointerType * VoidPtrTy = PointerType::getUnqual(IT);
+
+  DSNode * GVNodeInternal = new DSNode(VoidPtrTy, GlobalsGraph);
+  DSNode * GVNodeExternal = new DSNode(VoidPtrTy, GlobalsGraph);
   for (Module::global_iterator I = M.global_begin(), E = M.global_end();
        I != E; ++I) {
     if (I->isDeclaration()) {
@@ -57,7 +64,7 @@ bool BasicDataStructures::runOnModule(Module &M) {
   for (Module::iterator F = M.begin(), E = M.end(); F != E; ++F) {
     if (!F->isDeclaration()) {
       DSGraph* G = new DSGraph(GlobalECs, getTargetData(), GlobalsGraph);
-      DSNode * Node = new DSNode(PointerType::getUnqual(Type::Int8Ty), G);
+      DSNode * Node = new DSNode(VoidPtrTy, G);
           
       if (!F->hasInternalLinkage())
         Node->setExternalMarker();

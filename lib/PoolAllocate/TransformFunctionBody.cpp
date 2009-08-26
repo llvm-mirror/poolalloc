@@ -38,6 +38,14 @@ using namespace PA;
 //
 static bool UsingBugpoint = false;
 
+//
+// Variables for referencing LLVM basic types.
+//
+static const Type * VoidType  = 0;
+static const Type * Int8Type  = 0;
+static const Type * Int32Type = 0;
+static const Type * Int64Type = 0;
+
 namespace {
   /// FuncTransform - This class implements transformation required of pool
   /// allocated functions.
@@ -61,6 +69,13 @@ namespace {
                   std::multimap<AllocaInst*, CallInst*> &poolFrees)
       : PAInfo(P), G(g), FI(fi), 
         PoolUses(poolUses), PoolFrees(poolFrees) {
+      //
+      // Get pointers to 8 and 32 bit LLVM integer types.
+      //
+      VoidType  = Type::getVoidTy(getGlobalContext());
+      Int8Type  = IntegerType::getInt8Ty(getGlobalContext());
+      Int32Type = IntegerType::getInt32Ty(getGlobalContext());
+      Int64Type = IntegerType::getInt64Ty(getGlobalContext());
     }
 
     template <typename InstType, typename SetType>
@@ -163,8 +178,8 @@ Instruction *FuncTransform::TransformAllocationInstr(Instruction *I,
                                                      Value *Size) {
   std::string Name = I->getName(); I->setName("");
 
-  if (Size->getType() != Type::Int32Ty)
-    Size = CastInst::CreateIntegerCast(Size, Type::Int32Ty, false, Size->getName(), I);
+  if (Size->getType() != Int32Type)
+    Size = CastInst::CreateIntegerCast(Size, Int32Type, false, Size->getName(), I);
 
   // Insert a call to poolalloc
   Value *PH = getPoolHandle(I);
@@ -215,7 +230,7 @@ void FuncTransform::visitMallocInst(MallocInst &MI) {
   if (PH == 0 || isa<ConstantPointerNull>(PH)) return;
 
   TargetData &TD = PAInfo.getAnalysis<TargetData>();
-  Value *AllocSize = ConstantInt::get(Type::Int32Ty,
+  Value *AllocSize = ConstantInt::get(Int32Type,
 				      TD.getTypeAllocSize(MI.getAllocatedType()));
 
   if (MI.isArrayAllocation())
@@ -247,8 +262,8 @@ void FuncTransform::visitMallocInst(MallocInst &MI) {
       MI.getParent()->getInstList().erase(&MI);
       Value *Casted = AI;
       Instruction *aiNext = AI->getNext();
-      if (AI->getType() != PointerType::getUnqual(Type::Int8Ty))
-        Casted = CastInst::CreatePointerCast(AI, PointerType::getUnqual(Type::Int8Ty),
+      if (AI->getType() != PointerType::getUnqual(Int8Type))
+        Casted = CastInst::CreatePointerCast(AI, PointerType::getUnqual(Int8Type),
               AI->getName()+".casted",aiNext);
       
       Instruction *V = CallInst::Create(PAInfo.PoolRegister,
@@ -273,7 +288,7 @@ void FuncTransform::visitAllocaInst(AllocaInst &MI) {
     Value *PH = getPoolHandle(&MI);
     if (PH == 0 || isa<ConstantPointerNull>(PH)) return;
     TargetData &TD = PAInfo.getAnalysis<TargetData>();
-    Value *AllocSize = ConstantInt::get(Type::Int32Ty, TD.getTypeAllocSize(MI.getAllocatedType()));
+    Value *AllocSize = ConstantInt::get(Int32Type, TD.getTypeAllocSize(MI.getAllocatedType()));
     
     if (MI.isArrayAllocation())
       AllocSize = BinaryOperator::Create(Instruction::Mul, AllocSize,
@@ -282,7 +297,7 @@ void FuncTransform::visitAllocaInst(AllocaInst &MI) {
     //  TransformAllocationInstr(&MI, AllocSize);
     BasicBlock::iterator InsertPt(MI);
     ++InsertPt;
-    Instruction *Casted = CastInst::CreatePointerCast(&MI, PointerType::getUnqual(Type::Int8Ty),
+    Instruction *Casted = CastInst::CreatePointerCast(&MI, PointerType::getUnqual(Int8Type),
 				       MI.getName()+".casted", InsertPt);
     std::vector<Value *> args;
     args.push_back (PH);
@@ -301,8 +316,8 @@ Instruction *FuncTransform::InsertPoolFreeInstr(Value *Arg, Instruction *Where){
 
   // Insert a cast and a call to poolfree...
   Value *Casted = Arg;
-  if (Arg->getType() != PointerType::getUnqual(Type::Int8Ty)) {
-    Casted = CastInst::CreatePointerCast(Arg, PointerType::getUnqual(Type::Int8Ty),
+  if (Arg->getType() != PointerType::getUnqual(Int8Type)) {
+    Casted = CastInst::CreatePointerCast(Arg, PointerType::getUnqual(Int8Type),
 				 Arg->getName()+".casted", Where);
     G->getScalarMap()[Casted] = G->getScalarMap()[Arg];
   }
@@ -334,21 +349,21 @@ void FuncTransform::visitFreeInst(FreeInst &FrI) {
 
 void FuncTransform::visitCallocCall(CallSite CS) {
   TargetData& TD = PAInfo.getAnalysis<TargetData>();
-  bool useLong = TD.getTypeAllocSize(PointerType::getUnqual(Type::Int8Ty)) != 4;
+  bool useLong = TD.getTypeAllocSize(PointerType::getUnqual(Int8Type)) != 4;
   
   Module *M = CS.getInstruction()->getParent()->getParent()->getParent();
   assert(CS.arg_end()-CS.arg_begin() == 2 && "calloc takes two arguments!");
   Value *V1 = CS.getArgument(0);
   Value *V2 = CS.getArgument(1);
   if (V1->getType() != V2->getType()) {
-    V1 = CastInst::CreateZExtOrBitCast(V1, useLong ? Type::Int64Ty : Type::Int32Ty, V1->getName(), CS.getInstruction());
-    V2 = CastInst::CreateZExtOrBitCast(V2, useLong ? Type::Int64Ty : Type::Int32Ty, V2->getName(), CS.getInstruction());
+    V1 = CastInst::CreateZExtOrBitCast(V1, useLong ? Int64Type : Int32Type, V1->getName(), CS.getInstruction());
+    V2 = CastInst::CreateZExtOrBitCast(V2, useLong ? Int64Type : Int32Type, V2->getName(), CS.getInstruction());
   }
 
   V2 = BinaryOperator::Create(Instruction::Mul, V1, V2, "size",
                               CS.getInstruction());
-  if (V2->getType() != (useLong ? Type::Int64Ty : Type::Int32Ty))
-    V2 = CastInst::CreateZExtOrBitCast(V2, useLong ? Type::Int64Ty : Type::Int32Ty, V2->getName(), CS.getInstruction());
+  if (V2->getType() != (useLong ? Int64Type : Int32Type))
+    V2 = CastInst::CreateZExtOrBitCast(V2, useLong ? Int64Type : Int32Type, V2->getName(), CS.getInstruction());
 
   BasicBlock::iterator BBI =
     TransformAllocationInstr(CS.getInstruction(), V2);
@@ -357,18 +372,18 @@ void FuncTransform::visitCallocCall(CallSite CS) {
   // We just turned the call of 'calloc' into the equivalent of malloc.  To
   // finish calloc, we need to zero out the memory.
   Constant *MemSet =  M->getOrInsertFunction((useLong ? "llvm.memset.i64" : "llvm.memset.i32"),
-                                             Type::VoidTy,
-                                             PointerType::getUnqual(Type::Int8Ty),
-                                             Type::Int8Ty, (useLong ? Type::Int64Ty : Type::Int32Ty),
-                                             Type::Int32Ty, NULL);
+                                             VoidType,
+                                             PointerType::getUnqual(Int8Type),
+                                             Int8Type, (useLong ? Int64Type : Int32Type),
+                                             Int32Type, NULL);
 
-  if (Ptr->getType() != PointerType::getUnqual(Type::Int8Ty))
-    Ptr = CastInst::CreatePointerCast(Ptr, PointerType::getUnqual(Type::Int8Ty), Ptr->getName(),
+  if (Ptr->getType() != PointerType::getUnqual(Int8Type))
+    Ptr = CastInst::CreatePointerCast(Ptr, PointerType::getUnqual(Int8Type), Ptr->getName(),
                        BBI);
   
   // We know that the memory returned by poolalloc is at least 4 byte aligned.
-  Value* Opts[4] = {Ptr, ConstantInt::get(Type::Int8Ty, 0),
-                    V2,  ConstantInt::get(Type::Int32Ty, 4)};
+  Value* Opts[4] = {Ptr, ConstantInt::get(Int8Type, 0),
+                    V2,  ConstantInt::get(Int32Type, 4)};
   CallInst::Create(MemSet, Opts, Opts + 4, "", BBI);
 }
 
@@ -383,10 +398,10 @@ void FuncTransform::visitReallocCall(CallSite CS) {
   // Don't poolallocate if we have no pool handle
   if (PH == 0 || isa<ConstantPointerNull>(PH)) return;
 
-  if (Size->getType() != Type::Int32Ty)
-    Size = CastInst::CreateIntegerCast(Size, Type::Int32Ty, false, Size->getName(), I);
+  if (Size->getType() != Int32Type)
+    Size = CastInst::CreateIntegerCast(Size, Int32Type, false, Size->getName(), I);
 
-  static Type *VoidPtrTy = PointerType::getUnqual(Type::Int8Ty);
+  static Type *VoidPtrTy = PointerType::getUnqual(Int8Type);
   if (OldPtr->getType() != VoidPtrTy)
     OldPtr = CastInst::CreatePointerCast(OldPtr, VoidPtrTy, OldPtr->getName(), I);
 
@@ -450,15 +465,15 @@ void FuncTransform::visitMemAlignCall(CallSite CS) {
     Value *RetVal = ConstantPointerNull::get(PT);
     I->replaceAllUsesWith(RetVal);
 
-    static const Type *PtrPtr=PointerType::getUnqual(PointerType::getUnqual(Type::Int8Ty));
+    static const Type *PtrPtr=PointerType::getUnqual(PointerType::getUnqual(Int8Type));
     if (ResultDest->getType() != PtrPtr)
       ResultDest = CastInst::CreatePointerCast(ResultDest, PtrPtr, ResultDest->getName(), I);
   }
 
-  if (Align->getType() != Type::Int32Ty)
-    Align = CastInst::CreateIntegerCast(Align, Type::Int32Ty, false, Align->getName(), I);
-  if (Size->getType() != Type::Int32Ty)
-    Size = CastInst::CreateIntegerCast(Size, Type::Int32Ty, false, Size->getName(), I);
+  if (Align->getType() != Int32Type)
+    Align = CastInst::CreateIntegerCast(Align, Int32Type, false, Align->getName(), I);
+  if (Size->getType() != Int32Type)
+    Size = CastInst::CreateIntegerCast(Size, Int32Type, false, Size->getName(), I);
 
   std::string Name = I->getName(); I->setName("");
   Value* Opts[3] = {PH, Align, Size};
@@ -511,7 +526,7 @@ void FuncTransform::visitStrdupCall(CallSite CS) {
 #endif
   Value *OldPtr = CS.getArgument(0);
 
-  static Type *VoidPtrTy = PointerType::getUnqual(Type::Int8Ty);
+  static Type *VoidPtrTy = PointerType::getUnqual(Int8Type);
   if (OldPtr->getType() != VoidPtrTy)
     OldPtr = CastInst::CreatePointerCast(OldPtr, VoidPtrTy, OldPtr->getName(), I);
 
@@ -743,8 +758,8 @@ void FuncTransform::visitCallSite(CallSite& CS) {
                                    0,
                                    "PD",
                                    InsertPt);
-          Value *ElSize = ConstantInt::get(Type::Int32Ty,0);
-          Value *Align  = ConstantInt::get(Type::Int32Ty,0);
+          Value *ElSize = ConstantInt::get(Int32Type,0);
+          Value *Align  = ConstantInt::get(Int32Type,0);
           Value* Opts[3] = {ArgVal, ElSize, Align};
           CallInst::Create(PAInfo.PoolInit, Opts, Opts + 3,"", TheCall);
           BasicBlock::iterator BBI = TheCall;
@@ -796,7 +811,7 @@ void FuncTransform::visitCallSite(CallSite& CS) {
   TheCall->replaceAllUsesWith(NewCall);
   DEBUG(std::cerr << "  Result Call: " << *NewCall);
 
-  if (TheCall->getType() != Type::VoidTy) {
+  if (TheCall->getType() != VoidType) {
     // If we are modifying the original function, update the DSGraph... 
     DSGraph::ScalarMapTy &SM = G->getScalarMap();
     DSGraph::ScalarMapTy::iterator CII = SM.find(TheCall);

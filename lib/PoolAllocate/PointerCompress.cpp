@@ -42,6 +42,12 @@ static const Type *MEMUINTTYPE;
 /// system (e.g. 64-bits), only keeping memory objects in MEMUINTTYPE.
 static const Type *SCALARUINTTYPE;
 
+static const Type * VoidType  = 0;
+static const Type * Int8Type  = 0;
+static const Type * Int16Type = 0;
+static const Type * Int32Type = 0;
+static const Type * Int64Type = 0;
+
 namespace {
   cl::opt<bool>
   SmallIntCompress("compress-to-16-bits",
@@ -251,7 +257,7 @@ ComputeCompressedType(const Type *OrigTy, unsigned NodeOffset,
       return MEMUINTTYPE;
     // Otherwise, it points to a non-compressed node.
     return OrigTy;
-  } else if (OrigTy->isFirstClassType() || OrigTy == Type::VoidTy)
+  } else if (OrigTy->isFirstClassType() || OrigTy == VoidType)
     return OrigTy;
 
 
@@ -287,7 +293,7 @@ Value *CompressedPoolInfo::EmitPoolBaseLoad(Instruction &I) const {
     assert(PoolBase == 0 && "Mixing and matching optimized vs not!");
     
     // Get the pool base pointer.
-    Constant *Zero = ConstantInt::get(Type::Int32Ty, 0);
+    Constant *Zero = ConstantInt::get(Int32Type, 0);
     Value *Opts[2] = {Zero, Zero};
     Value *BasePtrPtr = GetElementPtrInst::Create(getPoolDesc(), Opts, Opts + 2,
                                               "poolbaseptrptr", &I);
@@ -299,7 +305,7 @@ Value *CompressedPoolInfo::EmitPoolBaseLoad(Instruction &I) const {
                           isa<GlobalVariable>(PoolDesc))) {
       BasicBlock::iterator IP = I.getParent()->getParent()->begin()->begin();
       while (isa<AllocaInst>(IP)) ++IP;
-      Constant *Zero = ConstantInt::get(Type::Int32Ty, 0);
+      Constant *Zero = ConstantInt::get(Int32Type, 0);
       Value *Opts[2] = {Zero, Zero};
       Value *BasePtrPtr = GetElementPtrInst::Create(getPoolDesc(), Opts, Opts + 2,
                                                 "poolbaseptrptr", IP);
@@ -575,7 +581,8 @@ void InstructionRewriter::visitReturnInst(ReturnInst &RI) {
   if (RI.getNumOperands() && isa<PointerType>(RI.getOperand(0)->getType()))
     if (!isa<PointerType>(RI.getParent()->getParent()->getReturnType())) {
       // Compressing the return value.  
-      ReturnInst::Create(getTransformedValue(RI.getOperand(0)), &RI);
+      ReturnInst::Create(getGlobalContext(),
+                         getTransformedValue(RI.getOperand(0)), &RI);
       RI.eraseFromParent();
     }
 }
@@ -771,8 +778,8 @@ void InstructionRewriter::visitLoadInst(LoadInst &LI) {
 
   // Get the pointer to load from.
   Value* Ops = getTransformedValue(LI.getOperand(0));
-  if (Ops->getType() == Type::Int16Ty)
-    Ops = CastInst::CreateZExtOrBitCast(Ops, Type::Int32Ty, "extend_idx", &LI);
+  if (Ops->getType() == Int16Type)
+    Ops = CastInst::CreateZExtOrBitCast(Ops, Int32Type, "extend_idx", &LI);
   Value *SrcPtr = GetElementPtrInst::Create(BasePtr, Ops,
                                         LI.getOperand(0)->getName()+".pp", &LI);
   const Type *DestTy = LoadingCompressedPtr ? MEMUINTTYPE : LI.getType();
@@ -836,8 +843,8 @@ void InstructionRewriter::visitStoreInst(StoreInst &SI) {
 
   // Get the pointer to store to.
   Value* Ops = getTransformedValue(SI.getOperand(1));
-  if (Ops->getType() == Type::Int16Ty)
-    Ops = CastInst::CreateZExtOrBitCast(Ops, Type::Int32Ty, "extend_idx", &SI);
+  if (Ops->getType() == Int16Type)
+    Ops = CastInst::CreateZExtOrBitCast(Ops, Int32Type, "extend_idx", &SI);
 
   Value *DestPtr = GetElementPtrInst::Create(BasePtr, Ops,
                                          SI.getOperand(1)->getName()+".pp",
@@ -862,11 +869,11 @@ void InstructionRewriter::visitPoolInit(CallInst &CI) {
   std::vector<Value*> Ops;
   Ops.push_back(CI.getOperand(1));
   // Transform to pass in the compressed size.
-  Ops.push_back(ConstantInt::get(Type::Int32Ty, PI->getNewSize()));
+  Ops.push_back(ConstantInt::get(Int32Type, PI->getNewSize()));
 
   // Pointer compression can reduce the alignment restriction to 4 bytes from 8.
   // Reevaluate the desired alignment.
-  Ops.push_back(ConstantInt::get(Type::Int32Ty,
+  Ops.push_back(ConstantInt::get(Int32Type,
              PA::Heuristic::getRecommendedAlignment(PI->getNewType(), TD)));
   // TODO: Compression could reduce the alignment restriction for the pool!
   Value *PB = CallInst::Create(PtrComp.PoolInitPC, Ops.begin(), Ops.end(), "", &CI);
@@ -901,11 +908,11 @@ void InstructionRewriter::visitPoolAlloc(CallInst &CI) {
     if (OldSizeV != PI->getNewSize()) {
       // Emit code to scale the allocated size down by the old size then up by
       // the new size.  We actually compute (N+OS-1)/OS * NS.
-      Value *OldSize = ConstantInt::get(Type::Int32Ty, OldSizeV);
-      Value *NewSize = ConstantInt::get(Type::Int32Ty, PI->getNewSize());
+      Value *OldSize = ConstantInt::get(Int32Type, OldSizeV);
+      Value *NewSize = ConstantInt::get(Int32Type, PI->getNewSize());
 
       Size = BinaryOperator::CreateAdd(Size,
-				       ConstantInt::get(Type::Int32Ty, 
+				       ConstantInt::get(Int32Type, 
 							OldSizeV-1),
                                        "roundup", &CI);
       Size = BinaryOperator::CreateUDiv(Size, OldSize, "numnodes", &CI);
@@ -1043,7 +1050,7 @@ void InstructionRewriter::visitCallInst(CallInst &CI) {
     if (NC->getType() != CI.getType())      // Compressing return value?
       setTransformedValue(CI, NC);
     else {
-      if (CI.getType() != Type::VoidTy)
+      if (CI.getType() != VoidType)
         CI.replaceAllUsesWith(NC);
       ValueReplaced(CI, NC);
       CI.eraseFromParent();
@@ -1120,7 +1127,7 @@ void InstructionRewriter::visitCallInst(CallInst &CI) {
   if (NC->getType() != CI.getType())      // Compressing return value?
     setTransformedValue(CI, NC);
   else {
-    if (CI.getType() != Type::VoidTy)
+    if (CI.getType() != VoidType)
       CI.replaceAllUsesWith(NC);
     ValueReplaced(CI, NC);
     CI.eraseFromParent();
@@ -1502,29 +1509,38 @@ void PointerCompress::HandleGlobalPools(Module &M) {
 /// InitializePoolLibraryFunctions - Create the function prototypes for pointer
 /// compress runtime library functions.
 void PointerCompress::InitializePoolLibraryFunctions(Module &M) {
-  const Type *VoidPtrTy = PointerType::getUnqual(Type::Int8Ty);
+  const Type *VoidPtrTy = PointerType::getUnqual(Int8Type);
   const Type *PoolDescPtrTy = PointerType::getUnqual(ArrayType::get(VoidPtrTy, 16));
 
   PoolInitPC = M.getOrInsertFunction("poolinit_pc", VoidPtrTy, PoolDescPtrTy, 
-                                     Type::Int32Ty, Type::Int32Ty, NULL);
-  PoolDestroyPC = M.getOrInsertFunction("pooldestroy_pc", Type::VoidTy,
+                                     Int32Type, Int32Type, NULL);
+  PoolDestroyPC = M.getOrInsertFunction("pooldestroy_pc", VoidType,
                                         PoolDescPtrTy, NULL);
   PoolAllocPC = M.getOrInsertFunction("poolalloc_pc", SCALARUINTTYPE,
-                                      PoolDescPtrTy, Type::Int32Ty, NULL);
+                                      PoolDescPtrTy, Int32Type, NULL);
   // FIXME: Need bumppointer versions as well as realloc??/memalign??
 }
 
 bool PointerCompress::runOnModule(Module &M) {
+  //
+  // Get pointers to 8 and 32 bit LLVM integer types.
+  //
+  VoidType  = Type::getVoidTy(getGlobalContext());
+  Int8Type  = IntegerType::getInt8Ty(getGlobalContext());
+  Int16Type = IntegerType::getInt16Ty(getGlobalContext());
+  Int32Type = IntegerType::getInt32Ty(getGlobalContext());
+  Int64Type = IntegerType::getInt64Ty(getGlobalContext());
+
   PoolAlloc = &getAnalysis<PoolAllocatePassAllPools>();
   ECG = &getAnalysis<CompleteBUDataStructures>();
   
   if (SmallIntCompress)
-    MEMUINTTYPE = Type::Int16Ty;
+    MEMUINTTYPE = Int16Type;
   else 
-    MEMUINTTYPE = Type::Int32Ty;
+    MEMUINTTYPE = Int32Type;
 
   // FIXME: make this IntPtrTy.
-  SCALARUINTTYPE = Type::Int64Ty;
+  SCALARUINTTYPE = Int64Type;
 
   // Create the function prototypes for pointer compress runtime library
   // functions.

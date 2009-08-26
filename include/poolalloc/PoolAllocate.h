@@ -111,6 +111,9 @@ namespace PA {
 class PoolAllocateGroup {
 protected:
   DataStructures *Graphs;
+  const Type * VoidType;
+  const Type * Int8Type;
+  const Type * Int32Type;
 
 public:
   static char ID;
@@ -271,7 +274,8 @@ protected:
 
   /// getPoolType - Return the type of a pool descriptor
   const Type * getPoolType() {
-    Type * VoidPtrType = PointerType::getUnqual(Type::Int8Ty);
+    const IntegerType * IT = IntegerType::getInt8Ty(getGlobalContext());
+    Type * VoidPtrType = PointerType::getUnqual(IT);
     if (SAFECodeEnabled)
       return ArrayType::get(VoidPtrType, 92);
     else

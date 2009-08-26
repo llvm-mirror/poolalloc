@@ -111,6 +111,13 @@ bool PoolAllocate::runOnModule(Module &M) {
   CurModule = &M;
 
   //
+  // Get pointers to 8 and 32 bit LLVM integer types.
+  //
+  VoidType  = Type::getVoidTy(getGlobalContext());
+  Int8Type  = IntegerType::getInt8Ty(getGlobalContext());
+  Int32Type = IntegerType::getInt32Ty(getGlobalContext());
+
+  //
   // Get references to the DSA information.  For SAFECode, we need Top-Down
   // DSA.  For Automatic Pool Allocation only, we need Bottom-Up DSA.  In all
   // cases, we need to use the Equivalence-Class version of DSA.
@@ -225,7 +232,7 @@ bool PoolAllocate::runOnModule(Module &M) {
 void PoolAllocate::AddPoolPrototypes(Module* M) {
   if (VoidPtrTy == 0) {
     // NOTE: If these are changed, make sure to update PoolOptimize.cpp as well!
-    VoidPtrTy = PointerType::getUnqual(Type::Int8Ty);
+    VoidPtrTy = PointerType::getUnqual(Int8Type);
     PoolDescType = getPoolType();
     PoolDescPtrTy = PointerType::getUnqual(PoolDescType);
   }
@@ -233,33 +240,33 @@ void PoolAllocate::AddPoolPrototypes(Module* M) {
   M->addTypeName("PoolDescriptor", PoolDescType);
   
   // Get poolinit function.
-  PoolInit = M->getOrInsertFunction("poolinit", Type::VoidTy,
-                                            PoolDescPtrTy, Type::Int32Ty,
-                                            Type::Int32Ty, NULL);
+  PoolInit = M->getOrInsertFunction("poolinit", VoidType,
+                                            PoolDescPtrTy, Int32Type,
+                                            Int32Type, NULL);
 
   // Get pooldestroy function.
-  PoolDestroy = M->getOrInsertFunction("pooldestroy", Type::VoidTy,
+  PoolDestroy = M->getOrInsertFunction("pooldestroy", VoidType,
                                                PoolDescPtrTy, NULL);
   
   // The poolalloc function.
   PoolAlloc = M->getOrInsertFunction("poolalloc", 
                                              VoidPtrTy, PoolDescPtrTy,
-                                             Type::Int32Ty, NULL);
+                                             Int32Type, NULL);
   
   // The poolrealloc function.
   PoolRealloc = M->getOrInsertFunction("poolrealloc",
                                                VoidPtrTy, PoolDescPtrTy,
-                                               VoidPtrTy, Type::Int32Ty, NULL);
+                                               VoidPtrTy, Int32Type, NULL);
 
   // The poolcalloc function.
   PoolCalloc = M->getOrInsertFunction("poolcalloc",
                                       VoidPtrTy, PoolDescPtrTy,
-                                      Type::Int32Ty, Type::Int32Ty, NULL);
+                                      Int32Type, Int32Type, NULL);
 
   // The poolmemalign function.
   PoolMemAlign = M->getOrInsertFunction("poolmemalign",
                                                 VoidPtrTy, PoolDescPtrTy,
-                                                Type::Int32Ty, Type::Int32Ty, 
+                                                Int32Type, Int32Type, 
                                                 NULL);
 
   // The poolstrdup function.
@@ -268,11 +275,11 @@ void PoolAllocate::AddPoolPrototypes(Module* M) {
                                                VoidPtrTy, NULL);
   // The poolmemalign function.
   // Get the poolfree function.
-  PoolFree = M->getOrInsertFunction("poolfree", Type::VoidTy,
+  PoolFree = M->getOrInsertFunction("poolfree", VoidType,
                                             PoolDescPtrTy, VoidPtrTy, NULL);
   //Get the poolregister function
-  PoolRegister = M->getOrInsertFunction("poolregister", Type::VoidTy,
-                                 PoolDescPtrTy, VoidPtrTy, Type::Int32Ty, NULL);
+  PoolRegister = M->getOrInsertFunction("poolregister", VoidType,
+                                 PoolDescPtrTy, VoidPtrTy, Int32Type, NULL);
 }
 
 static void getCallsOf(Constant *C, std::vector<CallInst*> &Calls) {
@@ -307,7 +314,8 @@ OptimizePointerNotNull(Value *V, LLVMContext * Context) {
       if (isa<Constant>(User->getOperand(1)) && 
           cast<Constant>(User->getOperand(1))->isNullValue()) {
         bool CondIsTrue = ICI->getPredicate() == ICmpInst::ICMP_NE;
-        User->replaceAllUsesWith(ConstantInt::get(Type::Int1Ty, CondIsTrue));
+        const Type * Int1Type  = IntegerType::getInt1Ty(getGlobalContext());
+        User->replaceAllUsesWith(ConstantInt::get(Int1Type, CondIsTrue));
       }
     } else if ((User->getOpcode() == Instruction::Trunc) ||
                (User->getOpcode() == Instruction::ZExt) ||
@@ -630,8 +638,8 @@ GlobalVariable *PoolAllocate::CreateGlobalPool(unsigned RecSize, unsigned Align,
     while (isa<AllocaInst>(InsertPt)) ++InsertPt;
   }
 
-  Value *ElSize = ConstantInt::get(Type::Int32Ty, RecSize);
-  Value *AlignV = ConstantInt::get(Type::Int32Ty, Align);
+  Value *ElSize = ConstantInt::get(Int32Type, RecSize);
+  Value *AlignV = ConstantInt::get(Int32Type, Align);
   Value* Opts[3] = {GV, ElSize, AlignV};
   CallInst::Create(PoolInit, Opts, Opts + 3, "", InsertPt);
   ++NumPools;
@@ -961,9 +969,9 @@ void PoolAllocate::InitializeAndDestroyPool(Function &F, const DSNode *Node,
 
   // Insert the calls to initialize the pool.
   unsigned ElSizeV = Heuristic::getRecommendedSize(Node);
-  Value *ElSize = ConstantInt::get(Type::Int32Ty, ElSizeV);
+  Value *ElSize = ConstantInt::get(Int32Type, ElSizeV);
   unsigned AlignV = Heuristic::getRecommendedAlignment(Node);
-  Value *Align  = ConstantInt::get(Type::Int32Ty, AlignV);
+  Value *Align  = ConstantInt::get(Int32Type, AlignV);
 
   for (unsigned i = 0, e = PoolInitPoints.size(); i != e; ++i) {
     Value* Opts[3] = {PD, ElSize, Align};

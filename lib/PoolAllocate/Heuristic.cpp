@@ -69,8 +69,19 @@ static bool Wants8ByteAlignment(const Type *Ty, unsigned Offs,
   if (DisableAlignOpt) return true;
 
   if ((Offs & 7) == 0) {
+    //
+    // Note:
+    //  The LLVM API has changed, and I do not know how to tell if a type is
+    //  is a double integer.  Furthermore, the alignment of a double to 8 bits
+    //  appears to be a hack, and it is not clear as to why.  Therefore, we
+    //  will simply align all floating point types on an 8 bit boundary.
+    //
+#if 0
     // Doubles always want to be 8-byte aligned.
     if (Ty == Type::DoubleTy) return true;
+#else
+    if (Ty->isFloatingPoint()) return true;
+#endif
     
     // If we are on a 64-bit system, we want to align 8-byte integers and
     // pointers.
@@ -99,7 +110,8 @@ static bool Wants8ByteAlignment(const Type *Ty, unsigned Offs,
 
 unsigned Heuristic::getRecommendedAlignment(const Type *Ty,
                                             const TargetData &TD) {
-  if (Ty == Type::VoidTy)  // Is this void or collapsed?
+  const Type * VoidType = Type::getVoidTy(getGlobalContext());
+  if (Ty == VoidType)  // Is this void or collapsed?
     return 0;  // No known alignment, let runtime decide.
 
   return Wants8ByteAlignment(Ty, 0, TD) ? 8 : 4;
@@ -109,7 +121,8 @@ unsigned Heuristic::getRecommendedAlignment(const Type *Ty,
 /// DSNode.
 ///
 unsigned Heuristic::getRecommendedAlignment(const DSNode *N) {
-  if (N->getType() == Type::VoidTy)  // Is this void or collapsed?
+  const Type * VoidType = Type::getVoidTy(getGlobalContext());
+  if (N->getType() == VoidType)  // Is this void or collapsed?
     return 0;  // No known alignment, let runtime decide.
 
   const TargetData &TD = N->getParentGraph()->getTargetData();

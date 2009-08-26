@@ -25,6 +25,7 @@
 #include "llvm/Module.h"
 #include "llvm/Constants.h"
 #include "llvm/Support/CFG.h"
+#include "llvm/Support/TypeBuilder.h"
 #include "llvm/Target/TargetData.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/Transforms/Utils/Cloning.h"
@@ -81,6 +82,13 @@ void PoolAllocateMultipleGlobalPool::getAnalysisUsage(AnalysisUsage &AU) const {
 bool PoolAllocateMultipleGlobalPool::runOnModule(Module &M) {
   currentModule = &M;
   if (M.begin() == M.end()) return false;
+
+  //
+  // Get pointers to 8 and 32 bit LLVM integer types.
+  //
+  VoidType  = Type::getVoidTy(getGlobalContext());
+  Int8Type  = IntegerType::getInt8Ty(getGlobalContext());
+  Int32Type = IntegerType::getInt32Ty(getGlobalContext());
 
   Graphs = &getAnalysis<SteensgaardDataStructures>();
   assert (Graphs && "No DSA pass available!\n");
@@ -141,7 +149,7 @@ PoolAllocateMultipleGlobalPool::ProcessFunctionBodySimple (Function& F, TargetDa
         Value * AllocSize;
         if (MI->isArrayAllocation()) {
           Value * NumElements = MI->getArraySize();
-          Value * ElementSize = ConstantInt::get(Type::Int32Ty,
+          Value * ElementSize = ConstantInt::get(Int32Type,
 						 TD.getTypeAllocSize(MI->getAllocatedType()));
           AllocSize = BinaryOperator::Create (Instruction::Mul,
                                               ElementSize,
@@ -149,7 +157,7 @@ PoolAllocateMultipleGlobalPool::ProcessFunctionBodySimple (Function& F, TargetDa
                                               "sizetmp",
                                               MI);
         } else {
-          AllocSize = ConstantInt::get(Type::Int32Ty,
+          AllocSize = ConstantInt::get(Int32Type,
 				       TD.getTypeAllocSize(MI->getAllocatedType()));
         }
 
@@ -186,14 +194,14 @@ PoolAllocateMultipleGlobalPool::ProcessFunctionBodySimple (Function& F, TargetDa
           Value *Size = CS.getArgument(1);
 
           // Ensure the size and pointer arguments are of the correct type
-          if (Size->getType() != Type::Int32Ty)
+          if (Size->getType() != Int32Type)
             Size = CastInst::CreateIntegerCast (Size,
-                                                Type::Int32Ty,
+                                                Int32Type,
                                                 false,
                                                 Size->getName(),
                                                 InsertPt);
 
-          static Type *VoidPtrTy = PointerType::getUnqual(Type::Int8Ty);
+          static Type *VoidPtrTy = PointerType::getUnqual(Int8Type);
           if (OldPtr->getType() != VoidPtrTy)
             OldPtr = CastInst::CreatePointerCast (OldPtr,
                                                   VoidPtrTy,
@@ -231,16 +239,16 @@ PoolAllocateMultipleGlobalPool::ProcessFunctionBodySimple (Function& F, TargetDa
           Value *Size        = CS.getArgument(1);
 
           // Ensure the size and pointer arguments are of the correct type
-          if (Size->getType() != Type::Int32Ty)
+          if (Size->getType() != Int32Type)
             Size = CastInst::CreateIntegerCast (Size,
-                                                Type::Int32Ty,
+                                                Int32Type,
                                                 false,
                                                 Size->getName(),
                                                 InsertPt);
 
-          if (NumElements->getType() != Type::Int32Ty)
+          if (NumElements->getType() != Int32Type)
             NumElements = CastInst::CreateIntegerCast (Size,
-                                                Type::Int32Ty,
+                                                Int32Type,
                                                 false,
                                                 NumElements->getName(),
                                                 InsertPt);
@@ -276,7 +284,7 @@ PoolAllocateMultipleGlobalPool::ProcessFunctionBodySimple (Function& F, TargetDa
           Value *OldPtr = CS.getArgument(0);
 
           // Ensure the size and pointer arguments are of the correct type
-          static Type *VoidPtrTy = PointerType::getUnqual(Type::Int8Ty);
+          static Type *VoidPtrTy = PointerType::getUnqual(Int8Type);
           if (OldPtr->getType() != VoidPtrTy)
             OldPtr = CastInst::CreatePointerCast (OldPtr,
                                                   VoidPtrTy,
@@ -301,7 +309,7 @@ PoolAllocateMultipleGlobalPool::ProcessFunctionBodySimple (Function& F, TargetDa
           SM[Casted] = SM[V] = NH;
         }
       } else if (FreeInst * FI = dyn_cast<FreeInst>(ii)) {
-        Type * VoidPtrTy = PointerType::getUnqual(Type::Int8Ty);
+        Type * VoidPtrTy = PointerType::getUnqual(Int8Type);
         Value * FreedNode = castTo (FI->getPointerOperand(), VoidPtrTy, "cast", ii);
         DSNode * Node = ECG->getNodeForValue(FI->getPointerOperand()).getNode();
         GlobalVariable * Pool = PoolMap[Node];
@@ -331,12 +339,12 @@ PoolAllocateMultipleGlobalPool::CreateGlobalPool (unsigned RecSize,
                                       Module& M) {
 
   Function *InitFunc = Function::Create
-    (FunctionType::get(Type::VoidTy, std::vector<const Type*>(), false),
+    (FunctionType::get(VoidType, std::vector<const Type*>(), false),
     GlobalValue::ExternalLinkage, "__poolalloc_init", &M);
 
   // put it into llvm.used so that it won't get killed.
 
-  Type * VoidPtrTy = PointerType::getUnqual(Type::Int8Ty);
+  Type * VoidPtrTy = PointerType::getUnqual(Int8Type);
   ArrayType * LLVMUsedTy = ArrayType::get(VoidPtrTy, 1);
   Constant * C = ConstantExpr::getBitCast (cast<Constant>(InitFunc), VoidPtrTy);
   std::vector<Constant*> UsedFunctions(1,C);
@@ -347,7 +355,7 @@ PoolAllocateMultipleGlobalPool::CreateGlobalPool (unsigned RecSize,
       NewInit, "llvm.used");
 
 
-  BasicBlock * BB = BasicBlock::Create("entry", InitFunc);
+  BasicBlock * BB = BasicBlock::Create(getGlobalContext(), "entry", InitFunc);
   
   SteensgaardDataStructures * DS = dynamic_cast<SteensgaardDataStructures*>(Graphs);
   
@@ -376,7 +384,7 @@ PoolAllocateMultipleGlobalPool::CreateGlobalPool (unsigned RecSize,
     }
   }
 
-  ReturnInst::Create(BB);
+  ReturnInst::Create(getGlobalContext(), BB);
 }
 
 void
@@ -393,8 +401,8 @@ PoolAllocateMultipleGlobalPool::generatePool(unsigned RecSize,
        getPoolType(), false, GlobalValue::ExternalLinkage, 
        ConstantAggregateZero::get(getPoolType()), "__poolalloc_GlobalPool");
 
-    Value *ElSize = ConstantInt::get(Type::Int32Ty, RecSize);
-    Value *AlignV = ConstantInt::get(Type::Int32Ty, Align);
+    Value *ElSize = ConstantInt::get(Int32Type, RecSize);
+    Value *AlignV = ConstantInt::get(Int32Type, Align);
     Value* Opts[3] = {GV, ElSize, AlignV};
     
     CallInst::Create(PoolInit, Opts, Opts + 3, "", InsertAtEnd);

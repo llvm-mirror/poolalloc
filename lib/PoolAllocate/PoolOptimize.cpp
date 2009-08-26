@@ -21,6 +21,10 @@
 #include <set>
 using namespace llvm;
 
+static const Type * VoidType  = 0;
+static const Type * Int8Type  = 0;
+static const Type * Int32Type = 0;
+
 namespace {
   STATISTIC (NumBumpPtr, "Number of bump pointer pools");
 
@@ -55,7 +59,17 @@ static void getCallsOf(Constant *C, std::vector<CallInst*> &Calls) {
 }
 
 bool PoolOptimize::runOnModule(Module &M) {
-  const Type *VoidPtrTy = PointerType::getUnqual(Type::Int8Ty);
+  //
+  // Get pointers to 8 and 32 bit LLVM integer types.
+  //
+  VoidType  = Type::getVoidTy(getGlobalContext());
+  Int8Type  = IntegerType::getInt8Ty(getGlobalContext());
+  Int32Type = IntegerType::getInt32Ty(getGlobalContext());
+
+  //
+  // Create LLVM types used by the pool allocation passes.
+  //
+  const Type *VoidPtrTy = PointerType::getUnqual(Int8Type);
   const Type *PoolDescPtrTy;
   if (SAFECodeEnabled)
     PoolDescPtrTy = PointerType::getUnqual(ArrayType::get(VoidPtrTy, 50));
@@ -63,54 +77,54 @@ bool PoolOptimize::runOnModule(Module &M) {
     PoolDescPtrTy = PointerType::getUnqual(ArrayType::get(VoidPtrTy, 16));
 
   // Get poolinit function.
-  Constant *PoolInit = M.getOrInsertFunction("poolinit", Type::VoidTy,
-                                             PoolDescPtrTy, Type::Int32Ty,
-                                             Type::Int32Ty, NULL);
+  Constant *PoolInit = M.getOrInsertFunction("poolinit", VoidType,
+                                             PoolDescPtrTy, Int32Type,
+                                             Int32Type, NULL);
 
   // Get pooldestroy function.
-  Constant *PoolDestroy = M.getOrInsertFunction("pooldestroy", Type::VoidTy,
+  Constant *PoolDestroy = M.getOrInsertFunction("pooldestroy", VoidType,
                                                 PoolDescPtrTy, NULL);
   
   // The poolalloc function.
   Constant *PoolAlloc = M.getOrInsertFunction("poolalloc", 
                                               VoidPtrTy, PoolDescPtrTy,
-                                              Type::Int32Ty, NULL);
+                                              Int32Type, NULL);
   
   // The poolrealloc function.
   Constant *PoolRealloc = M.getOrInsertFunction("poolrealloc",
                                                 VoidPtrTy, PoolDescPtrTy,
-                                                VoidPtrTy, Type::Int32Ty, NULL);
+                                                VoidPtrTy, Int32Type, NULL);
   // The poolmemalign function.
   Constant *PoolMemAlign = M.getOrInsertFunction("poolmemalign",
                                                  VoidPtrTy, PoolDescPtrTy,
-                                                 Type::Int32Ty, Type::Int32Ty, 
+                                                 Int32Type, Int32Type, 
                                                  NULL);
 
   // Get the poolfree function.
-  Constant *PoolFree = M.getOrInsertFunction("poolfree", Type::VoidTy,
+  Constant *PoolFree = M.getOrInsertFunction("poolfree", VoidType,
                                              PoolDescPtrTy, VoidPtrTy, NULL);  
 
 
   // Get poolinit_bp function.
-  Constant *PoolInitBP = M.getOrInsertFunction("poolinit_bp", Type::VoidTy,
-                                               PoolDescPtrTy, Type::Int32Ty, 
+  Constant *PoolInitBP = M.getOrInsertFunction("poolinit_bp", VoidType,
+                                               PoolDescPtrTy, Int32Type, 
                                                NULL);
   
   // Get pooldestroy_bp function.
-  Constant *PoolDestroyBP = M.getOrInsertFunction("pooldestroy_bp",Type::VoidTy,
+  Constant *PoolDestroyBP = M.getOrInsertFunction("pooldestroy_bp",VoidType,
                                                  PoolDescPtrTy, NULL);
   
   // The poolalloc_bp function.
   Constant *PoolAllocBP = M.getOrInsertFunction("poolalloc_bp", 
                                                 VoidPtrTy, PoolDescPtrTy,
-                                                Type::Int32Ty, NULL);
+                                                Int32Type, NULL);
 
   Constant *Realloc = M.getOrInsertFunction("realloc",
-                                            VoidPtrTy, VoidPtrTy, Type::Int32Ty,
+                                            VoidPtrTy, VoidPtrTy, Int32Type,
                                             NULL);
   Constant *MemAlign = M.getOrInsertFunction("memalign",
-                                             VoidPtrTy, Type::Int32Ty,
-                                             Type::Int32Ty, NULL);
+                                             VoidPtrTy, Int32Type,
+                                             Int32Type, NULL);
 
 
   // Optimize poolreallocs
@@ -151,7 +165,7 @@ bool PoolOptimize::runOnModule(Module &M) {
     // poolalloc(null, X) -> malloc(X)
     if (isa<Constant>(CI->getOperand(1)) && 
         cast<Constant>(CI->getOperand(1))->isNullValue()) {
-      Value *New = new MallocInst(Type::Int8Ty, CI->getOperand(2),
+      Value *New = new MallocInst(Int8Type, CI->getOperand(2),
                                   CI->getName(), CI);
       CI->replaceAllUsesWith(New);
       CI->eraseFromParent();

@@ -142,7 +142,7 @@ DSNodeHandle &DSScalarMap::AddGlobal(const GlobalValue *GV) {
 //===----------------------------------------------------------------------===//
 
 DSNode::DSNode(const Type *T, DSGraph *G)
-  : NumReferrers(0), Size(0), ParentGraph(G), Ty(Type::VoidTy), NodeType(0) {
+  : NumReferrers(0), Size(0), ParentGraph(G), Ty(Type::getVoidTy(getGlobalContext())), NodeType(0) {
   // Add the type entry if it is specified...
   if (T) mergeTypeInfo(T, 0);
   if (G) G->addNode(this);
@@ -184,8 +184,9 @@ const TargetData &DSNode::getTargetData() const {
 }
 
 void DSNode::assertOK() const {
-  assert((Ty != Type::VoidTy ||
-          (Ty == Type::VoidTy && (Size == 0 ||
+  const Type * VoidType = Type::getVoidTy(getGlobalContext());
+  assert((Ty != VoidType ||
+          (Ty == VoidType && (Size == 0 ||
                                   (NodeType & DSNode::ArrayNode)))) &&
          "Node not OK!");
 
@@ -209,7 +210,7 @@ void DSNode::forwardNode(DSNode *To, unsigned Offset) {
   ForwardNH.setTo(To, Offset);
   NodeType = DeadNode;
   Size = 0;
-  Ty = Type::VoidTy;
+  Ty = Type::getVoidTy(getGlobalContext());
 
   // Remove this node from the parent graph's Nodes list.
   ParentGraph->unlinkNode(this);
@@ -257,7 +258,7 @@ void DSNode::foldNodeCompletely() {
   // node.
   if (getSize() <= 1) {
     NodeType |= DSNode::ArrayNode;
-    Ty = Type::VoidTy;
+    Ty = Type::getVoidTy(getGlobalContext());
     Size = 1;
     assert(Links.size() <= 1 && "Size is 1, but has more links?");
     Links.resize(1);
@@ -267,7 +268,7 @@ void DSNode::foldNodeCompletely() {
     // forward, the forwarder has the opportunity to correct the offset.
     DSNode *DestNode = new DSNode(0, ParentGraph);
     DestNode->NodeType = NodeType|DSNode::ArrayNode;
-    DestNode->Ty = Type::VoidTy;
+    DestNode->Ty = Type::getVoidTy(getGlobalContext());
     DestNode->Size = 1;
     DestNode->Globals.swap(Globals);
     
@@ -309,7 +310,8 @@ void DSNode::foldNodeCompletely() {
 /// all of the field sensitivity that may be present in the node.
 ///
 bool DSNode::isNodeCompletelyFolded() const {
-  return getSize() == 1 && Ty == Type::VoidTy && isArray();
+  const Type * VoidType = Type::getVoidTy(getGlobalContext());
+  return getSize() == 1 && Ty == VoidType && isArray();
 }
 
 /// addFullGlobalsList - Compute the full set of global values that are
@@ -488,13 +490,14 @@ bool DSNode::mergeTypeInfo(const Type *NewTy, unsigned Offset,
   //  Size = 1, Ty = Void, Array = 1: The node is collapsed
   //  Otherwise, sizeof(Ty) = Size
   //
-  assert(((Size == 0 && Ty == Type::VoidTy && !isArray()) ||
+  const Type * VoidType = Type::getVoidTy(getGlobalContext());
+  assert(((Size == 0 && Ty == VoidType && !isArray()) ||
           (Size == 0 && !Ty->isSized() && !isArray()) ||
-          (Size == 1 && Ty == Type::VoidTy && isArray()) ||
+          (Size == 1 && Ty == VoidType && isArray()) ||
           (Size == 0 && !Ty->isSized() && !isArray()) ||
           (TD.getTypeAllocSize(Ty) == Size)) &&
          "Size member of DSNode doesn't match the type structure!");
-  assert(NewTy != Type::VoidTy && "Cannot merge void type into DSNode!");
+  assert(NewTy != VoidType && "Cannot merge void type into DSNode!");
 
   if (Offset == 0 && NewTy == Ty)
     return false;  // This should be a common case, handle it efficiently
@@ -521,7 +524,7 @@ bool DSNode::mergeTypeInfo(const Type *NewTy, unsigned Offset,
   // we can't, we fold the node completely, if we can, we potentially update our
   // internal state.
   //
-  if (Ty == Type::VoidTy) {
+  if (Ty == VoidType) {
     // If this is the first type that this node has seen, just accept it without
     // question....
     assert(Offset == 0 && !isArray() &&
@@ -906,7 +909,8 @@ void DSNode::MergeNodes(DSNodeHandle& CurNodeH, DSNodeHandle& NH) {
   }
 #endif  
   // Merge the type entries of the two nodes together...
-  if (NH.getNode()->Ty != Type::VoidTy)
+  const Type * VoidType = Type::getVoidTy(getGlobalContext());
+  if (NH.getNode()->Ty != VoidType)
     CurNodeH.getNode()->mergeTypeInfo(NH.getNode()->Ty, NOffset);
   assert(!CurNodeH.getNode()->isDeadNode());
 
@@ -1168,7 +1172,8 @@ void ReachabilityCloner::merge(const DSNodeHandle &NH,
       }
 
       // Merge the type entries of the two nodes together...
-      if (SN->getType() != Type::VoidTy && !DN->isNodeCompletelyFolded()) {
+      const Type * VoidType = Type::getVoidTy(getGlobalContext());
+      if (SN->getType() != VoidType && !DN->isNodeCompletelyFolded()) {
         DN->mergeTypeInfo(SN->getType(), NH.getOffset()-SrcNH.getOffset());
         DN = NH.getNode();
       }
@@ -1997,11 +2002,12 @@ void DSGraph::markIncompleteNodes(unsigned Flags) {
 }
 
 static inline void killIfUselessEdge(DSNodeHandle &Edge) {
+  const Type * VoidType = Type::getVoidTy(getGlobalContext());
   if (DSNode *N = Edge.getNode())  // Is there an edge?
     if (N->getNumReferrers() == 1)  // Does it point to a lonely node?
       // No interesting info?
       if ((N->getNodeFlags() & ~DSNode::IncompleteNode) == 0 &&
-          N->getType() == Type::VoidTy && !N->isNodeCompletelyFolded())
+          N->getType() == VoidType && !N->isNodeCompletelyFolded())
         Edge.setTo(0, 0);  // Kill the edge!
 }
 

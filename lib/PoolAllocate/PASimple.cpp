@@ -104,6 +104,13 @@ MergeNodesInDSGraph (DSGraph & Graph) {
 bool PoolAllocateSimple::runOnModule(Module &M) {
   if (M.begin() == M.end()) return false;
 
+  //
+  // Get pointers to 8 and 32 bit LLVM integer types.
+  //
+  VoidType  = Type::getVoidTy(getGlobalContext());
+  Int8Type  = IntegerType::getInt8Ty(getGlobalContext());
+  Int32Type = IntegerType::getInt32Ty(getGlobalContext());
+
   // Get the Target Data information and the Graphs
   if (CompleteDSA) {
     Graphs = &getAnalysis<EQTDDataStructures>();
@@ -179,7 +186,7 @@ PoolAllocateSimple::ProcessFunctionBodySimple (Function& F, TargetData & TD) {
         Value * AllocSize;
         if (MI->isArrayAllocation()) {
           Value * NumElements = MI->getArraySize();
-          Value * ElementSize = ConstantInt::get(Type::Int32Ty,
+          Value * ElementSize = ConstantInt::get(Int32Type,
 						 TD.getTypeAllocSize(MI->getAllocatedType()));
           AllocSize = BinaryOperator::Create (Instruction::Mul,
                                               ElementSize,
@@ -187,7 +194,7 @@ PoolAllocateSimple::ProcessFunctionBodySimple (Function& F, TargetData & TD) {
                                               "sizetmp",
                                               MI);
         } else {
-          AllocSize = ConstantInt::get(Type::Int32Ty,
+          AllocSize = ConstantInt::get(Int32Type,
 				       TD.getTypeAllocSize(MI->getAllocatedType()));
         }
 
@@ -215,14 +222,14 @@ PoolAllocateSimple::ProcessFunctionBodySimple (Function& F, TargetData & TD) {
           Value *Size = CS.getArgument(1);
 
           // Ensure the size and pointer arguments are of the correct type
-          if (Size->getType() != Type::Int32Ty)
+          if (Size->getType() != Int32Type)
             Size = CastInst::CreateIntegerCast (Size,
-                                                Type::Int32Ty,
+                                                Int32Type,
                                                 false,
                                                 Size->getName(),
                                                 InsertPt);
 
-          static Type *VoidPtrTy = PointerType::getUnqual(Type::Int8Ty);
+          static Type *VoidPtrTy = PointerType::getUnqual(Int8Type);
           if (OldPtr->getType() != VoidPtrTy)
             OldPtr = CastInst::CreatePointerCast (OldPtr,
                                                   VoidPtrTy,
@@ -256,16 +263,16 @@ PoolAllocateSimple::ProcessFunctionBodySimple (Function& F, TargetData & TD) {
           Value *Size        = CS.getArgument(1);
 
           // Ensure the size and pointer arguments are of the correct type
-          if (Size->getType() != Type::Int32Ty)
+          if (Size->getType() != Int32Type)
             Size = CastInst::CreateIntegerCast (Size,
-                                                Type::Int32Ty,
+                                                Int32Type,
                                                 false,
                                                 Size->getName(),
                                                 InsertPt);
 
-          if (NumElements->getType() != Type::Int32Ty)
+          if (NumElements->getType() != Int32Type)
             NumElements = CastInst::CreateIntegerCast (Size,
-                                                Type::Int32Ty,
+                                                Int32Type,
                                                 false,
                                                 NumElements->getName(),
                                                 InsertPt);
@@ -297,7 +304,7 @@ PoolAllocateSimple::ProcessFunctionBodySimple (Function& F, TargetData & TD) {
           Value *OldPtr = CS.getArgument(0);
 
           // Ensure the size and pointer arguments are of the correct type
-          static Type *VoidPtrTy = PointerType::getUnqual(Type::Int8Ty);
+          static Type *VoidPtrTy = PointerType::getUnqual(Int8Type);
           if (OldPtr->getType() != VoidPtrTy)
             OldPtr = CastInst::CreatePointerCast (OldPtr,
                                                   VoidPtrTy,
@@ -319,7 +326,7 @@ PoolAllocateSimple::ProcessFunctionBodySimple (Function& F, TargetData & TD) {
           CI->replaceAllUsesWith(Casted);
         }
       } else if (FreeInst * FI = dyn_cast<FreeInst>(ii)) {
-        Type * VoidPtrTy = PointerType::getUnqual(Type::Int8Ty);
+        Type * VoidPtrTy = PointerType::getUnqual(Int8Type);
         Value * FreedNode = castTo (FI->getPointerOperand(), VoidPtrTy, "cast", ii);
         toDelete.push_back(ii);
         Value* args[] = {TheGlobalPool, FreedNode};
@@ -359,15 +366,15 @@ PoolAllocateSimple::CreateGlobalPool (unsigned RecSize,
 		       "__poolalloc_GlobalPool");
 
   Function *InitFunc = Function::Create
-    (FunctionType::get(Type::VoidTy, std::vector<const Type*>(), false),
+    (FunctionType::get(VoidType, std::vector<const Type*>(), false),
     GlobalValue::ExternalLinkage, "__poolalloc_init", &M);
 
-  BasicBlock * BB = BasicBlock::Create("entry", InitFunc);
-  Value *ElSize = ConstantInt::get(Type::Int32Ty, RecSize);
-  Value *AlignV = ConstantInt::get(Type::Int32Ty, Align);
+  BasicBlock * BB = BasicBlock::Create(getGlobalContext(), "entry", InitFunc);
+  Value *ElSize = ConstantInt::get(Int32Type, RecSize);
+  Value *AlignV = ConstantInt::get(Int32Type, Align);
   Value* Opts[3] = {GV, ElSize, AlignV};
   CallInst::Create(PoolInit, Opts, Opts + 3, "", BB);
 
-  ReturnInst::Create(BB);
+  ReturnInst::Create(getGlobalContext(), BB);
   return GV;
 }
