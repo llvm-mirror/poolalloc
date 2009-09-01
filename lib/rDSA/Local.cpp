@@ -721,6 +721,7 @@ bool GraphBuilderLocal::visitIntrinsic(CallSite CS, Function *F) {
   case Intrinsic::eh_selector_i64:
   case Intrinsic::eh_typeid_for_i32:
   case Intrinsic::eh_typeid_for_i64:
+  case Intrinsic::prefetch:
     return true;
 
   //
