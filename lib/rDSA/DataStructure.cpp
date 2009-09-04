@@ -217,6 +217,9 @@ void DSNode::addGlobal(const GlobalValue *GV) {
 /// it does not already have it.
 ///
 void DSNode::addFunction(const Function* FV) {
+  setFunctionMarker();
+  if (FV->isDeclaration())
+    setExternFunctionMarker();
   addGlobal(FV);
 }
 
@@ -557,7 +560,7 @@ bool DSNode::mergeTypeInfo(const Type *NewTy, unsigned Offset,
       // try merge with NewTy: struct {t1, t2, stuff...} if offset lands exactly
       // on a field in Ty
       if (isa<StructType>(NewTy) && isa<StructType>(Ty)) {
-        DOUT << "Ty: " << *Ty << "\nNewTy: " << *NewTy << "@" << Offset << "\n";
+        //DOUT << "Ty: " << *Ty << "\nNewTy: " << *NewTy << "@" << Offset << "\n";
         const StructType *STy = cast<StructType>(Ty);
         const StructLayout &SL = *TD.getStructLayout(STy);
         unsigned i = SL.getElementContainingOffset(Offset);
@@ -573,7 +576,7 @@ bool DSNode::mergeTypeInfo(const Type *NewTy, unsigned Offset,
         nt.insert(nt.end(), STy->element_begin(), STy->element_end());
         //and merge
         STy = StructType::get(STy->getContext(), nt);
-        DOUT << "Trying with: " << *STy << "\n";
+        //DOUT << "Trying with: " << *STy << "\n";
         return mergeTypeInfo(STy, 0);
       }
 
@@ -582,7 +585,7 @@ bool DSNode::mergeTypeInfo(const Type *NewTy, unsigned Offset,
       //try merge with NewTy: struct : {t1, t2, T} if offset lands on a field
       //in Ty
       if (isa<StructType>(Ty)) {
-        DOUT << "Ty: " << *Ty << "\nNewTy: " << *NewTy << "@" << Offset << "\n";
+        //DOUT << "Ty: " << *Ty << "\nNewTy: " << *NewTy << "@" << Offset << "\n";
         const StructType *STy = cast<StructType>(Ty);
         const StructLayout &SL = *TD.getStructLayout(STy);
         unsigned i = SL.getElementContainingOffset(Offset);
@@ -597,7 +600,7 @@ bool DSNode::mergeTypeInfo(const Type *NewTy, unsigned Offset,
         nt.push_back(NewTy);
         //and merge
         STy = StructType::get(STy->getContext(), nt);
-        DOUT << "Trying with: " << *STy << "\n";
+        //DOUT << "Trying with: " << *STy << "\n";
         return mergeTypeInfo(STy, 0);
       }
 
@@ -754,6 +757,7 @@ bool DSNode::mergeTypeInfo(const Type *NewTy, unsigned Offset,
   if (getParentGraph()->retnodes_begin() != getParentGraph()->retnodes_end())
     M = getParentGraph()->retnodes_begin()->first->getParent();
 
+  /*
   DOUT << "MergeTypeInfo Folding OrigTy: ";
   raw_stderr_ostream stream;
   DEBUG(WriteTypeSymbolic(stream, Ty, M);
@@ -762,6 +766,7 @@ bool DSNode::mergeTypeInfo(const Type *NewTy, unsigned Offset,
         stream << " @ " << Offset << "!\n" << "SubType: ";
         WriteTypeSymbolic(stream, SubType, M);
         stream << "\n\n");
+  */
 
   if (FoldIfIncompatible) foldNodeCompletely();
   return true;
@@ -986,7 +991,7 @@ void DSNode::mergeWith(const DSNodeHandle &NH, unsigned Offset) {
   if (N == this) {
     // We cannot merge two pieces of the same node together, collapse the node
     // completely.
-    DOUT << "Attempting to merge two chunks of the same node together!\n";
+    //DOUT << "Attempting to merge two chunks of the same node together!\n";
     foldNodeCompletely();
     return;
   }
@@ -1984,14 +1989,6 @@ static inline void killIfUselessEdge(DSNodeHandle &Edge) {
         Edge.setTo(0, 0);  // Kill the edge!
 }
 
-static inline bool nodeContainsExternalFunction(const DSNode *N) {
-  std::vector<const Function*> Funcs;
-  N->addFullFunctionList(Funcs);
-  for (unsigned i = 0, e = Funcs.size(); i != e; ++i)
-    if (Funcs[i]->isDeclaration()) return true;
-  return false;
-}
-
 static void removeIdenticalCalls(std::list<DSCallSite> &Calls) {
   // Remove trivially identical function calls
   Calls.sort();  // Sort by callee as primary key!
@@ -2019,7 +2016,7 @@ static void removeIdenticalCalls(std::list<DSCallSite> &Calls) {
       // eliminate it.
       if (Callee->getNumReferrers() == 1 && Callee->isCompleteNode() &&
           Callee->isEmptyGlobals()) {  // No useful info?
-        DOUT << "WARNING: Useless call site found.\n";
+        //errs() << "WARNING: Useless call site found.\n";
         Calls.erase(OldIt);
         ++NumDeleted;
         continue;
@@ -2029,8 +2026,7 @@ static void removeIdenticalCalls(std::list<DSCallSite> &Calls) {
       // if the callee contains an external function, it will never be
       // resolvable, just merge the call sites.
       if (!LastCalleeNode.isNull() && LastCalleeNode.getNode() == Callee) {
-        LastCalleeContainsExternalFunction =
-          nodeContainsExternalFunction(Callee);
+        LastCalleeContainsExternalFunction = Callee->isExternFunctionNode();
 
         std::list<DSCallSite>::iterator PrevIt = OldIt;
         --PrevIt;
@@ -2064,8 +2060,8 @@ static void removeIdenticalCalls(std::list<DSCallSite> &Calls) {
       ++NumDuplicateCalls;
       if (NumDuplicateCalls == 1) {
         if (LastCalleeNode)
-          LastCalleeContainsExternalFunction =
-            nodeContainsExternalFunction(LastCalleeNode);
+          LastCalleeContainsExternalFunction = 
+	    LastCalleeNode->isExternFunctionNode();
         else
           LastCalleeContainsExternalFunction = LastCalleeFunc->isExternal();
       }
@@ -2128,7 +2124,6 @@ static void removeIdenticalCalls(std::list<DSCallSite> &Calls) {
       // If this call site is now the same as the previous one, we can delete it
       // as a duplicate.
       if (*OldIt == *CI) {
-        DOUT << "Deleteing " << CI->getCallSite().getInstruction() << "\n";
         Calls.erase(CI);
         CI = OldIt;
         ++NumDeleted;
@@ -2140,8 +2135,6 @@ static void removeIdenticalCalls(std::list<DSCallSite> &Calls) {
   // Track the number of call nodes merged away...
   NumCallNodesMerged += NumDeleted;
 
-  if (NumDeleted)
-    DOUT << "Merged " << NumDeleted << " call nodes.\n";
 }
 
 
@@ -2735,29 +2728,16 @@ DSGraph* DataStructures::getOrFetchDSGraph(const Function* F) {
 }
 
 
-void DataStructures::formGlobalECs() {
-  // Grow the equivalence classes for the globals to include anything that we
-  // now know to be aliased.
-  std::set<const GlobalValue*> ECGlobals;
-  buildGlobalECs(ECGlobals);
-  if (!ECGlobals.empty()) {
-    DOUT << "Eliminating " << ECGlobals.size() << " EC Globals!\n";
-    for (DSInfoTy::iterator I = DSInfo.begin(),
-           E = DSInfo.end(); I != E; ++I)
-      eliminateUsesOfECGlobals(*I->second, ECGlobals);
-  }
-}
-
 /// BuildGlobalECs - Look at all of the nodes in the globals graph.  If any node
 /// contains multiple globals, DSA will never, ever, be able to tell the globals
 /// apart.  Instead of maintaining this information in all of the graphs
 /// throughout the entire program, store only a single global (the "leader") in
 /// the graphs, and build equivalence classes for the rest of the globals.
-void DataStructures::buildGlobalECs(std::set<const GlobalValue*> &ECGlobals) {
-  DSScalarMap &SM = GlobalsGraph->getScalarMap();
+static void buildGlobalECs(std::vector<const GlobalValue*> &ECGlobals,
+                           DSGraph* G) {
+  DSGraph::ScalarMapTy& SM = G->getScalarMap();
   EquivalenceClasses<const GlobalValue*> &GlobalECs = SM.getGlobalECs();
-  for (DSGraph::node_iterator I = GlobalsGraph->node_begin(), 
-         E = GlobalsGraph->node_end();
+  for (DSGraph::node_iterator I = G->node_begin(), E = G->node_end();
        I != E; ++I) {
     if (I->numGlobals() <= 1) continue;
 
@@ -2769,7 +2749,7 @@ void DataStructures::buildGlobalECs(std::set<const GlobalValue*> &ECGlobals) {
     if (*i == First) ++i;
     for( ; i != I->globals_end(); ++i) {
       GlobalECs.unionSets(First, *i);
-      ECGlobals.insert(*i);
+      ECGlobals.push_back(*i);
       SM.erase(SM.find(*i));
     }
 
@@ -2781,23 +2761,21 @@ void DataStructures::buildGlobalECs(std::set<const GlobalValue*> &ECGlobals) {
     I->clearGlobals();
     I->addGlobal(First);
   }
-
-  DEBUG(GlobalsGraph->AssertGraphOK());
 }
 
 /// EliminateUsesOfECGlobals - Once we have determined that some globals are in
 /// really just equivalent to some other globals, remove the globals from the
 /// specified DSGraph (if present), and merge any nodes with their leader nodes.
-void DataStructures::eliminateUsesOfECGlobals(DSGraph &G,
-                                              const std::set<const GlobalValue*> &ECGlobals) {
+static void eliminateUsesOfECGlobals(DSGraph &G,
+				     const std::vector<const GlobalValue*> &ECGlobals) {
   DSScalarMap &SM = G.getScalarMap();
   EquivalenceClasses<const GlobalValue*> &GlobalECs = SM.getGlobalECs();
 
-  bool MadeChange = false;
   for (DSScalarMap::global_iterator GI = SM.global_begin(), E = SM.global_end();
        GI != E; ) {
     const GlobalValue *GV = *GI++;
-    if (!ECGlobals.count(GV)) continue;
+    if (!binary_search(ECGlobals.begin(), ECGlobals.end(), GV))
+      continue;
 
     const DSNodeHandle &GVNH = SM[GV];
     assert(!GVNH.isNull() && "Global has null NH!?");
@@ -2824,10 +2802,27 @@ void DataStructures::eliminateUsesOfECGlobals(DSGraph &G,
 
     // Finally, remove the global from the ScalarMap.
     SM.erase(GV);
-    MadeChange = true;
   }
 
-  DEBUG(if(MadeChange) G.AssertGraphOK());
+  DEBUG(G.AssertGraphOK());
+}
+
+void DataStructures::formGlobalECs() {
+  // Grow the equivalence classes for the globals to include anything that we
+  // now know to be aliased.
+  std::vector<const GlobalValue*> ECGlobals;
+  buildGlobalECs(ECGlobals, GlobalsGraph);
+  DEBUG(GlobalsGraph->AssertGraphOK());
+  if (!ECGlobals.empty()) {
+    std::sort(ECGlobals.begin(), ECGlobals.end());
+    std::vector<const GlobalValue*>::iterator erpoint =
+      std::unique(ECGlobals.begin(), ECGlobals.end());
+    ECGlobals.resize(erpoint - ECGlobals.begin());
+    DEBUG(errs() << "Eliminating " << ECGlobals.size() << " EC Globals!\n";);
+    for (DSInfoTy::iterator I = DSInfo.begin(),
+           E = DSInfo.end(); I != E; ++I)
+      eliminateUsesOfECGlobals(*I->second, ECGlobals);
+  }
 }
 
 void DataStructures::init(DataStructures* D, bool clone, bool printAuxCalls, 
@@ -2837,7 +2832,7 @@ void DataStructures::init(DataStructures* D, bool clone, bool printAuxCalls,
   Clone = clone;
   resetAuxCalls = resetAux;
   TD = D->TD;
-  ActualCallees = D->ActualCallees;
+  callee = D->callee;
   GlobalECs = D->getGlobalECs();
   GlobalsGraph = new DSGraph(D->getGlobalsGraph(), GlobalECs, 0,
                              copyGlobalAuxCalls?0:DSGraph::DontCloneAuxCallNodes);
@@ -2874,7 +2869,7 @@ void DataStructures::releaseMemory() {
   // Empty map so next time memory is released, data structures are not
   // re-deleted.
   DSInfo.clear();
-  ActualCallees.clear();
+  callee.clear();
   delete GlobalsGraph;
   GlobalsGraph = 0;
 }

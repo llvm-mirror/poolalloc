@@ -339,23 +339,8 @@ static void printCollection(const Collection &C, std::ostream &O,
     << "] nodes total" << std::endl;
 }
 
-void DataStructures::dumpCallGraph() const {
-  for(  ActualCalleesTy::const_iterator ii = ActualCallees.begin(), ee = ActualCallees.end();
-        ii != ee; ++ii) {
-    if (ii->first) errs() << ii->first->getParent()->getParent()->getName() << " ";
-    errs() << ii->first << ": [";
-    for (callee_iterator cbi = ii->second.begin(), cbe = ii->second.end();
-         cbi != cbe; ++cbi) {
-      errs() << (*cbi)->getName() << " ";
-    }
-    errs() << "]\n";
-    if (ii->first) ii->first->dump();
-  }
-}
-
 // print - Print out the analysis results...
 void DataStructures::print(std::ostream &O, const Module *M) const {
   if (DontPrintAnything) return;
   printCollection(*this, O, M, printname);
-  dumpCallGraph();
 }

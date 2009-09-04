@@ -8,9 +8,9 @@
 ##===----------------------------------------------------------------------===##
 
 LEVEL = ../..
-BUILD_RELINKED=1
-SHARED_LIBRARY=1
-LIBRARYNAME = rDSA
+LOADABLE_MODULE=1
+BUILD_ARCHIVE = 1
+LIBRARYNAME = librDSA
 
 include $(LEVEL)/Makefile.common
 

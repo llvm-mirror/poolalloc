@@ -14,6 +14,7 @@
 
 #include "rdsa/DataStructure.h"
 #include "rdsa/DSGraph.h"
+#include "llvm/Module.h"
 #include "llvm/Constants.h"
 #include "llvm/DerivedTypes.h"
 #include "llvm/Instructions.h"
@@ -24,16 +25,7 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/FormattedStream.h"
-#include "llvm/Support/Timer.h"
 #include "llvm/ADT/Statistic.h"
-#include "llvm/ADT/DenseSet.h"
-
-#include <iostream>
-
-// FIXME: This should eventually be a FunctionPass that is automatically
-// aggregated into a Pass.
-//
-#include "llvm/Module.h"
 
 using namespace llvm;
 
@@ -62,6 +54,11 @@ namespace {
       N->addGlobal(GV);
       return N;
     }
+    DSNode* createNode(const Type *Ty, GlobalAlias* GA) {   
+      DSNode* N = new DSNode(Ty, G);
+      N->addGlobal(GA);
+      return N;
+    }
     DSNode* createNode(const Type *Ty, Function* FV) {   
       DSNode* N = new DSNode(Ty, G);
       N->addFunction(FV);
@@ -86,6 +83,9 @@ namespace {
     /// getValueDest - Return the DSNode that the actual value points to.
     ///
     DSNodeHandle getValueDest(Value &V);
+    DSNodeHandle getValueDest(GlobalVariable &V);
+    DSNodeHandle getValueDest(GlobalAlias &V);
+    DSNodeHandle getValueDest(Function &V);
 
     /// setDestTo - Set the ScalarMap entry for the specified value to point to
     /// the specified destination.  If the Value already points to a node, make
@@ -116,8 +116,9 @@ namespace {
       :GraphBuilderBase(g)
     {}
 
-    void mergeInGlobalInitializer(GlobalVariable *GV);
-    void mergeFunction(Function& F) { getValueDest(F); }
+    void mergeGlobal(GlobalVariable *GV);
+    void mergeAlias(GlobalAlias *GV);
+    void mergeFunction(Function* F);
 
   };
 
@@ -220,26 +221,6 @@ namespace {
 
   };
 
-  /// Traverse the whole DSGraph, and propagate the unknown flags through all 
-  /// out edges.
-  static void propagateUnknownFlag(DSGraph * G) {
-    std::vector<DSNode *> workList;
-    DenseSet<DSNode *> visited;
-    for (DSGraph::node_iterator I = G->node_begin(), E = G->node_end(); I != E; ++I)
-      if (I->isUnknownNode()) 
-        workList.push_back(&*I);
-  
-    while (!workList.empty()) {
-      DSNode * N = workList.back();
-      workList.pop_back();
-      if (visited.count(N) != 0) continue;
-      visited.insert(N);
-      N->setUnknownMarker();
-      for (DSNode::edge_iterator I = N->edge_begin(), E = N->edge_end(); I != E; ++I)
-        if (!I->isNull())
-          workList.push_back(I->getNode());
-    }
-  }
 }
 
 //===----------------------------------------------------------------------===//
@@ -270,7 +251,7 @@ DSNodeHandle GraphBuilderBase::getValueDest(Value &Val) {
     return NH.setTo(createNode(0, FV), 0);
 
   if (GlobalAlias* GA = dyn_cast<GlobalAlias>(V))
-    return NH = getValueDest(*(GA->getAliasee()));
+    return NH.setTo(createNode(GA->getType()->getElementType(), GA), 0);
 
   if (isa<UndefValue>(V)) {
     eraseNodeForValue(V);
@@ -311,6 +292,38 @@ DSNodeHandle GraphBuilderBase::getValueDest(Value &Val) {
   }
 
   return NH.setTo(N, 0);      // Remember that we are pointing to it...
+}
+
+//Save some type casts and conditionals on programs with many many globals
+DSNodeHandle GraphBuilderBase::getValueDest(GlobalVariable &Val) {
+  GlobalVariable *V = &Val;
+  DSNodeHandle &NH = getNodeForValue(V);
+  if (!NH.isNull())
+    return NH;     // Already have a node?  Just return it...
+
+  // Otherwise we need to create a new node to point to.
+  // Create a new global node for this global variable.
+  return NH.setTo(createNode(V->getType()->getElementType(), V), 0);
+}
+DSNodeHandle GraphBuilderBase::getValueDest(GlobalAlias &Val) {
+  GlobalAlias *V = &Val;
+  DSNodeHandle &NH = getNodeForValue(V);
+  if (!NH.isNull())
+    return NH;     // Already have a node?  Just return it...
+
+  // Otherwise we need to create a new node to point to.
+  // Create a new global node for this global variable.
+  return NH.setTo(createNode(V->getType()->getElementType(), V), 0);
+}
+DSNodeHandle GraphBuilderBase::getValueDest(Function &Val) {
+  Function *V = &Val;
+  DSNodeHandle &NH = getNodeForValue(V);
+  if (!NH.isNull())
+    return NH;     // Already have a node?  Just return it...
+
+  // Otherwise we need to create a new node to point to.
+  // Create a new global node for this global variable.
+  return NH.setTo(createNode(0, V), 0);
 }
 
 
@@ -797,7 +810,6 @@ void GraphBuilderLocal::visitCallSite(CallSite CS) {
   // Add a new function call entry...
   if (CalleeNode) {
     addDSCallSite(DSCallSite(CS, RetVal, CalleeNode, Args));
-    DS->callee_site(CS.getInstruction());
   } else
     addDSCallSite(DSCallSite(CS, RetVal, cast<Function>(Callee), Args));
 }
@@ -873,11 +885,22 @@ void GraphBuilderGlobal::MergeConstantInitIntoNode(DSNodeHandle &NH, const Type*
   }
 }
 
-void GraphBuilderGlobal::mergeInGlobalInitializer(GlobalVariable *GV) {
+void GraphBuilderGlobal::mergeGlobal(GlobalVariable *GV) {
   assert(!GV->isDeclaration() && "Cannot merge in external global!");
   // Get a node handle to the global node and merge the initializer into it.
   DSNodeHandle NH = getValueDest(*GV);
   MergeConstantInitIntoNode(NH, GV->getType()->getElementType(), GV->getInitializer());
+}
+void GraphBuilderGlobal::mergeAlias(GlobalAlias *GV) {
+  assert(!GV->isDeclaration() && "Cannot merge in external alias!");
+  // Get a node handle to the global node and merge the initializer into it.
+  DSNodeHandle NH = getValueDest(*GV);
+  DSNodeHandle NHT = getValueDest(*GV->getAliasee());
+  NH.mergeWith(NHT);
+}
+void GraphBuilderGlobal::mergeFunction(Function* F) {
+  assert(!F->isDeclaration() && "Cannot merge in external global!");
+  DSNodeHandle NH = getValueDest(*F);
 }
 
 
@@ -894,11 +917,15 @@ bool LocalDataStructures::runOnModule(Module &M) {
     for (Module::global_iterator I = M.global_begin(), E = M.global_end();
          I != E; ++I)
       if (!I->isDeclaration())
-        GGB.mergeInGlobalInitializer(I);
+        GGB.mergeGlobal(I);
+    for (Module::alias_iterator I = M.alias_begin(), E = M.alias_end();
+         I != E; ++I)
+      if (!I->isDeclaration())
+        GGB.mergeAlias(I);
     // Add Functions to the globals graph.
     for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I)
       if (!I->isDeclaration())
-        GGB.mergeFunction(*I);
+        GGB.mergeFunction(I);
   }
 
   // Next step, iterate through the nodes in the globals graph, unioning
@@ -912,7 +939,6 @@ bool LocalDataStructures::runOnModule(Module &M) {
       GraphBuilderLocal GGB(*I, G->getOrCreateReturnNodeFor(*I), G, *this);
       G->getAuxFunctionCalls() = G->getFunctionCalls();
       setDSGraph(I, G);
-      propagateUnknownFlag(G);
     }
 
   GlobalsGraph->removeTriviallyDeadNodes();
@@ -924,7 +950,6 @@ bool LocalDataStructures::runOnModule(Module &M) {
   // program.
   formGlobalECs();
 
-  propagateUnknownFlag(GlobalsGraph);
   return false;
 }
 

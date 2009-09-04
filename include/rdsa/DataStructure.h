@@ -22,6 +22,8 @@
 #include "poolalloc/ADT/HashExtras.h"
 
 #include <map>
+#include <vector>
+#include <algorithm>
 
 namespace llvm {
 
@@ -36,13 +38,68 @@ class DSNodeHandle;
 FunctionPass *createDataStructureStatsPass();
 FunctionPass *createDataStructureGraphCheckerPass();
 
-class DataStructures : public ModulePass {
-  typedef hash_map<const Instruction*, hash_set<const Function*> > ActualCalleesTy;
-  typedef hash_map<const Function*, DSGraph*> DSInfoTy;
+class InstCallGraph {
+  typedef hash_map<const Instruction*, std::vector<const Function*> > ActualCalleesTy;
+
+  // Callgraph
+  ActualCalleesTy ActualCallees;
+
 public:
-  typedef hash_set<const Function*>::const_iterator callee_iterator;
-  
-private:
+
+  InstCallGraph() {
+    //Dummy node for empty call sites
+    ActualCallees[0];
+  }
+
+  typedef std::vector<const Function*>::const_iterator iterator;
+
+  void add(const Instruction* I, const Function* F) {
+    std::vector<const Function*>& callees = ActualCallees[I];
+    std::vector<const Function*>::iterator ii 
+      = std::lower_bound(callees.begin(), callees.end(), F);
+    if (ii != callees.end() && *ii == F) return;
+    callees.insert(ii, F);
+  }
+
+  iterator begin(const Instruction *I) const {
+    ActualCalleesTy::const_iterator ii = ActualCallees.find(I);
+    if (ii == ActualCallees.end())
+      ii = ActualCallees.find(0);
+    return ii->second.begin();
+  }
+
+  iterator end(const Instruction *I) const {
+    ActualCalleesTy::const_iterator ii = ActualCallees.find(I);
+    if (ii == ActualCallees.end())
+      ii = ActualCallees.find(0);
+    return ii->second.end();
+  }
+
+  unsigned size() const {
+    unsigned sum = 0;
+    for (ActualCalleesTy::const_iterator ii = ActualCallees.begin(),
+           ee = ActualCallees.end(); ii != ee; ++ii)
+      sum += ii->second.size();
+    return sum;
+  }
+
+  template<class OutputIterator>
+  void get_keys(OutputIterator keys) {
+    for (ActualCalleesTy::const_iterator ii = ActualCallees.begin(),
+           ee = ActualCallees.end(); ii != ee; ++ii)
+      *keys++ = ii->first;
+  }
+
+  void clear() {
+    ActualCallees.clear();
+  }
+};
+
+
+
+class DataStructures : public ModulePass {
+  typedef hash_map<const Function*, DSGraph*> DSInfoTy;
+
   /// TargetData, comes in handy
   TargetData* TD;
 
@@ -58,15 +115,8 @@ private:
   /// Were are DSGraphs stolen by another pass?
   bool DSGraphsStolen;
 
-  void buildGlobalECs(std::set<const GlobalValue*>& ECGlobals);
-
-  void eliminateUsesOfECGlobals(DSGraph& G, const std::set<const GlobalValue*> &ECGlobals);
-
   // DSInfo, one graph for each function
   DSInfoTy DSInfo;
-
-  // Callgraph, as computed so far
-  ActualCalleesTy ActualCallees;
 
   // Name for printing
   const char* printname;
@@ -87,14 +137,8 @@ protected:
   void formGlobalECs();
 
 
-  void callee_add(const Instruction* I, const Function* F) {
-    ActualCallees[I].insert(F);
-  }
-
   DataStructures(intptr_t id, const char* name) 
     : ModulePass(id), TD(0), GraphSource(0), printname(name), GlobalsGraph(0) {
-    //a dummy node for empty call sites
-    ActualCallees[0];
     
     // For now, the graphs are owned by this pass
     DSGraphsStolen = false;
@@ -106,37 +150,8 @@ public:
   void print(std::ostream &O, const Module *M) const;
   void dumpCallGraph() const;
 
-  callee_iterator callee_begin(const Instruction *I) const {
-    ActualCalleesTy::const_iterator ii = ActualCallees.find(I);
-    if (ii == ActualCallees.end())
-      ii = ActualCallees.find(0);
-    return ii->second.begin();
-  }
-
-  callee_iterator callee_end(const Instruction *I) const {
-    ActualCalleesTy::const_iterator ii = ActualCallees.find(I);
-    if (ii == ActualCallees.end())
-      ii = ActualCallees.find(0);
-    return ii->second.end();
-  }
-
-  void callee_site(const Instruction* I) {
-    ActualCallees[I];
-  }
-
-  unsigned callee_size() const {
-    unsigned sum = 0;
-    for (ActualCalleesTy::const_iterator ii = ActualCallees.begin(),
-           ee = ActualCallees.end(); ii != ee; ++ii)
-      sum += ii->second.size();
-    return sum;
-  }
-
-  void callee_get_keys(std::vector<const Instruction*>& keys) {
-    for (ActualCalleesTy::const_iterator ii = ActualCallees.begin(),
-           ee = ActualCallees.end(); ii != ee; ++ii)
-      keys.push_back(ii->first);
-  }
+  typedef InstCallGraph calleeTy;
+  calleeTy callee;
 
   virtual void releaseMemory();
 

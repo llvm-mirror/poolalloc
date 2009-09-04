@@ -157,8 +157,8 @@ void TDDataStructures::ComputePostOrder(const Function* F,
   // Recursively traverse all of the callee graphs.
   for (DSGraph::fc_iterator CI = G->fc_begin(), CE = G->fc_end(); CI != CE; ++CI){
     Instruction *CallI = CI->getCallSite().getInstruction();
-    for (callee_iterator I = callee_begin(CallI),
-           E = callee_end(CallI); I != E; ++I)
+    for (calleeTy::iterator I = callee.begin(CallI),
+           E = callee.end(CallI); I != E; ++I)
       ComputePostOrder(*I, Visited, PostOrder);
   }
 
@@ -294,8 +294,8 @@ void TDDataStructures::InlineCallersIntoGraph(DSGraph* DSG) {
 
     Instruction *CallI = CI->getCallSite().getInstruction();
     // For each function in the invoked function list at this call site...
-    callee_iterator IPI =
-      callee_begin(CallI), IPE = callee_end(CallI);
+    calleeTy::iterator IPI =
+      callee.begin(CallI), IPE = callee.end(CallI);
 
     // Skip over all calls to this graph (SCC calls).
     while (IPI != IPE && getDSGraph(*IPI) == DSG)
@@ -326,7 +326,7 @@ void TDDataStructures::InlineCallersIntoGraph(DSGraph* DSG) {
     // so we build up a new, private, graph that represents the calls of all
     // calls to this set of functions.
     std::vector<const Function*> Callees;
-    for (callee_iterator I = callee_begin(CallI), E = callee_end(CallI);
+    for (calleeTy::iterator I = callee.begin(CallI), E = callee.end(CallI);
          I != E; ++I)
       if (!(*I)->isDeclaration())
         Callees.push_back(*I);

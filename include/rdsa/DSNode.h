@@ -81,24 +81,27 @@ class DSNode {
   DSNode(const DSNode &);         // DO NOT IMPLEMENT
 public:
   enum NodeTy {
-    ShadowNode      = 0,        // Nothing is known about this node...
-    AllocaNode      = 1 << 0,   // This node was allocated with alloca
-    HeapNode        = 1 << 1,   // This node was allocated with malloc
-    GlobalNode      = 1 << 2,   // This node was allocated by a global var decl
-    UnknownNode     = 1 << 3,   // This node points to unknown allocated memory
-    IncompleteNode  = 1 << 4,   // This node may not be complete
+    ShadowNode         = 0,        // Nothing is known about this node...
+    AllocaNode         = 1 << 0,   // This node was allocated with alloca
+    HeapNode           = 1 << 1,   // This node was allocated with malloc
+    GlobalNode         = 1 << 2,   // This node was allocated by a global var decl
+    UnknownNode        = 1 << 3,   // This node points to unknown allocated memory
+    IncompleteNode     = 1 << 4,   // This node may not be complete
 
-    ModifiedNode    = 1 << 5,   // This node is modified in this context
-    ReadNode        = 1 << 6,   // This node is read in this context
+    ModifiedNode       = 1 << 5,   // This node is modified in this context
+    ReadNode           = 1 << 6,   // This node is read in this context
 
-    ArrayNode       = 1 << 7,   // This node is treated like an array
-    ExternalNode    = 1 << 8,   // This node comes from an external source
-    IntToPtrNode    = 1 << 9,   // This node comes from an int cast
-    PtrToIntNode    = 1 << 10,  // This node excapes to an int cast
-    VAStartNode     = 1 << 11,  // This node excapes to an int cast
+    ArrayNode          = 1 << 7,   // This node is treated like an array
+    ExternalNode       = 1 << 8,   // This node comes from an external source
+    IntToPtrNode       = 1 << 9,   // This node comes from an int cast
+    PtrToIntNode       = 1 << 10,  // This node excapes to an int cast
+    VAStartNode        = 1 << 11,  // This node excapes to an int cast
+
+    FunctionNode       = 1 << 12,  // This node contains a function
+    ExternFunctionNode = 1 << 13, // This node contains an extern func
 
     //#ifndef NDEBUG
-    DeadNode        = 1 << 12,   // This node is dead and should not be pointed to
+    DeadNode           = 1 << 14,   // This node is dead and should not be pointed to
     //#endif
 
     Composition = AllocaNode | HeapNode | GlobalNode | UnknownNode
@@ -350,6 +353,8 @@ public:
   bool isIntToPtrNode()   const { return NodeType & IntToPtrNode;  }
   bool isPtrToIntNode()   const { return NodeType & PtrToIntNode;  }
   bool isVAStartNode()    const { return NodeType & VAStartNode;   }
+  bool isFunctionNode()   const { return NodeType & FunctionNode;  }
+  bool isExternFunctionNode() const { return NodeType & ExternFunctionNode; }
 
   DSNode* setAllocaMarker()     { NodeType |= AllocaNode;     return this; }
   DSNode* setHeapMarker()       { NodeType |= HeapNode;       return this; }
@@ -363,6 +368,8 @@ public:
   DSNode* setIntToPtrMarker()   { NodeType |= IntToPtrNode;   return this; }
   DSNode* setPtrToIntMarker()   { NodeType |= PtrToIntNode;   return this; }
   DSNode* setVAStartMarker()    { NodeType |= VAStartNode;    return this; }
+  DSNode* setFunctionMarker()   { NodeType |= FunctionNode;   return this; }
+  DSNode* setExternFunctionMarker() { NodeType |= ExternFunctionNode; return this; }
 
   void makeNodeDead() {
     Globals.clear();

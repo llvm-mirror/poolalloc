@@ -45,13 +45,13 @@ void CompleteBUDataStructures::buildIndirectFunctionSets(Module &M) {
   // call multiple different functions, we need to unify all of the callees into
   // the same equivalence class.
   std::vector<const Instruction*> keys;
-  callee_get_keys(keys);
+  callee.get_keys(back_inserter(keys));
 
   //mege nodes in the global graph for these functions
   for (std::vector<const Instruction*>::iterator ii = keys.begin(), ee = keys.end();
        ii != ee; ++ii) {
     if (*ii) {
-      callee_iterator csi = callee_begin(*ii), cse = callee_end(*ii); 
+      calleeTy::iterator csi = callee.begin(*ii), cse = callee.end(*ii); 
       if (csi != cse) ++csi;
       DSGraph* G = getOrFetchDSGraph((*ii)->getParent()->getParent());
       for ( ; csi != cse; ++csi) {

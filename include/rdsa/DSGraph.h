@@ -156,14 +156,17 @@ public:
   }
 
   void clear_scalars() {
+    unsigned counter = 0;
     for(iterator ii = begin(); ii != end(); )
       if (isa<GlobalValue>(ii->first))
         ++ii;
       else {
+	++counter;
         iterator next = ii;
         ++ii;
         erase(next);
       }
+    std::cerr << "Removed " << counter << " scalars in clear_scalars\n";
   }
 
   void clear() {
