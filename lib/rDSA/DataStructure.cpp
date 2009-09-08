@@ -120,7 +120,7 @@ DSNodeHandle &DSScalarMap::AddGlobal(const GlobalValue *GV) {
 //===----------------------------------------------------------------------===//
 
 DSNode::DSNode(const Type *T, DSGraph *G)
-  : NumReferrers(0), Size(0), ParentGraph(G), Ty(Type::getVoidTy(getGlobalContext())), NodeType(0) {
+  : NumReferrers(0), Size(0), ParentGraph(G), Ty(Type::getVoidTy(getGlobalContext())) {
   // Add the type entry if it is specified...
   if (T) mergeTypeInfo(T, 0);
   if (G) G->addNode(this);
@@ -142,17 +142,6 @@ DSNode::DSNode(const DSNode &N, DSGraph *G, bool NullLinks)
 DSNode::~DSNode() {
   dropAllReferences();
   assert(hasNoReferrers() && "Referrers to dead node exist!");
-
-#ifdef LLVA_KERNEL
-  //
-  // Remove all references to this node from the Pool Descriptor Map.
-  //
-  DOUT << "LLVA: Removing " << this << "\n";
-  if (ParentGraph) {
-    hash_map<const DSNode *, MetaPoolHandle*> &pdm=ParentGraph->getPoolDescriptorsMap();
-    pdm.erase (this);
-  }
-#endif
 }
 
 /// getTargetData - Get the target data object used to construct this node.
@@ -163,8 +152,8 @@ const TargetData &DSNode::getTargetData() const {
 
 void DSNode::assertOK() const {
   assert((Ty != Type::getVoidTy(getGlobalContext()) ||
-          (Ty == Type::getVoidTy(getGlobalContext()) && (Size == 0 ||
-                                  (NodeType & DSNode::ArrayNode)))) &&
+          (Ty == Type::getVoidTy(getGlobalContext()) 
+           && (Size == 0 || NodeType.isArrayNode()))) &&
          "Node not OK!");
 
   assert(ParentGraph && "Node has no parent?");
@@ -185,7 +174,7 @@ void DSNode::forwardNode(DSNode *To, unsigned Offset) {
   assert((Offset < To->Size || (Offset == To->Size && Offset == 0)) &&
          "Forwarded offset is wrong!");
   ForwardNH.setTo(To, Offset);
-  NodeType = DeadNode;
+  NodeType.setDeadNode();
   Size = 0;
   Ty = Type::getVoidTy(getGlobalContext());
 
@@ -208,7 +197,7 @@ void DSNode::addGlobal(const GlobalValue *GV) {
 
   if (I == Globals.end() || *I != GV) {
     Globals.insert(I, GV);
-    NodeType |= GlobalNode;
+    NodeType.setGlobalNode();
   }
 }
 
@@ -217,9 +206,10 @@ void DSNode::addGlobal(const GlobalValue *GV) {
 /// it does not already have it.
 ///
 void DSNode::addFunction(const Function* FV) {
-  setFunctionMarker();
   if (FV->isDeclaration())
-    setExternFunctionMarker();
+    NodeType.setExternFunctionNode();
+  else
+    NodeType.setFunctionNode();
   addGlobal(FV);
 }
 
@@ -245,7 +235,7 @@ void DSNode::foldNodeCompletely() {
   // If this node has a size that is <= 1, we don't need to create a forwarding
   // node.
   if (getSize() <= 1) {
-    NodeType |= DSNode::ArrayNode;
+    NodeType.setArrayNode();
     Ty = Type::getVoidTy(getGlobalContext());
     Size = 1;
     assert(Links.size() <= 1 && "Size is 1, but has more links?");
@@ -255,24 +245,12 @@ void DSNode::foldNodeCompletely() {
     // some referrers may have an offset that is > 0.  By forcing them to
     // forward, the forwarder has the opportunity to correct the offset.
     DSNode *DestNode = new DSNode(0, ParentGraph);
-    DestNode->NodeType = NodeType|DSNode::ArrayNode;
+    DestNode->NodeType = NodeType;
+    DestNode->NodeType.setArrayNode();
     DestNode->Ty = Type::getVoidTy(getGlobalContext());
     DestNode->Size = 1;
     DestNode->Globals.swap(Globals);
     
-    //    DOUT << "LLVA: foldNode: " << this << " becomes " << DestNode << "\n";
-#ifdef LLVA_KERNEL
-    //Again we have created a new DSNode, we need to fill in the
-    // pool desc map appropriately
-    assert(ParentGraph && "parent graph is not null \n"); 
-    hash_map<const DSNode *, MetaPoolHandle*> &pdm = ParentGraph->getPoolDescriptorsMap();
-    if (pdm.count(this) > 0) {
-      pdm[DestNode] = pdm[this];
-    } else {
-      //do nothing 
-    }
-#endif    
-
     // Start forwarding to the destination node...
     forwardNode(DestNode, 0);
 
@@ -298,7 +276,7 @@ void DSNode::foldNodeCompletely() {
 /// all of the field sensitivity that may be present in the node.
 ///
 bool DSNode::isNodeCompletelyFolded() const {
-  return getSize() == 1 && Ty == Type::getVoidTy(getGlobalContext()) && isArray();
+  return getSize() == 1 && Ty == Type::getVoidTy(getGlobalContext()) && NodeType.isArrayNode();
 }
 
 /// addFullGlobalsList - Compute the full set of global values that are
@@ -477,10 +455,10 @@ bool DSNode::mergeTypeInfo(const Type *NewTy, unsigned Offset,
   //  Size = 1, Ty = Void, Array = 1: The node is collapsed
   //  Otherwise, sizeof(Ty) = Size
   //
-  assert(((Size == 0 && Ty == Type::getVoidTy(getGlobalContext()) && !isArray()) ||
-          (Size == 0 && !Ty->isSized() && !isArray()) ||
-          (Size == 1 && Ty == Type::getVoidTy(getGlobalContext()) && isArray()) ||
-          (Size == 0 && !Ty->isSized() && !isArray()) ||
+  assert(((Size == 0 && Ty == Type::getVoidTy(getGlobalContext()) && !NodeType.isArrayNode()) ||
+          (Size == 0 && !Ty->isSized() && !NodeType.isArrayNode()) ||
+          (Size == 1 && Ty == Type::getVoidTy(getGlobalContext()) && NodeType.isArrayNode()) ||
+          (Size == 0 && !Ty->isSized() && !NodeType.isArrayNode()) ||
           (TD.getTypeAllocSize(Ty) == Size)) &&
          "Size member of DSNode doesn't match the type structure!");
   assert(NewTy != Type::getVoidTy(getGlobalContext()) && "Cannot merge void type into DSNode!");
@@ -513,7 +491,7 @@ bool DSNode::mergeTypeInfo(const Type *NewTy, unsigned Offset,
   if (Ty == Type::getVoidTy(getGlobalContext())) {
     // If this is the first type that this node has seen, just accept it without
     // question....
-    assert(Offset == 0 && !isArray() &&
+    assert(Offset == 0 && !NodeType.isArrayNode() &&
            "Cannot have an offset into a void node!");
 
     // If this node would have to have an unreasonable number of fields, just
@@ -526,8 +504,8 @@ bool DSNode::mergeTypeInfo(const Type *NewTy, unsigned Offset,
     }
 
     Ty = NewTy;
-    NodeType &= ~ArrayNode;
-    if (WillBeArray) NodeType |= ArrayNode;
+    NodeType.maskFlags(~DSFlags::ArrayNode);
+    if (WillBeArray) NodeType.setArrayNode();
     Size = NewTySize;
 
     // Calculate the number of outgoing links from this node.
@@ -539,7 +517,7 @@ bool DSNode::mergeTypeInfo(const Type *NewTy, unsigned Offset,
   if (Offset+NewTySize > Size) {
     // It is illegal to grow this node if we have treated it as an array of
     // objects...
-    if (isArray()) {
+    if (NodeType.isArrayNode()) {
       if (FoldIfIncompatible) foldNodeCompletely();
       return true;
     }
@@ -623,8 +601,8 @@ bool DSNode::mergeTypeInfo(const Type *NewTy, unsigned Offset,
 
     const Type *OldTy = Ty;
     Ty = NewTy;
-    NodeType &= ~ArrayNode;
-    if (WillBeArray) NodeType |= ArrayNode;
+    NodeType.maskFlags(~DSFlags::ArrayNode);
+    if (WillBeArray) NodeType.setArrayNode();
     Size = NewTySize;
 
     // Must grow links to be the appropriate size...
@@ -687,7 +665,7 @@ bool DSNode::mergeTypeInfo(const Type *NewTy, unsigned Offset,
   // just require each element in the node to be compatible.
   if (NewTySize <= SubTypeSize && NewTySize && NewTySize < 256 &&
       SubTypeSize && SubTypeSize < 256 &&
-      ElementTypesAreCompatible(NewTy, SubType, !isArray(), TD))
+      ElementTypesAreCompatible(NewTy, SubType, !NodeType.isArrayNode(), TD))
     return false;
 
   // Okay, so we found the leader type at the offset requested.  Search the list
@@ -843,63 +821,11 @@ void DSNode::MergeNodes(DSNodeHandle& CurNodeH, DSNodeHandle& NH) {
     }
 #endif
   }
-#ifdef LLVA_KERNEL
-  DSNode *currNode  = CurNodeH.getNode();
-  DSNode *NNode  = NH.getNode();
-  DSGraph *pGraph =  currNode->getParentGraph();
-  assert((pGraph == NNode->getParentGraph()) && "LLVA_KERNEL : merging nodes in two different graphs?");
-  //get the pooldescriptor map
-  hash_map<const DSNode *, MetaPoolHandle*> &pdm = pGraph->getPoolDescriptorsMap();
-  if (pdm.count(currNode) == 0) {
-    if (pdm.count(NNode) == 0) {
-      //do nothing  (common case)
-    } else {
-      if (pdm[NNode]) {
-        DOUT << "LLVA: 1: currNode (" << currNode << ") becomes " << pdm[NNode]->getName() << "(" << NNode << ")\n";
-        pdm[currNode] = pdm[NNode];
-      }
-    }
-  } else {
-    if (pdm.count(NNode) == 0) {
-#if 1
-      //
-      // FIXME:
-      //  Verify that this is correct.  I believe it is; it seems to make sense
-      //  since either node can be used after the merge.
-      //
-      DOUT << "LLVA: MergeNodes: currnode has something, newnode has nothing\n";
-      DOUT << "LLVA: 2: currNode (" << currNode << ") becomes <no name>"
-           << "(" << NNode << ")\n";
-      pdm[NNode] = pdm[currNode];
-#endif
-      //do nothing 
-    } else {
-      if (pdm[currNode] != pdm[NNode]) {
-	//The following is commented because pdm[..] could be null!
-	//std::cerr << "LLVA: OldPool: " << pdm[currNode]->getName() << "("
-        //                       << pdm[currNode] << ") "
-	//          << " NewPool: "      << pdm[NNode]->getName() << "("
-	//                               << pdm[NNode] << ")" << std::endl;
-        pdm[NNode]->merge(pdm[currNode]);
-        /*
-        Value *currN = pdm[currNode]->getMetaPoolValue();
-        Value *NN = pdm[NNode]->getMetaPoolValue();
-        if (currN != NN) {
-          std::cerr << "LLVA: Two Pools for one DSNode\n";
-          currN->replaceAllUsesWith(NN);
-          pdm[currNode]->merge(pdm[NNode]);
-        } else {
-          //The nodes are same
-        }
-        */
-      }
-    }
-  }
-#endif  
+
   // Merge the type entries of the two nodes together...
   if (NH.getNode()->Ty != Type::getVoidTy(getGlobalContext()))
     CurNodeH.getNode()->mergeTypeInfo(NH.getNode()->Ty, NOffset);
-  assert(!CurNodeH.getNode()->isDeadNode());
+  assert(!CurNodeH.getNode()->NodeType.isDeadNode());
 
   // If we are merging a node with a completely folded node, then both nodes are
   // now completely folded.
@@ -924,14 +850,14 @@ void DSNode::MergeNodes(DSNodeHandle& CurNodeH, DSNodeHandle& NH) {
 
   DSNode *N = NH.getNode();
   if (CurNodeH.getNode() == N || N == 0) return;
-  assert(!CurNodeH.getNode()->isDeadNode());
+  assert(!CurNodeH.getNode()->NodeType.isDeadNode());
 
   // Merge the NodeType information.
-  CurNodeH.getNode()->NodeType |= N->NodeType;
+  CurNodeH.getNode()->NodeType.mergeFlags(N->NodeType.getFlags());
 
   // Start forwarding to the new node!
   N->forwardNode(CurNodeH.getNode(), NOffset);
-  assert(!CurNodeH.getNode()->isDeadNode());
+  assert(!CurNodeH.getNode()->NodeType.isDeadNode());
 
   // Make all of the outgoing links of N now be outgoing links of CurNodeH.
   //
@@ -985,7 +911,7 @@ void DSNode::mergeWith(const DSNodeHandle &NH, unsigned Offset) {
     return;
   }
 
-  assert(!N->isDeadNode() && !isDeadNode());
+  assert(!N->NodeType.isDeadNode() && !NodeType.isDeadNode());
   assert(!hasNoReferrers() && "Should not try to fold a useless node!");
 
   if (N == this) {
@@ -1052,21 +978,8 @@ DSNodeHandle ReachabilityCloner::getClonedNH(const DSNodeHandle &SrcNH) {
   }
 
   DSNode *DN = new DSNode(*SN, Dest, true /* Null out all links */);
-  DN->maskNodeTypes(BitsToKeep);
+  DN->NodeType.maskFlags(BitsToKeep);
   NH = DN;
-  //DOUT << "getClonedNH: " << SN << " becomes " << DN << "\n";
-#if 1
-#ifdef LLVA_KERNEL
-    //Again we have created a new DSNode, we need to fill in the
-    // pool desc map appropriately
-    hash_map<const DSNode *, MetaPoolHandle*> &pdm = Dest.getPoolDescriptorsMap();
-    if (pdm.count(SN) > 0) {
-      pdm[DN] = pdm[SN];
-    } else {
-      //do nothing 
-    }
-#endif    
-#endif
 
   // Next, recursively clone all outgoing links as necessary.  Note that
   // adding these links can cause the node to collapse itself at any time, and
@@ -1165,10 +1078,10 @@ void ReachabilityCloner::merge(const DSNodeHandle &NH,
       }
     }
 
-    assert(!DN->isDeadNode());
+    assert(!DN->NodeType.isDeadNode());
 
     // Merge the NodeType information.
-    DN->mergeNodeFlags(SN->getNodeFlags() & BitsToKeep);
+    DN->NodeType.mergeFlags(SN->NodeType.getFlags() & BitsToKeep);
 
     // Before we start merging outgoing links and updating the scalar map, make
     // sure it is known that this is the representative node for the src node.
@@ -1197,7 +1110,7 @@ void ReachabilityCloner::merge(const DSNodeHandle &NH,
     // We cannot handle this case without allocating a temporary node.  Fall
     // back on being simple.
     DSNode *NewDN = new DSNode(*SN, Dest, true /* Null out all links */);
-    NewDN->maskNodeTypes(BitsToKeep);
+    NewDN->NodeType.maskFlags(BitsToKeep);
 
     unsigned NHOffset = NH.getOffset();
     NH.mergeWith(DSNodeHandle(NewDN, SrcNH.getOffset()));
@@ -1225,54 +1138,6 @@ void ReachabilityCloner::merge(const DSNodeHandle &NH,
     }
   }
 
-  //  DOUT << "LLVA: mergeWith: " << SN << " becomes " << DN << "\n";
-
-#ifdef LLVA_KERNEL
-  //Here some merge is going on just like in DSNode::merge
-  //I think because of the inplace merging we don't update the pool desc maps
-  //This is modification from DSNode::MergeNodes
-  //Here DN and SN may belong to different graphs
- DN = NH.getNode(); 
-#if 0
-  DSGraph *destGraph =  DN->getParentGraph();
-  DSGraph *srcGraph =  SN->getParentGraph();
-#else
-  DSGraph *destGraph = NH.getNode()->getParentGraph();
-  DSGraph *srcGraph =  SN->getParentGraph();
-#endif
-  if (destGraph && srcGraph) {
-    //get the pooldescriptor map
-    hash_map<const DSNode *, MetaPoolHandle*> &destpdm = destGraph->getPoolDescriptorsMap();
-    hash_map<const DSNode *, MetaPoolHandle*> &srcpdm = srcGraph->getPoolDescriptorsMap();
-    if (destpdm.count(DN) == 0) {
-      if (srcpdm.count(SN) == 0) {
-        //do nothing  (common case)
-      } else {
-        if (srcpdm[SN]) {
-          DOUT << "DN becomes " << srcpdm[SN]->getName() << std::endl;
-          destpdm[DN] = srcpdm[SN];
-        }
-      }
-    } else {
-      if (srcpdm.count(SN) == 0) {
-        srcpdm[SN] = destpdm[DN];
-      } else {
-        if (destpdm[DN] != srcpdm[SN]) {
-          srcpdm[SN]->merge(destpdm[DN]);
-          /*
-          Value *dnv = destpdm[DN]->getMetaPoolValue();
-          Value *snv = srcpdm[SN]->getMetaPoolValue();
-          if (dnv != snv) {
-            DEBUG(std::cerr << "LLVA: Two Pools for one DSNode\n");
-            dnv->replaceAllUsesWith(snv);
-            destpdm[DN]->setMetaPoolValue(snv);
-          }
-          */
-        }
-      }
-    }
-  }
-#endif  
   // Next, recursively merge all outgoing links as necessary.  Note that
   // adding these links can cause the destination node to collapse itself at
   // any time, and the current node may be merged with arbitrary other nodes.
@@ -1355,53 +1220,6 @@ void DSCallSite::InitNH(DSNodeHandle &NH, const DSNodeHandle &Src,
                         ReachabilityCloner &RC) {
   NH = RC.getClonedNH(Src);
 }
-
-#ifdef LLVA_KERNEL
-// MetaPoolHandle Implementation
-  //The following should go in a cpp file later
-   MetaPoolHandle::MetaPoolHandle(MetaPool *mp, Instruction * Maker) {
-    Rep = mp;
-    Rep->insert(this);
-    Creator = Maker;
-  }
-  const std::string& MetaPoolHandle::getName() {
-    assert(Rep != 0 && "Null meta pool ??\n");
-    return Rep->getName();
-  }
-  Value *MetaPoolHandle::getMetaPoolValue() {
-    assert(Rep != 0 && "Null meta pool ??\n");
-    return Rep->getMetaPoolValue();
-  }
-  void MetaPoolHandle::merge(MetaPoolHandle *other) {
-    //after this operation other points to what this points to .
-    //first replace all uses 
-     Value *dest = getMetaPoolValue();
-     Value *curr = other->getMetaPoolValue();
-     if (dest != curr) {
-       std::cerr << "LLVA: Merging metapools: " << this->Creator->getParent()->getParent()->getName() << " : " << other->Creator->getParent()->getParent()->getName() << "\n"
-                 << "LLVA:   " << *(this->Creator) << "\n"
-                 << "LLVA:   " << *(other->Creator) << "\n";
-       curr->replaceAllUsesWith(dest);
-     }
-   
-     //merge the hash sets in to other
-     hash_set<MetaPoolHandle *> &otherHandleSet = other->getMetaPool()->getHandleSet();
-     hash_set<MetaPoolHandle *>::iterator ohsI = otherHandleSet.begin(), ohsE = otherHandleSet.end();
-     for (; ohsI != ohsE; ++ohsI) {
-     MetaPoolHandle *omph = *ohsI;
-     //now make sure that this omph points to what we point to
-     omph->setMetaPool(Rep);
-     Rep->insert(omph);
-     }
-
-     //now delete others MetaPool
-     //gd     delete other->getMetaPool(); 
-
-     //Assign our metapool to other 
-     other->setMetaPool(Rep);
-}
-
-#endif
 
 //===----------------------------------------------------------------------===//
 // DSGraph Implementation
@@ -1493,9 +1311,9 @@ DSNode *DSGraph::addObjectToGraph(Value *Ptr, bool UseDeclaredType) {
   if (GlobalValue *GV = dyn_cast<GlobalValue>(Ptr)) {
     N->addGlobal(GV);
   } else if (isa<MallocInst>(Ptr)) {
-   N->setHeapMarker();
+   N->NodeType.setHeapNode();
   } else if (isa<AllocaInst>(Ptr)) {
-    N->setAllocaMarker();
+    N->NodeType.setAllocaNode();
   } else {
     assert(0 && "Illegal memory object input!");
   }
@@ -1525,7 +1343,7 @@ void DSGraph::cloneInto( DSGraph* G, unsigned CloneFlags) {
     assert(!I->isForwarding() &&
            "Forward nodes shouldn't be in node list!");
     DSNode *New = new DSNode(*I, this);
-    New->maskNodeTypes(~BitsToClear);
+    New->NodeType.maskFlags(~BitsToClear);
     OldNodeMap[I] = New;
   }
 
@@ -1688,7 +1506,7 @@ VisitForSCCs(const DSNode *N) {
 
   // Base case: if we find a global, this doesn't reach the cloned graph
   // portion.
-  if (N->isGlobalNode()) {
+  if (N->NodeType.isGlobalNode()) {
     ThisNodeInfo.second = false;
     return ThisNodeInfo;
   }
@@ -1901,10 +1719,10 @@ DSCallSite DSGraph::getDSCallSiteForCallSite(CallSite CS) const {
 //
 static void markIncompleteNode(DSNode *N) {
   // Stop recursion if no node, or if node already marked...
-  if (N == 0 || N->isIncompleteNode()) return;
+  if (N == 0 || N->NodeType.isIncompleteNode()) return;
 
   // Actually mark the node
-  N->setIncompleteMarker();
+  N->NodeType.setIncompleteNode();
 
   // Recursively process children...
   for (DSNode::edge_iterator I = N->edge_begin(),E = N->edge_end(); I != E; ++I)
@@ -2014,7 +1832,7 @@ static void removeIdenticalCalls(std::list<DSCallSite> &Calls) {
 
       // If the Callee is a useless edge, this must be an unreachable call site,
       // eliminate it.
-      if (Callee->getNumReferrers() == 1 && Callee->isCompleteNode() &&
+      if (Callee->getNumReferrers() == 1 && Callee->NodeType.isCompleteNode() &&
           Callee->isEmptyGlobals()) {  // No useful info?
         //errs() << "WARNING: Useless call site found.\n";
         Calls.erase(OldIt);
@@ -2026,7 +1844,7 @@ static void removeIdenticalCalls(std::list<DSCallSite> &Calls) {
       // if the callee contains an external function, it will never be
       // resolvable, just merge the call sites.
       if (!LastCalleeNode.isNull() && LastCalleeNode.getNode() == Callee) {
-        LastCalleeContainsExternalFunction = Callee->isExternFunctionNode();
+        LastCalleeContainsExternalFunction = Callee->NodeType.isExternFunctionNode();
 
         std::list<DSCallSite>::iterator PrevIt = OldIt;
         --PrevIt;
@@ -2178,12 +1996,12 @@ void DSGraph::removeTriviallyDeadNodes(bool updateForwarders) {
 
     // Do not remove *any* global nodes in the globals graph.
     // This is a special case because such nodes may not have I, M, R flags set.
-    if (Node.isGlobalNode() && isGlobalsGraph) {
+    if (Node.NodeType.isGlobalNode() && isGlobalsGraph) {
       ++NI;
       continue;
     }
 
-    if (Node.isCompleteNode() && !Node.isModifiedNode() && !Node.isReadNode()) {
+    if (Node.NodeType.isCompleteNode() && !Node.NodeType.isModifiedNode() && !Node.NodeType.isReadNode()) {
       // This is a useless node if it has no mod/ref info (checked above),
       // outgoing edges (which it cannot, as it is not modified in this
       // context), and it has no incoming edges.  If it is a global node it may
@@ -2212,7 +2030,7 @@ void DSGraph::removeTriviallyDeadNodes(bool updateForwarders) {
     }
 
     if ((Node.getNodeFlags() == 0 && Node.hasNoReferrers())
-        || (isGlobalsGraph && Node.hasNoReferrers() && !Node.isGlobalNode())){
+        || (isGlobalsGraph && Node.hasNoReferrers() && !Node.NodeType.isGlobalNode())){
       // This node is dead!
       NI = Nodes.erase(NI);    // Erase & remove from node list.
       ++NumTrivialDNE;
@@ -2260,7 +2078,7 @@ static bool CanReachAliveNodes(DSNode *N, hash_set<const DSNode*> &Alive,
 
   // If this is a global node, it will end up in the globals graph anyway, so we
   // don't need to worry about it.
-  if (IgnoreGlobals && N->isGlobalNode()) return false;
+  if (IgnoreGlobals && N->NodeType.isGlobalNode()) return false;
 
   // If we know that this node is alive, return so!
   if (Alive.count(N)) return true;
@@ -2332,7 +2150,7 @@ void DSGraph::removeDeadNodes(unsigned Flags) {
        I != E; ++I)
     if (isa<GlobalValue>(I->first)) {             // Keep track of global nodes
       assert(!I->second.isNull() && "Null global node?");
-      assert(I->second.getNode()->isGlobalNode() && "Should be a global node!");
+      assert(I->second.getNode()->NodeType.isGlobalNode() && "Should be a global node!");
       GlobalNodes.push_back(std::make_pair(I->first, I->second.getNode()));
 
       // Make sure that all globals are cloned over as roots.
@@ -2486,7 +2304,7 @@ void DSGraph::AssertGraphOK() const {
     assert(!I->second.isNull() && "Null node in scalarmap!");
     AssertNodeInGraph(I->second.getNode());
     if (const GlobalValue *GV = dyn_cast<GlobalValue>(I->first)) {
-      assert(I->second.getNode()->isGlobalNode() &&
+      assert(I->second.getNode()->NodeType.isGlobalNode() &&
              "Global points to node, but node isn't global?");
       AssertNodeContainsGlobal(I->second.getNode(), GV);
     }

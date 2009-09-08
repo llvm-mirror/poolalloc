@@ -15,6 +15,7 @@
 //===----------------------------------------------------------------------===//
 
 #define DEBUG_TYPE "dsa-bu"
+
 #include "rdsa/DataStructure.h"
 #include "rdsa/DSGraph.h"
 #include "llvm/Module.h"
@@ -126,7 +127,7 @@ void BUDataStructures::finalizeGlobals(void) {
   std::set<DSCallSite> GoodCalls, BadCalls;
   for (DSGraph::afc_iterator ii = GlobalsGraph->afc_begin(), 
          ee = GlobalsGraph->afc_end(); ii != ee; ++ii)
-    if (ii->isDirectCall() || ii->getCalleeNode()->isExternFunctionNode())
+    if (ii->isDirectCall() || ii->getCalleeNode()->NodeType.isExternFunctionNode())
       BadCalls.insert(*ii);
     else
       GoodCalls.insert(*ii);
@@ -156,9 +157,9 @@ static void GetAllCallees(const DSCallSite &CS,
   if (CS.isDirectCall()) {
     if (!CS.getCalleeFunc()->isDeclaration())
       Callees.push_back(CS.getCalleeFunc());
-  } else if (!CS.getCalleeNode()->isIncompleteNode()) {
+  } else if (!CS.getCalleeNode()->NodeType.isIncompleteNode()) {
     // Get all callees.
-    if (!CS.getCalleeNode()->isExternFunctionNode())
+    if (!CS.getCalleeNode()->NodeType.isExternFunctionNode())
       CS.getCalleeNode()->addFullFunctionList(Callees);
   }
 }

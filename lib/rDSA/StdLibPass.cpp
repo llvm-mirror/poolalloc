@@ -226,27 +226,27 @@ bool StdLibDataStructures::runOnModule(Module &M) {
             if (CI->getOperand(0) == F) {
               DSGraph* Graph = getDSGraph(CI->getParent()->getParent());
               if (recFuncs[x].action.read[0])
-                Graph->getNodeForValue(CI).getNode()->setReadMarker();
+                Graph->getNodeForValue(CI).getNode()->NodeType.setReadNode();
               if (recFuncs[x].action.write[0])
-                Graph->getNodeForValue(CI).getNode()->setModifiedMarker();
+                Graph->getNodeForValue(CI).getNode()->NodeType.setModifiedNode();
               if (recFuncs[x].action.heap[0])
-                Graph->getNodeForValue(CI).getNode()->setHeapMarker();
+                Graph->getNodeForValue(CI).getNode()->NodeType.setHeapNode();
 
               for (unsigned y = 1; y < CI->getNumOperands(); ++y)
                 if (recFuncs[x].action.read[y])
                   if (isa<PointerType>(CI->getOperand(y)->getType()))
                     if (DSNode * Node=Graph->getNodeForValue(CI->getOperand(y)).getNode())
-                      Node->setReadMarker();
+                      Node->NodeType.setReadNode();
               for (unsigned y = 1; y < CI->getNumOperands(); ++y)
                 if (recFuncs[x].action.write[y])
                   if (isa<PointerType>(CI->getOperand(y)->getType()))
                     if (DSNode * Node=Graph->getNodeForValue(CI->getOperand(y)).getNode())
-                      Node->setModifiedMarker();
+                      Node->NodeType.setModifiedNode();
               for (unsigned y = 1; y < CI->getNumOperands(); ++y)
                 if (recFuncs[x].action.heap[y])
                   if (isa<PointerType>(CI->getOperand(y)->getType()))
                     if (DSNode * Node=Graph->getNodeForValue(CI->getOperand(y)).getNode())
-                      Node->setHeapMarker();
+                      Node->NodeType.setHeapNode();
 
               std::vector<DSNodeHandle> toMerge;
               if (recFuncs[x].action.mergeWithRet)

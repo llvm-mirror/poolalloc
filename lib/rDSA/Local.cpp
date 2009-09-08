@@ -12,6 +12,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+#define DEBUG_TYPE "dsa-local"
+
 #include "rdsa/DataStructure.h"
 #include "rdsa/DSGraph.h"
 #include "llvm/Module.h"
@@ -147,18 +149,10 @@ namespace {
     // Visitor functions, used to handle each instruction type we encounter...
     friend class InstVisitor<GraphBuilderLocal>;
 
-    void visitMallocInst(MallocInst &MI)
-    { setDestTo(MI, createNode()->setHeapMarker()); }
-
-    void visitAllocaInst(AllocaInst &AI)
-    { setDestTo(AI, createNode()->setAllocaMarker()); }
-
-    void visitFreeInst(FreeInst &FI)
-    { if (DSNode *N = getValueDest(*FI.getOperand(0)).getNode())
-        N->setHeapMarker();
-    }
-
     //the simple ones
+    void visitMallocInst(MallocInst &MI);
+    void visitAllocaInst(AllocaInst &AI);
+    void visitFreeInst(FreeInst &FI);
     void visitPHINode(PHINode &PN);
     void visitSelectInst(SelectInst &SI);
     void visitLoadInst(LoadInst &LI);
@@ -185,42 +179,44 @@ namespace {
     void visitCallSite(CallSite CS);
 
   public:
-    GraphBuilderLocal(Function& f, DSNodeHandle& retnode, DSGraph* g, DataStructures& DSi)
-      : GraphBuilderBase(g), DS(&DSi), RetNode(retnode) {
-      // Create scalar nodes for all pointer arguments...
-      for (Function::arg_iterator I = f.arg_begin(), E = f.arg_end();
-           I != E; ++I) {
-        if (isa<PointerType>(I->getType())) {
-          DSNode * Node = getValueDest(*I).getNode();
-
-          if (!f.hasInternalLinkage())
-            Node->setExternalMarker();
-
-        }
-      }
-
-      visit(f);  // Single pass over the function
-
-      // If there are any constant globals referenced in this function, merge
-      // their initializers into the local graph from the globals graph.
-      if (g->getScalarMap().global_begin() != g->getScalarMap().global_end()) {
-        ReachabilityCloner RC(g, g->getGlobalsGraph(), 0);
-        
-        for (DSScalarMap::global_iterator I = g->getScalarMap().global_begin();
-             I != g->getScalarMap().global_end(); ++I)
-          if (const GlobalVariable *GV = dyn_cast<GlobalVariable>(*I))
-            if (!GV->isDeclaration() && GV->isConstant())
-              RC.merge(g->getNodeForValue(GV), g->getGlobalsGraph()->getNodeForValue(GV));
-      }
-      
-      g->markIncompleteNodes(DSGraph::MarkFormalArgs);
-      
-      // Remove any nodes made dead due to merging...
-      g->removeDeadNodes(DSGraph::KeepUnreachableGlobals);
-    }
-
+    GraphBuilderLocal(Function& f, DSNodeHandle& retnode, DSGraph* g, 
+                      DataStructures& DSi);
   };
+}
 
+GraphBuilderLocal::GraphBuilderLocal(Function& f, DSNodeHandle& retnode, DSGraph* g, DataStructures& DSi)
+  : GraphBuilderBase(g), DS(&DSi), RetNode(retnode) {
+
+  // Create scalar nodes for all pointer arguments...
+  for (Function::arg_iterator I = f.arg_begin(), E = f.arg_end();
+       I != E; ++I) {
+    if (isa<PointerType>(I->getType())) {
+      DSNode * Node = getValueDest(*I).getNode();
+      
+      if (!f.hasInternalLinkage())
+        Node->NodeType.setEscapedNode();
+      
+    }
+  }
+  
+  visit(f);  // Single pass over the function
+  
+  // If there are any constant globals referenced in this function, merge
+  // their initializers into the local graph from the globals graph.
+  if (g->getScalarMap().global_begin() != g->getScalarMap().global_end()) {
+    ReachabilityCloner RC(g, g->getGlobalsGraph(), 0);
+    
+    for (DSScalarMap::global_iterator I = g->getScalarMap().global_begin();
+         I != g->getScalarMap().global_end(); ++I)
+      if (const GlobalVariable *GV = dyn_cast<GlobalVariable>(*I))
+        if (!GV->isDeclaration() && GV->isConstant())
+          RC.merge(g->getNodeForValue(GV), g->getGlobalsGraph()->getNodeForValue(GV));
+  }
+  
+  g->markIncompleteNodes(DSGraph::MarkFormalArgs);
+  
+  // Remove any nodes made dead due to merging...
+  g->removeDeadNodes(DSGraph::KeepUnreachableGlobals);
 }
 
 //===----------------------------------------------------------------------===//
@@ -266,15 +262,19 @@ DSNodeHandle GraphBuilderBase::getValueDest(Value &Val) {
       if (CE->isCast()) {
         if (isa<PointerType>(CE->getOperand(0)->getType()))
           NH = getValueDest(*CE->getOperand(0));
-        else
-          NH = createNode()->setUnknownMarker();
+        else {
+          NH = createNode();
+          NH.getNode()->NodeType.setUnknownNode();
+        }
       } else if (CE->getOpcode() == Instruction::GetElementPtr) {
         visitGetElementPtrInst(*CE);
         assert(hasNodeForValue(CE) && "GEP didn't get processed right?");
         NH = getNodeForValue(CE);
       } else {
         // This returns a conservative unknown node for any unhandled ConstExpr
-        return NH = createNode()->setUnknownMarker();
+        NH = createNode();
+        NH.getNode()->NodeType.setUnknownNode();
+        return NH;
       }
       if (NH.isNull()) {  // (getelementptr null, X) returns null
         eraseNodeForValue(V);
@@ -356,6 +356,22 @@ void GraphBuilderBase::setDestTo(Value &V, const DSNodeHandle &NH) {
 //===----------------------------------------------------------------------===//
 // Specific instruction type handler implementations...
 //
+void GraphBuilderLocal::visitMallocInst(MallocInst &MI) {
+  DSNode* N = createNode();
+  N->NodeType.setHeapNode();
+  setDestTo(MI, N);
+}
+
+void GraphBuilderLocal::visitAllocaInst(AllocaInst &AI) {
+  DSNode* N = createNode();
+  N->NodeType.setAllocaNode();
+  setDestTo(AI, N);
+}
+
+void GraphBuilderLocal::visitFreeInst(FreeInst &FI) {
+  if (DSNode *N = getValueDest(*FI.getOperand(0)).getNode())
+    N->NodeType.setHeapNode();
+}
 
 // PHINode - Make the scalar for the PHI node point to all of the things the
 // incoming values point to... which effectively causes them to be merged.
@@ -385,7 +401,7 @@ void GraphBuilderLocal::visitLoadInst(LoadInst &LI) {
   if (Ptr.isNull()) return; // Load from null
 
   // Make that the node is read from...
-  Ptr.getNode()->setReadMarker();
+  Ptr.getNode()->NodeType.setReadNode();
 
   // Ensure a typerecord exists...
   Ptr.getNode()->mergeTypeInfo(LI.getType(), Ptr.getOffset(), false);
@@ -400,7 +416,7 @@ void GraphBuilderLocal::visitStoreInst(StoreInst &SI) {
   if (Dest.isNull()) return;
 
   // Mark that the node is written to...
-  Dest.getNode()->setModifiedMarker();
+  Dest.getNode()->NodeType.setModifiedNode();
 
   // Ensure a type-record exists...
   Dest.getNode()->mergeTypeInfo(StoredTy, Dest.getOffset());
@@ -421,7 +437,8 @@ void GraphBuilderLocal::visitVAArgInst(VAArgInst &I) {
   if (Ptr.isNull()) return;
 
   // Make that the node is read and written
-  Ptr.getNode()->setReadMarker()->setModifiedMarker();
+  Ptr.getNode()->NodeType.setReadNode();
+  Ptr.getNode()->NodeType.setModifiedNode();
 
   // Ensure a type record exists.
   DSNode *PtrN = Ptr.getNode();
@@ -434,12 +451,15 @@ void GraphBuilderLocal::visitVAArgInst(VAArgInst &I) {
 void GraphBuilderLocal::visitIntToPtrInst(IntToPtrInst &I) {
 //  std::cerr << "cast in " << I.getParent()->getParent()->getName() << "\n";
 //  I.dump();
-  setDestTo(I, createNode()->setUnknownMarker()->setIntToPtrMarker()); 
+  DSNode* N = createNode();
+  N->NodeType.setUnknownNode();
+  N->NodeType.setIntToPtrNode();
+  setDestTo(I, N);
 }
 
 void GraphBuilderLocal::visitPtrToIntInst(PtrToIntInst& I) {
   if (DSNode* N = getValueDest(*I.getOperand(0)).getNode())
-    N->setPtrToIntMarker();
+    N->NodeType.setPtrToIntNode();
 }
 
 
@@ -536,7 +556,7 @@ void GraphBuilderBase::visitGetElementPtrInst(User &GEP) {
     } else if (isa<PointerType>(*I)) {
       if (!isa<Constant>(I.getOperand()) ||
           !cast<Constant>(I.getOperand())->isNullValue())
-        Value.getNode()->setArrayMarker();
+        Value.getNode()->NodeType.setArrayNode();
     }
 
 
@@ -624,15 +644,21 @@ bool GraphBuilderLocal::visitIntrinsic(CallSite CS, Function *F) {
     // Mark the memory written by the vastart intrinsic as incomplete
     DSNodeHandle RetNH = getValueDest(**CS.arg_begin());
     if (DSNode *N = RetNH.getNode()) {
-      N->setModifiedMarker()->setAllocaMarker()->setIncompleteMarker()
-       ->setVAStartMarker()->setUnknownMarker()->foldNodeCompletely();
+      N->NodeType.setModifiedNode();
+      N->NodeType.setAllocaNode();
+      N->NodeType.setIncompleteNode();
+      N->NodeType.setUnknownNode();
+      N->foldNodeCompletely();
     }
 
     if (RetNH.hasLink(0)) {
       DSNodeHandle Link = RetNH.getLink(0);
       if (DSNode *N = Link.getNode()) {
-        N->setModifiedMarker()->setAllocaMarker()->setIncompleteMarker()
-         ->setVAStartMarker()->setUnknownMarker()->foldNodeCompletely();
+        N->NodeType.setModifiedNode();
+        N->NodeType.setAllocaNode();
+        N->NodeType.setIncompleteNode();
+        N->NodeType.setUnknownNode();
+        N->foldNodeCompletely();
       }
     } else {
       //
@@ -644,8 +670,11 @@ bool GraphBuilderLocal::visitIntrinsic(CallSite CS, Function *F) {
         Operand = CI->getOperand (0);
       RetNH = getValueDest(*Operand);
       if (DSNode *N = RetNH.getNode()) {
-        N->setModifiedMarker()->setAllocaMarker()->setIncompleteMarker()
-         ->setVAStartMarker()->setUnknownMarker()->foldNodeCompletely();
+        N->NodeType.setModifiedNode();
+        N->NodeType.setAllocaNode();
+        N->NodeType.setIncompleteNode();
+        N->NodeType.setUnknownNode();
+        N->foldNodeCompletely();
       }
     }
 
@@ -657,17 +686,21 @@ bool GraphBuilderLocal::visitIntrinsic(CallSite CS, Function *F) {
     return true;
   case Intrinsic::stacksave: {
     DSNode * Node = createNode();
-    Node->setAllocaMarker()->setIncompleteMarker()->setUnknownMarker();
+    Node->NodeType.setAllocaNode();
+    Node->NodeType.setIncompleteNode();
+    Node->NodeType.setUnknownNode();
     Node->foldNodeCompletely();
     setDestTo (*(CS.getInstruction()), Node);
     return true;
   }
-  case Intrinsic::stackrestore:
-    getValueDest(*CS.getInstruction()).getNode()->setAllocaMarker()
-                                                ->setIncompleteMarker()
-                                                ->setUnknownMarker()
-                                                ->foldNodeCompletely();
+  case Intrinsic::stackrestore: {
+    DSNode* Node = getValueDest(*CS.getInstruction()).getNode();
+    Node->NodeType.setAllocaNode();
+    Node->NodeType.setIncompleteNode();
+    Node->NodeType.setUnknownNode();
+    Node->foldNodeCompletely();
     return true;
+  }
   case Intrinsic::vaend:
   case Intrinsic::dbg_func_start:
   case Intrinsic::dbg_region_end:
@@ -681,19 +714,21 @@ bool GraphBuilderLocal::visitIntrinsic(CallSite CS, Function *F) {
     // modified.
     DSNodeHandle RetNH = getValueDest(**CS.arg_begin());
     RetNH.mergeWith(getValueDest(**(CS.arg_begin()+1)));
-    if (DSNode *N = RetNH.getNode())
-      N->setModifiedMarker()->setReadMarker();
+    if (DSNode *N = RetNH.getNode()) {
+      N->NodeType.setModifiedNode();
+      N->NodeType.setReadNode();
+    }
     return true;
   }
   case Intrinsic::memset:
     // Mark the memory modified.
     if (DSNode *N = getValueDest(**CS.arg_begin()).getNode())
-      N->setModifiedMarker();
+      N->NodeType.setModifiedNode();
     return true;
 
   case Intrinsic::eh_exception: {
     DSNode * Node = createNode();
-    Node->setIncompleteMarker();
+    Node->NodeType.setIncompleteNode();
     Node->foldNodeCompletely();
     setDestTo (*(CS.getInstruction()), Node);
     return true;
@@ -701,8 +736,8 @@ bool GraphBuilderLocal::visitIntrinsic(CallSite CS, Function *F) {
 
   case Intrinsic::atomic_cmp_swap: {
     DSNodeHandle Ptr = getValueDest(**CS.arg_begin());
-    Ptr.getNode()->setReadMarker();
-    Ptr.getNode()->setModifiedMarker();
+    Ptr.getNode()->NodeType.setReadNode();
+    Ptr.getNode()->NodeType.setModifiedNode();
     if (isa<PointerType>(F->getReturnType())) {
       setDestTo(*(CS.getInstruction()), getValueDest(**(CS.arg_begin() + 1)));
       getValueDest(**(CS.arg_begin() + 1))
@@ -722,8 +757,8 @@ bool GraphBuilderLocal::visitIntrinsic(CallSite CS, Function *F) {
   case Intrinsic::atomic_load_umin:
     {
       DSNodeHandle Ptr = getValueDest(**CS.arg_begin());
-      Ptr.getNode()->setReadMarker();
-      Ptr.getNode()->setModifiedMarker();
+      Ptr.getNode()->NodeType.setReadNode();
+      Ptr.getNode()->NodeType.setModifiedNode();
       if (isa<PointerType>(F->getReturnType()))
         setDestTo(*(CS.getInstruction()), getValueDest(**(CS.arg_begin() + 1)));
     }
@@ -743,7 +778,9 @@ bool GraphBuilderLocal::visitIntrinsic(CallSite CS, Function *F) {
   //
   case Intrinsic::returnaddress: {
     DSNode * Node = createNode();
-    Node->setAllocaMarker()->setIncompleteMarker()->setUnknownMarker();
+    Node->NodeType.setAllocaNode();
+    Node->NodeType.setIncompleteNode();
+    Node->NodeType.setUnknownNode();
     Node->foldNodeCompletely();
     setDestTo (*(CS.getInstruction()), Node);
     return true;
@@ -826,7 +863,7 @@ void GraphBuilderLocal::visitInstruction(Instruction &Inst) {
       CurNode.mergeWith(getValueDest(**I));
 
   if (DSNode *N = CurNode.getNode())
-    N->setUnknownMarker();
+    N->NodeType.setUnknownNode();
 }
 
 void GraphBuilderLocal::visitExtractValueInst(ExtractValueInst &I) {

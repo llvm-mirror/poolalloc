@@ -28,6 +28,7 @@
 #include <ostream>
 #include <fstream>
 #include <sstream>
+#include <string>
 using namespace llvm;
 
 // OnlyPrintMain - The DataStructure printer exposes this option to allow
@@ -64,26 +65,14 @@ static std::string getCaption(const DSNode *N, const DSGraph *G) {
     OS << "COLLAPSED";
   else {
     WriteTypeSymbolic(OS, N->getType(), M);
-    if (N->isArray())
+    if (N->NodeType.isArrayNode())
       OS << " array";
   }
-  if (unsigned NodeType = N->getNodeFlags()) {
+  if (N->NodeType.getFlags()) {
     OS << ": ";
-    if (NodeType & DSNode::AllocaNode     ) OS << "S";
-    if (NodeType & DSNode::HeapNode       ) OS << "H";
-    if (NodeType & DSNode::GlobalNode     ) OS << "G";
-    if (NodeType & DSNode::UnknownNode    ) OS << "U";
-    if (NodeType & DSNode::IncompleteNode ) OS << "I";
-    if (NodeType & DSNode::ModifiedNode   ) OS << "M";
-    if (NodeType & DSNode::ReadNode       ) OS << "R";
-    if (NodeType & DSNode::ExternalNode   ) OS << "E";
-    if (NodeType & DSNode::IntToPtrNode   ) OS << "P";
-    if (NodeType & DSNode::PtrToIntNode   ) OS << "2";
-
-#ifndef NDEBUG
-    if (NodeType & DSNode::DeadNode       ) OS << "<dead>";
-#endif
-    OS << "\n";
+    std::string str;
+    N->NodeType.appendString(str);
+    OS << str << "\n";
   }
 
   EquivalenceClasses<const GlobalValue*> *GlobalECs = 0;

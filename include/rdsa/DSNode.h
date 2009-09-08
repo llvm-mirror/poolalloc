@@ -15,6 +15,7 @@
 #define LLVM_ANALYSIS_DSNODE_H
 
 #include "rdsa/DSSupport.h"
+#include "rdsa/DSFlags.h"
 #include "llvm/Support/Streams.h"
 #include "poolalloc/ADT/HashExtras.h"
 
@@ -107,13 +108,8 @@ public:
     Composition = AllocaNode | HeapNode | GlobalNode | UnknownNode
   };
 
-  /// NodeType - A union of the above bits.  "Shadow" nodes do not add any flags
-  /// to the nodes in the data structure graph, so it is possible to have nodes
-  /// with a value of 0 for their NodeType.
-  ///
-private:
-  unsigned short NodeType;
 public:
+  DSFlags NodeType;
 
   /// DSNode ctor - Create a node of the specified type, inserting it into the
   /// specified graph.
@@ -154,8 +150,6 @@ public:
   /// getType - Return the node type of this object...
   ///
   const Type *getType() const { return Ty; }
-
-  bool isArray() const { return NodeType & ArrayNode; }
 
   /// hasNoReferrers - Return true if nothing is pointing to this node at all.
   ///
@@ -319,62 +313,15 @@ public:
   globals_iterator globals_begin() const { return Globals.begin(); }
   globals_iterator globals_end() const { return Globals.end(); }
 
-
-  /// maskNodeTypes - Apply a mask to the node types bitfield.
-  ///
-  void maskNodeTypes(unsigned Mask) {
-    NodeType &= Mask;
-  }
-
-  void mergeNodeFlags(unsigned RHS) {
-    NodeType |= RHS;
-  }
-
   /// getNodeFlags - Return all of the flags set on the node.  If the DEAD flag
   /// is set, hide it from the caller.
   ///
-  unsigned getNodeFlags() const { return NodeType & ~DeadNode; }
-
-  /// clearNodeFlags - Useful for completely resetting a node, 
-  /// used in external recognizers
-  DSNode* clearNodeFlags() { NodeType = 0; return this; }
-
-  bool isAllocaNode()     const { return NodeType & AllocaNode;    }
-  bool isHeapNode()       const { return NodeType & HeapNode;      }
-  bool isGlobalNode()     const { return NodeType & GlobalNode;    }
-  bool isUnknownNode()    const { return NodeType & UnknownNode;   }
-  bool isModifiedNode()   const { return NodeType & ModifiedNode;  }
-  bool isReadNode()       const { return NodeType & ReadNode;      }
-  bool isArrayNode()      const { return NodeType & ArrayNode;     }
-  bool isIncompleteNode() const { return NodeType & IncompleteNode;}
-  bool isCompleteNode()   const { return !isIncompleteNode();      }
-  bool isDeadNode()       const { return NodeType & DeadNode;      }
-  bool isExternalNode()   const { return NodeType & ExternalNode;  }
-  bool isIntToPtrNode()   const { return NodeType & IntToPtrNode;  }
-  bool isPtrToIntNode()   const { return NodeType & PtrToIntNode;  }
-  bool isVAStartNode()    const { return NodeType & VAStartNode;   }
-  bool isFunctionNode()   const { return NodeType & FunctionNode;  }
-  bool isExternFunctionNode() const { return NodeType & ExternFunctionNode; }
-
-  DSNode* setAllocaMarker()     { NodeType |= AllocaNode;     return this; }
-  DSNode* setHeapMarker()       { NodeType |= HeapNode;       return this; }
-  DSNode* setGlobalMarker()     { NodeType |= GlobalNode;     return this; }
-  DSNode* setUnknownMarker()    { NodeType |= UnknownNode;    return this; }
-  DSNode* setModifiedMarker()   { NodeType |= ModifiedNode;   return this; }
-  DSNode* setReadMarker()       { NodeType |= ReadNode;       return this; }
-  DSNode* setArrayMarker()      { NodeType |= ArrayNode;      return this; }
-  DSNode* setIncompleteMarker() { NodeType |= IncompleteNode; return this; }
-  DSNode* setExternalMarker()   { NodeType |= ExternalNode;   return this; }
-  DSNode* setIntToPtrMarker()   { NodeType |= IntToPtrNode;   return this; }
-  DSNode* setPtrToIntMarker()   { NodeType |= PtrToIntNode;   return this; }
-  DSNode* setVAStartMarker()    { NodeType |= VAStartNode;    return this; }
-  DSNode* setFunctionMarker()   { NodeType |= FunctionNode;   return this; }
-  DSNode* setExternFunctionMarker() { NodeType |= ExternFunctionNode; return this; }
+  unsigned getNodeFlags() const { return NodeType.getFlags() & ~DSFlags::DeadNode; }
 
   void makeNodeDead() {
     Globals.clear();
     assert(hasNoReferrers() && "Dead node shouldn't have refs!");
-    NodeType = DeadNode;
+    NodeType.setDeadNode();
   }
 
   /// forwardNode - Mark this node as being obsolete, and all references to it
@@ -498,7 +445,7 @@ inline const DSNodeHandle& DSNodeHandle::setTo(DSNode *n, unsigned NewOffset) co
       Offset = 0;
     }
   }
-  assert(!N || ((N->NodeType & DSNode::DeadNode) == 0));
+  assert(!N || !N->NodeType.isDeadNode());
   assert((!N || Offset < N->Size || (N->Size == 0 && Offset == 0) ||
           N->isForwarding()) && "Node handle offset out of range!");
   return *this;

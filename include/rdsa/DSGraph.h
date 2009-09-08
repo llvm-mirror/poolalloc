@@ -440,9 +440,9 @@ public:
   ///
   void maskNodeTypes(unsigned Mask) {
     for (node_iterator I = node_begin(), E = node_end(); I != E; ++I)
-      I->maskNodeTypes(Mask);
+      I->NodeType.maskFlags(Mask);
   }
-  void maskIncompleteMarkers() { maskNodeTypes(~DSNode::IncompleteNode); }
+  void maskIncompleteMarkers() { maskNodeTypes(~DSFlags::IncompleteNode); }
 
   // markIncompleteNodes - Traverse the graph, identifying nodes that may be
   // modified by other functions that have not been resolved yet.  This marks

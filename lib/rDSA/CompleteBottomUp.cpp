@@ -56,7 +56,7 @@ void CompleteBUDataStructures::buildIndirectFunctionSets(Module &M) {
       DSGraph* G = getOrFetchDSGraph((*ii)->getParent()->getParent());
       for ( ; csi != cse; ++csi) {
         G->getNodeForValue(*csi).mergeWith(G->getNodeForValue((*ii)->getOperand(0)));
-        G->getNodeForValue((*ii)->getOperand(0)).getNode()->setGlobalMarker();
+        G->getNodeForValue((*ii)->getOperand(0)).getNode()->NodeType.setGlobalNode();
         G->getNodeForValue((*ii)->getOperand(0)).getNode()->addGlobal(*csi);
       }
     }
