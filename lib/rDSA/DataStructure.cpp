@@ -1334,10 +1334,10 @@ void DSGraph::cloneInto( DSGraph* G, unsigned CloneFlags) {
   NodeMapTy OldNodeMap;
 
   // Remove alloca or mod/ref bits as specified...
-  unsigned BitsToClear = ((CloneFlags & StripAllocaBit)? DSNode::AllocaNode : 0)
-    | ((CloneFlags & StripModRefBits)? (DSNode::ModifiedNode | DSNode::ReadNode) : 0)
-    | ((CloneFlags & StripIncompleteBit)? DSNode::IncompleteNode : 0);
-  BitsToClear |= DSNode::DeadNode;  // Clear dead flag...
+  unsigned BitsToClear = ((CloneFlags & StripAllocaBit)? DSFlags::AllocaNode : 0)
+    | ((CloneFlags & StripModRefBits)? (DSFlags::ModifiedNode | DSFlags::ReadNode) : 0)
+    | ((CloneFlags & StripIncompleteBit)? DSFlags::IncompleteNode : 0);
+  BitsToClear |= DSFlags::DeadNode;  // Clear dead flag...
 
   for (node_const_iterator I = G->node_begin(), E = G->node_end(); I != E; ++I) {
     assert(!I->isForwarding() &&
@@ -1802,7 +1802,7 @@ static inline void killIfUselessEdge(DSNodeHandle &Edge) {
   if (DSNode *N = Edge.getNode())  // Is there an edge?
     if (N->getNumReferrers() == 1)  // Does it point to a lonely node?
       // No interesting info?
-      if ((N->getNodeFlags() & ~DSNode::IncompleteNode) == 0 &&
+      if ((N->getNodeFlags() & ~DSFlags::IncompleteNode) == 0 &&
           N->getType() == Type::getVoidTy(getGlobalContext()) && !N->isNodeCompletelyFolded())
         Edge.setTo(0, 0);  // Kill the edge!
 }

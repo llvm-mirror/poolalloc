@@ -592,13 +592,13 @@ public:
   ReachabilityCloner(DSGraph* dest, const DSGraph* src, unsigned cloneFlags)
     : Dest(dest), Src(src), CloneFlags(cloneFlags) {
     assert(Dest != Src && "Cannot clone from graph to same graph!");
-    BitsToKeep = ~DSNode::DeadNode;
+    BitsToKeep = ~DSFlags::DeadNode;
     if (CloneFlags & DSGraph::StripAllocaBit)
-      BitsToKeep &= ~DSNode::AllocaNode;
+      BitsToKeep &= ~DSFlags::AllocaNode;
     if (CloneFlags & DSGraph::StripModRefBits)
-      BitsToKeep &= ~(DSNode::ModifiedNode | DSNode::ReadNode);
+      BitsToKeep &= ~(DSFlags::ModifiedNode | DSFlags::ReadNode);
     if (CloneFlags & DSGraph::StripIncompleteBit)
-      BitsToKeep &= ~DSNode::IncompleteNode;
+      BitsToKeep &= ~DSFlags::IncompleteNode;
   }
 
   DSNodeHandle getClonedNH(const DSNodeHandle &SrcNH);
