@@ -743,7 +743,7 @@ void FuncTransform::visitCallSite(CallSite& CS) {
   // pool descriptors to pass in...
   std::vector<Value*> Args;
   for (unsigned i = 0, e = ArgNodes.size(); i != e; ++i) {
-    Value *ArgVal = ConstantAggregateZero::get(PoolAllocate::PoolDescPtrTy);
+    Value *ArgVal = Constant::getNullValue(PoolAllocate::PoolDescPtrTy);
     if (NodeMapping.count(ArgNodes[i]))
       if (DSNode *LocalNode = NodeMapping[ArgNodes[i]].getNode())
         if (FI.PoolDescriptors.count(LocalNode))
