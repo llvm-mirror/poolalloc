@@ -271,7 +271,7 @@ PoolAllocateSimple::ProcessFunctionBodySimple (Function& F, TargetData & TD) {
                                                 InsertPt);
 
           if (NumElements->getType() != Int32Type)
-            NumElements = CastInst::CreateIntegerCast (Size,
+            NumElements = CastInst::CreateIntegerCast (NumElements,
                                                 Int32Type,
                                                 false,
                                                 NumElements->getName(),
