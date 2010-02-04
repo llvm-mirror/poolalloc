@@ -470,6 +470,60 @@ static bool ElementTypesAreCompatible(const Type *T1, const Type *T2,
   return AllowLargerT1 || T1W.isDone();
 }
 
+//
+// Function: getElementAtOffsetWithPadding()
+//
+// Description:
+//  Take a byte offset into a structure and return the type at that byte
+//  offset that *includes* any padding that occurs after the structure element.
+//
+static inline const Type *
+getElementAtOffsetWithPadding (const TargetData & TD,
+                               const StructLayout & SL,
+                               const StructType * STy,
+                               unsigned index) {
+  //
+  // Get the type of the element at the specified type index.
+  //
+  const Type * SubType = STy->getElementType(index);
+
+  //
+  // If this is the last element in the structure, just return the subtype;
+  // there is no padding after the last element.
+  //
+  if (index == (STy->getNumElements() - 1))
+    return SubType;
+
+  //
+  // Get the byte offset of this element and its successor element.
+  //
+  unsigned int thisOffset = (unsigned) SL.getElementOffset(index);
+  unsigned int nextOffset = (unsigned) SL.getElementOffset(index + 1);
+
+  //
+  // If the size of the current element is less than the distance between
+  // the offset at this index and the offset at the next index, then there is
+  // some padding in between this element and the next.  Create a structure
+  // type that contains this element *and* the padding.
+  //
+  if ((TD.getTypeAllocSize (SubType)) < (nextOffset - thisOffset)) {
+    //
+    // Create an array type that fits the padding size.
+    //
+    const Type * Int8Type = IntegerType::getInt8Ty(getGlobalContext());
+    const Type * paddingType = ArrayType::get (Int8Type, nextOffset-thisOffset);
+
+    //
+    // Create a structure type that contains the element and the padding array.
+    //
+    std::vector<const Type *> elementTypes;
+    elementTypes.push_back (SubType);
+    elementTypes.push_back (paddingType);
+    return (StructType::get (getGlobalContext(), elementTypes, true));
+  } else {
+    return SubType;
+  }
+}
 
 /// mergeTypeInfo - This method merges the specified type into the current node
 /// at the specified offset.  This may update the current node's type record if
@@ -664,10 +718,17 @@ bool DSNode::mergeTypeInfo(const Type *NewTy, unsigned Offset,
     case Type::StructTyID: {
       const StructType *STy = cast<StructType>(SubType);
       const StructLayout &SL = *TD.getStructLayout(STy);
+
       unsigned i = SL.getElementContainingOffset(Offset-O);
 
+      //
       // The offset we are looking for must be in the i'th element...
-      SubType = STy->getElementType(i);
+      // However, be careful!  It is possible that the offset lands in a
+      // padding area of the structure.  Use a special methods that will either
+      // return us the type of the element we seek or a structure that contains
+      // an explicit element representing the padding.
+      //
+      SubType = getElementAtOffsetWithPadding (TD, SL, STy, i);
       O += (unsigned)SL.getElementOffset(i);
       break;
     }
