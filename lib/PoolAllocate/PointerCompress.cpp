@@ -274,7 +274,7 @@ ComputeCompressedType(const Type *OrigTy, unsigned NodeOffset,
       Elements.push_back(ComputeCompressedType(STy->getElementType(i),
                                                NodeOffset+SL->getElementOffset(i),
                                                Nodes));
-    return StructType::get(STy->getContext(),Elements);
+    return StructType::get(getGlobalContext(),Elements);
   } else if (const ArrayType *ATy = dyn_cast<ArrayType>(OrigTy)) {
     return ArrayType::get(ComputeCompressedType(ATy->getElementType(),
                                                 NodeOffset, Nodes),

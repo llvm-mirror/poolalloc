@@ -70,7 +70,6 @@ int main(int argc, char **argv) {
   std::string mt;
   std::string & msg = mt;
 
-  LLVMContext Context;
   try {
     cl::ParseCommandLineOptions(argc, argv, " llvm system compiler\n");
     sys::PrintStackTraceOnErrorSignal();
@@ -80,7 +79,7 @@ int main(int argc, char **argv) {
     std::string ErrorMessage;
     if (MemoryBuffer *Buffer
           = MemoryBuffer::getFileOrSTDIN(InputFilename, &ErrorMessage)) {
-      M.reset(ParseBitcodeFile(Buffer, Context, &ErrorMessage));
+      M.reset(ParseBitcodeFile(Buffer, getGlobalContext(), &ErrorMessage));
       delete Buffer;
     }
 
