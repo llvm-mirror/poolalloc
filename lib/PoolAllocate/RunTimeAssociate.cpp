@@ -610,3 +610,4 @@ void RTAssociate::replaceCall(CallSite CS, FuncInfo& FI, DataStructures* DS) {
 
   TheCall->eraseFromParent();
 }
+
