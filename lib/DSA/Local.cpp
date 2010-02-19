@@ -413,8 +413,17 @@ void GraphBuilder::visitInsertValueInst(InsertValueInst& I) {
 }
 
 void GraphBuilder::visitExtractValueInst(ExtractValueInst& I) {
-  assert(0 && "Not supported yet");
-  abort();
+  DSNodeHandle Ptr = getValueDest(*I.getOperand(0));
+
+  // Make that the node is read from...
+  Ptr.getNode()->setReadMarker();
+
+  // Ensure a typerecord exists...
+  // FIXME: calculate offset
+  Ptr.getNode()->mergeTypeInfo(I.getType(), 0, false);
+
+  if (isa<PointerType>(I.getType()))
+    setDestTo(I, getLink(Ptr));
 }
 
 void GraphBuilder::visitGetElementPtrInst(User &GEP) {
