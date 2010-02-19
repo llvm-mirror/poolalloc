@@ -793,7 +793,7 @@ void FuncTransform::visitCallSite(CallSite& CS) {
     }
   }
 
-  std::string Name = TheCall->getName(); TheCall->setName("");
+  std::string Name = TheCall->getName();    TheCall->setName("");
 
   if (InvokeInst *II = dyn_cast<InvokeInst>(TheCall)) {
     NewCall = InvokeInst::Create (NewCallee, II->getNormalDest(),

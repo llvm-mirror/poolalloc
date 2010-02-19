@@ -6,6 +6,6 @@ LEVEL=..
 #
 # List all of the subdirectories that we will compile.
 #
-DIRS=DSA PoolAllocate AssistDS rDSA
+DIRS=DSA PoolAllocate AssistDS
 
 include $(LEVEL)/Makefile.common

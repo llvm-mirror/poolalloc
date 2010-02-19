@@ -48,13 +48,6 @@ const Type *PoolAllocate::PoolDescPtrTy = 0;
 
 cl::opt<bool> PA::PA_SAFECODE("pa-safecode", cl::ReallyHidden);
 
-#if 0
-#define TIME_REGION(VARNAME, DESC) \
-   NamedRegionTimer VARNAME(DESC)
-#else
-#define TIME_REGION(VARNAME, DESC)
-#endif
-
 namespace {
   RegisterPass<PoolAllocate>
   X("poolalloc", "Pool allocate disjoint data structures");
@@ -151,7 +144,6 @@ bool PoolAllocate::runOnModule(Module &M) {
   // program, don't traverse newly added ones.  If the function needs new
   // arguments, make its clone.
   std::set<Function*> ClonedFunctions;
-{TIME_REGION(X, "MakeFunctionClone");
   for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I)
     if (!I->isDeclaration() && !ClonedFunctions.count(I) &&
         Graphs->hasDSGraph(*I))
@@ -159,18 +151,15 @@ bool PoolAllocate::runOnModule(Module &M) {
         FuncMap[I] = Clone;
         ClonedFunctions.insert(Clone);
       }
-}
   
   // Now that all call targets are available, rewrite the function bodies of the
   // clones.
-{TIME_REGION(X, "ProcessFunctionBody");
   for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I)
     if (!I->isDeclaration() && !ClonedFunctions.count(I) &&
         Graphs->hasDSGraph(*I)) {
       std::map<Function*, Function*>::iterator FI = FuncMap.find(I);
       ProcessFunctionBody(*I, FI != FuncMap.end() ? *FI->second : *I);
     }
-}
 
   //
   // Replace any remaining uses of original functions with the transformed
@@ -488,9 +477,7 @@ Function *PoolAllocate::MakeFunctionClone(Function &F) {
 
   // Perform the cloning.
   std::vector<ReturnInst*> Returns;
-{TIME_REGION(X, "CloneFunctionInto");
   CloneFunctionInto(New, &F, ValueMap, Returns);
-}
 
   //
   // The CloneFunctionInto() function will copy the parameter attributes
@@ -656,7 +643,6 @@ void PoolAllocate::CreatePools(Function &F, DSGraph* DSG,
                                std::map<const DSNode*,
                                         Value*> &PoolDescriptors) {
   if (NodesToPA.empty()) return;
-  TIME_REGION(X, "CreatePools");
 
   std::vector<Heuristic::OnePool> ResultPools;
   CurHeuristic->AssignToPools(NodesToPA, &F, NodesToPA[0]->getParentGraph(),
