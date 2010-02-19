@@ -132,13 +132,13 @@ struct DOTGraphTraits<const DSGraph*> : public DefaultDOTGraphTraits {
   static bool edgeTargetsEdgeSource(const void *Node,
                                     DSNode::const_iterator I) {
     unsigned O = I.getNode()->getLink(I.getOffset()).getOffset();
-    return (O >> DS::PointerShift) != 0;
+    return O != 0;
   }
 
   static DSNode::const_iterator getEdgeTarget(const DSNode *Node,
                                               DSNode::const_iterator I) {
     unsigned O = I.getNode()->getLink(I.getOffset()).getOffset();
-    unsigned LinkNo = O >> DS::PointerShift;
+    unsigned LinkNo = O;
     const DSNode *N = *I;
     DSNode::const_iterator R = N->begin();
     for (; LinkNo; --LinkNo)
@@ -174,7 +174,7 @@ struct DOTGraphTraits<const DSGraph*> : public DefaultDOTGraphTraits {
           
           // Add edge from return node to real destination
           DSNode *DestNode = I->second.getNode();
-          int EdgeDest = I->second.getOffset() >> DS::PointerShift;
+          int EdgeDest = I->second.getOffset();
           if (EdgeDest == 0) EdgeDest = -1;
           GW.emitEdge(I->first, -1, DestNode,
                       EdgeDest, "arrowtail=tee,color=gray63");
@@ -196,7 +196,7 @@ struct DOTGraphTraits<const DSGraph*> : public DefaultDOTGraphTraits {
 
         // Add edge from return node to real destination
         DSNode *RetNode = I->second.getNode();
-        int RetEdgeDest = I->second.getOffset() >> DS::PointerShift;;
+        int RetEdgeDest = I->second.getOffset();
         if (RetEdgeDest == 0) RetEdgeDest = -1;
         GW.emitEdge((void*)I->first, -1, RetNode,
                     RetEdgeDest, "arrowtail=tee,color=gray63");
@@ -220,7 +220,7 @@ struct DOTGraphTraits<const DSGraph*> : public DefaultDOTGraphTraits {
                         &EdgeSourceCaptions);
 
       if (DSNode *N = Call.getRetVal().getNode()) {
-        int EdgeDest = Call.getRetVal().getOffset() >> DS::PointerShift;
+        int EdgeDest = Call.getRetVal().getOffset();
         if (EdgeDest == 0) EdgeDest = -1;
         GW.emitEdge(&Call, 0, N, EdgeDest, "color=gray63,tailclip=false");
       }
@@ -234,7 +234,7 @@ struct DOTGraphTraits<const DSGraph*> : public DefaultDOTGraphTraits {
 
       for (unsigned j = 0, e = Call.getNumPtrArgs(); j != e; ++j)
         if (DSNode *N = Call.getPtrArg(j).getNode()) {
-          int EdgeDest = Call.getPtrArg(j).getOffset() >> DS::PointerShift;
+          int EdgeDest = Call.getPtrArg(j).getOffset();
           if (EdgeDest == 0) EdgeDest = -1;
           GW.emitEdge(&Call, j+2, N, EdgeDest, "color=gray63,tailclip=false");
         }

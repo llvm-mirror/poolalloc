@@ -51,7 +51,7 @@ void TDDataStructures::markReachableFunctionsExternallyAccessible(DSNode *N,
   Visited.insert(N);
 
   for (unsigned i = 0, e = N->getNumLinks(); i != e; ++i) {
-    DSNodeHandle &NH = N->getLink(i*N->getPointerSize());
+    DSNodeHandle &NH = N->getLink(i);
     if (DSNode *NN = NH.getNode()) {
       std::vector<const Function*> Functions;
       NN->addFullFunctionList(Functions);

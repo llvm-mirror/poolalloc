@@ -53,25 +53,6 @@ namespace {
                 cl::init(256));
 }
 
-#if 0
-#define TIME_REGION(VARNAME, DESC) \
-   NamedRegionTimer VARNAME(DESC)
-#else
-#define TIME_REGION(VARNAME, DESC)
-#endif
-
-using namespace DS;
-
-//
-// Function: DS::isPointerType()
-//
-// Description:
-//  This returns whether the given type is a pointer.
-//
-bool DS::isPointerType(const Type *Ty) {
-  return isa<llvm::PointerType>(Ty);
-}
-
 /// isForwarding - Return true if this NodeHandle is forwarding to another
 /// one.
 bool DSNodeHandle::isForwarding() const {
@@ -587,7 +568,7 @@ bool DSNode::mergeTypeInfo(const Type *NewTy, unsigned Offset,
     // If this node would have to have an unreasonable number of fields, just
     // collapse it.  This can occur for fortran common blocks, which have stupid
     // things like { [100000000 x double], [1000000 x double] }.
-    unsigned NumFields = (NewTySize+DS::PointerSize-1) >> DS::PointerShift;
+    unsigned NumFields = NewTySize;
     if (NumFields > DSAFieldLimit) {
       foldNodeCompletely();
       return true;
@@ -615,7 +596,7 @@ bool DSNode::mergeTypeInfo(const Type *NewTy, unsigned Offset,
     // If this node would have to have an unreasonable number of fields, just
     // collapse it.  This can occur for fortran common blocks, which have stupid
     // things like { [100000000 x double], [1000000 x double] }.
-    unsigned NumFields = (NewTySize+Offset+DS::PointerSize-1) >> DS::PointerShift;
+    unsigned NumFields = NewTySize+Offset;
     if (NumFields > DSAFieldLimit) {
       foldNodeCompletely();
       return true;
@@ -1010,7 +991,7 @@ void DSNode::MergeNodes(DSNodeHandle& CurNodeH, DSNodeHandle& NH) {
   // Make all of the outgoing links of N now be outgoing links of CurNodeH.
   //
   for (unsigned i = 0; i < N->getNumLinks(); ++i) {
-    DSNodeHandle &Link = N->getLink(i << DS::PointerShift);
+    DSNodeHandle &Link = N->getLink(i);
     if (Link.getNode()) {
       // Compute the offset into the current node at which to
       // merge this link.  In the common case, this is a linear
@@ -1021,7 +1002,7 @@ void DSNode::MergeNodes(DSNodeHandle& CurNodeH, DSNodeHandle& NH) {
       unsigned MergeOffset = 0;
       DSNode *CN = CurNodeH.getNode();
       if (CN->Size != 1)
-        MergeOffset = ((i << DS::PointerShift)+NOffset) % CN->getSize();
+        MergeOffset = (i+NOffset) % CN->getSize();
       CN->addEdgeTo(MergeOffset, Link);
     }
   }
@@ -1148,7 +1129,7 @@ DSNodeHandle ReachabilityCloner::getClonedNH(const DSNodeHandle &SrcNH) {
   // reason, we must always go through NH.
   DN = 0;
   for (unsigned i = 0, e = SN->getNumLinks(); i != e; ++i) {
-    const DSNodeHandle &SrcEdge = SN->getLink(i << DS::PointerShift);
+    const DSNodeHandle &SrcEdge = SN->getLink(i);
     if (!SrcEdge.isNull()) {
       const DSNodeHandle &DestEdge = getClonedNH(SrcEdge);
       // Compute the offset into the current node at which to
@@ -1160,7 +1141,7 @@ DSNodeHandle ReachabilityCloner::getClonedNH(const DSNodeHandle &SrcNH) {
       unsigned MergeOffset = 0;
       DSNode *CN = NH.getNode();
       if (CN->getSize() != 1)
-        MergeOffset = ((i << DS::PointerShift)+NH.getOffset()) % CN->getSize();
+        MergeOffset = (i + NH.getOffset()) % CN->getSize();
       CN->addEdgeTo(MergeOffset, DestEdge);
     }
   }
@@ -1354,7 +1335,7 @@ void ReachabilityCloner::merge(const DSNodeHandle &NH,
   // For this reason, we must always go through NH.
   DN = 0;
   for (unsigned i = 0, e = SN->getNumLinks(); i != e; ++i) {
-    const DSNodeHandle &SrcEdge = SN->getLink(i << DS::PointerShift);
+    const DSNodeHandle &SrcEdge = SN->getLink(i);
     if (!SrcEdge.isNull()) {
       // Compute the offset into the current node at which to
       // merge this link.  In the common case, this is a linear
@@ -1364,7 +1345,7 @@ void ReachabilityCloner::merge(const DSNodeHandle &NH,
       // links at offset zero.
       DSNode *CN = SCNH.getNode();
       unsigned MergeOffset =
-        ((i << DS::PointerShift)+SCNH.getOffset()) % CN->getSize();
+        (i+SCNH.getOffset()) % CN->getSize();
 
       DSNodeHandle Tmp = CN->getLink(MergeOffset);
       if (!Tmp.isNull()) {
@@ -1379,7 +1360,7 @@ void ReachabilityCloner::merge(const DSNodeHandle &NH,
 
         unsigned MergeOffset = 0;
         CN = SCNH.getNode();
-        MergeOffset = ((i << DS::PointerShift)+SCNH.getOffset()) %CN->getSize();
+        MergeOffset = (i + SCNH.getOffset()) %CN->getSize();
         CN->getLink(MergeOffset).mergeWith(Tmp);
       }
     }
@@ -1586,7 +1567,6 @@ DSNode *DSGraph::addObjectToGraph(Value *Ptr, bool UseDeclaredType) {
 /// The CloneFlags member controls various aspects of the cloning process.
 ///
 void DSGraph::cloneInto( DSGraph* G, unsigned CloneFlags) {
-  TIME_REGION(X, "cloneInto");
   assert(G != this && "Cannot clone graph into itself!");
 
   NodeMapTy OldNodeMap;
@@ -1831,8 +1811,6 @@ OutOfLoop:
 void DSGraph::mergeInGraph(const DSCallSite &CS,
                            std::vector<DSNodeHandle> &Args,
                            const DSGraph &Graph, unsigned CloneFlags) {
-  TIME_REGION(X, "mergeInGraph");
-
   assert((CloneFlags & DontCloneCallNodes) &&
          "Doesn't support copying of call nodes!");
 
@@ -2239,8 +2217,6 @@ static void removeIdenticalCalls(std::list<DSCallSite> &Calls) {
 // we don't have to perform any non-trivial analysis here.
 //
 void DSGraph::removeTriviallyDeadNodes(bool updateForwarders) {
-  TIME_REGION(X, "removeTriviallyDeadNodes");
-
   if (updateForwarders) {
     /// NOTE: This code is disabled.  This slows down DSA on 177.mesa
     /// substantially!
@@ -2248,26 +2224,22 @@ void DSGraph::removeTriviallyDeadNodes(bool updateForwarders) {
     // Loop over all of the nodes in the graph, calling getNode on each field.
     // This will cause all nodes to update their forwarding edges, causing
     // forwarded nodes to be delete-able.
-    { TIME_REGION(X, "removeTriviallyDeadNodes:node_iterate");
-      for (node_iterator NI = node_begin(), E = node_end(); NI != E; ++NI) {
-        DSNode &N = *NI;
-        for (unsigned l = 0, e = N.getNumLinks(); l != e; ++l)
-          N.getLink(l*N.getPointerSize()).getNode();
-      }
+    for (node_iterator NI = node_begin(), E = node_end(); NI != E; ++NI) {
+      DSNode &N = *NI;
+      for (unsigned l = 0, e = N.getNumLinks(); l != e; ++l)
+        N.getLink(l).getNode();
     }
     
     // NOTE: This code is disabled.  Though it should, in theory, allow us to
     // remove more nodes down below, the scan of the scalar map is incredibly
     // expensive for certain programs (with large SCCs).  In the future, if we can
     // make the scalar map scan more efficient, then we can reenable this.
-    { TIME_REGION(X, "removeTriviallyDeadNodes:scalarmap");
-      
-      // Likewise, forward any edges from the scalar nodes.  While we are at it,
-      // clean house a bit.
-      for (DSScalarMap::iterator I = ScalarMap.begin(),E = ScalarMap.end();I != E;){
-        I->second.getNode();
-        ++I;
-      }
+
+    // Likewise, forward any edges from the scalar nodes.  While we are at it,
+    // clean house a bit.
+    for (DSScalarMap::iterator I = ScalarMap.begin(), E = ScalarMap.end(); I != E;) {
+      I->second.getNode();
+      ++I;
     }
   }
 
@@ -2411,8 +2383,6 @@ void DSGraph::removeDeadNodes(unsigned Flags) {
   // merging...
   removeTriviallyDeadNodes();
 
-  TIME_REGION(X, "removeDeadNodes");
-
   // FIXME: Merge non-trivially identical call nodes...
 
   // Alive - a set that holds all nodes found to be reachable/alive.
@@ -2430,10 +2400,9 @@ void DSGraph::removeDeadNodes(unsigned Flags) {
                               DSGraph::StripIncompleteBit);
 
   // Mark all nodes reachable by (non-global) scalar nodes as alive...
-{ TIME_REGION(Y, "removeDeadNodes:scalarscan");
   for (DSScalarMap::iterator I = ScalarMap.begin(), E = ScalarMap.end();
-       I != E; ++I)
-    if (isa<GlobalValue>(I->first)) {             // Keep track of global nodes
+          I != E; ++I)
+    if (isa<GlobalValue > (I->first)) { // Keep track of global nodes
       assert(!I->second.isNull() && "Null global node?");
       assert(I->second.getNode()->isGlobalNode() && "Should be a global node!");
       GlobalNodes.push_back(std::make_pair(I->first, I->second.getNode()));
@@ -2450,7 +2419,6 @@ void DSGraph::removeDeadNodes(unsigned Flags) {
     } else {
       I->second.getNode()->markReachableNodes(Alive);
     }
-}
 
   // The return values are alive as well.
   for (ReturnNodesTy::iterator I = ReturnNodes.begin(), E = ReturnNodes.end();
@@ -2643,7 +2611,7 @@ void DSGraph::computeNodeMapping(const DSNodeHandle &NH1,
   unsigned N2Size = N2->getSize();
   if (N2Size == 0) return;   // No edges to map to.
 
-  for (unsigned i = 0, e = N1->getSize(); i < e; i += DS::PointerSize) {
+  for (unsigned i = 0, e = N1->getSize(); i < e; ++i) {
     const DSNodeHandle &N1NH = N1->getLink(i);
     // Don't call N2->getLink if not needed (avoiding crash if N2Idx is not
     // aligned right).
@@ -2724,7 +2692,6 @@ void DSGraph::computeCalleeCallerMapping(DSCallSite CS, const Function &Callee,
 /// nodes reachable from them from the globals graph into the current graph.
 ///
 void DSGraph::updateFromGlobalGraph() {
-  TIME_REGION(X, "updateFromGlobalGraph");
   ReachabilityCloner RC(this, GlobalsGraph, 0);
 
   // Clone the non-up-to-date global nodes into this graph.

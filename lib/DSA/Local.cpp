@@ -110,6 +110,8 @@ namespace {
     void visitPtrToIntInst(PtrToIntInst &I);
     void visitBitCastInst(BitCastInst &I);
     void visitCmpInst(CmpInst &I);
+    void visitInsertValueInst(InsertValueInst& I);
+    void visitExtractValueInst(ExtractValueInst& I);
 
     //the nasty ones
     void visitGetElementPtrInst(User &GEP);
@@ -388,7 +390,31 @@ void GraphBuilder::visitBitCastInst(BitCastInst &I) {
 }
 
 void GraphBuilder::visitCmpInst(CmpInst &I) {
-  //Should this merge or not?  I don't think so.
+  //Address can escape through cmps
+}
+
+void GraphBuilder::visitInsertValueInst(InsertValueInst& I) {
+  setDestTo(I, createNode()->setAllocaMarker());
+
+  const Type *StoredTy = I.getInsertedValueOperand()->getType();
+  DSNodeHandle Dest = getValueDest(I);
+  Dest.mergeWith(getValueDest(*I.getAggregateOperand()));
+
+  // Mark that the node is written to...
+  Dest.getNode()->setModifiedMarker();
+
+  // Ensure a type-record exists...
+  Dest.getNode()->mergeTypeInfo(StoredTy, 0); //FIXME: calculate offset
+  Dest.getNode()->foldNodeCompletely();
+
+  // Avoid adding edges from null, or processing non-"pointer" stores
+  if (isa<PointerType>(StoredTy))
+    Dest.addEdgeTo(getValueDest(*I.getInsertedValueOperand()));
+}
+
+void GraphBuilder::visitExtractValueInst(ExtractValueInst& I) {
+  assert(0 && "Not supported yet");
+  abort();
 }
 
 void GraphBuilder::visitGetElementPtrInst(User &GEP) {
