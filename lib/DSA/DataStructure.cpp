@@ -150,7 +150,7 @@ DSNode::~DSNode() {
   //
   // Remove all references to this node from the Pool Descriptor Map.
   //
-  DOUT << "LLVA: Removing " << this << "\n";
+  DEBUG(errs() << "LLVA: Removing " << this << "\n");
   if (ParentGraph) {
     hash_map<const DSNode *, MetaPoolHandle*> &pdm=ParentGraph->getPoolDescriptorsMap();
     pdm.erase (this);
@@ -609,7 +609,7 @@ bool DSNode::mergeTypeInfo(const Type *NewTy, unsigned Offset,
       // try merge with NewTy: struct {t1, t2, stuff...} if offset lands exactly
       // on a field in Ty
       if (isa<StructType>(NewTy) && isa<StructType>(Ty)) {
-        DOUT << "Ty: " << *Ty << "\nNewTy: " << *NewTy << "@" << Offset << "\n";
+        DEBUG(errs() << "Ty: " << *Ty << "\nNewTy: " << *NewTy << "@" << Offset << "\n");
         const StructType *STy = cast<StructType>(Ty);
         const StructLayout &SL = *TD.getStructLayout(STy);
         unsigned i = SL.getElementContainingOffset(Offset);
@@ -625,7 +625,7 @@ bool DSNode::mergeTypeInfo(const Type *NewTy, unsigned Offset,
         nt.insert(nt.end(), STy->element_begin(), STy->element_end());
         //and merge
         STy = StructType::get(STy->getContext(), nt);
-        DOUT << "Trying with: " << *STy << "\n";
+        DEBUG(errs() << "Trying with: " << *STy << "\n");
         return mergeTypeInfo(STy, 0);
       }
 
@@ -634,7 +634,7 @@ bool DSNode::mergeTypeInfo(const Type *NewTy, unsigned Offset,
       //try merge with NewTy: struct : {t1, t2, T} if offset lands on a field
       //in Ty
       if (isa<StructType>(Ty)) {
-        DOUT << "Ty: " << *Ty << "\nNewTy: " << *NewTy << "@" << Offset << "\n";
+        DEBUG(errs() << "Ty: " << *Ty << "\nNewTy: " << *NewTy << "@" << Offset << "\n");
         const StructType *STy = cast<StructType>(Ty);
         const StructLayout &SL = *TD.getStructLayout(STy);
         unsigned i = SL.getElementContainingOffset(Offset);
@@ -649,7 +649,7 @@ bool DSNode::mergeTypeInfo(const Type *NewTy, unsigned Offset,
         nt.push_back(NewTy);
         //and merge
         STy = StructType::get(STy->getContext(), nt);
-        DOUT << "Trying with: " << *STy << "\n";
+        DEBUG(errs() << "Trying with: " << *STy << "\n");
         return mergeTypeInfo(STy, 0);
       }
 
@@ -813,7 +813,7 @@ bool DSNode::mergeTypeInfo(const Type *NewTy, unsigned Offset,
   if (getParentGraph()->retnodes_begin() != getParentGraph()->retnodes_end())
     M = getParentGraph()->retnodes_begin()->first->getParent();
 
-  DOUT << "MergeTypeInfo Folding OrigTy: ";
+  DEBUG(errs() << "MergeTypeInfo Folding OrigTy: ");
   raw_stderr_ostream stream;
   DEBUG(WriteTypeSymbolic(stream, Ty, M);
         stream << "\n due to:";
@@ -909,7 +909,7 @@ void DSNode::MergeNodes(DSNodeHandle& CurNodeH, DSNodeHandle& NH) {
       //do nothing  (common case)
     } else {
       if (pdm[NNode]) {
-        DOUT << "LLVA: 1: currNode (" << currNode << ") becomes " << pdm[NNode]->getName() << "(" << NNode << ")\n";
+        DEBUG(errs() << "LLVA: 1: currNode (" << currNode << ") becomes " << pdm[NNode]->getName() << "(" << NNode << ")\n");
         pdm[currNode] = pdm[NNode];
       }
     }
@@ -921,9 +921,9 @@ void DSNode::MergeNodes(DSNodeHandle& CurNodeH, DSNodeHandle& NH) {
       //  Verify that this is correct.  I believe it is; it seems to make sense
       //  since either node can be used after the merge.
       //
-      DOUT << "LLVA: MergeNodes: currnode has something, newnode has nothing\n";
-      DOUT << "LLVA: 2: currNode (" << currNode << ") becomes <no name>"
-           << "(" << NNode << ")\n";
+      DEBUG(errs() << "LLVA: MergeNodes: currnode has something, newnode has nothing\n"
+            << "LLVA: 2: currNode (" << currNode << ") becomes <no name>"
+            << "(" << NNode << ")\n");
       pdm[NNode] = pdm[currNode];
 #endif
       //do nothing 
@@ -1046,7 +1046,7 @@ void DSNode::mergeWith(const DSNodeHandle &NH, unsigned Offset) {
   if (N == this) {
     // We cannot merge two pieces of the same node together, collapse the node
     // completely.
-    DOUT << "Attempting to merge two chunks of the same node together!\n";
+    DEBUG(errs() << "Attempting to merge two chunks of the same node together!\n");
     foldNodeCompletely();
     return;
   }
@@ -1305,7 +1305,7 @@ void ReachabilityCloner::merge(const DSNodeHandle &NH,
         //do nothing  (common case)
       } else {
         if (srcpdm[SN]) {
-          DOUT << "DN becomes " << srcpdm[SN]->getName() << std::endl;
+          DEBUG(errs() << "DN becomes " << srcpdm[SN]->getName() << std::endl);
           destpdm[DN] = srcpdm[SN];
         }
       }
@@ -2085,7 +2085,7 @@ static void removeIdenticalCalls(std::list<DSCallSite> &Calls) {
       // eliminate it.
       if (Callee->getNumReferrers() == 1 && Callee->isCompleteNode() &&
           Callee->isEmptyGlobals()) {  // No useful info?
-        DOUT << "WARNING: Useless call site found.\n";
+        DEBUG(errs() << "WARNING: Useless call site found.\n");
         Calls.erase(OldIt);
         ++NumDeleted;
         continue;
@@ -2194,7 +2194,7 @@ static void removeIdenticalCalls(std::list<DSCallSite> &Calls) {
       // If this call site is now the same as the previous one, we can delete it
       // as a duplicate.
       if (*OldIt == *CI) {
-        DOUT << "Deleteing " << CI->getCallSite().getInstruction() << "\n";
+        DEBUG(errs() << "Deleteing " << CI->getCallSite().getInstruction() << "\n");
         Calls.erase(CI);
         CI = OldIt;
         ++NumDeleted;
@@ -2207,7 +2207,7 @@ static void removeIdenticalCalls(std::list<DSCallSite> &Calls) {
   NumCallNodesMerged += NumDeleted;
 
   if (NumDeleted)
-    DOUT << "Merged " << NumDeleted << " call nodes.\n";
+    DEBUG(errs() << "Merged " << NumDeleted << " call nodes.\n");
 }
 
 
@@ -2532,7 +2532,7 @@ void DSGraph::AssertCallSiteInGraph(const DSCallSite &CS) const {
 #if 0
     if (CS.getNumPtrArgs() && CS.getCalleeNode() == CS.getPtrArg(0).getNode() &&
         CS.getCalleeNode() && CS.getCalleeNode()->getGlobals().empty())
-      DOUT << "WARNING: WEIRD CALL SITE FOUND!\n";
+      DEBUG(errs() << "WARNING: WEIRD CALL SITE FOUND!\n");
 #endif
   }
   AssertNodeInGraph(CS.getRetVal().getNode());
@@ -2805,7 +2805,7 @@ void DataStructures::formGlobalECs() {
   std::set<const GlobalValue*> ECGlobals;
   buildGlobalECs(ECGlobals);
   if (!ECGlobals.empty()) {
-    DOUT << "Eliminating " << ECGlobals.size() << " EC Globals!\n";
+    DEBUG(errs() << "Eliminating " << ECGlobals.size() << " EC Globals!\n");
     for (DSInfoTy::iterator I = DSInfo.begin(),
            E = DSInfo.end(); I != E; ++I)
       eliminateUsesOfECGlobals(*I->second, ECGlobals);

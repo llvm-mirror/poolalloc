@@ -837,7 +837,7 @@ void GraphBuilder::MergeConstantInitIntoNode(DSNodeHandle &NH, const Type* Ty, C
         DSNodeHandle NewNH(NHN, NH.getOffset()+(unsigned)SL->getElementOffset(i));
         MergeConstantInitIntoNode(NewNH, cast<StructType>(Ty)->getElementType(i), cast<Constant>(CS->getOperand(i)));
       } else if (SL->getElementOffset(i) == SL->getSizeInBytes()) {
-        DOUT << "Zero size element at end of struct\n";
+        DEBUG(errs() << "Zero size element at end of struct\n" );
         NHN->foldNodeCompletely();
       } else {
         assert(0 && "type was smaller than offsets of of struct layout indicate");
