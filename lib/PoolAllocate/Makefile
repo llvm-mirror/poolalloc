@@ -6,15 +6,13 @@ LEVEL=../..
 #
 # Give the name of a library.  This will build a dynamic version.
 #
-BUILD_RELINKED=1
-SHARED_LIBRARY=1
 LIBRARYNAME=poolalloc
+BUILD_ARCHIVE := 1
+SHARED_LIBRARY := 1
+#LOADABLE_MODULE := 1
 
 #
 # Include Makefile.common so we know what to do.
 #
 include $(LEVEL)/Makefile.common
-
-LDFLAGS += -lLLVMDataStructure
-CFLAGS += -fPIC
 

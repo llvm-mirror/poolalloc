@@ -38,7 +38,7 @@ bool BasicDataStructures::runOnModule(Module &M) {
   //
   // Create a void pointer type.  This is simply a pointer to an 8 bit value.
   //
-  const IntegerType * IT = IntegerType::getInt8Ty(getGlobalContext());
+  const IntegerType * IT = IntegerType::getInt8Ty(M.getContext());
   const PointerType * VoidPtrTy = PointerType::getUnqual(IT);
 
   DSNode * GVNodeInternal = new DSNode(VoidPtrTy, GlobalsGraph);

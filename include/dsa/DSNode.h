@@ -15,6 +15,7 @@
 #define LLVM_ANALYSIS_DSNODE_H
 
 #include "dsa/DSSupport.h"
+#include "llvm/ADT/ilist_node.h"
 #include "llvm/Support/Streams.h"
 #include "poolalloc/ADT/HashExtras.h"
 
@@ -31,7 +32,11 @@ class TargetData;
 /// track of any pointers that have been stored into the object as well as the
 /// different types represented in this object.
 ///
-class DSNode {
+class DSNode : public ilist_node<DSNode> {
+  friend struct ilist_sentinel_traits<DSNode>;
+  //Sentinel
+  DSNode() : NumReferrers(0), Size(0), Ty(0) {}
+  
   /// NumReferrers - The number of DSNodeHandles pointing to this node... if
   /// this is a forwarding node, then this is the number of node handles which
   /// are still forwarding over us.
@@ -48,8 +53,8 @@ class DSNode {
   /// Next, Prev - These instance variables are used to keep the node on a
   /// doubly-linked ilist in the DSGraph.
   ///
-  DSNode *Next, *Prev;
-  friend struct ilist_traits<DSNode>;
+  //DSNode *Next, *Prev;
+  //friend struct ilist_traits<DSNode>;
 
   /// Size - The current size of the node.  This should be equal to the size of
   /// the current type record.
@@ -398,54 +403,6 @@ private:
   // static mergeNodes - Helper for mergeWith()
   static void MergeNodes(DSNodeHandle& CurNodeH, DSNodeHandle& NH);
 };
-
-//===----------------------------------------------------------------------===//
-// Define the ilist_traits specialization for the DSGraph ilist.
-//
-template<>
-struct ilist_traits<DSNode> {
-  static DSNode *getPrev(const DSNode *N) { return N->Prev; }
-  static DSNode *getNext(const DSNode *N) { return N->Next; }
-
-  static void deleteNode(llvm::DSNode *V) { delete V; }
-  static void setPrev(DSNode *N, DSNode *Prev) { N->Prev = Prev; }
-  static void setNext(DSNode *N, DSNode *Next) { N->Next = Next; }
-
-  static DSNode *createSentinel() { return new DSNode(0,0); }
-  static void destroySentinel(DSNode *N) { delete N; }
-
-  void addNodeToList(DSNode *NTy) {}
-  void removeNodeFromList(DSNode *NTy) {}
-  void transferNodesFromList(iplist<DSNode, ilist_traits> &L2,
-                             ilist_iterator<DSNode> first,
-                             ilist_iterator<DSNode> last) {}
-  DSNode *provideInitialHead() const {
-    DSNode * sentinel = createSentinel();
-    setPrev (sentinel, sentinel);
-    return sentinel;
-  }
-
-  /// ensureHead - make sure that Head is either already
-  /// initialized or assigned a fresh sentinel
-  /// @return the sentinel
-  static DSNode *ensureHead(DSNode *&Head) {
-    if (!Head) {
-      Head = createSentinel();
-      noteHead (Head, Head);
-      setNext(Head, Head);
-      return Head;
-    }
-    return getPrev(Head);
-  }
-
-  /// noteHead - stash the sentinel into its default location
-  static void noteHead(DSNode *NewHead, DSNode *Sentinel) {
-    setPrev(NewHead, Sentinel);
-  }
-};
-
-template<>
-struct ilist_traits<const DSNode> : public ilist_traits<DSNode> {};
 
 //===----------------------------------------------------------------------===//
 // Define inline DSNodeHandle functions that depend on the definition of DSNode
