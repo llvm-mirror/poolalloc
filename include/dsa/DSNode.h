@@ -85,20 +85,21 @@ public:
     AllocaNode      = 1 << 0,   // This node was allocated with alloca
     HeapNode        = 1 << 1,   // This node was allocated with malloc
     GlobalNode      = 1 << 2,   // This node was allocated by a global var decl
-    UnknownNode     = 1 << 3,   // This node points to unknown allocated memory
-    IncompleteNode  = 1 << 4,   // This node may not be complete
+    ExternFuncNode  = 1 << 3,   // This node contains external functions
+    UnknownNode     = 1 << 4,   // This node points to unknown allocated memory
+    IncompleteNode  = 1 << 5,   // This node may not be complete
 
-    ModifiedNode    = 1 << 5,   // This node is modified in this context
-    ReadNode        = 1 << 6,   // This node is read in this context
+    ModifiedNode    = 1 << 6,   // This node is modified in this context
+    ReadNode        = 1 << 7,   // This node is read in this context
 
-    ArrayNode       = 1 << 7,   // This node is treated like an array
-    ExternalNode    = 1 << 8,   // This node comes from an external source
-    IntToPtrNode    = 1 << 9,   // This node comes from an int cast
-    PtrToIntNode    = 1 << 10,  // This node excapes to an int cast
-    VAStartNode     = 1 << 11,  // This node excapes to an int cast
+    ArrayNode       = 1 << 8,   // This node is treated like an array
+    ExternalNode    = 1 << 9,   // This node comes from an external source
+    IntToPtrNode    = 1 << 10,   // This node comes from an int cast
+    PtrToIntNode    = 1 << 11,  // This node excapes to an int cast
+    VAStartNode     = 1 << 12,  // This node excapes to an int cast
 
     //#ifndef NDEBUG
-    DeadNode        = 1 << 12,   // This node is dead and should not be pointed to
+    DeadNode        = 1 << 13,   // This node is dead and should not be pointed to
     //#endif
 
     Composition = AllocaNode | HeapNode | GlobalNode | UnknownNode
@@ -328,6 +329,7 @@ public:
   bool isAllocaNode()     const { return NodeType & AllocaNode;    }
   bool isHeapNode()       const { return NodeType & HeapNode;      }
   bool isGlobalNode()     const { return NodeType & GlobalNode;    }
+  bool isExternFuncNode() const { return NodeType & ExternFuncNode; }
   bool isUnknownNode()    const { return NodeType & UnknownNode;   }
   bool isModifiedNode()   const { return NodeType & ModifiedNode;  }
   bool isReadNode()       const { return NodeType & ReadNode;      }
@@ -343,6 +345,7 @@ public:
   DSNode* setAllocaMarker()     { NodeType |= AllocaNode;     return this; }
   DSNode* setHeapMarker()       { NodeType |= HeapNode;       return this; }
   DSNode* setGlobalMarker()     { NodeType |= GlobalNode;     return this; }
+  DSNode* setExternFuncMarker() { NodeType |= ExternFuncNode; return this; }
   DSNode* setUnknownMarker()    { NodeType |= UnknownNode;    return this; }
   DSNode* setModifiedMarker()   { NodeType |= ModifiedNode;   return this; }
   DSNode* setReadMarker()       { NodeType |= ReadNode;       return this; }

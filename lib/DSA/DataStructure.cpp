@@ -117,7 +117,6 @@ DSNodeHandle &DSScalarMap::AddGlobal(const GlobalValue *GV) {
   return ValueMap.insert(std::make_pair(GV, DSNodeHandle())).first->second;
 }
 
-
 //===----------------------------------------------------------------------===//
 // DSNode Implementation
 //===----------------------------------------------------------------------===//
@@ -212,7 +211,7 @@ void DSNode::addGlobal(const GlobalValue *GV) {
 
   if (I == Globals.end() || *I != GV) {
     Globals.insert(I, GV);
-    NodeType |= GlobalNode;
+    setGlobalMarker();
   }
 }
 
@@ -853,11 +852,6 @@ void DSNode::mergeGlobals(const DSNode &RHS) {
   std::set_union(Globals.begin(), Globals.end(), 
                  RHS.Globals.begin(), RHS.Globals.end(), 
                  back_it);
-  DEBUG(
-        for (std::vector<const GlobalValue*>::iterator ii = Temp.begin(), 
-               ee = Temp.end(); ii != ee; ++ii)
-          assert(isa<GlobalValue>(*ii) && "Non global merged");
-        );
   Globals.swap(Temp);
 }
 
@@ -1011,12 +1005,10 @@ void DSNode::MergeNodes(DSNodeHandle& CurNodeH, DSNodeHandle& NH) {
   N->Links.clear();
 
   // Merge the globals list...
-  if (!N->Globals.empty()) {
-    CurNodeH.getNode()->mergeGlobals(*N);
+  CurNodeH.getNode()->mergeGlobals(*N);
 
-    // Delete the globals from the old node...
-    N->Globals.clear();
-  }
+  // Delete the globals from the old node...
+  N->Globals.clear();
 }
 
 
@@ -2050,14 +2042,6 @@ static inline void killIfUselessEdge(DSNodeHandle &Edge) {
         Edge.setTo(0, 0);  // Kill the edge!
 }
 
-static inline bool nodeContainsExternalFunction(const DSNode *N) {
-  std::vector<const Function*> Funcs;
-  N->addFullFunctionList(Funcs);
-  for (unsigned i = 0, e = Funcs.size(); i != e; ++i)
-    if (Funcs[i]->isDeclaration()) return true;
-  return false;
-}
-
 static void removeIdenticalCalls(std::list<DSCallSite> &Calls) {
   // Remove trivially identical function calls
   Calls.sort();  // Sort by callee as primary key!
@@ -2095,8 +2079,7 @@ static void removeIdenticalCalls(std::list<DSCallSite> &Calls) {
       // if the callee contains an external function, it will never be
       // resolvable, just merge the call sites.
       if (!LastCalleeNode.isNull() && LastCalleeNode.getNode() == Callee) {
-        LastCalleeContainsExternalFunction =
-          nodeContainsExternalFunction(Callee);
+        LastCalleeContainsExternalFunction = Callee->isExternFuncNode();
 
         std::list<DSCallSite>::iterator PrevIt = OldIt;
         --PrevIt;
@@ -2834,7 +2817,10 @@ void DataStructures::buildGlobalECs(std::set<const GlobalValue*> &ECGlobals) {
     for( ; i != I->globals_end(); ++i) {
       GlobalECs.unionSets(First, *i);
       ECGlobals.insert(*i);
-      SM.erase(SM.find(*i));
+      if (SM.find(*i) != SM.end())
+        SM.erase(SM.find(*i));
+      else
+        errs() << "Global missing in scalar map " << (*i)->getName() << "\n";
     }
 
     // Next, get the leader element.

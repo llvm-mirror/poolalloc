@@ -76,7 +76,7 @@ namespace {
 
     /// getValueDest - Return the DSNode that the actual value points to.
     ///
-    DSNodeHandle getValueDest(Value &V);
+    DSNodeHandle getValueDest(Value* V);
 
     /// getLink - This method is used to return the specified link in the
     /// specified node if one exists.  If a link does not already exist (it's
@@ -95,7 +95,7 @@ namespace {
     { setDestTo(AI, createNode()->setAllocaMarker()); }
 
     void visitFreeInst(FreeInst &FI)
-    { if (DSNode *N = getValueDest(*FI.getOperand(0)).getNode())
+    { if (DSNode *N = getValueDest(FI.getOperand(0)).getNode())
         N->setHeapMarker();
     }
 
@@ -129,7 +129,7 @@ namespace {
       for (Function::arg_iterator I = f.arg_begin(), E = f.arg_end();
            I != E; ++I) {
         if (isa<PointerType>(I->getType())) {
-          DSNode * Node = getValueDest(*I).getNode();
+          DSNode * Node = getValueDest(I).getNode();
 
           if (!f.hasInternalLinkage())
             Node->setExternalMarker();
@@ -167,7 +167,7 @@ namespace {
     {}
 
     void mergeInGlobalInitializer(GlobalVariable *GV);
-    void mergeFunction(Function& F) { getValueDest(F); }
+    void mergeFunction(Function* F) { getValueDest(F); }
   };
 
   /// Traverse the whole DSGraph, and propagate the unknown flags through all 
@@ -200,8 +200,7 @@ namespace {
 ///
 /// getValueDest - Return the DSNode that the actual value points to.
 ///
-DSNodeHandle GraphBuilder::getValueDest(Value &Val) {
-  Value *V = &Val;
+DSNodeHandle GraphBuilder::getValueDest(Value* V) {
   if (isa<Constant>(V) && cast<Constant>(V)->isNullValue()) 
     return 0;  // Null doesn't point to anything, don't add to ScalarMap!
 
@@ -218,14 +217,16 @@ DSNodeHandle GraphBuilder::getValueDest(Value &Val) {
     N = createNode(GV->getType()->getElementType());
     N->addGlobal(GV);
   } else if (Function* GV = dyn_cast<Function>(V)) {
-    // Create a new global node for this global variable.
+    // Create a new global node for this function.
     N = createNode();
     N->addGlobal(GV);
+    if (GV->isDeclaration())
+      N->setExternFuncMarker();
   } else if (Constant *C = dyn_cast<Constant>(V)) {
     if (ConstantExpr *CE = dyn_cast<ConstantExpr>(C)) {
       if (CE->isCast()) {
         if (isa<PointerType>(CE->getOperand(0)->getType()))
-          NH = getValueDest(*CE->getOperand(0));
+          NH = getValueDest(CE->getOperand(0));
         else
           NH = createNode()->setUnknownMarker();
       } else if (CE->getOpcode() == Instruction::GetElementPtr) {
@@ -249,10 +250,10 @@ DSNodeHandle GraphBuilder::getValueDest(Value &Val) {
       // According to Andrew, DSA is broken on global aliasing, since it does
       // not handle the aliases of parameters correctly. Here is only a quick
       // fix for some special cases.
-      NH = getValueDest(*(cast<GlobalAlias>(C)->getAliasee()));
+      NH = getValueDest(cast<GlobalAlias>(C)->getAliasee());
       return 0;
     } else {
-      DEBUG(errs() << "Unknown constant: " << *C << "\n");
+      errs() << "Unknown constant: " << *C << "\n";
       assert(0 && "Unknown constant type!");
     }
     N = createNode(); // just create a shadow node
@@ -304,7 +305,7 @@ void GraphBuilder::visitPHINode(PHINode &PN) {
 
   DSNodeHandle &PNDest = G.getNodeForValue(&PN);
   for (unsigned i = 0, e = PN.getNumIncomingValues(); i != e; ++i)
-    PNDest.mergeWith(getValueDest(*PN.getIncomingValue(i)));
+    PNDest.mergeWith(getValueDest(PN.getIncomingValue(i)));
 }
 
 void GraphBuilder::visitSelectInst(SelectInst &SI) {
@@ -312,14 +313,14 @@ void GraphBuilder::visitSelectInst(SelectInst &SI) {
     return; // Only pointer Selects
 
   DSNodeHandle &Dest = G.getNodeForValue(&SI);
-  DSNodeHandle S1 = getValueDest(*SI.getOperand(1));
-  DSNodeHandle S2 = getValueDest(*SI.getOperand(2));
+  DSNodeHandle S1 = getValueDest(SI.getOperand(1));
+  DSNodeHandle S2 = getValueDest(SI.getOperand(2));
   Dest.mergeWith(S1);
   Dest.mergeWith(S2);
 }
 
 void GraphBuilder::visitLoadInst(LoadInst &LI) {
-  DSNodeHandle Ptr = getValueDest(*LI.getOperand(0));
+  DSNodeHandle Ptr = getValueDest(LI.getOperand(0));
 
   if (Ptr.isNull()) return; // Load from null
 
@@ -335,7 +336,7 @@ void GraphBuilder::visitLoadInst(LoadInst &LI) {
 
 void GraphBuilder::visitStoreInst(StoreInst &SI) {
   const Type *StoredTy = SI.getOperand(0)->getType();
-  DSNodeHandle Dest = getValueDest(*SI.getOperand(1));
+  DSNodeHandle Dest = getValueDest(SI.getOperand(1));
   if (Dest.isNull()) return;
 
   // Mark that the node is written to...
@@ -346,17 +347,17 @@ void GraphBuilder::visitStoreInst(StoreInst &SI) {
 
   // Avoid adding edges from null, or processing non-"pointer" stores
   if (isa<PointerType>(StoredTy))
-    Dest.addEdgeTo(getValueDest(*SI.getOperand(0)));
+    Dest.addEdgeTo(getValueDest(SI.getOperand(0)));
 }
 
 void GraphBuilder::visitReturnInst(ReturnInst &RI) {
   if (RI.getNumOperands() && isa<PointerType>(RI.getOperand(0)->getType()))
-    G.getOrCreateReturnNodeFor(*FB).mergeWith(getValueDest(*RI.getOperand(0)));
+    G.getOrCreateReturnNodeFor(*FB).mergeWith(getValueDest(RI.getOperand(0)));
 }
 
 void GraphBuilder::visitVAArgInst(VAArgInst &I) {
   //FIXME: also updates the argument
-  DSNodeHandle Ptr = getValueDest(*I.getOperand(0));
+  DSNodeHandle Ptr = getValueDest(I.getOperand(0));
   if (Ptr.isNull()) return;
 
   // Make that the node is read and written
@@ -377,14 +378,14 @@ void GraphBuilder::visitIntToPtrInst(IntToPtrInst &I) {
 }
 
 void GraphBuilder::visitPtrToIntInst(PtrToIntInst& I) {
-  if (DSNode* N = getValueDest(*I.getOperand(0)).getNode())
+  if (DSNode* N = getValueDest(I.getOperand(0)).getNode())
     N->setPtrToIntMarker();
 }
 
 
 void GraphBuilder::visitBitCastInst(BitCastInst &I) {
   if (!isa<PointerType>(I.getType())) return; // Only pointers
-  DSNodeHandle Ptr = getValueDest(*I.getOperand(0));
+  DSNodeHandle Ptr = getValueDest(I.getOperand(0));
   if (Ptr.isNull()) return;
   setDestTo(I, Ptr);
 }
@@ -397,8 +398,8 @@ void GraphBuilder::visitInsertValueInst(InsertValueInst& I) {
   setDestTo(I, createNode()->setAllocaMarker());
 
   const Type *StoredTy = I.getInsertedValueOperand()->getType();
-  DSNodeHandle Dest = getValueDest(I);
-  Dest.mergeWith(getValueDest(*I.getAggregateOperand()));
+  DSNodeHandle Dest = getValueDest(&I);
+  Dest.mergeWith(getValueDest(I.getAggregateOperand()));
 
   // Mark that the node is written to...
   Dest.getNode()->setModifiedMarker();
@@ -409,11 +410,11 @@ void GraphBuilder::visitInsertValueInst(InsertValueInst& I) {
 
   // Avoid adding edges from null, or processing non-"pointer" stores
   if (isa<PointerType>(StoredTy))
-    Dest.addEdgeTo(getValueDest(*I.getInsertedValueOperand()));
+    Dest.addEdgeTo(getValueDest(I.getInsertedValueOperand()));
 }
 
 void GraphBuilder::visitExtractValueInst(ExtractValueInst& I) {
-  DSNodeHandle Ptr = getValueDest(*I.getOperand(0));
+  DSNodeHandle Ptr = getValueDest(I.getOperand(0));
 
   // Make that the node is read from...
   Ptr.getNode()->setReadMarker();
@@ -427,7 +428,7 @@ void GraphBuilder::visitExtractValueInst(ExtractValueInst& I) {
 }
 
 void GraphBuilder::visitGetElementPtrInst(User &GEP) {
-  DSNodeHandle Value = getValueDest(*GEP.getOperand(0));
+  DSNodeHandle Value = getValueDest(GEP.getOperand(0));
   if (Value.isNull())
     Value = createNode();
 
@@ -594,7 +595,7 @@ bool GraphBuilder::visitIntrinsic(CallSite CS, Function *F) {
   switch (F->getIntrinsicID()) {
   case Intrinsic::vastart: {
     // Mark the memory written by the vastart intrinsic as incomplete
-    DSNodeHandle RetNH = getValueDest(**CS.arg_begin());
+    DSNodeHandle RetNH = getValueDest(*CS.arg_begin());
     if (DSNode *N = RetNH.getNode()) {
       N->setModifiedMarker()->setAllocaMarker()->setIncompleteMarker()
        ->setVAStartMarker()->setUnknownMarker()->foldNodeCompletely();
@@ -614,7 +615,7 @@ bool GraphBuilder::visitIntrinsic(CallSite CS, Function *F) {
       Value * Operand = CS.getInstruction()->getOperand(1);
       if (CastInst * CI = dyn_cast<CastInst>(Operand))
         Operand = CI->getOperand (0);
-      RetNH = getValueDest(*Operand);
+      RetNH = getValueDest(Operand);
       if (DSNode *N = RetNH.getNode()) {
         N->setModifiedMarker()->setAllocaMarker()->setIncompleteMarker()
          ->setVAStartMarker()->setUnknownMarker()->foldNodeCompletely();
@@ -624,8 +625,8 @@ bool GraphBuilder::visitIntrinsic(CallSite CS, Function *F) {
     return true;
   }
   case Intrinsic::vacopy:
-    getValueDest(*CS.getInstruction()).
-      mergeWith(getValueDest(**(CS.arg_begin())));
+    getValueDest(CS.getInstruction()).
+      mergeWith(getValueDest(*(CS.arg_begin())));
     return true;
   case Intrinsic::stacksave: {
     DSNode * Node = createNode();
@@ -635,10 +636,10 @@ bool GraphBuilder::visitIntrinsic(CallSite CS, Function *F) {
     return true;
   }
   case Intrinsic::stackrestore:
-    getValueDest(*CS.getInstruction()).getNode()->setAllocaMarker()
-                                                ->setIncompleteMarker()
-                                                ->setUnknownMarker()
-                                                ->foldNodeCompletely();
+    getValueDest(CS.getInstruction()).getNode()->setAllocaMarker()
+                                               ->setIncompleteMarker()
+                                               ->setUnknownMarker()
+                                               ->foldNodeCompletely();
     return true;
   case Intrinsic::vaend:
   case Intrinsic::dbg_func_start:
@@ -651,15 +652,15 @@ bool GraphBuilder::visitIntrinsic(CallSite CS, Function *F) {
   case Intrinsic::memmove: {
     // Merge the first & second arguments, and mark the memory read and
     // modified.
-    DSNodeHandle RetNH = getValueDest(**CS.arg_begin());
-    RetNH.mergeWith(getValueDest(**(CS.arg_begin()+1)));
+    DSNodeHandle RetNH = getValueDest(*CS.arg_begin());
+    RetNH.mergeWith(getValueDest(*(CS.arg_begin()+1)));
     if (DSNode *N = RetNH.getNode())
       N->setModifiedMarker()->setReadMarker();
     return true;
   }
   case Intrinsic::memset:
     // Mark the memory modified.
-    if (DSNode *N = getValueDest(**CS.arg_begin()).getNode())
+    if (DSNode *N = getValueDest(*CS.arg_begin()).getNode())
       N->setModifiedMarker();
     return true;
 
@@ -672,13 +673,13 @@ bool GraphBuilder::visitIntrinsic(CallSite CS, Function *F) {
   }
 
   case Intrinsic::atomic_cmp_swap: {
-    DSNodeHandle Ptr = getValueDest(**CS.arg_begin());
+    DSNodeHandle Ptr = getValueDest(*CS.arg_begin());
     Ptr.getNode()->setReadMarker();
     Ptr.getNode()->setModifiedMarker();
     if (isa<PointerType>(F->getReturnType())) {
-      setDestTo(*(CS.getInstruction()), getValueDest(**(CS.arg_begin() + 1)));
-      getValueDest(**(CS.arg_begin() + 1))
-        .mergeWith(getValueDest(**(CS.arg_begin() + 2)));
+      setDestTo(*(CS.getInstruction()), getValueDest(*(CS.arg_begin() + 1)));
+      getValueDest(*(CS.arg_begin() + 1))
+        .mergeWith(getValueDest(*(CS.arg_begin() + 2)));
     }
   }
   case Intrinsic::atomic_swap:
@@ -693,11 +694,11 @@ bool GraphBuilder::visitIntrinsic(CallSite CS, Function *F) {
   case Intrinsic::atomic_load_umax:
   case Intrinsic::atomic_load_umin:
     {
-      DSNodeHandle Ptr = getValueDest(**CS.arg_begin());
+      DSNodeHandle Ptr = getValueDest(*CS.arg_begin());
       Ptr.getNode()->setReadMarker();
       Ptr.getNode()->setModifiedMarker();
       if (isa<PointerType>(F->getReturnType()))
-        setDestTo(*(CS.getInstruction()), getValueDest(**(CS.arg_begin() + 1)));
+        setDestTo(*CS.getInstruction(), getValueDest(*(CS.arg_begin() + 1)));
     }
    
               
@@ -753,7 +754,7 @@ void GraphBuilder::visitCallSite(CallSite CS) {
   DSNodeHandle RetVal;
   Instruction *I = CS.getInstruction();
   if (isa<PointerType>(I->getType()))
-    RetVal = getValueDest(*I);
+    RetVal = getValueDest(I);
 
   if (!isa<Function>(Callee))
     if (ConstantExpr* EX = dyn_cast<ConstantExpr>(Callee))
@@ -762,7 +763,7 @@ void GraphBuilder::visitCallSite(CallSite CS) {
 
   DSNode *CalleeNode = 0;
   if (!isa<Function>(Callee)) {
-    CalleeNode = getValueDest(*Callee).getNode();
+    CalleeNode = getValueDest(Callee).getNode();
     if (CalleeNode == 0) {
       DEBUG(errs() << "WARNING: Program is calling through a null pointer?\n" << *I);
       return;  // Calling a null pointer?
@@ -775,7 +776,7 @@ void GraphBuilder::visitCallSite(CallSite CS) {
   // Calculate the arguments vector...
   for (CallSite::arg_iterator I = CS.arg_begin(), E = CS.arg_end(); I != E; ++I)
     if (isa<PointerType>((*I)->getType()))
-      Args.push_back(getValueDest(**I));
+      Args.push_back(getValueDest(*I));
 
   // Add a new function call entry...
   if (CalleeNode) {
@@ -792,10 +793,10 @@ void GraphBuilder::visitCallSite(CallSite CS) {
 void GraphBuilder::visitInstruction(Instruction &Inst) {
   DSNodeHandle CurNode;
   if (isa<PointerType>(Inst.getType()))
-    CurNode = getValueDest(Inst);
+    CurNode = getValueDest(&Inst);
   for (User::op_iterator I = Inst.op_begin(), E = Inst.op_end(); I != E; ++I)
     if (isa<PointerType>((*I)->getType()))
-      CurNode.mergeWith(getValueDest(**I));
+      CurNode.mergeWith(getValueDest(*I));
 
   if (DSNode *N = CurNode.getNode())
     N->setUnknownMarker();
@@ -816,7 +817,7 @@ void GraphBuilder::MergeConstantInitIntoNode(DSNodeHandle &NH, const Type* Ty, C
 
   if (isa<PointerType>(Ty)) {
     // Avoid adding edges from null, or processing non-"pointer" stores
-    NH.addEdgeTo(getValueDest(*C));
+    NH.addEdgeTo(getValueDest(C));
     return;
   }
 
@@ -853,7 +854,7 @@ void GraphBuilder::MergeConstantInitIntoNode(DSNodeHandle &NH, const Type* Ty, C
 void GraphBuilder::mergeInGlobalInitializer(GlobalVariable *GV) {
   assert(!GV->isDeclaration() && "Cannot merge in external global!");
   // Get a node handle to the global node and merge the initializer into it.
-  DSNodeHandle NH = getValueDest(*GV);
+  DSNodeHandle NH = getValueDest(GV);
   MergeConstantInitIntoNode(NH, GV->getType()->getElementType(), GV->getInitializer());
 }
 
@@ -874,7 +875,7 @@ bool LocalDataStructures::runOnModule(Module &M) {
     // Add Functions to the globals graph.
     for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I)
       if (!I->isDeclaration() && I->hasAddressTaken())
-        GGB.mergeFunction(*I);
+        GGB.mergeFunction(I);
   }
 
   // Next step, iterate through the nodes in the globals graph, unioning

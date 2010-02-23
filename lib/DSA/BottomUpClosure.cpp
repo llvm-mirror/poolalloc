@@ -119,14 +119,6 @@ bool BUDataStructures::runOnModuleInternal(Module& M) {
   return false;
 }
 
-static inline bool nodeContainsExternalFunction(const DSNode *N) {
-  std::vector<const Function*> Funcs;
-  N->addFullFunctionList(Funcs);
-  for (unsigned i = 0, e = Funcs.size(); i != e; ++i)
-    if (Funcs[i]->isDeclaration()) return true;
-  return false;
-}
-
 void BUDataStructures::finalizeGlobals(void) {
   // Any unresolved call can be removed (resolved) if it does not contain
   // external functions and it is not reachable from any call that does
@@ -134,8 +126,7 @@ void BUDataStructures::finalizeGlobals(void) {
   std::set<DSCallSite> GoodCalls, BadCalls;
   for (DSGraph::afc_iterator ii = GlobalsGraph->afc_begin(), 
          ee = GlobalsGraph->afc_end(); ii != ee; ++ii)
-    if (ii->isDirectCall() ||
-        nodeContainsExternalFunction(ii->getCalleeNode()))
+    if (ii->isDirectCall() || ii->getCalleeNode()->isExternFuncNode())
       BadCalls.insert(*ii);
     else
       GoodCalls.insert(*ii);
@@ -163,15 +154,8 @@ static void GetAllCallees(const DSCallSite &CS,
       Callees.push_back(CS.getCalleeFunc());
   } else if (!CS.getCalleeNode()->isIncompleteNode()) {
     // Get all callees.
-    unsigned OldSize = Callees.size();
-    CS.getCalleeNode()->addFullFunctionList(Callees);
-    
-    // If any of the callees are unresolvable, remove the whole batch!
-    for (unsigned i = OldSize, e = Callees.size(); i != e; ++i)
-      if (Callees[i]->isDeclaration()) {
-        Callees.erase(Callees.begin()+OldSize, Callees.end());
-        return;
-      }
+    if (!CS.getCalleeNode()->isExternFuncNode())
+      CS.getCalleeNode()->addFullFunctionList(Callees);
   }
 }
 
@@ -181,15 +165,15 @@ static void GetAnyCallees(const DSCallSite &CS,
     if (!CS.getCalleeFunc()->isDeclaration())
       Callees.push_back(CS.getCalleeFunc());
   } else {
-    // Get all callees.
+    // Get any callees.
     unsigned OldSize = Callees.size();
     CS.getCalleeNode()->addFullFunctionList(Callees);
-    
+
     // If any of the callees are unresolvable, remove them
-    for (unsigned i = OldSize; i != Callees.size(); )
+    for (unsigned i = OldSize; i != Callees.size();)
       if (Callees[i]->isDeclaration()) {
-        Callees.erase(Callees.begin()+i);
-      } else 
+        Callees.erase(Callees.begin() + i);
+      } else
         ++i;
   }
 }
@@ -200,14 +184,6 @@ static void GetAllAuxCallees(DSGraph* G, std::vector<const Function*> &Callees) 
   Callees.clear();
   for (DSGraph::afc_iterator I = G->afc_begin(), E = G->afc_end(); I != E; ++I)
     GetAllCallees(*I, Callees);
-}
-
-/// GetAnyAuxCallees - Return a list containing all of the callees in
-/// the aux list for the specified graph in the Callees vector.
-static void GetAnyAuxCallees(DSGraph* G, std::vector<const Function*> &Callees) {
-  Callees.clear();
-  for (DSGraph::afc_iterator I = G->afc_begin(), E = G->afc_end(); I != E; ++I)
-    GetAnyCallees(*I, Callees);
 }
 
 unsigned BUDataStructures::calculateGraphs(const Function *F,
@@ -233,17 +209,8 @@ unsigned BUDataStructures::calculateGraphs(const Function *F,
 
   // Find all callee functions.
   std::vector<const Function*> CalleeFunctions;
-  GetAnyAuxCallees(Graph, CalleeFunctions);
-  std::sort(CalleeFunctions.begin(), CalleeFunctions.end());
-  std::vector<const Function*>::iterator uid = std::unique(CalleeFunctions.begin(), CalleeFunctions.end());
-  CalleeFunctions.resize(uid - CalleeFunctions.begin());
+  GetAllAuxCallees(Graph, CalleeFunctions);
 
-  std::vector<const Function*> PreResolvedFuncs;
-  GetAllAuxCallees(Graph, PreResolvedFuncs);
-  std::sort(PreResolvedFuncs.begin(), PreResolvedFuncs.end());
-  uid = std::unique(PreResolvedFuncs.begin(), PreResolvedFuncs.end());
-  PreResolvedFuncs.resize(uid - PreResolvedFuncs.begin());
-  
   // The edges out of the current node are the call site targets...
   for (unsigned i = 0, e = CalleeFunctions.size(); i != e; ++i) {
     const Function *Callee = CalleeFunctions[i];
@@ -275,36 +242,15 @@ unsigned BUDataStructures::calculateGraphs(const Function *F,
     if (MaxSCC < 1) MaxSCC = 1;
 
     // Should we revisit the graph?  Only do it if there are now new resolvable
-    // callees or new callees
-    std::vector<const Function*> NewCalleeFuncs;
-    GetAnyAuxCallees(Graph, NewCalleeFuncs);
-    std::sort(NewCalleeFuncs.begin(), NewCalleeFuncs.end());
-    std::vector<const Function*>::iterator uid = std::unique(NewCalleeFuncs.begin(), NewCalleeFuncs.end());
-    NewCalleeFuncs.resize(uid - NewCalleeFuncs.begin());
-    uid = std::set_difference(NewCalleeFuncs.begin(), NewCalleeFuncs.end(),
-                              CalleeFunctions.begin(), CalleeFunctions.end(),
-                              NewCalleeFuncs.begin());
-    NewCalleeFuncs.resize(uid - NewCalleeFuncs.begin());
-
-    std::vector<const Function*> ResolvedFuncs;
-    GetAllAuxCallees(Graph, ResolvedFuncs);
-    std::sort(ResolvedFuncs.begin(), ResolvedFuncs.end());
-    uid = std::unique(ResolvedFuncs.begin(), ResolvedFuncs.end());
-    ResolvedFuncs.resize(uid - ResolvedFuncs.begin());
-    uid = std::set_difference(ResolvedFuncs.begin(), ResolvedFuncs.end(),
-                              PreResolvedFuncs.begin(), PreResolvedFuncs.end(),
-                              ResolvedFuncs.begin());
-    ResolvedFuncs.resize(uid - ResolvedFuncs.begin());
-
-    if (ResolvedFuncs.size() || NewCalleeFuncs.size()) {
+    // callees
+    GetAllAuxCallees(Graph, CalleeFunctions);
+    if (!CalleeFunctions.empty()) {
       DEBUG(errs() << "Recalculating " << F->getName() << " due to new knowledge\n");
       ValMap.erase(F);
       return calculateGraphs(F, Stack, NextID, ValMap);
     } else {
       ValMap[F] = ~0U;
     }
-    //propagate incomplete call nodes
-    inlineUnresolved(Graph);
     return MyID;
 
   } else {
@@ -359,8 +305,6 @@ unsigned BUDataStructures::calculateGraphs(const Function *F,
 	  << "DONE with SCC #: " << MyID << "\n");
 
     // We never have to revisit "SCC" processed functions...
-    //propagate incomplete call nodes
-    inlineUnresolved(SCCGraph);
     return MyID;
   }
 
@@ -628,7 +572,8 @@ void BUDataStructures::inlineUnresolved(DSGraph* Graph) {
 	    << Graph->getFunctionNames() << "' [" << Graph->getGraphSize() <<"+"
 	    << Graph->getAuxFunctionCalls().size() << "]\n");
       Graph->mergeInGraph(CS, *Callee, *GI,
-                         DSGraph::StripAllocaBit|DSGraph::DontCloneCallNodes);
+                         DSGraph::StripAllocaBit|DSGraph::DontCloneCallNodes |
+                          DSGraph::DontCloneAuxCallNodes);
       ++NumInlines;
     } else {
       DEBUG(errs() << "In Fns: " << Graph->getFunctionNames() << "\n");
@@ -710,7 +655,8 @@ void BUDataStructures::inlineUnresolved(DSGraph* Graph) {
       
       Graph->mergeInGraph(CS, IndCallGraph.second, *GI,
                           DSGraph::StripAllocaBit |
-                          DSGraph::DontCloneCallNodes);
+                          DSGraph::DontCloneCallNodes |
+                          DSGraph::DontCloneAuxCallNodes);
       ++NumInlines;
     }
   }
