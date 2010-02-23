@@ -873,7 +873,7 @@ bool LocalDataStructures::runOnModule(Module &M) {
         GGB.mergeInGlobalInitializer(I);
     // Add Functions to the globals graph.
     for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I)
-      if (!I->isDeclaration())
+      if (!I->isDeclaration() && I->hasAddressTaken())
         GGB.mergeFunction(*I);
   }
 
