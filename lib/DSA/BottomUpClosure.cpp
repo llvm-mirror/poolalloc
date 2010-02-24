@@ -428,19 +428,23 @@ void BUDataStructures::calculateGraph(DSGraph* Graph) {
       ++NumInlines;
       DEBUG(Graph->AssertGraphOK(););
     } else if (CalledFuncs.size() > 1) {
-      DEBUG(errs() << "In Fns: " << Graph->getFunctionNames() << "\n");
-      DEBUG(errs() << "  calls " << CalledFuncs.size()
-            << " fns from site: " << CS.getCallSite().getInstruction()
-            << "  " << *CS.getCallSite().getInstruction());
-      DEBUG(errs() << "   Fns =");
-      unsigned NumPrinted = 0;
-      
-      for (std::vector<const Function*>::iterator I = CalledFuncs.begin(),
-             E = CalledFuncs.end(); I != E; ++I)
-        if (NumPrinted++ < 8) {
-	  DEBUG(errs() << " " << (*I)->getName());
-	}
-      DEBUG(errs() << "\n");
+      bool doDebug = false;
+      DEBUG(doDebug = true);
+      if (doDebug) {
+        errs() << "In Fns: " << Graph->getFunctionNames() << "\n";
+        errs() << "  calls " << CalledFuncs.size()
+                << " fns from site: " << CS.getCallSite().getInstruction()
+                << "  " << *CS.getCallSite().getInstruction();
+        errs() << "   Fns =";
+        unsigned NumPrinted = 0;
+
+        for (std::vector<const Function*>::iterator I = CalledFuncs.begin(),
+                E = CalledFuncs.end(); I != E; ++I)
+          if (NumPrinted++ < 8) {
+            errs() << " " << (*I)->getName();
+          }
+        errs() << "\n";
+      }
       
       if (!isComplete) {
         for (unsigned x = 0; x < CalledFuncs.size(); )
