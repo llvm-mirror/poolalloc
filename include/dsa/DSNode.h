@@ -35,7 +35,7 @@ class TargetData;
 class DSNode : public ilist_node<DSNode> {
   friend struct ilist_sentinel_traits<DSNode>;
   //Sentinel
-  DSNode() : NumReferrers(0), Size(0), Ty(0) {}
+  DSNode() : NumReferrers(0), Size(0), Ty(0), NodeType(0) {}
   
   /// NumReferrers - The number of DSNodeHandles pointing to this node... if
   /// this is a forwarding node, then this is the number of node handles which

@@ -122,7 +122,7 @@ DSNodeHandle &DSScalarMap::AddGlobal(const GlobalValue *GV) {
 //===----------------------------------------------------------------------===//
 
 DSNode::DSNode(const Type *T, DSGraph *G)
-: NumReferrers(0), Size(0), ParentGraph(G), Ty(0) {
+: NumReferrers(0), Size(0), ParentGraph(G), Ty(0), NodeType(0) {
   // Add the type entry if it is specified...
   if (T) mergeTypeInfo(T, 0);
   if (G) G->addNode(this);
@@ -1206,7 +1206,7 @@ void ReachabilityCloner::merge(const DSNodeHandle &NH,
       }
 
       // Merge the type entries of the two nodes together...
-      if ((SN->getType() || SN->getType()->getTypeID() != Type::VoidTyID)
+      if ((SN->getType() && SN->getType()->getTypeID() != Type::VoidTyID)
               && !DN->isNodeCompletelyFolded()) {
         DN->mergeTypeInfo(SN->getType(), NH.getOffset() - SrcNH.getOffset());
         DN = NH.getNode();
