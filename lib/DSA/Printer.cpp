@@ -21,12 +21,9 @@
 #include "llvm/Assembly/Writer.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/GraphWriter.h"
-#include "llvm/Support/Streams.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Config/config.h"
 #include "llvm/Support/FormattedStream.h"
-#include <ostream>
-#include <fstream>
 #include <sstream>
 using namespace llvm;
 
@@ -34,14 +31,14 @@ using namespace llvm;
 // printing of only the graph for "main".
 //
 namespace {
-  cl::opt<bool> OnlyPrintMain("only-print-main-ds", cl::ReallyHidden);
+  cl::list<std::string> OnlyPrint("dsa-only-print", cl::ReallyHidden);
   cl::opt<bool> DontPrintAnything("dont-print-ds", cl::ReallyHidden);
   cl::opt<bool> LimitPrint("dsa-limit-print", cl::Hidden);
   STATISTIC (MaxGraphSize   , "Maximum graph size");
   STATISTIC (NumFoldedNodes , "Number of folded nodes (in final graph)");
 }
 
-void DSNode::dump() const { print(cerr, 0); }
+void DSNode::dump() const { print(errs(), 0); }
 
 static std::string getCaption(const DSNode *N, const DSGraph *G) {
   std::string empty;
@@ -115,6 +112,8 @@ static std::string getCaption(const DSNode *N, const DSGraph *G) {
 namespace llvm {
 template<>
 struct DOTGraphTraits<const DSGraph*> : public DefaultDOTGraphTraits {
+  DOTGraphTraits(bool& b) {}
+  DOTGraphTraits() {}
   static std::string getGraphName(const DSGraph *G) {
     switch (G->getReturnNodes().size()) {
     case 0: return G->getFunctionNames();
@@ -124,7 +123,7 @@ struct DOTGraphTraits<const DSGraph*> : public DefaultDOTGraphTraits {
   }
 
   static std::string
-  getNodeLabel(const DSNode *Node, const DSGraph *Graph, bool ShortNames) {
+  getNodeLabel(const DSNode* Node, const DSGraph *Graph) {
     return getCaption(Node, Graph);
   }
 
@@ -169,9 +168,11 @@ struct DOTGraphTraits<const DSGraph*> : public DefaultDOTGraphTraits {
     if (!LimitPrint) {
       // Add scalar nodes to the graph...
       const DSGraph::ScalarMapTy &VM = G->getScalarMap();
-      for (DSGraph::ScalarMapTy::const_iterator I = VM.begin(); I != VM.end();++I)
+      for (DSGraph::ScalarMapTy::const_iterator I = VM.begin();
+           I != VM.end(); ++I)
         if (!isa<GlobalValue>(I->first)) {
-          std::stringstream OS;
+          std::string OS_str;
+          llvm::raw_string_ostream OS(OS_str);
           WriteAsOperand(OS, I->first, false, CurMod);
           GW.emitSimpleNode(I->first, "", OS.str());
           
@@ -246,28 +247,29 @@ struct DOTGraphTraits<const DSGraph*> : public DefaultDOTGraphTraits {
 };
 }   // end namespace llvm
 
-void DSNode::print(std::ostream &O, const DSGraph *G) const {
+void DSNode::print(llvm::raw_ostream &O, const DSGraph *G) const {
   GraphWriter<const DSGraph *> W(O, G, false);
   W.writeNode(this);
 }
 
-void DSGraph::print(std::ostream &O) const {
+void DSGraph::print(llvm::raw_ostream &O) const {
   WriteGraph(O, this, "DataStructures");
 }
 
-void DSGraph::writeGraphToFile(std::ostream &O,
+void DSGraph::writeGraphToFile(llvm::raw_ostream &O,
                                const std::string &GraphName) const {
   std::string Filename = GraphName + ".dot";
   O << "Writing '" << Filename << "'...";
-  std::ofstream F(Filename.c_str());
+  std::string Error;
+  llvm::raw_fd_ostream F(Filename.c_str(), Error);
 
-  if (F.good()) {
+  if (!Error.size()) {
     print(F);
     unsigned NumCalls = shouldPrintAuxCalls() ?
       getAuxFunctionCalls().size() : getFunctionCalls().size();
     O << " [" << getGraphSize() << "+" << NumCalls << "]\n";
   } else {
-    O << "  error opening file for writing!\n";
+    O << "  error opening file for writing! " << Error << "\n";
   }
 }
 
@@ -280,7 +282,7 @@ void DSGraph::viewGraph() const {
 
 
 template <typename Collection>
-static void printCollection(const Collection &C, std::ostream &O,
+static void printCollection(const Collection &C, llvm::raw_ostream &O,
                             const Module *M, const std::string &Prefix) {
   if (M == 0) {
     O << "Null Module pointer, cannot continue!\n";
@@ -295,7 +297,14 @@ static void printCollection(const Collection &C, std::ostream &O,
         Gr->getAuxFunctionCalls().size() : Gr->getFunctionCalls().size();
       bool IsDuplicateGraph = false;
 
-      if (I->getName() == "main" || !OnlyPrintMain) {
+      //if no only print options, print everything
+      bool doPrint = OnlyPrint.begin() == OnlyPrint.end();
+      //otherwise check the name
+      if (!doPrint)
+        doPrint = OnlyPrint.end() !=
+        std::find(OnlyPrint.begin(), OnlyPrint.end(), I->getNameStr());
+
+      if (doPrint) {
         const Function *SCCFn = Gr->retnodes_begin()->first;
         if (&*I == SCCFn) {
           Gr->writeGraphToFile(O, Prefix+I->getNameStr());
@@ -308,8 +317,8 @@ static void printCollection(const Collection &C, std::ostream &O,
       } else {
         const Function *SCCFn = Gr->retnodes_begin()->first;
         if (&*I == SCCFn) {
-          O << "Skipped Writing '" << Prefix+I->getNameStr() << ".dot'... ["
-            << Gr->getGraphSize() << "+" << NumCalls << "]\n";
+//          O << "Skipped Writing '" << Prefix+I->getNameStr() << ".dot'... ["
+//            << Gr->getGraphSize() << "+" << NumCalls << "]\n";
         } else {
           IsDuplicateGraph = true; // Don't double count node/call nodes.
         }
@@ -331,15 +340,10 @@ static void printCollection(const Collection &C, std::ostream &O,
   DSGraph* GG = C.getGlobalsGraph();
   TotalNumNodes  += GG->getGraphSize();
   TotalCallNodes += GG->getFunctionCalls().size();
-  if (!OnlyPrintMain) {
-    GG->writeGraphToFile(O, Prefix+"GlobalsGraph");
-  } else {
-    O << "Skipped Writing '" << Prefix << "GlobalsGraph.dot'... ["
-      << GG->getGraphSize() << "+" << GG->getFunctionCalls().size() << "]\n";
-  }
+  GG->writeGraphToFile(O, Prefix + "GlobalsGraph");
 
   O << "\nGraphs contain [" << TotalNumNodes << "+" << TotalCallNodes
-    << "] nodes total" << std::endl;
+    << "] nodes total\n";
 }
 
 
@@ -358,8 +362,8 @@ void DataStructures::dumpCallGraph() const {
 }
 
 // print - Print out the analysis results...
-void DataStructures::print(std::ostream &O, const Module *M) const {
+void DataStructures::print(llvm::raw_ostream &O, const Module *M) const {
   if (DontPrintAnything) return;
   printCollection(*this, O, M, printname);
-  dumpCallGraph();
+  //dumpCallGraph();
 }

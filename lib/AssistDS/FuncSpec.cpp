@@ -14,6 +14,8 @@
 #include "llvm/Pass.h"
 #include "llvm/Transforms/Utils/Cloning.h"
 #include "llvm/ADT/Statistic.h"
+#include "llvm/Support/FormattedStream.h"
+
 #include <set>
 #include <map>
 #include <vector>
@@ -40,11 +42,11 @@ namespace {
             if (const PointerType* Ty = dyn_cast<PointerType>(ii->getType())) {
               if (isa<FunctionType>(Ty->getElementType())) {
                 FPArgs.push_back(ii->getArgNo());
-                cerr << "Eligable: " << I->getNameStr() << "\n";
+                errs() << "Eligable: " << I->getNameStr() << "\n";
               }
             } else if (isa<FunctionType>(ii->getType())) {
               FPArgs.push_back(ii->getArgNo());
-              cerr << "Eligable: " << I->getNameStr() << "\n";
+              errs() << "Eligable: " << I->getNameStr() << "\n";
             }
           for(Value::use_iterator ui = I->use_begin(), ue = I->use_end();
               ui != ue; ++ui)

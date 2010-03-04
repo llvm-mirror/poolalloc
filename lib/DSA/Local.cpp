@@ -29,6 +29,7 @@
 #include "llvm/ADT/DenseSet.h"
 
 #include <iostream>
+#include <fstream>
 
 // FIXME: This should eventually be a FunctionPass that is automatically
 // aggregated into a Pass.
@@ -39,6 +40,9 @@ using namespace llvm;
 
 static RegisterPass<LocalDataStructures>
 X("dsa-local", "Local Data Structure Analysis");
+
+static cl::opt<std::string> hasMagicSections("dsa-magic-sections",
+       cl::desc("File with section to global mapping")); //, cl::ReallyHidden);
 
 namespace {
   //===--------------------------------------------------------------------===//
@@ -88,16 +92,18 @@ namespace {
     // Visitor functions, used to handle each instruction type we encounter...
     friend class InstVisitor<GraphBuilder>;
 
-    void visitMallocInst(MallocInst &MI)
-    { setDestTo(MI, createNode()->setHeapMarker()); }
+    //FIXME: implement in stdlib pass
+//    void visitMallocInst(MallocInst &MI)
+//    { setDestTo(MI, createNode()->setHeapMarker()); }
 
     void visitAllocaInst(AllocaInst &AI)
     { setDestTo(AI, createNode()->setAllocaMarker()); }
 
-    void visitFreeInst(FreeInst &FI)
-    { if (DSNode *N = getValueDest(FI.getOperand(0)).getNode())
-        N->setHeapMarker();
-    }
+    //FIXME: implement in stdlib pass
+    //void visitFreeInst(FreeInst &FI)
+    //{ if (DSNode *N = getValueDest(FI.getOperand(0)).getNode())
+//        N->setHeapMarker();
+//    }
 
     //the simple ones
     void visitPHINode(PHINode &PN);
@@ -145,16 +151,19 @@ namespace {
 
       // If there are any constant globals referenced in this function, merge
       // their initializers into the local graph from the globals graph.
-      if (g.getScalarMap().global_begin() != g.getScalarMap().global_end()) {
+      // This resolves indirect calls in some common cases
+      // Only merge info for nodes that already exist in the local pass
+      // otherwise leaf functions could contain less collapsing than the globals
+      // graph
+       if (g.getScalarMap().global_begin() != g.getScalarMap().global_end()) {
         ReachabilityCloner RC(&g, g.getGlobalsGraph(), 0);
-        
         for (DSScalarMap::global_iterator I = g.getScalarMap().global_begin();
              I != g.getScalarMap().global_end(); ++I)
-          if (const GlobalVariable *GV = dyn_cast<GlobalVariable>(*I))
-            if (!GV->isDeclaration() && GV->isConstant())
+          if (const GlobalVariable * GV = dyn_cast<GlobalVariable > (*I))
+            //if (GV->isConstant())
               RC.merge(g.getNodeForValue(GV), g.getGlobalsGraph()->getNodeForValue(GV));
       }
-      
+
       g.markIncompleteNodes(DSGraph::MarkFormalArgs);
       
       // Remove any nodes made dead due to merging...
@@ -167,6 +176,7 @@ namespace {
     {}
 
     void mergeInGlobalInitializer(GlobalVariable *GV);
+    void mergeExternalGlobal(GlobalVariable* GV);
     void mergeFunction(Function* F) { getValueDest(F); }
   };
 
@@ -216,6 +226,8 @@ DSNodeHandle GraphBuilder::getValueDest(Value* V) {
     // Create a new global node for this global variable.
     N = createNode(GV->getType()->getElementType());
     N->addGlobal(GV);
+    if (GV->isDeclaration())
+      N->setExternGlobalMarker();
   } else if (Function* GV = dyn_cast<Function>(V)) {
     // Create a new global node for this function.
     N = createNode();
@@ -642,11 +654,7 @@ bool GraphBuilder::visitIntrinsic(CallSite CS, Function *F) {
                                                ->foldNodeCompletely();
     return true;
   case Intrinsic::vaend:
-  case Intrinsic::dbg_func_start:
-  case Intrinsic::dbg_region_end:
-  case Intrinsic::dbg_stoppoint:
-  case Intrinsic::dbg_region_start:
-  case Intrinsic::dbg_declare:
+  case Intrinsic::memory_barrier:
     return true;  // noop
   case Intrinsic::memcpy: 
   case Intrinsic::memmove: {
@@ -703,10 +711,6 @@ bool GraphBuilder::visitIntrinsic(CallSite CS, Function *F) {
    
               
 
-  case Intrinsic::eh_selector_i32:
-  case Intrinsic::eh_selector_i64:
-  case Intrinsic::eh_typeid_for_i32:
-  case Intrinsic::eh_typeid_for_i64:
   case Intrinsic::prefetch:
     return true;
 
@@ -746,9 +750,8 @@ void GraphBuilder::visitCallSite(CallSite CS) {
 
   // Special case handling of certain libc allocation functions here.
   if (Function *F = dyn_cast<Function>(Callee))
-    if (F->isDeclaration())
-      if (F->isIntrinsic() && visitIntrinsic(CS, F))
-        return;
+    if (F->isIntrinsic() && visitIntrinsic(CS, F))
+      return;
 
   // Set up the return value...
   DSNodeHandle RetVal;
@@ -821,7 +824,7 @@ void GraphBuilder::MergeConstantInitIntoNode(DSNodeHandle &NH, const Type* Ty, C
     return;
   }
 
-  if (Ty->isIntOrIntVector() || Ty->isFPOrFPVector()) return;
+  if (Ty->isIntOrIntVectorTy() || Ty->isFPOrFPVectorTy()) return;
 
   const TargetData &TD = NH.getNode()->getTargetData();
 
@@ -858,6 +861,57 @@ void GraphBuilder::mergeInGlobalInitializer(GlobalVariable *GV) {
   MergeConstantInitIntoNode(NH, GV->getType()->getElementType(), GV->getInitializer());
 }
 
+void GraphBuilder::mergeExternalGlobal(GlobalVariable *GV) {
+  // Get a node handle to the global node and merge the initializer into it.
+  DSNodeHandle NH = getValueDest(GV);
+}
+
+// some evil programs use sections as linker generated arrays
+// read a description of this behavior in and apply it
+// format: numglobals section globals...
+// terminates when numglobals == 0
+void handleMagicSections(DSGraph* GlobalsGraph, Module& M) {
+  std::ifstream msf(hasMagicSections.c_str(), std::ifstream::in);
+  if (msf.good()) {
+    //no checking happens here
+    unsigned count = 0;
+    msf >> count;
+    while (count) {
+      std::string section;
+      msf >> section;
+      std::set<Value*> inSection;
+      for (Module::iterator MI = M.begin(), ME = M.end();
+              MI != ME; ++MI)
+        if (MI->hasSection() && MI->getSection() == section)
+          inSection.insert(MI);
+      for (Module::global_iterator MI = M.global_begin(), ME = M.global_end();
+              MI != ME; ++MI)
+        if (MI->hasSection() && MI->getSection() == section)
+          inSection.insert(MI);
+
+      for (unsigned x = 0; x < count; ++x) {
+        std::string global;
+        msf >> global;
+        Value* V = M.getNamedValue(global);
+        if (V) {
+          DSNodeHandle& DHV = GlobalsGraph->getNodeForValue(V);
+          for (std::set<Value*>::iterator SI = inSection.begin(),
+                  SE = inSection.end(); SI != SE; ++SI) {
+            DEBUG(errs() << "Merging " << V->getNameStr() << " with "
+                    << (*SI)->getNameStr() << "\n");
+            GlobalsGraph->getNodeForValue(*SI).mergeWith(DHV);
+          }
+          //DHV.getNode()->dump();
+        }
+      }
+      msf >> count;
+    }
+  } else {
+    errs() << "Failed to open magic sections file:" << hasMagicSections <<
+            "\n";
+  }
+}
+
 char LocalDataStructures::ID;
 
 bool LocalDataStructures::runOnModule(Module &M) {
@@ -870,13 +924,18 @@ bool LocalDataStructures::runOnModule(Module &M) {
     // Add initializers for all of the globals to the globals graph.
     for (Module::global_iterator I = M.global_begin(), E = M.global_end();
          I != E; ++I)
-      if (!I->isDeclaration())
+      if (I->isDeclaration())
+        GGB.mergeExternalGlobal(I);
+      else
         GGB.mergeInGlobalInitializer(I);
     // Add Functions to the globals graph.
     for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I)
-      if (!I->isDeclaration() && I->hasAddressTaken())
+      if (I->hasAddressTaken())
         GGB.mergeFunction(I);
   }
+  
+  if (hasMagicSections.size())
+    handleMagicSections(GlobalsGraph, M);
 
   // Next step, iterate through the nodes in the globals graph, unioning
   // together the globals into equivalence classes.
@@ -891,6 +950,8 @@ bool LocalDataStructures::runOnModule(Module &M) {
       setDSGraph(*I, G);
       propagateUnknownFlag(G);
     }
+
+
 
   GlobalsGraph->removeTriviallyDeadNodes();
   GlobalsGraph->markIncompleteNodes(DSGraph::MarkFormalArgs);

@@ -45,8 +45,16 @@ namespace {
 char TDDataStructures::ID;
 char EQTDDataStructures::ID;
 
+TDDataStructures::~TDDataStructures() {
+  releaseMemory();
+}
+
+EQTDDataStructures::~EQTDDataStructures() {
+  releaseMemory();
+}
+
 void TDDataStructures::markReachableFunctionsExternallyAccessible(DSNode *N,
-                                                   hash_set<DSNode*> &Visited) {
+                                                   std::set<DSNode*> &Visited) {
   if (!N || Visited.count(N)) return;
   Visited.insert(N);
 
@@ -76,7 +84,7 @@ bool TDDataStructures::runOnModule(Module &M) {
   // arguments are functions which are reachable by global variables in the
   // globals graph.
   const DSScalarMap &GGSM = GlobalsGraph->getScalarMap();
-  hash_set<DSNode*> Visited;
+  std::set<DSNode*> Visited;
   for (DSScalarMap::global_iterator I=GGSM.global_begin(), E=GGSM.global_end();
        I != E; ++I) {
     DSNode *N = GGSM.find(*I)->second.getNode();
@@ -105,7 +113,7 @@ bool TDDataStructures::runOnModule(Module &M) {
 
   // We want to traverse the call graph in reverse post-order.  To do this, we
   // calculate a post-order traversal, then reverse it.
-  hash_set<DSGraph*> VisitedGraph;
+  std::set<DSGraph*> VisitedGraph;
   std::vector<DSGraph*> PostOrder;
 
 {TIME_REGION(XXX, "td:Compute postorder");
@@ -147,7 +155,7 @@ bool TDDataStructures::runOnModule(Module &M) {
 
 
 void TDDataStructures::ComputePostOrder(const Function &F,
-                                        hash_set<DSGraph*> &Visited,
+                                        std::set<DSGraph*> &Visited,
                                         std::vector<DSGraph*> &PostOrder) {
   if (F.isDeclaration()) return;
   DSGraph* G = getOrCreateGraph(&F);

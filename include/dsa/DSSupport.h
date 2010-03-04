@@ -15,8 +15,11 @@
 #define LLVM_ANALYSIS_DSSUPPORT_H
 
 #include <functional>
+#include <vector>
+#include <map>
+#include <set>
+
 #include "llvm/Support/CallSite.h"
-#include "poolalloc/ADT/HashExtras.h"
 
 namespace llvm {
 
@@ -139,15 +142,6 @@ namespace std {
   inline void swap<llvm::DSNodeHandle>(llvm::DSNodeHandle &NH1, llvm::DSNodeHandle &NH2) { NH1.swap(NH2); }
 }
 
-namespace __gnu_cxx {
-  // Provide a hash function for arbitrary pointers...
-  template <> struct hash<llvm::DSNodeHandle> {
-    inline size_t operator()(const llvm::DSNodeHandle &Val) const {
-      return hash<void*>()(Val.getNode()) ^ Val.getOffset();
-    }
-  };
-}
-
 namespace llvm {
 
 //===----------------------------------------------------------------------===//
@@ -163,18 +157,18 @@ class DSCallSite {
   std::vector<DSNodeHandle> CallArgs; // The pointer arguments
 
   static void InitNH(DSNodeHandle &NH, const DSNodeHandle &Src,
-                     const hash_map<const DSNode*, DSNode*> &NodeMap) {
+                     const std::map<const DSNode*, DSNode*> &NodeMap) {
     if (DSNode *N = Src.getNode()) {
-      hash_map<const DSNode*, DSNode*>::const_iterator I = NodeMap.find(N);
+      std::map<const DSNode*, DSNode*>::const_iterator I = NodeMap.find(N);
       assert(I != NodeMap.end() && "Node not in mapping!");
       NH.setTo(I->second, Src.getOffset());
     }
   }
 
   static void InitNH(DSNodeHandle &NH, const DSNodeHandle &Src,
-                     const hash_map<const DSNode*, DSNodeHandle> &NodeMap) {
+                     const std::map<const DSNode*, DSNodeHandle> &NodeMap) {
     if (DSNode *N = Src.getNode()) {
-      hash_map<const DSNode*, DSNodeHandle>::const_iterator I = NodeMap.find(N);
+      std::map<const DSNode*, DSNodeHandle>::const_iterator I = NodeMap.find(N);
       assert(I != NodeMap.end() && "Node not in mapping!");
 
       DSNode *NN = I->second.getNode(); // Call getNode before getOffset()
@@ -298,7 +292,7 @@ public:
   /// DSNodes, marking any nodes which are reachable.  All reachable nodes it
   /// adds to the set, which allows it to only traverse visited nodes once.
   ///
-  void markReachableNodes(hash_set<const DSNode*> &Nodes) const;
+  void markReachableNodes(std::set<const DSNode*> &Nodes) const;
 
   bool operator<(const DSCallSite &CS) const {
     if (isDirectCall()) {      // This must sort by callee first!

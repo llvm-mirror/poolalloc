@@ -34,6 +34,7 @@
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
+#include "llvm/Support/FormattedStream.h"
 #include "llvm/Support/Timer.h"
 
 #include <iostream>
@@ -135,7 +136,9 @@ PoolAllocateMultipleGlobalPool::ProcessFunctionBodySimple (Function& F, TargetDa
 
   for (Function::iterator i = F.begin(), e = F.end(); i != e; ++i)
     for (BasicBlock::iterator ii = i->begin(), ee = i->end(); ii != ee; ++ii) {
-      if (MallocInst * MI = dyn_cast<MallocInst>(ii)) {
+//FIXME: Handle malloc here
+      if (false) { //MallocInst * MI = dyn_cast<MallocInst>(ii)) {
+#if 0
         // Associate the global pool decriptor with the DSNode
         DSNode * Node = ECG->getNodeForValue(MI).getNode();
         GlobalVariable * Pool = PoolMap[Node];
@@ -170,7 +173,7 @@ PoolAllocateMultipleGlobalPool::ProcessFunctionBodySimple (Function& F, TargetDa
         DSNodeHandle NH = SM[ii];
         SM.erase(ii);
         SM[casted] = SM[x] = NH;
-        
+        #endif
       } else if (CallInst * CI = dyn_cast<CallInst>(ii)) {
         CallSite CS(CI);
         Function *CF = CS.getCalledFunction();
@@ -308,7 +311,9 @@ PoolAllocateMultipleGlobalPool::ProcessFunctionBodySimple (Function& F, TargetDa
           SM.erase(CI);
           SM[Casted] = SM[V] = NH;
         }
-      } else if (FreeInst * FI = dyn_cast<FreeInst>(ii)) {
+      //FIXME: handle Frees
+#if 0
+      } else if (FreeInst * FI = dyn_cast<FreeInst > (ii)) {
         Type * VoidPtrTy = PointerType::getUnqual(Int8Type);
         Value * FreedNode = castTo (FI->getPointerOperand(), VoidPtrTy, "cast", ii);
         DSNode * Node = ECG->getNodeForValue(FI->getPointerOperand()).getNode();
@@ -321,6 +326,7 @@ PoolAllocateMultipleGlobalPool::ProcessFunctionBodySimple (Function& F, TargetDa
         DSNodeHandle NH = SM[ii];
         SM.erase(ii);
         SM[CI] = NH;
+        #endif
       } else if (isa<ReturnInst>(ii)) {
         Returns.push_back(cast<ReturnInst>(ii));
       }
@@ -357,7 +363,7 @@ PoolAllocateMultipleGlobalPool::CreateGlobalPool (unsigned RecSize,
 
   BasicBlock * BB = BasicBlock::Create(getGlobalContext(), "entry", InitFunc);
   
-  SteensgaardDataStructures * DS = dynamic_cast<SteensgaardDataStructures*>(Graphs);
+  SteensgaardDataStructures * DS = (SteensgaardDataStructures*)Graphs;
   
   assert (DS && "PoolAllocateMultipleGlobalPools requires Steensgaard Data Structure!");
 
@@ -398,8 +404,8 @@ PoolAllocateMultipleGlobalPool::generatePool(unsigned RecSize,
     GlobalVariable *GV =
       new GlobalVariable
       (M,
-       getPoolType(), false, GlobalValue::ExternalLinkage, 
-       ConstantAggregateZero::get(getPoolType()), "__poolalloc_GlobalPool");
+       getPoolType(&M.getContext()), false, GlobalValue::ExternalLinkage,
+       ConstantAggregateZero::get(getPoolType(&M.getContext())), "__poolalloc_GlobalPool");
 
     Value *ElSize = ConstantInt::get(Int32Type, RecSize);
     Value *AlignV = ConstantInt::get(Int32Type, Align);
@@ -424,15 +430,15 @@ PoolAllocateMultipleGlobalPool::getPool (const DSNode * N, Function & F) {
 }
 
 void
-PoolAllocateMultipleGlobalPool::print(std::ostream &OS, const Module * M) const {
+PoolAllocateMultipleGlobalPool::print(llvm::raw_ostream &OS, const Module * M) const {
   for (PoolMapTy::const_iterator I = PoolMap.begin(), E = PoolMap.end(); I != E; ++I) {
-     OS << I->first << " -> " << I->second->getNameStr() << "\n";
-  } 
+    OS << I->first << " -> " << I->second->getName() << "\n";
+  }
 }
 
 void
 PoolAllocateMultipleGlobalPool::dump() const {
-  print (std::cerr, currentModule);
+  print (errs(), currentModule);
 }
 
 PoolAllocateMultipleGlobalPool::~PoolAllocateMultipleGlobalPool() {}

@@ -32,10 +32,9 @@
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
+#include "llvm/Support/FormattedStream.h"
 
-#include "EntryPointAnalysis.h"
-
-#include <iostream>
+#include "dsa/EntryPointAnalysis.h"
 
 using namespace llvm;
 using namespace rPA;
@@ -57,13 +56,13 @@ STATISTIC(NumPools, "Number of pools allocated");
 ////////////////////////////////////////////////////////////////////////////////
 
 static void GetNodesReachableFromGlobals(DSGraph* G,
-                                         hash_set<const DSNode*> &NodesFromGlobals) {
+                                         std::set<const DSNode*> &NodesFromGlobals) {
   for (DSScalarMap::global_iterator I = G->getScalarMap().global_begin(),
           E = G->getScalarMap().global_end(); I != E; ++I)
     G->getNodeForValue(*I).getNode()->markReachableNodes(NodesFromGlobals);
 }
 
-static void MarkNodesWhichMustBePassedIn(hash_set<const DSNode*> &MarkedNodes,
+static void MarkNodesWhichMustBePassedIn(std::set<const DSNode*> &MarkedNodes,
                                          Function &F, DSGraph* G,
                                          EntryPointAnalysis* EPA) {
   // All DSNodes reachable from arguments must be passed in...
@@ -85,13 +84,13 @@ static void MarkNodesWhichMustBePassedIn(hash_set<const DSNode*> &MarkedNodes,
   // Calculate which DSNodes are reachable from globals.  If a node is reachable
   // from a global, we will create a global pool for it, so no argument passage
   // is required.
-  hash_set<const DSNode*> NodesFromGlobals;
+  std::set<const DSNode*> NodesFromGlobals;
   GetNodesReachableFromGlobals(G, NodesFromGlobals);
 
   // Remove any nodes reachable from a global.  These nodes will be put into
   // global pools, which do not require arguments to be passed in.
 
-  for (hash_set<const DSNode*>::iterator I = NodesFromGlobals.begin(),
+  for (std::set<const DSNode*>::iterator I = NodesFromGlobals.begin(),
           E = NodesFromGlobals.end(); I != E; ++I)
     MarkedNodes.erase(*I);
 }
@@ -102,7 +101,7 @@ static void MarkNodesWhichMustBePassedIn(hash_set<const DSNode*> &MarkedNodes,
 /// map and recording this info in the ArgNodes set.
 static void FindFunctionPoolArgs(Function &F, FuncInfo& FI,
                                  EntryPointAnalysis* EPA) {
-  hash_set<const DSNode*> MarkedNodes;
+  std::set<const DSNode*> MarkedNodes;
 
   if (FI.G->node_begin() == FI.G->node_end())
     return; // No memory activity, nothing is required
@@ -172,7 +171,7 @@ Function* RTAssociate::MakeFunctionClone(Function &F, FuncInfo& FI, DSGraph* G) 
   }
 
   // Perform the cloning.
-  std::vector<ReturnInst*> Returns;
+  SmallVector<ReturnInst*,100> Returns;
   CloneFunctionInto(New, &F, ValueMap, Returns);
 
   //
@@ -210,7 +209,7 @@ RTAssociate::RTAssociate()
 : ModulePass((intptr_t) & ID) { }
 
 void RTAssociate::getAnalysisUsage(AnalysisUsage &AU) const {
-  AU.addRequiredTransitive<EquivBUDataStructures > ();
+  AU.addRequiredTransitive<CompleteBUDataStructures > ();
   AU.addRequired<EntryPointAnalysis> ();
 }
 
@@ -222,7 +221,7 @@ bool RTAssociate::runOnModule(Module &M) {
   // DSA.  For Automatic Pool Allocation only, we need Bottom-Up DSA.  In all
   // cases, we need to use the Equivalence-Class version of DSA.
   //
-  DataStructures* Graphs = &getAnalysis<EquivBUDataStructures > ();
+  DataStructures* Graphs = &getAnalysis<CompleteBUDataStructures > ();
   EntryPointAnalysis* EPA = &getAnalysis<EntryPointAnalysis > ();
 
   //  PoolDescType = OpaqueType::get(M.getContext());
@@ -287,10 +286,10 @@ void RTAssociate::SetupGlobalPools(Module* M, DSGraph* GG) {
   // DSGraph* GG = Graphs->getGlobalsGraph();
 
   // Get all of the nodes reachable from globals.
-  hash_set<const DSNode*> GlobalHeapNodes;
+  std::set<const DSNode*> GlobalHeapNodes;
   GetNodesReachableFromGlobals(GG, GlobalHeapNodes);
 
-  std::cerr << "Pool allocating " << GlobalHeapNodes.size()
+  errs() << "Pool allocating " << GlobalHeapNodes.size()
           << " global nodes!\n";
 
   FuncInfo& FI = makeFuncInfo(0, GG);
@@ -356,6 +355,7 @@ void RTAssociate::ProcessFunctionBody(Function &F, Function &NewF, DSGraph* G,
   // Calculate which DSNodes are reachable from globals.  If a node is reachable
   // from a global, we will create a global pool for it, so no argument passage
   // is required.
+
   G->getGlobalsGraph();
 
   // Map all node reachable from this global to the corresponding nodes in
@@ -414,13 +414,13 @@ void RTAssociate::replaceCall(CallSite CS, FuncInfo& FI, DataStructures* DS) {
       CF = cast<Function>(CE->getOperand(0));
 
   if (isa<InlineAsm>(TheCall->getOperand(0))) {
-    std::cerr << "INLINE ASM: ignoring.  Hoping that's safe.\n";
+    errs() << "INLINE ASM: ignoring.  Hoping that's safe.\n";
     return;
   }
 
   // Ignore calls to NULL pointers.
   if (isa<ConstantPointerNull>(CS.getCalledValue())) {
-    std::cerr << "WARNING: Ignoring call using NULL function pointer.\n";
+    errs() << "WARNING: Ignoring call using NULL function pointer.\n";
     return;
   }
   // We need to figure out which local pool descriptors correspond to the pool
@@ -438,7 +438,7 @@ void RTAssociate::replaceCall(CallSite CS, FuncInfo& FI, DataStructures* DS) {
   // For indirect callees, find any callee since all DS graphs have been
   // merged.
   if (CF) { // Direct calls are nice and simple.
-    DEBUG(std::cerr << "  Handling direct call: " << *TheCall);
+    DEBUG(errs() << "  Handling direct call: " << *TheCall);
     FuncInfo *CFI = getFuncInfo(CF);
     if (CFI == 0 || CFI->Clone == 0) // Nothing to transform...
       return;
@@ -449,7 +449,7 @@ void RTAssociate::replaceCall(CallSite CS, FuncInfo& FI, DataStructures* DS) {
     assert ((DS->hasDSGraph (*CF)) && "Function has no ECGraph!\n");
     CalleeGraph = DS->getDSGraph(*CF);
   } else {
-    DEBUG(std::cerr << "  Handling indirect call: " << *TheCall);
+    DEBUG(errs() << "  Handling indirect call: " << *TheCall);
 
     // Here we fill in CF with one of the possible called functions.  Because we
     // merged together all of the arguments to all of the functions in the
@@ -478,7 +478,7 @@ void RTAssociate::replaceCall(CallSite CS, FuncInfo& FI, DataStructures* DS) {
         for(std::vector<const Function*>::const_iterator ii = g.begin(), ee = g.end();
             !CF && ii != ee; ++ii) {
           for (EquivalenceClasses<const GlobalValue *>::member_iterator MI = EC.findLeader(*ii);
-               MI != EC.member_end(); ++MI)   // Loop over members in this set.
+               MI != EC.member_end(); ++MI) // Loop over members in this set.
             if ((CF = dyn_cast<Function>(*MI))) {
               break;
             }
@@ -490,6 +490,13 @@ void RTAssociate::replaceCall(CallSite CS, FuncInfo& FI, DataStructures* DS) {
     // Do an assert unless we're bugpointing something.
     //
 //    if ((UsingBugpoint) && (!CF)) return;
+    if (!CF)
+      errs() << "No Graph for CallSite in "
+      << TheCall->getParent()->getParent()->getNameStr()
+      << " originally "
+      << OrigInst->getParent()->getParent()->getNameStr()
+      << "\n";
+
     assert (CF && "No call graph info");
 
     // Get the common graph for the set of functions this call may invoke.
@@ -551,7 +558,7 @@ void RTAssociate::replaceCall(CallSite CS, FuncInfo& FI, DataStructures* DS) {
         if (FI.PoolDescriptors.count(LocalNode))
           ArgVal = FI.PoolDescriptors.find(LocalNode)->second;
     if (isa<Constant > (ArgVal) && cast<Constant > (ArgVal)->isNullValue())
-      std::cerr << "WARNING: NULL POOL ARGUMENTS ARE PASSED IN!\n";
+      errs() << "WARNING: NULL POOL ARGUMENTS ARE PASSED IN!\n";
     Args.push_back(ArgVal);
   }
 
@@ -587,7 +594,7 @@ void RTAssociate::replaceCall(CallSite CS, FuncInfo& FI, DataStructures* DS) {
   }
 
   TheCall->replaceAllUsesWith(NewCall);
-  DEBUG(std::cerr << "  Result Call: " << *NewCall);
+  DEBUG(errs() << "  Result Call: " << *NewCall);
 
   if (TheCall->getType()->getTypeID() != Type::VoidTyID) {
     // If we are modifying the original function, update the DSGraph...

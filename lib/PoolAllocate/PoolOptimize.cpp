@@ -62,9 +62,9 @@ bool PoolOptimize::runOnModule(Module &M) {
   //
   // Get pointers to 8 and 32 bit LLVM integer types.
   //
-  VoidType  = Type::getVoidTy(getGlobalContext());
-  Int8Type  = IntegerType::getInt8Ty(getGlobalContext());
-  Int32Type = IntegerType::getInt32Ty(getGlobalContext());
+  VoidType  = Type::getVoidTy(M.getContext());
+  Int8Type  = IntegerType::getInt8Ty(M.getContext());
+  Int32Type = IntegerType::getInt32Ty(M.getContext());
 
   //
   // Create LLVM types used by the pool allocation passes.
@@ -165,10 +165,13 @@ bool PoolOptimize::runOnModule(Module &M) {
     // poolalloc(null, X) -> malloc(X)
     if (isa<Constant>(CI->getOperand(1)) && 
         cast<Constant>(CI->getOperand(1))->isNullValue()) {
+//FIXME: handle malloc
+      #if 0
       Value *New = new MallocInst(Int8Type, CI->getOperand(2),
                                   CI->getName(), CI);
       CI->replaceAllUsesWith(New);
       CI->eraseFromParent();
+      #endif
     }
   }
 
@@ -194,8 +197,9 @@ bool PoolOptimize::runOnModule(Module &M) {
       CI->eraseFromParent();
     else if (isa<ConstantPointerNull>(CI->getOperand(1))) {
       // poolfree(null, Ptr) -> free(Ptr)
-      new FreeInst(CI->getOperand(2), CI);
-      CI->eraseFromParent();
+      //FIXME: Handle free
+      //new FreeInst(CI->getOperand(2), CI);
+      //CI->eraseFromParent();
     }
   }
       

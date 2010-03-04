@@ -19,7 +19,7 @@
 #include "llvm/Support/CallSite.h"
 #include "llvm/ADT/EquivalenceClasses.h"
 
-#include "poolalloc/ADT/HashExtras.h"
+#include "dsa/EntryPointAnalysis.h"
 
 #include <map>
 
@@ -37,10 +37,10 @@ FunctionPass *createDataStructureStatsPass();
 FunctionPass *createDataStructureGraphCheckerPass();
 
 class DataStructures : public ModulePass {
-  typedef hash_map<const Instruction*, hash_set<const Function*> > ActualCalleesTy;
-  typedef hash_map<const Function*, DSGraph*> DSInfoTy;
+  typedef std::map<const Instruction*, std::set<const Function*> > ActualCalleesTy;
+  typedef std::map<const Function*, DSGraph*> DSInfoTy;
 public:
-  typedef hash_set<const Function*>::const_iterator callee_iterator;
+  typedef std::set<const Function*>::const_iterator callee_iterator;
   
 private:
   /// TargetData, comes in handy
@@ -91,6 +91,14 @@ protected:
     ActualCallees[I].insert(F);
   }
 
+  template<class Iterator>
+  void callee_add_many(const Instruction* I, Iterator _begin, Iterator _end) {
+    ActualCallees[I].insert(_begin,_end);
+//    typename ActualCalleesTy::mapped_type& S = ActualCallees[I];
+//    for (; _begin != _end; ++_begin)
+//      S.insert(*_begin);
+  }
+
   DataStructures(intptr_t id, const char* name) 
     : ModulePass(id), TD(0), GraphSource(0), printname(name), GlobalsGraph(0) {
     //a dummy node for empty call sites
@@ -103,7 +111,7 @@ protected:
 public:
   /// print - Print out the analysis results...
   ///
-  void print(std::ostream &O, const Module *M) const;
+  void print(llvm::raw_ostream &O, const Module *M) const;
   void dumpCallGraph() const;
 
   callee_iterator callee_begin(const Instruction *I) const {
@@ -135,7 +143,8 @@ public:
   void callee_get_keys(std::vector<const Instruction*>& keys) {
     for (ActualCalleesTy::const_iterator ii = ActualCallees.begin(),
            ee = ActualCallees.end(); ii != ee; ++ii)
-      keys.push_back(ii->first);
+      if (ii->first)
+        keys.push_back(ii->first);
   }
 
   virtual void releaseMemory();
@@ -147,7 +156,7 @@ public:
   /// getDSGraph - Return the data structure graph for the specified function.
   ///
   virtual DSGraph *getDSGraph(const Function &F) const {
-    hash_map<const Function*, DSGraph*>::const_iterator I = DSInfo.find(&F);
+    std::map<const Function*, DSGraph*>::const_iterator I = DSInfo.find(&F);
     assert(I != DSInfo.end() && "Function not in module!");
     return I->second;
   }
@@ -226,7 +235,7 @@ public:
   ///
   virtual void getAnalysisUsage(AnalysisUsage &AU) const {
     AU.addRequired<LocalDataStructures>();
-    AU.addPreserved<TargetData>();
+    AU.addPreserved<EntryPointAnalysis>();
     AU.setPreservesCFG();
   }
 };
@@ -245,6 +254,8 @@ protected:
   const char* debugname;
   bool useCallGraph;
 
+  EntryPointAnalysis* EP;
+
 public:
   static char ID;
   //Child constructor (CBU)
@@ -260,7 +271,8 @@ public:
 
   virtual void getAnalysisUsage(AnalysisUsage &AU) const {
     AU.addRequired<StdLibDataStructures>();
-    AU.addPreserved<TargetData>();
+    AU.addRequired<EntryPointAnalysis>();
+    AU.addPreserved<EntryPointAnalysis>();
     AU.setPreservesCFG();
   }
 
@@ -270,15 +282,15 @@ protected:
 private:
   void calculateGraph(DSGraph* G);
 
-  void inlineUnresolved(DSGraph* G);
-
   unsigned calculateGraphs(const Function *F, 
                            std::vector<const Function*> &Stack,
                            unsigned &NextID,
-                           hash_map<const Function*, unsigned> &ValMap);
+                           std::map<const Function*, unsigned> &ValMap);
 
 
   void CloneAuxIntoGlobal(DSGraph* G);
+  void cloneGlobalsInto(DSGraph* G);
+  void cloneIntoGlobals(DSGraph* G);
   void finalizeGlobals(void);
 };
 
@@ -302,7 +314,8 @@ public:
 
   virtual void getAnalysisUsage(AnalysisUsage &AU) const {
     AU.addRequired<BUDataStructures>();
-    AU.addPreserved<TargetData>();
+    AU.addRequired<EntryPointAnalysis > ();
+    AU.addPreserved<EntryPointAnalysis>();
     AU.setPreservesCFG();
   }
 
@@ -325,7 +338,6 @@ public:
 
   virtual void getAnalysisUsage(AnalysisUsage &AU) const {
     AU.addRequired<CompleteBUDataStructures>();
-    AU.addPreserved<TargetData>();
     AU.setPreservesCFG();
   }
 
@@ -336,7 +348,7 @@ public:
 /// by the bottom-up pass.
 ///
 class TDDataStructures : public DataStructures {
-  hash_set<const Function*> ArgsRemainIncomplete;
+  std::set<const Function*> ArgsRemainIncomplete;
 
   /// CallerCallEdges - For a particular graph, we keep a list of these records
   /// which indicates which graphs call this function and from where.
@@ -370,7 +382,7 @@ public:
   static char ID;
   TDDataStructures(intptr_t CID = (intptr_t)&ID, const char* printname = "td.", bool useEQ = false)
     : DataStructures(CID, printname), useEQBU(useEQ) {}
-  ~TDDataStructures() { releaseMemory(); }
+  ~TDDataStructures();
 
   virtual bool runOnModule(Module &M);
 
@@ -383,16 +395,15 @@ public:
       AU.addRequired<BUDataStructures>();
       AU.addPreserved<BUDataStructures>();
     }
-    AU.addPreserved<TargetData>();
     AU.setPreservesCFG();
   }
 
 private:
   void markReachableFunctionsExternallyAccessible(DSNode *N,
-                                                  hash_set<DSNode*> &Visited);
+                                                  std::set<DSNode*> &Visited);
 
   void InlineCallersIntoGraph(DSGraph* G);
-  void ComputePostOrder(const Function &F, hash_set<DSGraph*> &Visited,
+  void ComputePostOrder(const Function &F, std::set<DSGraph*> &Visited,
                         std::vector<DSGraph*> &PostOrder);
 };
 
@@ -406,6 +417,7 @@ public:
   EQTDDataStructures()
     :TDDataStructures((intptr_t)&ID, "eqtd.", false)
   {}
+  ~EQTDDataStructures();
 };
 
 /// SteensgaardsDataStructures - Analysis that computes a context-insensitive
@@ -449,8 +461,7 @@ public:
     return ResultGraph;
   }
 
-  void print(OStream O, const Module *M) const;
-  void print(std::ostream &O, const Module *M) const;
+  void print(llvm::raw_ostream &O, const Module *M) const;
 
 };
 

@@ -23,6 +23,7 @@
 #include "llvm/Instructions.h"
 #include "llvm/Target/TargetData.h"
 #include "llvm/Support/InstVisitor.h"
+#include "llvm/Support/FormattedStream.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/ADT/VectorExtras.h"
 #include <iostream>
@@ -37,14 +38,6 @@ using namespace PA;
 //  reduce test cases.  When using bugpoint, set this variable to true.
 //
 static bool UsingBugpoint = false;
-
-//
-// Variables for referencing LLVM basic types.
-//
-static const Type * VoidType  = 0;
-static const Type * Int8Type  = 0;
-static const Type * Int32Type = 0;
-static const Type * Int64Type = 0;
 
 namespace {
   /// FuncTransform - This class implements transformation required of pool
@@ -69,13 +62,6 @@ namespace {
                   std::multimap<AllocaInst*, CallInst*> &poolFrees)
       : PAInfo(P), G(g), FI(fi), 
         PoolUses(poolUses), PoolFrees(poolFrees) {
-      //
-      // Get pointers to 8 and 32 bit LLVM integer types.
-      //
-      VoidType  = Type::getVoidTy(getGlobalContext());
-      Int8Type  = IntegerType::getInt8Ty(getGlobalContext());
-      Int32Type = IntegerType::getInt32Ty(getGlobalContext());
-      Int64Type = IntegerType::getInt64Ty(getGlobalContext());
     }
 
     template <typename InstType, typename SetType>
@@ -85,13 +71,13 @@ namespace {
     }
 
     void visitInstruction(Instruction &I);
-    void visitMallocInst(MallocInst &MI);
+    //void visitMallocInst(MallocInst &MI);
     void visitAllocaInst(AllocaInst &MI);
     void visitCallocCall(CallSite CS);
     void visitReallocCall(CallSite CS);
     void visitMemAlignCall(CallSite CS);
     void visitStrdupCall(CallSite CS);
-    void visitFreeInst(FreeInst &FI);
+    //void visitFreeInst(FreeInst &FI);
     void visitCallSite(CallSite &CS);
     void visitCallInst(CallInst &CI) {
       CallSite CS(&CI);
@@ -178,8 +164,8 @@ Instruction *FuncTransform::TransformAllocationInstr(Instruction *I,
                                                      Value *Size) {
   std::string Name = I->getName(); I->setName("");
 
-  if (Size->getType() != Int32Type)
-    Size = CastInst::CreateIntegerCast(Size, Int32Type, false, Size->getName(), I);
+  if (!Size->getType()->isIntegerTy(32))
+    Size = CastInst::CreateIntegerCast(Size, Type::getInt32Ty(Size->getType()->getContext()), false, Size->getName(), I);
 
   // Insert a call to poolalloc
   Value *PH = getPoolHandle(I);
@@ -222,7 +208,7 @@ Instruction *FuncTransform::TransformAllocationInstr(Instruction *I,
   return Casted;
 }
 
-
+#if 0
 void FuncTransform::visitMallocInst(MallocInst &MI) {
   // Get the pool handle for the node that this contributes to...
   Value *PH = getPoolHandle(&MI);
@@ -277,6 +263,7 @@ void FuncTransform::visitMallocInst(MallocInst &MI) {
     TransformAllocationInstr(&MI, AllocSize);  
   }
 }
+#endif
 
 void FuncTransform::visitAllocaInst(AllocaInst &MI) {
   // Don't do anything if bounds checking will not be done by SAFECode later.
@@ -288,7 +275,7 @@ void FuncTransform::visitAllocaInst(AllocaInst &MI) {
     Value *PH = getPoolHandle(&MI);
     if (PH == 0 || isa<ConstantPointerNull>(PH)) return;
     TargetData &TD = PAInfo.getAnalysis<TargetData>();
-    Value *AllocSize = ConstantInt::get(Int32Type, TD.getTypeAllocSize(MI.getAllocatedType()));
+    Value *AllocSize = ConstantInt::get(Type::getInt32Ty(MI.getContext()), TD.getTypeAllocSize(MI.getAllocatedType()));
     
     if (MI.isArrayAllocation())
       AllocSize = BinaryOperator::Create(Instruction::Mul, AllocSize,
@@ -297,7 +284,7 @@ void FuncTransform::visitAllocaInst(AllocaInst &MI) {
     //  TransformAllocationInstr(&MI, AllocSize);
     BasicBlock::iterator InsertPt(MI);
     ++InsertPt;
-    Instruction *Casted = CastInst::CreatePointerCast(&MI, PointerType::getUnqual(Int8Type),
+    Instruction *Casted = CastInst::CreatePointerCast(&MI, PointerType::getUnqual(Type::getInt8Ty(MI.getContext())),
 				       MI.getName()+".casted", InsertPt);
     std::vector<Value *> args;
     args.push_back (PH);
@@ -316,8 +303,8 @@ Instruction *FuncTransform::InsertPoolFreeInstr(Value *Arg, Instruction *Where){
 
   // Insert a cast and a call to poolfree...
   Value *Casted = Arg;
-  if (Arg->getType() != PointerType::getUnqual(Int8Type)) {
-    Casted = CastInst::CreatePointerCast(Arg, PointerType::getUnqual(Int8Type),
+  if (Arg->getType() != PointerType::getUnqual(Type::getInt8Ty(Arg->getContext()))) {
+    Casted = CastInst::CreatePointerCast(Arg, PointerType::getUnqual(Type::getInt8Ty(Arg->getContext())),
 				 Arg->getName()+".casted", Where);
     G->getScalarMap()[Casted] = G->getScalarMap()[Arg];
   }
@@ -328,7 +315,7 @@ Instruction *FuncTransform::InsertPoolFreeInstr(Value *Arg, Instruction *Where){
   return FreeI;
 }
 
-
+#if 0
 void FuncTransform::visitFreeInst(FreeInst &FrI) {
   if (Instruction *I = InsertPoolFreeInstr(FrI.getOperand(0), &FrI)) {
     // Delete the now obsolete free instruction...
@@ -345,10 +332,14 @@ void FuncTransform::visitFreeInst(FreeInst &FrI) {
     }
   }
 }
-
+#endif
 
 void FuncTransform::visitCallocCall(CallSite CS) {
   TargetData& TD = PAInfo.getAnalysis<TargetData>();
+  const Type* Int8Type = Type::getInt8Ty(CS.getInstruction()->getContext());
+  const Type* Int32Type = Type::getInt32Ty(CS.getInstruction()->getContext());
+  const Type* Int64Type = Type::getInt64Ty(CS.getInstruction()->getContext());
+
   bool useLong = TD.getTypeAllocSize(PointerType::getUnqual(Int8Type)) != 4;
   
   Module *M = CS.getInstruction()->getParent()->getParent()->getParent();
@@ -372,7 +363,7 @@ void FuncTransform::visitCallocCall(CallSite CS) {
   // We just turned the call of 'calloc' into the equivalent of malloc.  To
   // finish calloc, we need to zero out the memory.
   Constant *MemSet =  M->getOrInsertFunction((useLong ? "llvm.memset.i64" : "llvm.memset.i32"),
-                                             VoidType,
+                                             Type::getVoidTy(M->getContext()),
                                              PointerType::getUnqual(Int8Type),
                                              Int8Type, (useLong ? Int64Type : Int32Type),
                                              Int32Type, NULL);
@@ -398,10 +389,10 @@ void FuncTransform::visitReallocCall(CallSite CS) {
   // Don't poolallocate if we have no pool handle
   if (PH == 0 || isa<ConstantPointerNull>(PH)) return;
 
-  if (Size->getType() != Int32Type)
-    Size = CastInst::CreateIntegerCast(Size, Int32Type, false, Size->getName(), I);
+  if (Size->getType() != Type::getInt32Ty(CS.getInstruction()->getContext()))
+    Size = CastInst::CreateIntegerCast(Size, Type::getInt32Ty(CS.getInstruction()->getContext()), false, Size->getName(), I);
 
-  static Type *VoidPtrTy = PointerType::getUnqual(Int8Type);
+  static Type *VoidPtrTy = PointerType::getUnqual(Type::getInt8Ty(CS.getInstruction()->getContext()));
   if (OldPtr->getType() != VoidPtrTy)
     OldPtr = CastInst::CreatePointerCast(OldPtr, VoidPtrTy, OldPtr->getName(), I);
 
@@ -445,6 +436,10 @@ void FuncTransform::visitMemAlignCall(CallSite CS) {
   Value *Size = 0;
   Value *PH;
 
+  const Type* Int8Type = Type::getInt8Ty(CS.getInstruction()->getContext());
+  const Type* Int32Type = Type::getInt32Ty(CS.getInstruction()->getContext());
+
+
   if (CS.getCalledFunction()->getName() == "memalign") {
     Align = CS.getArgument(0);
     Size = CS.getArgument(1);
@@ -470,9 +465,9 @@ void FuncTransform::visitMemAlignCall(CallSite CS) {
       ResultDest = CastInst::CreatePointerCast(ResultDest, PtrPtr, ResultDest->getName(), I);
   }
 
-  if (Align->getType() != Int32Type)
+  if (!Align->getType()->isIntegerTy(32))
     Align = CastInst::CreateIntegerCast(Align, Int32Type, false, Align->getName(), I);
-  if (Size->getType() != Int32Type)
+  if (!Size->getType()->isIntegerTy(32))
     Size = CastInst::CreateIntegerCast(Size, Int32Type, false, Size->getName(), I);
 
   std::string Name = I->getName(); I->setName("");
@@ -516,11 +511,15 @@ void FuncTransform::visitStrdupCall(CallSite CS) {
   DSNode *Node = getDSNodeHFor(I).getNode();
   assert (Node && "strdup has NULL DSNode!\n");
   Value *PH = getPoolHandle(I);
+
+  const Type* Int8Type = Type::getInt8Ty(CS.getInstruction()->getContext());
+
+
 #if 0
   assert (PH && "PH for strdup is null!\n");
 #else
   if (!PH) {
-    std::cerr << "strdup: NoPH" << std::endl;
+    errs() << "strdup: NoPH\n";
     return;
   }
 #endif
@@ -565,6 +564,9 @@ void FuncTransform::visitCallSite(CallSite& CS) {
   const Function *CF = CS.getCalledFunction();
   Instruction *TheCall = CS.getInstruction();
 
+  const Type* Int32Type = Type::getInt32Ty(CS.getInstruction()->getContext());
+
+
   // If the called function is casted from one function type to another, peer
   // into the cast instruction and pull out the actual function being called.
   if (ConstantExpr *CE = dyn_cast<ConstantExpr>(CS.getCalledValue()))
@@ -573,13 +575,13 @@ void FuncTransform::visitCallSite(CallSite& CS) {
       CF = cast<Function>(CE->getOperand(0));
 
   if (isa<InlineAsm>(TheCall->getOperand(0))) {
-    std::cerr << "INLINE ASM: ignoring.  Hoping that's safe.\n";
+    errs() << "INLINE ASM: ignoring.  Hoping that's safe.\n";
     return;
   }
 
   // Ignore calls to NULL pointers.
   if (isa<ConstantPointerNull>(CS.getCalledValue())) {
-    std::cerr << "WARNING: Ignoring call using NULL function pointer.\n";
+    errs() << "WARNING: Ignoring call using NULL function pointer.\n";
     return;
   }
 
@@ -600,7 +602,7 @@ void FuncTransform::visitCallSite(CallSite& CS) {
       visitStrdupCall(CS);
       return;
     } else if (CF->getName() == "valloc") {
-      std::cerr << "VALLOC USED BUT NOT HANDLED!\n";
+      errs() << "VALLOC USED BUT NOT HANDLED!\n";
       abort();
     }
   }
@@ -621,7 +623,7 @@ void FuncTransform::visitCallSite(CallSite& CS) {
   // For indirect callees, find any callee since all DS graphs have been
   // merged.
   if (CF) {   // Direct calls are nice and simple.
-    DEBUG(std::cerr << "  Handling direct call: " << *TheCall);
+    DEBUG(errs() << "  Handling direct call: " << *TheCall);
     FuncInfo *CFI = PAInfo.getFuncInfo(*CF);
     if (CFI == 0 || CFI->Clone == 0) {   // Nothing to transform...
       visitInstruction(*TheCall);
@@ -633,7 +635,7 @@ void FuncTransform::visitCallSite(CallSite& CS) {
     assert ((Graphs.hasDSGraph (*CF)) && "Function has no ECGraph!\n");
     CalleeGraph = Graphs.getDSGraph(*CF);
   } else {
-    DEBUG(std::cerr << "  Handling indirect call: " << *TheCall);
+    DEBUG(errs() << "  Handling indirect call: " << *TheCall);
     
     // Here we fill in CF with one of the possible called functions.  Because we
     // merged together all of the arguments to all of the functions in the
@@ -754,7 +756,7 @@ void FuncTransform::visitCallSite(CallSite& CS) {
           // Dinakar: We need pooldescriptors for allocas in the callee if it
           //          escapes
           BasicBlock::iterator InsertPt = TheCall->getParent()->getParent()->front().begin();
-          ArgVal =  new AllocaInst(PAInfo.getPoolType(),
+          ArgVal =  new AllocaInst(PAInfo.getPoolType(&TheCall->getContext()),
                                    0,
                                    "PD",
                                    InsertPt);
@@ -767,7 +769,7 @@ void FuncTransform::visitCallSite(CallSite& CS) {
         }
 
         //probably need to update DSG
-        //      std::cerr << "WARNING: NULL POOL ARGUMENTS ARE PASSED IN!\n";
+        //      errs() << "WARNING: NULL POOL ARGUMENTS ARE PASSED IN!\n";
       }
     }
     Args.push_back(ArgVal);
@@ -809,9 +811,9 @@ void FuncTransform::visitCallSite(CallSite& CS) {
     AddPoolUse(*NewCall, Args[i], PoolUses);
 
   TheCall->replaceAllUsesWith(NewCall);
-  DEBUG(std::cerr << "  Result Call: " << *NewCall);
+  DEBUG(errs() << "  Result Call: " << *NewCall);
 
-  if (TheCall->getType() != VoidType) {
+  if (!TheCall->getType()->isVoidTy()) {
     // If we are modifying the original function, update the DSGraph... 
     DSGraph::ScalarMapTy &SM = G->getScalarMap();
     DSGraph::ScalarMapTy::iterator CII = SM.find(TheCall);

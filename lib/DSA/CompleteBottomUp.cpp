@@ -47,18 +47,18 @@ void CompleteBUDataStructures::buildIndirectFunctionSets(Module &M) {
   std::vector<const Instruction*> keys;
   callee_get_keys(keys);
 
+  DSGraph* G = getGlobalsGraph();
+  DSGraph::ScalarMapTy& SM = G->getScalarMap();
+
   //mege nodes in the global graph for these functions
   for (std::vector<const Instruction*>::iterator ii = keys.begin(), ee = keys.end();
        ii != ee; ++ii) {
-    if (*ii) {
-      callee_iterator csi = callee_begin(*ii), cse = callee_end(*ii); 
-      if (csi != cse) ++csi;
-      DSGraph* G = getOrCreateGraph((*ii)->getParent()->getParent());
-      for ( ; csi != cse; ++csi) {
-        G->getNodeForValue(*csi).mergeWith(G->getNodeForValue((*ii)->getOperand(0)));
-        G->getNodeForValue((*ii)->getOperand(0)).getNode()->setGlobalMarker();
-        G->getNodeForValue((*ii)->getOperand(0)).getNode()->addGlobal(*csi);
-      }
+    callee_iterator csi = callee_begin(*ii), cse = callee_end(*ii);
+    if (csi != cse && SM.find(*csi) != SM.end()) {
+      DSNodeHandle& SrcNH = SM.find(*csi)->second;
+      ++csi;
+      for (; csi != cse; ++csi)
+        SrcNH.mergeWith(SM.find(*csi)->second);
     }
   }
 }

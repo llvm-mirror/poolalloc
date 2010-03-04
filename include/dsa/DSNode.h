@@ -16,8 +16,9 @@
 
 #include "dsa/DSSupport.h"
 #include "llvm/ADT/ilist_node.h"
-#include "llvm/Support/Streams.h"
-#include "poolalloc/ADT/HashExtras.h"
+
+#include <map>
+#include <set>
 
 namespace llvm {
 
@@ -91,20 +92,21 @@ public:
     HeapNode        = 1 << 1,   // This node was allocated with malloc
     GlobalNode      = 1 << 2,   // This node was allocated by a global var decl
     ExternFuncNode  = 1 << 3,   // This node contains external functions
-    UnknownNode     = 1 << 4,   // This node points to unknown allocated memory
-    IncompleteNode  = 1 << 5,   // This node may not be complete
+    ExternGlobalNode = 1 << 4,  // This node contains external globals
+    UnknownNode     = 1 << 5,   // This node points to unknown allocated memory
+    IncompleteNode  = 1 << 6,   // This node may not be complete
 
-    ModifiedNode    = 1 << 6,   // This node is modified in this context
-    ReadNode        = 1 << 7,   // This node is read in this context
+    ModifiedNode    = 1 << 7,   // This node is modified in this context
+    ReadNode        = 1 << 8,   // This node is read in this context
 
-    ArrayNode       = 1 << 8,   // This node is treated like an array
-    ExternalNode    = 1 << 9,   // This node comes from an external source
-    IntToPtrNode    = 1 << 10,   // This node comes from an int cast
-    PtrToIntNode    = 1 << 11,  // This node excapes to an int cast
-    VAStartNode     = 1 << 12,  // This node excapes to an int cast
+    ArrayNode       = 1 << 9,   // This node is treated like an array
+    ExternalNode    = 1 << 10,  // This node comes from an external source
+    IntToPtrNode    = 1 << 11,   // This node comes from an int cast
+    PtrToIntNode    = 1 << 12,  // This node excapes to an int cast
+    VAStartNode     = 1 << 13,  // This node excapes to an int cast
 
     //#ifndef NDEBUG
-    DeadNode        = 1 << 13,   // This node is dead and should not be pointed to
+    DeadNode        = 1 << 14,   // This node is dead and should not be pointed to
     //#endif
 
     Composition = AllocaNode | HeapNode | GlobalNode | UnknownNode
@@ -351,6 +353,7 @@ public:
   DSNode* setHeapMarker()       { NodeType |= HeapNode;       return this; }
   DSNode* setGlobalMarker()     { NodeType |= GlobalNode;     return this; }
   DSNode* setExternFuncMarker() { NodeType |= ExternFuncNode; return this; }
+  DSNode* setExternGlobalMarker() { NodeType |= ExternGlobalNode; return this; }
   DSNode* setUnknownMarker()    { NodeType |= UnknownNode;    return this; }
   DSNode* setModifiedMarker()   { NodeType |= ModifiedNode;   return this; }
   DSNode* setReadMarker()       { NodeType |= ReadNode;       return this; }
@@ -372,10 +375,7 @@ public:
   ///
   void forwardNode(DSNode *To, unsigned Offset);
 
-  void print(OStream &O, const DSGraph *G) const {
-    if (O.stream()) print(*O.stream(), G);
-  }
-  void print(std::ostream &O, const DSGraph *G) const;
+  void print(llvm::raw_ostream &O, const DSGraph *G) const;
   void dump() const;
 
   void assertOK() const;
@@ -389,13 +389,13 @@ public:
   /// remapLinks - Change all of the Links in the current node according to the
   /// specified mapping.
   ///
-  void remapLinks(hash_map<const DSNode*, DSNodeHandle> &OldNodeMap);
+  void remapLinks(std::map<const DSNode*, DSNodeHandle> &OldNodeMap);
 
   /// markReachableNodes - This method recursively traverses the specified
   /// DSNodes, marking any nodes which are reachable.  All reachable nodes it
   /// adds to the set, which allows it to only traverse visited nodes once.
   ///
-  void markReachableNodes(hash_set<const DSNode*> &ReachableNodes) const;
+  void markReachableNodes(std::set<const DSNode*> &ReachableNodes) const;
 
 private:
   friend class DSNodeHandle;

@@ -17,7 +17,6 @@
 #include "llvm/Instructions.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/InstVisitor.h"
-#include "llvm/Support/Streams.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/FormattedStream.h"
@@ -61,7 +60,7 @@ namespace {
     void visitStore(StoreInst &SI);
 
     /// Debugging support methods
-    void print(std::ostream &O, const Module* = 0) const { }
+    void print(llvm::raw_ostream &O, const Module* = 0) const { }
   };
 
   static RegisterPass<DSGraphStats> Z("dsstats", "DS Graph Statistics");

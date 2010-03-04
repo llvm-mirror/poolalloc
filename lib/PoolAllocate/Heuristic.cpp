@@ -19,6 +19,7 @@
 #include "llvm/Module.h"
 #include "llvm/ADT/DepthFirstIterator.h"
 #include "llvm/Support/CommandLine.h"
+#include "llvm/Support/FormattedStream.h"
 #include "llvm/Target/TargetData.h"
 #include <iostream>
 using namespace llvm;
@@ -80,7 +81,7 @@ static bool Wants8ByteAlignment(const Type *Ty, unsigned Offs,
     // Doubles always want to be 8-byte aligned.
     if (Ty == Type::DoubleTy) return true;
 #else
-    if (Ty->isFloatingPoint()) return true;
+    if (Ty->isFloatingPointTy()) return true;
 #endif
     
     // If we are on a 64-bit system, we want to align 8-byte integers and
@@ -102,7 +103,7 @@ static bool Wants8ByteAlignment(const Type *Ty, unsigned Offs,
   } else if (const SequentialType *STy = dyn_cast<SequentialType>(Ty)) {
     return Wants8ByteAlignment(STy->getElementType(), Offs, TD);
   } else {
-    std::cerr << *Ty << "\n";
+    errs() << *Ty << "\n";
     assert(0 && "Unknown type!");
   }
   return false;
@@ -110,8 +111,7 @@ static bool Wants8ByteAlignment(const Type *Ty, unsigned Offs,
 
 unsigned Heuristic::getRecommendedAlignment(const Type *Ty,
                                             const TargetData &TD) {
-  const Type * VoidType = Type::getVoidTy(getGlobalContext());
-  if (Ty == VoidType)  // Is this void or collapsed?
+  if (!Ty || Ty->isVoidTy())  // Is this void or collapsed?
     return 0;  // No known alignment, let runtime decide.
 
   return Wants8ByteAlignment(Ty, 0, TD) ? 8 : 4;
@@ -121,8 +121,7 @@ unsigned Heuristic::getRecommendedAlignment(const Type *Ty,
 /// DSNode.
 ///
 unsigned Heuristic::getRecommendedAlignment(const DSNode *N) {
-  const Type * VoidType = Type::getVoidTy(getGlobalContext());
-  if (N->getType() == VoidType)  // Is this void or collapsed?
+  if (!N->getType() || N->getType()->isVoidTy())  // Is this void or collapsed?
     return 0;  // No known alignment, let runtime decide.
 
   const TargetData &TD = N->getParentGraph()->getTargetData();

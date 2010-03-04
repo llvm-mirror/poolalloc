@@ -33,9 +33,8 @@
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
+#include "llvm/Support/FormattedStream.h"
 #include "llvm/Support/Timer.h"
-
-#include <iostream>
 
 using namespace llvm;
 using namespace PA;
@@ -106,9 +105,9 @@ bool PoolAllocate::runOnModule(Module &M) {
   //
   // Get pointers to 8 and 32 bit LLVM integer types.
   //
-  VoidType  = Type::getVoidTy(getGlobalContext());
-  Int8Type  = IntegerType::getInt8Ty(getGlobalContext());
-  Int32Type = IntegerType::getInt32Ty(getGlobalContext());
+  VoidType  = Type::getVoidTy(M.getContext());
+  Int8Type  = IntegerType::getInt8Ty(M.getContext());
+  Int32Type = IntegerType::getInt32Ty(M.getContext());
 
   //
   // Get references to the DSA information.  For SAFECode, we need Top-Down
@@ -222,7 +221,7 @@ void PoolAllocate::AddPoolPrototypes(Module* M) {
   if (VoidPtrTy == 0) {
     // NOTE: If these are changed, make sure to update PoolOptimize.cpp as well!
     VoidPtrTy = PointerType::getUnqual(Int8Type);
-    PoolDescType = getPoolType();
+    PoolDescType = getPoolType(&M->getContext());
     PoolDescPtrTy = PointerType::getUnqual(PoolDescType);
   }
 
@@ -303,7 +302,7 @@ OptimizePointerNotNull(Value *V, LLVMContext * Context) {
       if (isa<Constant>(User->getOperand(1)) && 
           cast<Constant>(User->getOperand(1))->isNullValue()) {
         bool CondIsTrue = ICI->getPredicate() == ICmpInst::ICMP_NE;
-        const Type * Int1Type  = IntegerType::getInt1Ty(getGlobalContext());
+        const Type * Int1Type  = IntegerType::getInt1Ty(*Context);
         User->replaceAllUsesWith(ConstantInt::get(Int1Type, CondIsTrue));
       }
     } else if ((User->getOpcode() == Instruction::Trunc) ||
@@ -339,7 +338,7 @@ void PoolAllocate::MicroOptimizePoolCalls() {
     CallInst *CI = Calls[i];
     // poolalloc never returns null.  Loop over all uses of the call looking for
     // set(eq|ne) X, null.
-    OptimizePointerNotNull(CI, &getGlobalContext());
+    OptimizePointerNotNull(CI, &CI->getContext());
   }
 
   // TODO: poolfree accepts a null pointer, so remove any check above it, like
@@ -350,13 +349,13 @@ void PoolAllocate::MicroOptimizePoolCalls() {
 
 
 static void GetNodesReachableFromGlobals(DSGraph* G,
-                                  hash_set<const DSNode*> &NodesFromGlobals) {
+                                  std::set<const DSNode*> &NodesFromGlobals) {
   for (DSScalarMap::global_iterator I = G->getScalarMap().global_begin(), 
          E = G->getScalarMap().global_end(); I != E; ++I)
     G->getNodeForValue(*I).getNode()->markReachableNodes(NodesFromGlobals);
 }
 
-static void MarkNodesWhichMustBePassedIn(hash_set<const DSNode*> &MarkedNodes,
+static void MarkNodesWhichMustBePassedIn(std::set<const DSNode*> &MarkedNodes,
                                          Function &F, DSGraph* G,
                                          bool PassAllArguments) {
   // Mark globals and incomplete nodes as live... (this handles arguments)
@@ -378,14 +377,14 @@ static void MarkNodesWhichMustBePassedIn(hash_set<const DSNode*> &MarkedNodes,
   // Calculate which DSNodes are reachable from globals.  If a node is reachable
   // from a global, we will create a global pool for it, so no argument passage
   // is required.
-  hash_set<const DSNode*> NodesFromGlobals;
+  std::set<const DSNode*> NodesFromGlobals;
   GetNodesReachableFromGlobals(G, NodesFromGlobals);
 
   // Remove any nodes reachable from a global.  These nodes will be put into
   // global pools, which do not require arguments to be passed in.  Also, erase
   // any marked node that is not a heap node.  Since no allocations or frees
   // will be done with it, it needs no argument.
-  for (hash_set<const DSNode*>::iterator I = MarkedNodes.begin(),
+  for (std::set<const DSNode*>::iterator I = MarkedNodes.begin(),
          E = MarkedNodes.end(); I != E; ) {
     const DSNode *N = *I++;
     if ((!(1 || N->isHeapNode()) && !PassAllArguments) || NodesFromGlobals.count(N))
@@ -403,7 +402,7 @@ void PoolAllocate::FindFunctionPoolArgs(Function &F) {
   // Create a new entry for F.
   FuncInfo &FI =
     FunctionInfo.insert(std::make_pair(&F, FuncInfo(F))).first->second;
-  hash_set<const DSNode*> &MarkedNodes = FI.MarkedNodes;
+  std::set<const DSNode*> &MarkedNodes = FI.MarkedNodes;
 
   if (G->node_begin() == G->node_end())
     return;  // No memory activity, nothing is required
@@ -476,7 +475,7 @@ Function *PoolAllocate::MakeFunctionClone(Function &F) {
   }
 
   // Perform the cloning.
-  std::vector<ReturnInst*> Returns;
+  SmallVector<ReturnInst*,100> Returns;
   CloneFunctionInto(New, &F, ValueMap, Returns);
 
   //
@@ -528,13 +527,13 @@ bool PoolAllocate::SetupGlobalPools(Module &M) {
   DSGraph* GG = Graphs->getGlobalsGraph();
 
   // Get all of the nodes reachable from globals.
-  hash_set<const DSNode*> GlobalHeapNodes;
+  std::set<const DSNode*> GlobalHeapNodes;
   GetNodesReachableFromGlobals(GG, GlobalHeapNodes);
 
   // Filter out all nodes which have no heap allocations merged into them.
-  for (hash_set<const DSNode*>::iterator I = GlobalHeapNodes.begin(),
+  for (std::set<const DSNode*>::iterator I = GlobalHeapNodes.begin(),
          E = GlobalHeapNodes.end(); I != E; ) {
-    hash_set<const DSNode*>::iterator Last = I++;
+    std::set<const DSNode*>::iterator Last = I++;
 
 #if 0
     //
@@ -549,7 +548,7 @@ bool PoolAllocate::SetupGlobalPools(Module &M) {
 #endif
 
     const DSNode *tmp = *Last;
-    //    std::cerr << "test \n";
+    //    errs() << "test \n";
     if (!(tmp->isHeapNode() || tmp->isArray()))
       GlobalHeapNodes.erase(Last);
   }
@@ -557,12 +556,12 @@ bool PoolAllocate::SetupGlobalPools(Module &M) {
   // Otherwise get the main function to insert the poolinit calls.
   Function *MainFunc = M.getFunction("main");
   if (MainFunc == 0 || MainFunc->isDeclaration()) {
-    std::cerr << "Cannot pool allocate this program: it has global "
+    errs() << "Cannot pool allocate this program: it has global "
               << "pools but no 'main' function yet!\n";
     return true;
   }
 
-  std::cerr << "Pool allocating " << GlobalHeapNodes.size()
+  errs() << "Pool allocating " << GlobalHeapNodes.size()
             << " global nodes!\n";
 
 
@@ -591,7 +590,7 @@ bool PoolAllocate::SetupGlobalPools(Module &M) {
   }
 
   // Any unallocated DSNodes get null pool descriptor pointers.
-  for (hash_set<const DSNode*>::iterator I = GlobalHeapNodes.begin(),
+  for (std::set<const DSNode*>::iterator I = GlobalHeapNodes.begin(),
          E = GlobalHeapNodes.end(); I != E; ++I) {
     GlobalNodes[*I] = ConstantPointerNull::get(PointerType::getUnqual(PoolDescType));
     ++NumNonprofit;
@@ -705,7 +704,7 @@ void PoolAllocate::ProcessFunctionBody(Function &F, Function &NewF) {
   if (G->node_begin() == G->node_end()) return;  // Quick exit if nothing to do.
   
   FuncInfo &FI = *getFuncInfo(F);
-  hash_set<const DSNode*> &MarkedNodes = FI.MarkedNodes;
+  std::set<const DSNode*> &MarkedNodes = FI.MarkedNodes;
 
   // Calculate which DSNodes are reachable from globals.  If a node is reachable
   // from a global, we will create a global pool for it, so no argument passage
@@ -738,11 +737,11 @@ void PoolAllocate::ProcessFunctionBody(Function &F, Function &NewF) {
   }
 
   if (!FI.NodesToPA.empty()) {
-    std::cerr << "[" << F.getNameStr() << "] " << FI.NodesToPA.size()
+    errs() << "[" << F.getNameStr() << "] " << FI.NodesToPA.size()
               << " nodes pool allocatable\n";
     CreatePools(NewF, G, FI.NodesToPA, FI.PoolDescriptors);
   } else {
-    DEBUG(std::cerr << "[" << F.getNameStr() << "] transforming body.\n");
+    DEBUG(errs() << "[" << F.getNameStr() << "] transforming body.\n");
   }
   
   // Transform the body of the function now... collecting information about uses
@@ -844,12 +843,12 @@ void PoolAllocate::InitializeAndDestroyPool(Function &F, const DSNode *Node,
   InitializedBefore.clear();
   DestroyedAfter.clear();
     
-  DEBUG(std::cerr << "POOL: " << PD->getNameStr() << " information:\n");
-  DEBUG(std::cerr << "  Live in blocks: ");
+  DEBUG(errs() << "POOL: " << PD->getNameStr() << " information:\n");
+  DEBUG(errs() << "  Live in blocks: ");
   DEBUG(for (std::set<BasicBlock*>::iterator I = LiveBlocks.begin(),
                E = LiveBlocks.end(); I != E; ++I)
-          std::cerr << (*I)->getNameStr() << " ");
-  DEBUG(std::cerr << "\n");
+          errs() << (*I)->getNameStr() << " ");
+  DEBUG(errs() << "\n");
     
  
   std::vector<Instruction*> PoolInitPoints;
@@ -951,7 +950,7 @@ void PoolAllocate::InitializeAndDestroyPool(Function &F, const DSNode *Node,
     }
   }
 
-  DEBUG(std::cerr << "  Init in blocks: ");
+  DEBUG(errs() << "  Init in blocks: ");
 
   // Insert the calls to initialize the pool.
   unsigned ElSizeV = Heuristic::getRecommendedSize(Node);
@@ -962,18 +961,18 @@ void PoolAllocate::InitializeAndDestroyPool(Function &F, const DSNode *Node,
   for (unsigned i = 0, e = PoolInitPoints.size(); i != e; ++i) {
     Value* Opts[3] = {PD, ElSize, Align};
     CallInst::Create(PoolInit, Opts, Opts + 3,  "", PoolInitPoints[i]);
-    DEBUG(std::cerr << PoolInitPoints[i]->getParent()->getNameStr() << " ");
+    DEBUG(errs() << PoolInitPoints[i]->getParent()->getNameStr() << " ");
   }
 
-  DEBUG(std::cerr << "\n  Destroy in blocks: ");
+  DEBUG(errs() << "\n  Destroy in blocks: ");
 
   // Loop over all of the places to insert pooldestroy's...
   for (unsigned i = 0, e = PoolDestroyPoints.size(); i != e; ++i) {
     // Insert the pooldestroy call for this pool.
     CallInst::Create(PoolDestroy, PD, "", PoolDestroyPoints[i]);
-    DEBUG(std::cerr << PoolDestroyPoints[i]->getParent()->getNameStr()<<" ");
+    DEBUG(errs() << PoolDestroyPoints[i]->getParent()->getNameStr()<<" ");
   }
-  DEBUG(std::cerr << "\n\n");
+  DEBUG(errs() << "\n\n");
 
   // We are allowed to delete any poolfree's which occur between the last
   // call to poolalloc, and the call to pooldestroy.  Figure out which

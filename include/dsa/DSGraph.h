@@ -17,13 +17,10 @@
 
 #include "dsa/DSNode.h"
 #include "llvm/ADT/EquivalenceClasses.h"
-#include "poolalloc/ADT/HashExtras.h"
 
-#include <ext/hash_map>
-#include <ext/hash_set>
 #include <list>
 #include <map>
-#include <iostream>
+#include <set>
 
 namespace llvm {
 
@@ -42,10 +39,10 @@ class GlobalValue;
 /// globals or unique node handles active in the function.
 ///
 class DSScalarMap {
-  typedef hash_map<const Value*, DSNodeHandle> ValueMapTy;
+  typedef std::map<const Value*, DSNodeHandle> ValueMapTy;
   ValueMapTy ValueMap;
 
-  typedef hash_set<const GlobalValue*> GlobalSetTy;
+  typedef std::set<const GlobalValue*> GlobalSetTy;
   GlobalSetTy GlobalSet;
 
   EquivalenceClasses<const GlobalValue*> &GlobalECs;
@@ -193,17 +190,17 @@ class DSGraph {
 public:
   // Public data-type declarations...
   typedef DSScalarMap ScalarMapTy;
-  typedef hash_map<const Function*, DSNodeHandle> ReturnNodesTy;
+  typedef std::map<const Function*, DSNodeHandle> ReturnNodesTy;
   typedef ilist<DSNode> NodeListTy;
 
   /// NodeMapTy - This data type is used when cloning one graph into another to
   /// keep track of the correspondence between the nodes in the old and new
   /// graphs.
-  typedef hash_map<const DSNode*, DSNodeHandle> NodeMapTy;
+  typedef std::map<const DSNode*, DSNodeHandle> NodeMapTy;
 
   // InvNodeMapTy - This data type is used to represent the inverse of a node
   // map.
-  typedef hash_multimap<DSNodeHandle, const DSNode*> InvNodeMapTy;
+  typedef std::multimap<DSNodeHandle, const DSNode*> InvNodeMapTy;
 private:
   DSGraph *GlobalsGraph;   // Pointer to the common graph of global objects
   bool PrintAuxCalls;      // Should this graph print the Aux calls vector?
@@ -417,10 +414,7 @@ public:
 
   /// print - Print a dot graph to the specified ostream...
   ///
-  void print(OStream &O) const {
-    if (O.stream()) print(*O.stream());
-  }
-  void print(std::ostream &O) const;
+  void print(llvm::raw_ostream &O) const;
 
   /// dump - call print(cerr), for use from the debugger...
   ///
@@ -431,7 +425,7 @@ public:
   ///
   void viewGraph() const;
 
-  void writeGraphToFile(std::ostream &O, const std::string &GraphName) const;
+  void writeGraphToFile(llvm::raw_ostream &O, const std::string &GraphName) const;
 
   /// maskNodeTypes - Apply a mask to all of the node types in the graph.  This
   /// is useful for clearing out markers like Incomplete.
@@ -583,12 +577,15 @@ class ReachabilityCloner {
   unsigned BitsToKeep;
   unsigned CloneFlags;
 
+  bool createDest;
+
   // NodeMap - A mapping from nodes in the source graph to the nodes that
   // represent them in the destination graph.
   DSGraph::NodeMapTy NodeMap;
 public:
-  ReachabilityCloner(DSGraph* dest, const DSGraph* src, unsigned cloneFlags)
-    : Dest(dest), Src(src), CloneFlags(cloneFlags) {
+  ReachabilityCloner(DSGraph* dest, const DSGraph* src, unsigned cloneFlags,
+                     bool _createDest = true)
+    : Dest(dest), Src(src), CloneFlags(cloneFlags), createDest(_createDest) {
     assert(Dest != Src && "Cannot clone from graph to same graph!");
     BitsToKeep = ~DSNode::DeadNode;
     if (CloneFlags & DSGraph::StripAllocaBit)

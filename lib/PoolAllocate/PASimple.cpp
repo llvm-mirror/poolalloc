@@ -107,9 +107,9 @@ bool PoolAllocateSimple::runOnModule(Module &M) {
   //
   // Get pointers to 8 and 32 bit LLVM integer types.
   //
-  VoidType  = Type::getVoidTy(getGlobalContext());
-  Int8Type  = IntegerType::getInt8Ty(getGlobalContext());
-  Int32Type = IntegerType::getInt32Ty(getGlobalContext());
+  VoidType  = Type::getVoidTy(M.getContext());
+  Int8Type  = IntegerType::getInt8Ty(M.getContext());
+  Int32Type = IntegerType::getInt32Ty(M.getContext());
 
   // Get the Target Data information and the Graphs
   if (CompleteDSA) {
@@ -173,7 +173,10 @@ PoolAllocateSimple::ProcessFunctionBodySimple (Function& F, TargetData & TD) {
 
   for (Function::iterator i = F.begin(), e = F.end(); i != e; ++i)
     for (BasicBlock::iterator ii = i->begin(), ee = i->end(); ii != ee; ++ii) {
-      if (MallocInst * MI = dyn_cast<MallocInst>(ii)) {
+      if (false) {
+        //FIXME: malloc
+#if 0
+        if (MallocInst * MI = dyn_cast<MallocInst>(ii)) {
         // Associate the global pool decriptor with the DSNode
         DSNode * Node = ECG->getNodeForValue(MI).getNode();
         FInfo.PoolDescriptors.insert(std::make_pair(Node,TheGlobalPool));
@@ -201,6 +204,7 @@ PoolAllocateSimple::ProcessFunctionBodySimple (Function& F, TargetData & TD) {
         Value* args[] = {TheGlobalPool, AllocSize};
         Instruction* x = CallInst::Create(PoolAlloc, &args[0], &args[2], MI->getName(), ii);
         ii->replaceAllUsesWith(CastInst::CreatePointerCast(x, ii->getType(), "", ii));
+        #endif
       } else if (CallInst * CI = dyn_cast<CallInst>(ii)) {
         CallSite CS(CI);
         Function *CF = CS.getCalledFunction();
@@ -325,12 +329,15 @@ PoolAllocateSimple::ProcessFunctionBodySimple (Function& F, TargetData & TD) {
           // Update def-use info
           CI->replaceAllUsesWith(Casted);
         }
+        //FIXME: free
+        #if 0
       } else if (FreeInst * FI = dyn_cast<FreeInst>(ii)) {
         Type * VoidPtrTy = PointerType::getUnqual(Int8Type);
         Value * FreedNode = castTo (FI->getPointerOperand(), VoidPtrTy, "cast", ii);
         toDelete.push_back(ii);
         Value* args[] = {TheGlobalPool, FreedNode};
         CallInst::Create(PoolFree, &args[0], &args[2], "", ii);
+        #endif
       } else if (isa<ReturnInst>(ii)) {
         Returns.push_back(cast<ReturnInst>(ii));
       }
@@ -361,20 +368,20 @@ PoolAllocateSimple::CreateGlobalPool (unsigned RecSize,
                                       Module& M) {
   GlobalVariable *GV =
     new GlobalVariable(M,
-                       getPoolType(), false, GlobalValue::ExternalLinkage, 
-                       ConstantAggregateZero::get(getPoolType()),
+                       getPoolType(&M.getContext()), false, GlobalValue::ExternalLinkage,
+                       ConstantAggregateZero::get(getPoolType(&M.getContext())),
 		       "__poolalloc_GlobalPool");
 
   Function *InitFunc = Function::Create
     (FunctionType::get(VoidType, std::vector<const Type*>(), false),
     GlobalValue::ExternalLinkage, "__poolalloc_init", &M);
 
-  BasicBlock * BB = BasicBlock::Create(getGlobalContext(), "entry", InitFunc);
+  BasicBlock * BB = BasicBlock::Create(M.getContext(), "entry", InitFunc);
   Value *ElSize = ConstantInt::get(Int32Type, RecSize);
   Value *AlignV = ConstantInt::get(Int32Type, Align);
   Value* Opts[3] = {GV, ElSize, AlignV};
   CallInst::Create(PoolInit, Opts, Opts + 3, "", BB);
 
-  ReturnInst::Create(getGlobalContext(), BB);
+  ReturnInst::Create(M.getContext(), BB);
   return GV;
 }

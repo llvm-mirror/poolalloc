@@ -30,7 +30,6 @@
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Support/Timer.h"
 #include "llvm/Support/raw_ostream.h"
-#include "poolalloc/ADT/HashExtras.h"
 
 #include <iostream>
 #include <algorithm>
@@ -42,8 +41,8 @@ namespace {
   STATISTIC (NumCallNodesMerged, "Number of call nodes merged");
   STATISTIC (NumNodeAllocated  , "Number of nodes allocated");
   STATISTIC (NumDNE            , "Number of nodes removed by reachability");
-  STATISTIC (NumTrivialDNE     , "Number of nodes trivially removed");
-  STATISTIC (NumTrivialGlobalDNE, "Number of globals trivially removed");
+//  STATISTIC (NumTrivialDNE     , "Number of nodes trivially removed");
+//  STATISTIC (NumTrivialGlobalDNE, "Number of globals trivially removed");
 #ifdef LLVA_KERNEL
   STATISTIC (LostPools         , "Number of pools lost to DSNode Merge");
 #endif
@@ -800,8 +799,8 @@ bool DSNode::mergeTypeInfo(const Type *NewTy, unsigned Offset,
     // Check to see if we have a pointer & integer mismatch going on here,
     // loading a pointer as a long, for example.
     //
-    if ((SubType->isInteger() && isa<PointerType>(NewTy)) ||
-        (NewTy->isInteger() && isa<PointerType>(SubType)))
+    if ((SubType->isIntegerTy() && NewTy->isPointerTy()) ||
+        (NewTy->isIntegerTy() && SubType->isPointerTy()))
       return false;
   } else if (NewTySize > SubTypeSize && NewTySize <= PadSize) {
     // We are accessing the field, plus some structure padding.  Ignore the
@@ -1097,6 +1096,8 @@ DSNodeHandle ReachabilityCloner::getClonedNH(const DSNodeHandle &SrcNH) {
       }
     }
   }
+
+  if (!createDest) return DSNodeHandle(0,0);
 
   DSNode *DN = new DSNode(*SN, Dest, true /* Null out all links */);
   DN->maskNodeTypes(BitsToKeep);
@@ -1494,7 +1495,7 @@ DSGraph::~DSGraph() {
 }
 
 // dump - Allow inspection of graph in a debugger.
-void DSGraph::dump() const { print(cerr); }
+void DSGraph::dump() const { print(errs()); }
 
 
 /// remapLinks - Change all of the Links in the current node according to the
@@ -1540,8 +1541,8 @@ DSNode *DSGraph::addObjectToGraph(Value *Ptr, bool UseDeclaredType) {
 
   if (GlobalValue *GV = dyn_cast<GlobalValue>(Ptr)) {
     N->addGlobal(GV);
-  } else if (isa<MallocInst>(Ptr)) {
-   N->setHeapMarker();
+//  } else if (isa<MallocInst>(Ptr)) {
+//   N->setHeapMarker();
   } else if (isa<AllocaInst>(Ptr)) {
     N->setAllocaMarker();
   } else {
@@ -2200,6 +2201,7 @@ static void removeIdenticalCalls(std::list<DSCallSite> &Calls) {
 // we don't have to perform any non-trivial analysis here.
 //
 void DSGraph::removeTriviallyDeadNodes(bool updateForwarders) {
+#if 0
   if (updateForwarders) {
     /// NOTE: This code is disabled.  This slows down DSA on 177.mesa
     /// substantially!
@@ -2258,8 +2260,9 @@ void DSGraph::removeTriviallyDeadNodes(bool updateForwarders) {
         // Make sure NumReferrers still agrees, if so, the node is truly dead.
         if (Node.getNumReferrers() == Node.numGlobals()) {
           for (DSNode::globals_iterator j = Node.globals_begin(), e = Node.globals_end();
-               j != e; ++j) 
-            ScalarMap.erase(*j);
+               j != e; ++j)
+            if (ScalarMap.find(*j) != ScalarMap.end())
+              ScalarMap.erase(*j);
           Node.makeNodeDead();
           ++NumTrivialGlobalDNE;
         }
@@ -2275,7 +2278,7 @@ void DSGraph::removeTriviallyDeadNodes(bool updateForwarders) {
       ++NI;
     }
   }
-
+#endif
   removeIdenticalCalls(FunctionCalls);
   removeIdenticalCalls(AuxFunctionCalls);
 }
@@ -2285,7 +2288,7 @@ void DSGraph::removeTriviallyDeadNodes(bool updateForwarders) {
 /// DSNodes, marking any nodes which are reachable.  All reachable nodes it adds
 /// to the set, which allows it to only traverse visited nodes once.
 ///
-void DSNode::markReachableNodes(hash_set<const DSNode*> &ReachableNodes) const {
+void DSNode::markReachableNodes(std::set<const DSNode*> &ReachableNodes) const {
   if (this == 0) return;
   assert(getForwardNode() == 0 && "Cannot mark a forwarded node!");
   if (ReachableNodes.insert(this).second)        // Is newly reachable?
@@ -2294,7 +2297,7 @@ void DSNode::markReachableNodes(hash_set<const DSNode*> &ReachableNodes) const {
       I->getNode()->markReachableNodes(ReachableNodes);
 }
 
-void DSCallSite::markReachableNodes(hash_set<const DSNode*> &Nodes) const {
+void DSCallSite::markReachableNodes(std::set<const DSNode*> &Nodes) const {
   getRetVal().getNode()->markReachableNodes(Nodes);
   if (isIndirectCall()) getCalleeNode()->markReachableNodes(Nodes);
 
@@ -2307,8 +2310,8 @@ void DSCallSite::markReachableNodes(hash_set<const DSNode*> &Nodes) const {
 // true, otherwise return false.  If an alive node is reachable, this node is
 // marked as alive...
 //
-static bool CanReachAliveNodes(DSNode *N, hash_set<const DSNode*> &Alive,
-                               hash_set<const DSNode*> &Visited,
+static bool CanReachAliveNodes(DSNode *N, std::set<const DSNode*> &Alive,
+                               std::set<const DSNode*> &Visited,
                                bool IgnoreGlobals) {
   if (N == 0) return false;
   assert(N->getForwardNode() == 0 && "Cannot mark a forwarded node!");
@@ -2337,8 +2340,8 @@ static bool CanReachAliveNodes(DSNode *N, hash_set<const DSNode*> &Alive,
 // alive nodes.
 //
 static bool CallSiteUsesAliveArgs(const DSCallSite &CS,
-                                  hash_set<const DSNode*> &Alive,
-                                  hash_set<const DSNode*> &Visited,
+                                  std::set<const DSNode*> &Alive,
+                                  std::set<const DSNode*> &Visited,
                                   bool IgnoreGlobals) {
   if (CanReachAliveNodes(CS.getRetVal().getNode(), Alive, Visited,
                          IgnoreGlobals))
@@ -2369,7 +2372,7 @@ void DSGraph::removeDeadNodes(unsigned Flags) {
   // FIXME: Merge non-trivially identical call nodes...
 
   // Alive - a set that holds all nodes found to be reachable/alive.
-  hash_set<const DSNode*> Alive;
+  std::set<const DSNode*> Alive;
   std::vector<std::pair<const Value*, DSNode*> > GlobalNodes;
 
   // Copy and merge all information about globals to the GlobalsGraph if this is
@@ -2417,8 +2420,8 @@ void DSGraph::removeDeadNodes(unsigned Flags) {
   // value (which makes them live in turn), and continue till no more are found.
   //
   bool Iterate;
-  hash_set<const DSNode*> Visited;
-  hash_set<const DSCallSite*> AuxFCallsAlive;
+  std::set<const DSNode*> Visited;
+  std::set<const DSCallSite*> AuxFCallsAlive;
   do {
     Visited.clear();
     // If any global node points to a non-global that is "alive", the global is
@@ -2748,8 +2751,8 @@ void DataStructures::copyValue(Value *From, Value *To) {
     return;
   }
   
-  cerr << *From;
-  cerr << *To;
+  errs() << *From;
+  errs() << *To;
   assert(0 && "Do not know how to copy this yet!");
   abort();
 }
@@ -2913,12 +2916,12 @@ void DataStructures::releaseMemory() {
   //
   if (DSGraphsStolen) return;
 
-  hash_set<DSGraph*> toDelete;
+  std::set<DSGraph*> toDelete;
   for (DSInfoTy::iterator I = DSInfo.begin(), E = DSInfo.end(); I != E; ++I) {
     I->second->getReturnNodes().clear();
     toDelete.insert(I->second);
   }
-  for (hash_set<DSGraph*>::iterator I = toDelete.begin(), E = toDelete.end(); I != E; ++I)
+  for (std::set<DSGraph*>::iterator I = toDelete.begin(), E = toDelete.end(); I != E; ++I)
     delete *I;
 
   // Empty map so next time memory is released, data structures are not

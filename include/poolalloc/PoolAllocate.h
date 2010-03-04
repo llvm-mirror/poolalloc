@@ -29,7 +29,6 @@
 #include "llvm/Support/CommandLine.h"
 
 #include "dsa/DataStructure.h"
-#include "poolalloc/ADT/HashExtras.h"
 #include "poolalloc/Config/config.h"
 
 #include <set>
@@ -60,7 +59,7 @@ namespace PA {
     /// MarkedNodes - The set of nodes which are not locally pool allocatable in
     /// the current function.
     ///
-    hash_set<const DSNode*> MarkedNodes;
+    std::set<const DSNode*> MarkedNodes;
 
     /// F - The function this FuncInfo corresponds to.
     ///
@@ -131,7 +130,7 @@ public:
   virtual PA::FuncInfo *getFuncInfoOrClone(const Function &F) {return 0;}
   virtual Function *getOrigFunctionFromClone(const Function *F) const {return 0;}
 
-  virtual const Type * getPoolType() {return 0;}
+  virtual const Type * getPoolType(LLVMContext*) {return 0;}
 
   virtual bool hasDSGraph (const Function & F) const {
     return Graphs->hasDSGraph (F);
@@ -273,8 +272,8 @@ protected:
                                    Instruction *IPHint = 0);
 
   /// getPoolType - Return the type of a pool descriptor
-  const Type * getPoolType() {
-    const IntegerType * IT = IntegerType::getInt8Ty(getGlobalContext());
+  const Type * getPoolType(LLVMContext* C) {
+    const IntegerType * IT = IntegerType::getInt8Ty(*C);
     Type * VoidPtrType = PointerType::getUnqual(IT);
     if (SAFECodeEnabled)
       return ArrayType::get(VoidPtrType, 92);
@@ -336,14 +335,15 @@ protected:
       //  In short, we need to filter out the case where we find a pool handle,
       //  but it's only accessible from a clone and not the original function.
       //
+      //FIXME: handle allocators
       assert ((isa<GlobalVariable>(Pool) ||
-               isa<AllocationInst>(Pool) ||
+               isa<AllocaInst>(Pool) ||
                isa<Argument>(Pool) ||
                isa<Constant>(Pool)) &&
                "Pool of unknown type!\n");
       if ((isa<GlobalVariable>(Pool)) || (isa<Constant>(Pool))) {
           return Pool;
-      } else if (AllocationInst * AI = dyn_cast<AllocationInst>(Pool)) {
+      } else if (AllocaInst * AI = dyn_cast<AllocaInst>(Pool)) {
         if (AI->getParent()->getParent() == &F)
           return Pool;
       } else if (Argument * Arg = dyn_cast<Argument>(Pool)) {
@@ -532,7 +532,7 @@ public:
 
   virtual Value * getGlobalPool (const DSNode * Node);
   virtual Value * getPool (const DSNode * N, Function & F);
-  virtual void print(std::ostream &OS, const Module * M) const;
+  virtual void print(llvm::raw_ostream &OS, const Module * M) const;
   virtual void dump() const;
 };
 
