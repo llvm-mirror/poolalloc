@@ -18,15 +18,33 @@
 
 namespace llvm {
 class Function;
+class Module;
 }
 
-class EntryPointAnalysis {
+#include <string>
+#include "llvm/Pass.h"
+
+class EntryPointAnalysis : public llvm::ModulePass {
+  std::set<std::string> names;
+  bool haveNames;
 public:
   static char ID;
-  EntryPointAnalysis() {}
+  EntryPointAnalysis();
   virtual ~EntryPointAnalysis();
 
-  virtual bool isEntryPoint(const llvm::Function* F) const = 0;
+  /// print - Print out the analysis results...
+  ///
+  void print(llvm::raw_ostream &O, const llvm::Module *M) const;
+
+  bool runOnModule(llvm::Module&);
+
+  virtual void getAnalysisUsage(llvm::AnalysisUsage &Info) const;
+
+  bool isEntryPoint(const llvm::Function* F) const;
+
+  void findEntryPoints(const llvm::Module& M,
+                       std::vector<const llvm::Function*>& dest) const;
+
 };
 
 
