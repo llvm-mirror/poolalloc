@@ -26,10 +26,9 @@
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/GetElementPtrTypeIterator.h"
 #include "llvm/Support/InstVisitor.h"
+#include "llvm/Support/FormattedStream.h"
 
 #include "llvm/Transforms/Utils/Cloning.h"
-
-#include <iostream>
 
 using namespace llvm;
 
@@ -90,7 +89,7 @@ namespace {
         NewToOldValueMap.find(V);
       if (I == NewToOldValueMap.end()) {
         for (I = NewToOldValueMap.begin(); I != NewToOldValueMap.end(); ++I)
-          std::cerr << "MAP: " << *I->first << " TO: " << *I->second << "\n";
+          errs() << "MAP: " << *I->first << " TO: " << *I->second << "\n";
       }
       assert (I != NewToOldValueMap.end() && "Value did not come from clone!");
       return I->second;
@@ -274,13 +273,13 @@ ComputeCompressedType(const Type *OrigTy, unsigned NodeOffset,
       Elements.push_back(ComputeCompressedType(STy->getElementType(i),
                                                NodeOffset+SL->getElementOffset(i),
                                                Nodes));
-    return StructType::get(getGlobalContext(),Elements);
+    return StructType::get(STy->getContext(),Elements);
   } else if (const ArrayType *ATy = dyn_cast<ArrayType>(OrigTy)) {
     return ArrayType::get(ComputeCompressedType(ATy->getElementType(),
                                                 NodeOffset, Nodes),
                           ATy->getNumElements());
   } else {
-    std::cerr << "TYPE: " << *OrigTy << "\n";
+    errs() << "TYPE: " << *OrigTy << "\n";
     assert(0 && "FIXME: Unhandled aggregate type!");
     abort();
   }
@@ -322,13 +321,13 @@ Value *CompressedPoolInfo::EmitPoolBaseLoad(Instruction &I) const {
 ///
 void CompressedPoolInfo::dump() const {
   const TargetData &TD = getNode()->getParentGraph()->getTargetData();
-  std::cerr << "  From size: "
+  errs() << "  From size: "
             << (getNode()->getType()->isSized() ? 
                         TD.getTypeAllocSize(getNode()->getType()) : 0)
             << "  To size: "
             << (NewTy->isSized() ? TD.getTypeAllocSize(NewTy) : 0) << "\n";
-  std::cerr << "Node: "; getNode()->dump();
-  std::cerr << "New Type: " << *NewTy << "\n";
+  errs() << "Node: "; getNode()->dump();
+  errs() << "New Type: " << *NewTy << "\n";
 }
 
 
@@ -544,7 +543,7 @@ namespace {
         Unhandled |= !!getNodeIfCompressed(I.getOperand(i));
 
       if (Unhandled) {
-        std::cerr << "ERROR: UNHANDLED INSTRUCTION: " << I;
+        errs() << "ERROR: UNHANDLED INSTRUCTION: " << I;
         //assert(0);
         //abort();
       }
@@ -581,7 +580,7 @@ void InstructionRewriter::visitReturnInst(ReturnInst &RI) {
   if (RI.getNumOperands() && isa<PointerType>(RI.getOperand(0)->getType()))
     if (!isa<PointerType>(RI.getParent()->getParent()->getReturnType())) {
       // Compressing the return value.  
-      ReturnInst::Create(getGlobalContext(),
+      ReturnInst::Create(RI.getContext(),
                          getTransformedValue(RI.getOperand(0)), &RI);
       RI.eraseFromParent();
     }
@@ -1153,7 +1152,7 @@ void PointerCompress::getAnalysisUsage(AnalysisUsage &AU) const {
 static bool PoolIsCompressible(const DSNode *N) {
   assert(!N->isForwarding() && "Should not be dealing with merged nodes!");
   if (N->isNodeCompletelyFolded()) {
-    DEBUG(std::cerr << "Node is not type-safe:\n");
+    DEBUG(errs() << "Node is not type-safe:\n");
     return false;
   }
 
@@ -1166,19 +1165,19 @@ static bool PoolIsCompressible(const DSNode *N) {
       HasFields = true;
       if (I->getNode() != N) {
         // We currently only handle trivially self cyclic DS's right now.
-        DEBUG(std::cerr << "Node points to nodes other than itself:\n");
+        DEBUG(errs() << "Node points to nodes other than itself:\n");
         return false;
       }        
     }
 
   if (!HasFields) {
-    DEBUG(std::cerr << "Node does not contain any pointers to compress:\n");
+    DEBUG(errs() << "Node does not contain any pointers to compress:\n");
     return false;
   }
 #endif
 
   if ((N->getNodeFlags() & DSNode::Composition) != DSNode::HeapNode) {
-    DEBUG(std::cerr << "Node contains non-heap values:\n");
+    DEBUG(errs() << "Node contains non-heap values:\n");
     return false;
   }
 
@@ -1193,7 +1192,7 @@ void PointerCompress::FindPoolsToCompress(std::set<const DSNode*> &Pools,
                                           Value*> &PreassignedPools,
                                           Function &F, DSGraph* DSG,
                                           PA::FuncInfo *FI) {
-  DEBUG(std::cerr << "In function '" << F.getNameStr() << "':\n");
+  DEBUG(errs() << "In function '" << F.getNameStr() << "':\n");
   for (unsigned i = 0, e = FI->NodesToPA.size(); i != e; ++i) {
     const DSNode *N = FI->NodesToPA[i];
 
@@ -1204,7 +1203,7 @@ void PointerCompress::FindPoolsToCompress(std::set<const DSNode*> &Pools,
         Pools.insert(N);
         ++NumCompressed;
       } else {
-        DEBUG(std::cerr << "PCF: "; N->dump());
+        DEBUG(errs() << "PCF: "; N->dump());
         ++NumNotCompressed;
       }
     }
@@ -1258,7 +1257,7 @@ CompressPoolsInFunction(Function &F,
     FI = PoolAlloc->getFuncInfoOrClone(F);
 
   if (FI == 0) {
-    std::cerr << "DIDN'T FIND POOL INFO FOR: "
+    errs() << "DIDN'T FIND POOL INFO FOR: "
               << *F.getType() << F.getNameStr() << "!\n";
     return false;
   }
@@ -1310,7 +1309,7 @@ CompressPoolsInFunction(Function &F,
   // particular, if one pool points to another, we need to know if the outgoing
   // pointer is compressed.
   const TargetData &TD = DSG->getTargetData();
-  std::cerr << "In function '" << F.getNameStr() << "':\n";
+  errs() << "In function '" << F.getNameStr() << "':\n";
   for (std::map<const DSNode*, CompressedPoolInfo>::iterator
          I = PoolsToCompress.begin(), E = PoolsToCompress.end(); I != E; ++I) {
 
@@ -1320,7 +1319,7 @@ CompressPoolsInFunction(Function &F,
     if (isa<AllocaInst>(I->second.getPoolDesc()) ||
         (isa<GlobalValue>(I->second.getPoolDesc()) &&
          F.hasExternalLinkage() && F.getNameStr() == "main")) {
-      std::cerr << "  COMPRESSING POOL:\nPCS:";
+      errs() << "  COMPRESSING POOL:\nPCS:";
       I->second.dump();
     }
   }
@@ -1418,7 +1417,7 @@ GetFunctionClone(Function *F, std::set<const DSNode*> &PoolsToCompress,
     ClonedFunctionInfoMap.insert(std::make_pair(Clone, F)).first->second;
 
   ++NumCloned;
-  std::cerr << " CLONING FUNCTION: " << F->getNameStr() << " -> "
+  errs() << " CLONING FUNCTION: " << F->getNameStr() << " -> "
             << Clone->getNameStr() << "\n";
 
   if (F->isDeclaration()) {
@@ -1454,7 +1453,7 @@ GetFunctionClone(Function *F, std::set<const DSNode*> &PoolsToCompress,
   }
 
   // Clone the actual function body over.
-  std::vector<ReturnInst*> Returns;
+  SmallVector<ReturnInst*,100> Returns;
   CloneFunctionInto(Clone, F, ValueMap, Returns);
   Returns.clear();  // Don't need this.
   
@@ -1482,7 +1481,7 @@ GetFunctionClone(Function *F, std::set<const DSNode*> &PoolsToCompress,
 void PointerCompress::HandleGlobalPools(Module &M) {
   if (PoolAlloc->GlobalNodes.empty()) return;
 
-  DEBUG(std::cerr << "Inspecting global nodes:\n");
+  DEBUG(errs() << "Inspecting global nodes:\n");
 
   // Loop over all of the global nodes identified by the pool allocator.
   for (std::map<const DSNode*, Value*>::iterator I =
@@ -1498,7 +1497,7 @@ void PointerCompress::HandleGlobalPools(Module &M) {
                                              cast<GlobalValue>(I->second)));
         ++NumCompressed;
       } else {
-        DEBUG(std::cerr << "PCF: "; N->dump());
+        DEBUG(errs() << "PCF: "; N->dump());
         ++NumNotCompressed;
       }
     }
@@ -1525,11 +1524,11 @@ bool PointerCompress::runOnModule(Module &M) {
   //
   // Get pointers to 8 and 32 bit LLVM integer types.
   //
-  VoidType  = Type::getVoidTy(getGlobalContext());
-  Int8Type  = IntegerType::getInt8Ty(getGlobalContext());
-  Int16Type = IntegerType::getInt16Ty(getGlobalContext());
-  Int32Type = IntegerType::getInt32Ty(getGlobalContext());
-  Int64Type = IntegerType::getInt64Ty(getGlobalContext());
+  VoidType  = Type::getVoidTy(M.getContext());
+  Int8Type  = IntegerType::getInt8Ty(M.getContext());
+  Int16Type = IntegerType::getInt16Ty(M.getContext());
+  Int32Type = IntegerType::getInt32Ty(M.getContext());
+  Int64Type = IntegerType::getInt64Ty(M.getContext());
 
   PoolAlloc = &getAnalysis<PoolAllocatePassAllPools>();
   ECG = &getAnalysis<CompleteBUDataStructures>();
