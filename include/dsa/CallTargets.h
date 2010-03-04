@@ -38,7 +38,7 @@ namespace llvm {
 
     virtual void getAnalysisUsage(AnalysisUsage &AU) const;
 
-    virtual void print(std::ostream &O, const Module *M) const;
+    virtual void print(llvm::raw_ostream &O, const Module *M) const;
 
     // Given a CallSite, get an iterator of callees
     std::vector<const Function*>::iterator begin(CallSite cs);
