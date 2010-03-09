@@ -56,15 +56,13 @@ bool BUDataStructures::runOnModuleInternal(Module& M) {
 
   for (std::vector<const Function*>::iterator ii = EntryPoints.begin(),
           ee = EntryPoints.end(); ii != ee; ++ii)
-    if (!hasDSGraph(**ii))
+    if (!hasDSGraph(**ii)) {
+      errs() << debugname << ": Main Function: " << (*ii)->getName() << "\n";
       calculateGraphs(*ii, Stack, NextID, ValMap);
+      CloneAuxIntoGlobal(getDSGraph(**ii));
+    }
 
-   for (std::vector<const Function*>::iterator ii = EntryPoints.begin(),
-          ee = EntryPoints.end(); ii != ee; ++ii) {
-    cloneGlobalsInto(getDSGraph(**ii));
-    calculateGraph(getDSGraph(**ii));
-    CloneAuxIntoGlobal(getDSGraph(**ii));
-  }
+  //errs() << "done main Funcs\n";
 
   // Calculate the graphs for any functions that are unreachable from main...
   for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I)
@@ -77,6 +75,8 @@ bool BUDataStructures::runOnModuleInternal(Module& M) {
       calculateGraphs(I, Stack, NextID, ValMap); // Calculate all graphs.
       CloneAuxIntoGlobal(getDSGraph(*I));
     }
+
+  //errs() << "done unreachable Funcs\n";
 
   // If we computed any temporary indcallgraphs, free them now.
   for (std::map<std::vector<const Function*>,
@@ -133,7 +133,7 @@ void BUDataStructures::finalizeGlobals(void) {
       BadCalls.insert(*ii);
     else
       GoodCalls.insert(*ii);
-  std::set<const DSNode*> reachable;
+  DenseSet<const DSNode*> reachable;
   for (std::set<DSCallSite>::iterator ii = BadCalls.begin(),
          ee = BadCalls.end(); ii != ee; ++ii) {
     ii->getRetVal().getNode()->markReachableNodes(reachable);
@@ -142,7 +142,7 @@ void BUDataStructures::finalizeGlobals(void) {
   }
   for (std::set<DSCallSite>::iterator ii = GoodCalls.begin(),
          ee = GoodCalls.end(); ii != ee; ++ii)
-    if (reachable.find(ii->getCalleeNode()) == reachable.end())
+    if (reachable.count(ii->getCalleeNode()))
       GlobalsGraph->getAuxFunctionCalls()
         .erase(std::find(GlobalsGraph->getAuxFunctionCalls().begin(),
                          GlobalsGraph->getAuxFunctionCalls().end(),
@@ -340,6 +340,25 @@ void BUDataStructures::CloneAuxIntoGlobal(DSGraph* G) {
 
 void BUDataStructures::calculateGraph(DSGraph* Graph) {
   DEBUG(Graph->AssertGraphOK(); Graph->getGlobalsGraph()->AssertGraphOK());
+
+  // If this graph contains the main function, clone the globals graph into this
+  // graph before we inline callees and other fun stuff.
+  bool ContainsMain = false;
+  DSGraph::ReturnNodesTy &ReturnNodes = Graph->getReturnNodes();
+
+  for (DSGraph::ReturnNodesTy::iterator I = ReturnNodes.begin(),
+       E = ReturnNodes.end(); I != E; ++I)
+    if (EP->isEntryPoint(I->first)) {
+      ContainsMain = true;
+      break;
+    }
+
+   // If this graph contains main, copy the contents of the globals graph over.
+   // Note that this is *required* for correctness.  If a callee contains a use
+   // of a global, we have to make sure to link up nodes due to global-argument
+   // bindings.
+   if (ContainsMain)
+     cloneGlobalsInto(Graph);
 
   // Move our call site list into TempFCs so that inline call sites go into the
   // new call site list and doesn't invalidate our iterators!

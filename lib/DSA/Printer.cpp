@@ -60,11 +60,20 @@ static std::string getCaption(const DSNode *N, const DSGraph *G) {
   if (N->isNodeCompletelyFolded())
     OS << "COLLAPSED";
   else {
-    if (N->getType())
-      WriteTypeSymbolic(OS, N->getType(), M);
+    if (N->type_begin() != N->type_end())
+      for (DSNode::TyMapTy::const_iterator ii = N->type_begin(),
+           ee = N->type_end(); ii != ee; ++ii) {
+        OS << ii->first << ": ";
+        for (DSNode::TyMapTy::mapped_type::iterator ni = ii->second.begin(),
+                ne = ii->second.end(); ni != ne; ++ni) {
+          WriteTypeSymbolic(OS, *ni, M);
+          OS << ", ";
+        }
+        OS << " ";
+      }
     else
       OS << "VOID";
-    if (N->isArray())
+    if (N->isArrayNode())
       OS << " array";
   }
   if (unsigned NodeType = N->getNodeFlags()) {
@@ -135,6 +144,11 @@ struct DOTGraphTraits<const DSGraph*> : public DefaultDOTGraphTraits {
                                     DSNode::const_iterator I) {
     unsigned O = I.getNode()->getLink(I.getOffset()).getOffset();
     return O != 0;
+  }
+
+  static std::string getEdgeSourceLabel(const void* Node,
+                                        DSNode::const_iterator I) {
+    return "*";
   }
 
   static DSNode::const_iterator getEdgeTarget(const DSNode *Node,

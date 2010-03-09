@@ -18,6 +18,7 @@
 #include "llvm/DerivedTypes.h"
 #include "llvm/Instructions.h"
 #include "llvm/Intrinsics.h"
+#include "llvm/InlineAsm.h"
 #include "llvm/Support/GetElementPtrTypeIterator.h"
 #include "llvm/Support/InstVisitor.h"
 #include "llvm/Target/TargetData.h"
@@ -28,7 +29,6 @@
 #include "llvm/ADT/Statistic.h"
 #include "llvm/ADT/DenseSet.h"
 
-#include <iostream>
 #include <fstream>
 
 // FIXME: This should eventually be a FunctionPass that is automatically
@@ -56,6 +56,7 @@ namespace {
     DSGraph &G;
     Function* FB;
     DataStructures* DS;
+    const TargetData& TD;
 
     ////////////////////////////////////////////////////////////////////////////
     // Helper functions used to implement the visitation functions...
@@ -65,9 +66,9 @@ namespace {
     /// createNode - Create a new DSNode, ensuring that it is properly added to
     /// the graph.
     ///
-    DSNode *createNode(const Type *Ty = 0) 
+    DSNode *createNode() 
     {   
-      DSNode* ret = new DSNode(Ty, &G);
+      DSNode* ret = new DSNode(&G);
       assert(ret->getParentGraph() && "No parent?");
       return ret;
     }
@@ -91,6 +92,17 @@ namespace {
     ////////////////////////////////////////////////////////////////////////////
     // Visitor functions, used to handle each instruction type we encounter...
     friend class InstVisitor<GraphBuilder>;
+
+    //TODO: generalize
+    bool visitAllocation(CallSite CS) {
+      if (Function* F = CS.getCalledFunction()) {
+        if (F->hasName() && F->getName() == "malloc") {
+          setDestTo(*CS.getInstruction(), createNode()->setHeapMarker());
+          return true;
+        }
+      }
+      return false;
+    }
 
     //FIXME: implement in stdlib pass
 //    void visitMallocInst(MallocInst &MI)
@@ -130,7 +142,7 @@ namespace {
 
   public:
     GraphBuilder(Function &f, DSGraph &g, DataStructures& DSi)
-      : G(g), FB(&f), DS(&DSi) {
+      : G(g), FB(&f), DS(&DSi), TD(g.getTargetData()) {
       // Create scalar nodes for all pointer arguments...
       for (Function::arg_iterator I = f.arg_begin(), E = f.arg_end();
            I != E; ++I) {
@@ -172,7 +184,7 @@ namespace {
 
     // GraphBuilder ctor for working on the globals graph
     explicit GraphBuilder(DSGraph& g)
-      :G(g), FB(0)
+      :G(g), FB(0), TD(g.getTargetData())
     {}
 
     void mergeInGlobalInitializer(GlobalVariable *GV);
@@ -196,8 +208,8 @@ namespace {
       visited.insert(N);
       N->setUnknownMarker();
       for (DSNode::edge_iterator I = N->edge_begin(), E = N->edge_end(); I != E; ++I)
-        if (!I->isNull())
-          workList.push_back(I->getNode());
+        if (!I->second.isNull())
+          workList.push_back(I->second.getNode());
     }
   }
 }
@@ -224,7 +236,7 @@ DSNodeHandle GraphBuilder::getValueDest(Value* V) {
   DSNode* N;
   if (GlobalVariable* GV = dyn_cast<GlobalVariable>(V)) {
     // Create a new global node for this global variable.
-    N = createNode(GV->getType()->getElementType());
+    N = createNode();
     N->addGlobal(GV);
     if (GV->isDeclaration())
       N->setExternGlobalMarker();
@@ -247,7 +259,7 @@ DSNodeHandle GraphBuilder::getValueDest(Value* V) {
         NH = G.getNodeForValue(CE);
       } else {
         // This returns a conservative unknown node for any unhandled ConstExpr
-        return NH = createNode()->setUnknownMarker();
+        NH = createNode()->setUnknownMarker();
       }
       if (NH.isNull()) {  // (getelementptr null, X) returns null
         G.eraseNodeForValue(V);
@@ -263,7 +275,7 @@ DSNodeHandle GraphBuilder::getValueDest(Value* V) {
       // not handle the aliases of parameters correctly. Here is only a quick
       // fix for some special cases.
       NH = getValueDest(cast<GlobalAlias>(C)->getAliasee());
-      return 0;
+      return NH;
     } else {
       errs() << "Unknown constant: " << *C << "\n";
       assert(0 && "Unknown constant type!");
@@ -340,7 +352,7 @@ void GraphBuilder::visitLoadInst(LoadInst &LI) {
   Ptr.getNode()->setReadMarker();
 
   // Ensure a typerecord exists...
-  Ptr.getNode()->mergeTypeInfo(LI.getType(), Ptr.getOffset(), false);
+  Ptr.getNode()->mergeTypeInfo(LI.getType(), Ptr.getOffset());
 
   if (isa<PointerType>(LI.getType()))
     setDestTo(LI, getLink(Ptr));
@@ -377,7 +389,7 @@ void GraphBuilder::visitVAArgInst(VAArgInst &I) {
 
   // Ensure a type record exists.
   DSNode *PtrN = Ptr.getNode();
-  PtrN->mergeTypeInfo(I.getType(), Ptr.getOffset(), false);
+  PtrN->mergeTypeInfo(I.getType(), Ptr.getOffset());
 
   if (isa<PointerType>(I.getType()))
     setDestTo(I, getLink(Ptr));
@@ -433,7 +445,7 @@ void GraphBuilder::visitExtractValueInst(ExtractValueInst& I) {
 
   // Ensure a typerecord exists...
   // FIXME: calculate offset
-  Ptr.getNode()->mergeTypeInfo(I.getType(), 0, false);
+  Ptr.getNode()->mergeTypeInfo(I.getType(), 0);
 
   if (isa<PointerType>(I.getType()))
     setDestTo(I, getLink(Ptr));
@@ -464,18 +476,11 @@ void GraphBuilder::visitGetElementPtrInst(User &GEP) {
     return;
   }
 
-
-  const PointerType *PTy = cast<PointerType>(GEP.getOperand(0)->getType());
+  //Make sure the uncollapsed node has a large enough size for the struct type
+  const PointerType *PTy = cast<PointerType > (GEP.getOperand(0)->getType());
   const Type *CurTy = PTy->getElementType();
-
-  if (Value.getNode()->mergeTypeInfo(CurTy, Value.getOffset())) {
-    // If the node had to be folded... exit quickly
-    setDestTo(GEP, Value);  // GEP result points to folded node
-
-    return;
-  }
-
-  const TargetData &TD = Value.getNode()->getTargetData();
+  if (TD.getTypeAllocSize(CurTy) + Value.getOffset() > Value.getNode()->getSize())
+    Value.getNode()->growSize(TD.getTypeAllocSize(CurTy) + Value.getOffset());
 
 #if 0
   // Handle the pointer index specially...
@@ -511,12 +516,7 @@ void GraphBuilder::visitGetElementPtrInst(User &GEP) {
        I != E; ++I)
     if (const StructType *STy = dyn_cast<StructType>(*I)) {
       const ConstantInt* CUI = cast<ConstantInt>(I.getOperand());
-#if 0
-      unsigned FieldNo = 
-        CUI->getType()->isSigned() ? CUI->getSExtValue() : CUI->getZExtValue();
-#else
       int FieldNo = CUI->getSExtValue();
-#endif
       Offset += (unsigned)TD.getStructLayout(STy)->getElementOffset(FieldNo);
     } else if (isa<PointerType>(*I)) {
       if (!isa<Constant>(I.getOperand()) ||
@@ -556,7 +556,7 @@ void GraphBuilder::visitGetElementPtrInst(User &GEP) {
 #endif
 
   // Add in the offset calculated...
-  Value.setOffset(Value.getOffset()+Offset);
+ Value.setOffset(Value.getOffset()+Offset);
 
   // Check the offset
   DSNode *N = Value.getNode();
@@ -577,20 +577,6 @@ void GraphBuilder::visitGetElementPtrInst(User &GEP) {
 
   // Value is now the pointer we want to GEP to be...  
   setDestTo(GEP, Value);
-#if 0
-  if (debug && (isa<Instruction>(GEP))) {
-    Instruction * IGEP = (Instruction *)(&GEP);
-    DSNode * N = Value.getNode();
-    if (IGEP->getParent()->getParent()->getName() == "alloc_vfsmnt")
-    {
-      if (G.getPoolDescriptorsMap().count(N) != 0)
-        if (G.getPoolDescriptorsMap()[N]) {
-	  DEBUG(errs() << "LLVA: GEP[" << 0 << "]: Pool for " << GEP.getName() << " is " << G.getPoolDescriptorsMap()[N]->getName() << "\n");
-	}
-    }
-  }
-#endif
-
 }
 
 
@@ -753,6 +739,16 @@ void GraphBuilder::visitCallSite(CallSite CS) {
     if (F->isIntrinsic() && visitIntrinsic(CS, F))
       return;
 
+  if (visitAllocation(CS))
+    return;
+
+  if (isa<InlineAsm>(CS.getCalledValue())) return;
+//  if (InlineAsm* IASM = dyn_cast<InlineAsm>(CS.getCalledValue())) {
+//    if (IASM->hasSideEffects())
+//      errs() << ASM w/ Side Effects\n";
+//    return;
+//  }
+
   // Set up the return value...
   DSNodeHandle RetVal;
   Instruction *I = CS.getInstruction();
@@ -825,8 +821,6 @@ void GraphBuilder::MergeConstantInitIntoNode(DSNodeHandle &NH, const Type* Ty, C
   }
 
   if (Ty->isIntOrIntVectorTy() || Ty->isFPOrFPVectorTy()) return;
-
-  const TargetData &TD = NH.getNode()->getTargetData();
 
   if (ConstantArray *CA = dyn_cast<ConstantArray>(C)) {
     for (unsigned i = 0, e = CA->getNumOperands(); i != e; ++i)

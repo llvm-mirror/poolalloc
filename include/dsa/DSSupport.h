@@ -19,6 +19,7 @@
 #include <map>
 #include <set>
 
+#include "llvm/ADT/DenseSet.h"
 #include "llvm/Support/CallSite.h"
 
 namespace llvm {
@@ -54,8 +55,11 @@ class DSNodeHandle {
   mutable unsigned Offset;
   void operator==(const DSNode *N);  // DISALLOW, use to promote N to nodehandle
 public:
+
+  DSNodeHandle() : N(0), Offset(0) {}
+
   // Allow construction, destruction, and assignment...
-  DSNodeHandle(DSNode *n = 0, unsigned offs = 0) : N(0), Offset(0) {
+  DSNodeHandle(DSNode *n, unsigned offs = 0) : N(0), Offset(0) {
     setTo(n, offs);
   }
   DSNodeHandle(const DSNodeHandle &H) : N(0), Offset(0) {
@@ -292,7 +296,7 @@ public:
   /// DSNodes, marking any nodes which are reachable.  All reachable nodes it
   /// adds to the set, which allows it to only traverse visited nodes once.
   ///
-  void markReachableNodes(std::set<const DSNode*> &Nodes) const;
+  void markReachableNodes(DenseSet<const DSNode*> &Nodes) const;
 
   bool operator<(const DSCallSite &CS) const {
     if (isDirectCall()) {      // This must sort by callee first!

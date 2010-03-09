@@ -24,7 +24,7 @@
 
 namespace llvm {
 
-
+class TargetData;
 class GlobalValue;
 
 //===----------------------------------------------------------------------===//

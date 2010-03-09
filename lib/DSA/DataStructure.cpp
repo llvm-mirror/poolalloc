@@ -15,6 +15,7 @@
 #include "dsa/DataStructure.h"
 #include "dsa/DSGraph.h"
 #include "dsa/DSSupport.h"
+#include "dsa/DSNode.h"
 #include "llvm/Constants.h"
 #include "llvm/Function.h"
 #include "llvm/GlobalVariable.h"
@@ -43,9 +44,6 @@ namespace {
   STATISTIC (NumDNE            , "Number of nodes removed by reachability");
 //  STATISTIC (NumTrivialDNE     , "Number of nodes trivially removed");
 //  STATISTIC (NumTrivialGlobalDNE, "Number of globals trivially removed");
-#ifdef LLVA_KERNEL
-  STATISTIC (LostPools         , "Number of pools lost to DSNode Merge");
-#endif
   static cl::opt<unsigned>
   DSAFieldLimit("dsa-field-limit", cl::Hidden,
                 cl::desc("Number of fields to track before collapsing a node"),
@@ -82,8 +80,12 @@ DSNode *DSNodeHandle::HandleForwarding() const {
 
   N = Next;
   N->NumReferrers++;
-  if (N->Size <= Offset) {
-    assert(N->Size <= 1 && "Forwarded to shrunk but not collapsed node?");
+
+  if (N->isArrayNode())
+    Offset %= N->getSize();
+
+  if (N->getSize() <= Offset) {
+    assert(N->getSize() <= 1 && "Forwarded to shrunk but not collapsed node?");
     Offset = 0;
   }
   return N;
@@ -120,22 +122,20 @@ DSNodeHandle &DSScalarMap::AddGlobal(const GlobalValue *GV) {
 // DSNode Implementation
 //===----------------------------------------------------------------------===//
 
-DSNode::DSNode(const Type *T, DSGraph *G)
-: NumReferrers(0), Size(0), ParentGraph(G), Ty(0), NodeType(0) {
+DSNode::DSNode(DSGraph *G)
+: NumReferrers(0), Size(0), ParentGraph(G), NodeType(0) {
   // Add the type entry if it is specified...
-  if (T) mergeTypeInfo(T, 0);
   if (G) G->addNode(this);
   ++NumNodeAllocated;
 }
 
 // DSNode copy constructor... do not copy over the referrers list!
 DSNode::DSNode(const DSNode &N, DSGraph *G, bool NullLinks)
-  : NumReferrers(0), Size(N.Size), ParentGraph(G),
-    Ty(N.Ty), Globals(N.Globals), NodeType(N.NodeType) {
+  : NumReferrers(0), Size(N.Size), ParentGraph(G), TyMap(N.TyMap),
+    Globals(N.Globals), NodeType(N.NodeType) {
   if (!NullLinks) {
     Links = N.Links;
-  } else
-    Links.resize(N.Links.size()); // Create the appropriate number of null links
+  }
   G->addNode(this);
   ++NumNodeAllocated;
 }
@@ -143,30 +143,13 @@ DSNode::DSNode(const DSNode &N, DSGraph *G, bool NullLinks)
 DSNode::~DSNode() {
   dropAllReferences();
   assert(hasNoReferrers() && "Referrers to dead node exist!");
-
-#ifdef LLVA_KERNEL
-  //
-  // Remove all references to this node from the Pool Descriptor Map.
-  //
-  DEBUG(errs() << "LLVA: Removing " << this << "\n");
-  if (ParentGraph) {
-    hash_map<const DSNode *, MetaPoolHandle*> &pdm=ParentGraph->getPoolDescriptorsMap();
-    pdm.erase (this);
-  }
-#endif
-}
-
-/// getTargetData - Get the target data object used to construct this node.
-///
-const TargetData &DSNode::getTargetData() const {
-  return ParentGraph->getTargetData();
 }
 
 void DSNode::assertOK() const {
-  assert(((Ty && Ty->getTypeID() != Type::VoidTyID) ||
-         ((!Ty || Ty->getTypeID() == Type::VoidTyID) && (Size == 0 ||
-         (NodeType & DSNode::ArrayNode)))) &&
-         "Node not OK!");
+//  assert(((Ty && Ty->getTypeID() != Type::VoidTyID) ||
+//         ((!Ty || Ty->getTypeID() == Type::VoidTyID) && (Size == 0 ||
+//         (NodeType & DSNode::ArrayNode)))) &&
+//         "Node not OK!");
 
   assert(ParentGraph && "Node has no parent?");
   const DSScalarMap &SM = ParentGraph->getScalarMap();
@@ -188,7 +171,6 @@ void DSNode::forwardNode(DSNode *To, unsigned Offset) {
   ForwardNH.setTo(To, Offset);
   NodeType = DeadNode;
   Size = 0;
-  Ty = 0;
 
   // Remove this node from the parent graph's Nodes list.
   ParentGraph->unlinkNode(this);
@@ -230,55 +212,45 @@ void DSNode::removeGlobal(const GlobalValue *GV) {
 void DSNode::foldNodeCompletely() {
   if (isNodeCompletelyFolded()) return;  // If this node is already folded...
 
+//  assert(0 && "Folding is happening");
+
   ++NumFolds;
 
   // If this node has a size that is <= 1, we don't need to create a forwarding
   // node.
   if (getSize() <= 1) {
-    NodeType |= DSNode::ArrayNode;
-    Ty = 0;
+    setCollapsedMarker();
     Size = 1;
     assert(Links.size() <= 1 && "Size is 1, but has more links?");
-    Links.resize(1);
   } else {
     // Create the node we are going to forward to.  This is required because
     // some referrers may have an offset that is > 0.  By forcing them to
     // forward, the forwarder has the opportunity to correct the offset.
-    DSNode *DestNode = new DSNode(0, ParentGraph);
-    DestNode->NodeType = NodeType|DSNode::ArrayNode;
-    DestNode->Ty = 0;
+    DSNode *DestNode = new DSNode(ParentGraph);
+    DestNode->NodeType = NodeType;
+    DestNode->setCollapsedMarker();
     DestNode->Size = 1;
     DestNode->Globals.swap(Globals);
-    
-    //    DOUT << "LLVA: foldNode: " << this << " becomes " << DestNode << "\n";
-#ifdef LLVA_KERNEL
-    //Again we have created a new DSNode, we need to fill in the
-    // pool desc map appropriately
-    assert(ParentGraph && "parent graph is not null \n"); 
-    hash_map<const DSNode *, MetaPoolHandle*> &pdm = ParentGraph->getPoolDescriptorsMap();
-    if (pdm.count(this) > 0) {
-      pdm[DestNode] = pdm[this];
-    } else {
-      //do nothing 
-    }
-#endif    
 
+    DSNodeHandle NH(DestNode);
+    
     // Start forwarding to the destination node...
     forwardNode(DestNode, 0);
 
-
     if (!Links.empty()) {
-      DestNode->Links.reserve(1);
-
-      DSNodeHandle NH(DestNode);
-      DestNode->Links.push_back(Links[0]);
 
       // If we have links, merge all of our outgoing links together...
-      for (unsigned i = Links.size()-1; i != 0; --i)
-        NH.getNode()->Links[0].mergeWith(Links[i]);
+      for (LinkMapTy::iterator ii = edge_begin(), ee = edge_end();
+           ii != ee; ++ii)
+        NH.getNode()->Links[0].mergeWith(ii->second);
       Links.clear();
-    } else {
-      DestNode->Links.resize(1);
+    }
+    //Merge types
+    if (!TyMap.empty()) {
+      for (TyMapTy::iterator ii = type_begin(), ee = type_end();
+           ii != ee; ++ii)
+        NH.getNode()->mergeTypeInfo(ii);
+      TyMap.clear();
     }
   }
 }
@@ -288,8 +260,7 @@ void DSNode::foldNodeCompletely() {
 /// all of the field sensitivity that may be present in the node.
 ///
 bool DSNode::isNodeCompletelyFolded() const {
-  return getSize() == 1 && (!Ty || Ty->getTypeID() == Type::VoidTyID)
-          && isArray();
+  return  isCollapsedNode();
 }
 
 /// addFullGlobalsList - Compute the full set of global values that are
@@ -330,179 +301,6 @@ void DSNode::addFullFunctionList(std::vector<const Function*> &List) const {
   }
 }
 
-namespace {
-  /// TypeElementWalker Class - Used for implementation of physical subtyping...
-  ///
-  class TypeElementWalker {
-    struct StackState {
-      const Type *Ty;
-      unsigned Offset;
-      unsigned Idx;
-      StackState(const Type *T, unsigned Off = 0)
-        : Ty(T), Offset(Off), Idx(0) {}
-    };
-
-    std::vector<StackState> Stack;
-    const TargetData &TD;
-  public:
-    TypeElementWalker(const Type *T, const TargetData &td) : TD(td) {
-      Stack.push_back(T);
-      StepToLeaf();
-    }
-
-    bool isDone() const { return Stack.empty(); }
-    const Type *getCurrentType()   const { return Stack.back().Ty;     }
-    unsigned    getCurrentOffset() const { return Stack.back().Offset; }
-
-    void StepToNextType() {
-      PopStackAndAdvance();
-      StepToLeaf();
-    }
-
-  private:
-    /// PopStackAndAdvance - Pop the current element off of the stack and
-    /// advance the underlying element to the next contained member.
-    void PopStackAndAdvance() {
-      assert(!Stack.empty() && "Cannot pop an empty stack!");
-      Stack.pop_back();
-      while (!Stack.empty()) {
-        StackState &SS = Stack.back();
-        if (const StructType *ST = dyn_cast<StructType>(SS.Ty)) {
-          ++SS.Idx;
-          if (SS.Idx != ST->getNumElements()) {
-            const StructLayout *SL = TD.getStructLayout(ST);
-            SS.Offset +=
-               unsigned(SL->getElementOffset(SS.Idx)-SL->getElementOffset(SS.Idx-1));
-            return;
-          }
-          Stack.pop_back();  // At the end of the structure
-        } else {
-          const ArrayType *AT = cast<ArrayType>(SS.Ty);
-          ++SS.Idx;
-          if (SS.Idx != AT->getNumElements()) {
-            SS.Offset += unsigned(TD.getTypeAllocSize(AT->getElementType()));
-            return;
-          }
-          Stack.pop_back();  // At the end of the array
-        }
-      }
-    }
-
-    /// StepToLeaf - Used by physical subtyping to move to the first leaf node
-    /// on the type stack.
-    void StepToLeaf() {
-      if (Stack.empty()) return;
-      while (!Stack.empty() && !Stack.back().Ty->isFirstClassType()) {
-        StackState &SS = Stack.back();
-        if (const StructType *ST = dyn_cast<StructType>(SS.Ty)) {
-          if (ST->getNumElements() == 0) {
-            assert(SS.Idx == 0);
-            PopStackAndAdvance();
-          } else {
-            // Step into the structure...
-            assert(SS.Idx < ST->getNumElements());
-            const StructLayout *SL = TD.getStructLayout(ST);
-            Stack.push_back(StackState(ST->getElementType(SS.Idx),
-                            SS.Offset+unsigned(SL->getElementOffset(SS.Idx))));
-          }
-        } else {
-          const ArrayType *AT = cast<ArrayType>(SS.Ty);
-          if (AT->getNumElements() == 0) {
-            assert(SS.Idx == 0);
-            PopStackAndAdvance();
-          } else {
-            // Step into the array...
-            assert(SS.Idx < AT->getNumElements());
-            Stack.push_back(StackState(AT->getElementType(),
-                                       SS.Offset+SS.Idx*
-                             unsigned(TD.getTypeAllocSize(AT->getElementType()))));
-          }
-        }
-      }
-    }
-  };
-} // end anonymous namespace
-
-/// ElementTypesAreCompatible - Check to see if the specified types are
-/// "physically" compatible.  If so, return true, else return false.  We only
-/// have to check the fields in T1: T2 may be larger than T1.  If AllowLargerT1
-/// is true, then we also allow a larger T1.
-///
-static bool ElementTypesAreCompatible(const Type *T1, const Type *T2,
-                                      bool AllowLargerT1, const TargetData &TD){
-  TypeElementWalker T1W(T1, TD), T2W(T2, TD);
-
-  while (!T1W.isDone() && !T2W.isDone()) {
-    if (T1W.getCurrentOffset() != T2W.getCurrentOffset())
-      return false;
-
-    const Type *T1 = T1W.getCurrentType();
-    const Type *T2 = T2W.getCurrentType();
-    if (T1 != T2 && !T1->canLosslesslyBitCastTo(T2))
-      return false;
-
-    T1W.StepToNextType();
-    T2W.StepToNextType();
-  }
-
-  return AllowLargerT1 || T1W.isDone();
-}
-
-//
-// Function: getElementAtOffsetWithPadding()
-//
-// Description:
-//  Take a byte offset into a structure and return the type at that byte
-//  offset that *includes* any padding that occurs after the structure element.
-//
-static inline const Type *
-getElementAtOffsetWithPadding (const TargetData & TD,
-                               const StructLayout & SL,
-                               const StructType * STy,
-                               unsigned index) {
-  //
-  // Get the type of the element at the specified type index.
-  //
-  const Type * SubType = STy->getElementType(index);
-
-  //
-  // If this is the last element in the structure, just return the subtype;
-  // there is no padding after the last element.
-  //
-  if (index == (STy->getNumElements() - 1))
-    return SubType;
-
-  //
-  // Get the byte offset of this element and its successor element.
-  //
-  unsigned int thisOffset = (unsigned) SL.getElementOffset(index);
-  unsigned int nextOffset = (unsigned) SL.getElementOffset(index + 1);
-
-  //
-  // If the size of the current element is less than the distance between
-  // the offset at this index and the offset at the next index, then there is
-  // some padding in between this element and the next.  Create a structure
-  // type that contains this element *and* the padding.
-  //
-  if ((TD.getTypeAllocSize (SubType)) < (nextOffset - thisOffset)) {
-    //
-    // Create an array type that fits the padding size.
-    //
-    const Type * Int8Type = IntegerType::getInt8Ty(SubType->getContext());
-    const Type * paddingType = ArrayType::get (Int8Type, nextOffset-thisOffset);
-
-    //
-    // Create a structure type that contains the element and the padding array.
-    //
-    std::vector<const Type *> elementTypes;
-    elementTypes.push_back (SubType);
-    elementTypes.push_back (paddingType);
-    return (StructType::get (SubType->getContext(), elementTypes, true));
-  } else {
-    return SubType;
-  }
-}
-
 /// mergeTypeInfo - This method merges the specified type into the current node
 /// at the specified offset.  This may update the current node's type record if
 /// this gives more information to the node, it may do nothing to the node if
@@ -511,321 +309,27 @@ getElementAtOffsetWithPadding (const TargetData & TD,
 ///
 /// This method returns true if the node is completely folded, otherwise false.
 ///
-bool DSNode::mergeTypeInfo(const Type *NewTy, unsigned Offset,
-                           bool FoldIfIncompatible) {
-  //DOUT << "merging " << *NewTy << " at " << Offset << " with " << *Ty << "\n";
-  if (!Ty) Ty = Type::getVoidTy(NewTy->getContext());
+void DSNode::mergeTypeInfo(const Type *NewTy, unsigned Offset) {
 
-  const TargetData &TD = getTargetData();
-  // Check to make sure the Size member is up-to-date.  Size can be one of the
-  // following:
-  //  Size = 0, Ty = Void: Nothing is known about this node.
-  //  Size = 0, Ty = FnTy: FunctionPtr doesn't have a size, so we use zero
-  //  Size = 1, Ty = Void, Array = 1: The node is collapsed
-  //  Otherwise, sizeof(Ty) = Size
-  //
-  const Type * VoidType = Type::getVoidTy(NewTy->getContext());
-  assert(((Size == 0 && Ty == VoidType && !isArray()) ||
-          (Size == 0 && !Ty->isSized() && !isArray()) ||
-          (Size == 1 && Ty == VoidType && isArray()) ||
-          (Size == 0 && !Ty->isSized() && !isArray()) ||
-          (TD.getTypeAllocSize(Ty) == Size)) &&
-         "Size member of DSNode doesn't match the type structure!");
-  assert(NewTy != VoidType && "Cannot merge void type into DSNode!");
+  if (!NewTy || NewTy->isVoidTy()) return;
 
-  if (Offset == 0 && NewTy == Ty)
-    return false;  // This should be a common case, handle it efficiently
+  if (isCollapsedNode()) Offset = 0;
+  if (isArrayNode()) Offset %= getSize();
 
-  // Return true immediately if the node is completely folded.
-  if (isNodeCompletelyFolded()) return true;
+  if (Offset >= getSize()) growSize(Offset+1);
 
-  // If this is an array type, eliminate the outside arrays because they won't
-  // be used anyway.  This greatly reduces the size of large static arrays used
-  // as global variables, for example.
-  //
-  bool WillBeArray = false;
-  while (const ArrayType *AT = dyn_cast<ArrayType>(NewTy)) {
-    // FIXME: we might want to keep small arrays, but must be careful about
-    // things like: [2 x [10000 x int*]]
-    NewTy = AT->getElementType();
-    WillBeArray = true;
-  }
-
-  // Figure out how big the new type we're merging in is...
-  unsigned NewTySize = NewTy->isSized() ? (unsigned)TD.getTypeAllocSize(NewTy) : 0;
-
-  // Otherwise check to see if we can fold this type into the current node.  If
-  // we can't, we fold the node completely, if we can, we potentially update our
-  // internal state.
-  //
-  if (Ty == VoidType) {
-    // If this is the first type that this node has seen, just accept it without
-    // question....
-    assert(Offset == 0 && !isArray() &&
-           "Cannot have an offset into a void node!");
-
-    // If this node would have to have an unreasonable number of fields, just
-    // collapse it.  This can occur for fortran common blocks, which have stupid
-    // things like { [100000000 x double], [1000000 x double] }.
-    unsigned NumFields = NewTySize;
-    if (NumFields > DSAFieldLimit) {
-      foldNodeCompletely();
-      return true;
-    }
-
-    Ty = NewTy;
-    NodeType &= ~ArrayNode;
-    if (WillBeArray) NodeType |= ArrayNode;
-    Size = NewTySize;
-
-    // Calculate the number of outgoing links from this node.
-    Links.resize(NumFields);
-    return false;
-  }
-
-  // Handle node expansion case here...
-  if (Offset+NewTySize > Size) {
-    // It is illegal to grow this node if we have treated it as an array of
-    // objects...
-    if (isArray()) {
-      if (FoldIfIncompatible) foldNodeCompletely();
-      return true;
-    }
-
-    // If this node would have to have an unreasonable number of fields, just
-    // collapse it.  This can occur for fortran common blocks, which have stupid
-    // things like { [100000000 x double], [1000000 x double] }.
-    unsigned NumFields = NewTySize+Offset;
-    if (NumFields > DSAFieldLimit) {
-      foldNodeCompletely();
-      return true;
-    }
-
-    if (Offset) {
-      //handle some common cases:
-      // Ty:    struct { t1, t2, t3, t4, ..., tn}
-      // NewTy: struct { offset, stuff...}
-      // try merge with NewTy: struct {t1, t2, stuff...} if offset lands exactly
-      // on a field in Ty
-      if (isa<StructType>(NewTy) && isa<StructType>(Ty)) {
-        DEBUG(errs() << "Ty: " << *Ty << "\nNewTy: " << *NewTy << "@" << Offset << "\n");
-        const StructType *STy = cast<StructType>(Ty);
-        const StructLayout &SL = *TD.getStructLayout(STy);
-        unsigned i = SL.getElementContainingOffset(Offset);
-        //Either we hit it exactly or give up
-        if (SL.getElementOffset(i) != Offset) {
-          if (FoldIfIncompatible) foldNodeCompletely();
-          return true;
-        }
-        std::vector<const Type*> nt;
-        for (unsigned x = 0; x < i; ++x)
-          nt.push_back(STy->getElementType(x));
-        STy = cast<StructType>(NewTy);
-        nt.insert(nt.end(), STy->element_begin(), STy->element_end());
-        //and merge
-        STy = StructType::get(STy->getContext(), nt);
-        DEBUG(errs() << "Trying with: " << *STy << "\n");
-        return mergeTypeInfo(STy, 0);
-      }
-
-      //Ty: struct { t1, t2, t3 ... tn}
-      //NewTy T offset x
-      //try merge with NewTy: struct : {t1, t2, T} if offset lands on a field
-      //in Ty
-      if (isa<StructType>(Ty)) {
-        DEBUG(errs() << "Ty: " << *Ty << "\nNewTy: " << *NewTy << "@" << Offset << "\n");
-        const StructType *STy = cast<StructType>(Ty);
-        const StructLayout &SL = *TD.getStructLayout(STy);
-        unsigned i = SL.getElementContainingOffset(Offset);
-        //Either we hit it exactly or give up
-        if (SL.getElementOffset(i) != Offset) {
-          if (FoldIfIncompatible) foldNodeCompletely();
-          return true;
-        }
-        std::vector<const Type*> nt;
-        for (unsigned x = 0; x < i; ++x)
-          nt.push_back(STy->getElementType(x));
-        nt.push_back(NewTy);
-        //and merge
-        STy = StructType::get(STy->getContext(), nt);
-        DEBUG(errs() << "Trying with: " << *STy << "\n");
-        return mergeTypeInfo(STy, 0);
-      }
-
-      assert(0 &&
-             "UNIMP: Trying to merge a growth type into "
-             "offset != 0: Collapsing!");
-      abort();
-      if (FoldIfIncompatible) foldNodeCompletely();
-      return true;
-
-    }
-
-
-    // Okay, the situation is nice and simple, we are trying to merge a type in
-    // at offset 0 that is bigger than our current type.  Implement this by
-    // switching to the new type and then merge in the smaller one, which should
-    // hit the other code path here.  If the other code path decides it's not
-    // ok, it will collapse the node as appropriate.
-    //
-
-    const Type *OldTy = Ty;
-    Ty = NewTy;
-    NodeType &= ~ArrayNode;
-    if (WillBeArray) NodeType |= ArrayNode;
-    Size = NewTySize;
-
-    // Must grow links to be the appropriate size...
-    Links.resize(NumFields);
-
-    // Merge in the old type now... which is guaranteed to be smaller than the
-    // "current" type.
-    return mergeTypeInfo(OldTy, 0);
-  }
-
-  assert(Offset <= Size &&
-         "Cannot merge something into a part of our type that doesn't exist!");
-
-  // Find the section of Ty that NewTy overlaps with... first we find the
-  // type that starts at offset Offset.
-  //
-  unsigned O = 0;
-  const Type *SubType = Ty;
-  while (O < Offset) {
-    assert(Offset-O < TD.getTypeAllocSize(SubType) && "Offset out of range!");
-
-    switch (SubType->getTypeID()) {
-    case Type::StructTyID: {
-      const StructType *STy = cast<StructType>(SubType);
-      const StructLayout &SL = *TD.getStructLayout(STy);
-
-      unsigned i = SL.getElementContainingOffset(Offset-O);
-
-      //
-      // The offset we are looking for must be in the i'th element...
-      // However, be careful!  It is possible that the offset lands in a
-      // padding area of the structure.  Use a special methods that will either
-      // return us the type of the element we seek or a structure that contains
-      // an explicit element representing the padding.
-      //
-      SubType = getElementAtOffsetWithPadding (TD, SL, STy, i);
-      O += (unsigned)SL.getElementOffset(i);
-      break;
-    }
-    case Type::ArrayTyID: {
-      SubType = cast<ArrayType>(SubType)->getElementType();
-      unsigned ElSize = (unsigned)TD.getTypeAllocSize(SubType);
-      unsigned Remainder = (Offset-O) % ElSize;
-      O = Offset-Remainder;
-      break;
-    }
-    default:
-      if (FoldIfIncompatible) foldNodeCompletely();
-      return true;
-    }
-  }
-
-  assert(O == Offset && "Could not achieve the correct offset!");
-
-  // If we found our type exactly, early exit
-  if (SubType == NewTy) return false;
-
-  // Differing function types don't require us to merge.  They are not values
-  // anyway.
-  if (isa<FunctionType>(SubType) &&
-      isa<FunctionType>(NewTy)) return false;
-
-  unsigned SubTypeSize = SubType->isSized() ?
-       (unsigned)TD.getTypeAllocSize(SubType) : 0;
-
-  // Ok, we are getting desperate now.  Check for physical subtyping, where we
-  // just require each element in the node to be compatible.
-  if (NewTySize <= SubTypeSize && NewTySize && NewTySize < 256 &&
-      SubTypeSize && SubTypeSize < 256 &&
-      ElementTypesAreCompatible(NewTy, SubType, !isArray(), TD))
-    return false;
-
-  // Okay, so we found the leader type at the offset requested.  Search the list
-  // of types that starts at this offset.  If SubType is currently an array or
-  // structure, the type desired may actually be the first element of the
-  // composite type...
-  //
-  unsigned PadSize = SubTypeSize; // Size, including pad memory which is ignored
-  while (SubType != NewTy) {
-    const Type *NextSubType = 0;
-    unsigned NextSubTypeSize = 0;
-    unsigned NextPadSize = 0;
-    switch (SubType->getTypeID()) {
-    case Type::StructTyID: {
-      const StructType *STy = cast<StructType>(SubType);
-      const StructLayout &SL = *TD.getStructLayout(STy);
-      if (STy->getNumElements() > 1)
-        NextPadSize = (unsigned)SL.getElementOffset(1);
-      else
-        NextPadSize = SubTypeSize;
-      NextSubType = STy->getElementType(0);
-      NextSubTypeSize = (unsigned)TD.getTypeAllocSize(NextSubType);
-      break;
-    }
-    case Type::ArrayTyID:
-      NextSubType = cast<ArrayType>(SubType)->getElementType();
-      NextSubTypeSize = (unsigned)TD.getTypeAllocSize(NextSubType);
-      NextPadSize = NextSubTypeSize;
-      break;
-    default: ;
-      // fall out
-    }
-
-    if (NextSubType == 0)
-      break;   // In the default case, break out of the loop
-
-    if (NextPadSize < NewTySize)
-      break;   // Don't allow shrinking to a smaller type than NewTySize
-    SubType = NextSubType;
-    SubTypeSize = NextSubTypeSize;
-    PadSize = NextPadSize;
-  }
-
-  // If we found the type exactly, return it...
-  if (SubType == NewTy)
-    return false;
-
-  // Check to see if we have a compatible, but different type...
-  if (NewTySize == SubTypeSize) {
-    // Check to see if this type is obviously convertible... int -> uint f.e.
-    if (NewTy->canLosslesslyBitCastTo(SubType))
-      return false;
-
-    // Check to see if we have a pointer & integer mismatch going on here,
-    // loading a pointer as a long, for example.
-    //
-    if ((SubType->isIntegerTy() && NewTy->isPointerTy()) ||
-        (NewTy->isIntegerTy() && SubType->isPointerTy()))
-      return false;
-  } else if (NewTySize > SubTypeSize && NewTySize <= PadSize) {
-    // We are accessing the field, plus some structure padding.  Ignore the
-    // structure padding.
-    return false;
-  }
-
-  const Module *M = 0;
-  if (getParentGraph()->retnodes_begin() != getParentGraph()->retnodes_end())
-    M = getParentGraph()->retnodes_begin()->first->getParent();
-
-  DEBUG(errs() << "MergeTypeInfo Folding OrigTy: ");
-  raw_stderr_ostream stream;
-  DEBUG(WriteTypeSymbolic(stream, Ty, M);
-        stream << "\n due to:";
-        WriteTypeSymbolic(stream, NewTy, M);
-        stream << " @ " << Offset << "!\n" << "SubType: ";
-        WriteTypeSymbolic(stream, SubType, M);
-        stream << "\n\n");
-
-  if (FoldIfIncompatible) foldNodeCompletely();
-  return true;
+  TyMap[Offset].insert(NewTy);
 }
 
+void DSNode::mergeTypeInfo(TyMapTy::const_iterator TyIt, unsigned Offset) {
+  Offset += TyIt->first;
+  if (isCollapsedNode()) Offset = 0;
+  if (isArrayNode()) Offset %= getSize();
 
+  if (Offset >= getSize()) growSize(Offset+1);
+
+  TyMap[Offset].insert(TyIt->second.begin(), TyIt->second.end());
+}
 
 /// addEdgeTo - Add an edge from the current node to the specified node.  This
 /// can cause merging of nodes in the graph.
@@ -853,6 +357,16 @@ void DSNode::mergeGlobals(const DSNode &RHS) {
                  RHS.Globals.begin(), RHS.Globals.end(), 
                  back_it);
   Globals.swap(Temp);
+}
+
+static unsigned gcd(unsigned m, unsigned n) {
+  if (m < n) return gcd(n,m);
+  unsigned r = m % n;
+  if (r == 0) {
+    return n;
+  } else {
+    return gcd(n, r);
+  }
 }
 
 // MergeNodes - Helper function for DSNode::mergeWith().
@@ -891,62 +405,11 @@ void DSNode::MergeNodes(DSNodeHandle& CurNodeH, DSNodeHandle& NH) {
     }
 #endif
   }
-#ifdef LLVA_KERNEL
-  DSNode *currNode  = CurNodeH.getNode();
-  DSNode *NNode  = NH.getNode();
-  DSGraph *pGraph =  currNode->getParentGraph();
-  assert((pGraph == NNode->getParentGraph()) && "LLVA_KERNEL : merging nodes in two different graphs?");
-  //get the pooldescriptor map
-  hash_map<const DSNode *, MetaPoolHandle*> &pdm = pGraph->getPoolDescriptorsMap();
-  if (pdm.count(currNode) == 0) {
-    if (pdm.count(NNode) == 0) {
-      //do nothing  (common case)
-    } else {
-      if (pdm[NNode]) {
-        DEBUG(errs() << "LLVA: 1: currNode (" << currNode << ") becomes " << pdm[NNode]->getName() << "(" << NNode << ")\n");
-        pdm[currNode] = pdm[NNode];
-      }
-    }
-  } else {
-    if (pdm.count(NNode) == 0) {
-#if 1
-      //
-      // FIXME:
-      //  Verify that this is correct.  I believe it is; it seems to make sense
-      //  since either node can be used after the merge.
-      //
-      DEBUG(errs() << "LLVA: MergeNodes: currnode has something, newnode has nothing\n"
-            << "LLVA: 2: currNode (" << currNode << ") becomes <no name>"
-            << "(" << NNode << ")\n");
-      pdm[NNode] = pdm[currNode];
-#endif
-      //do nothing 
-    } else {
-      if (pdm[currNode] != pdm[NNode]) {
-	//The following is commented because pdm[..] could be null!
-	//std::cerr << "LLVA: OldPool: " << pdm[currNode]->getName() << "("
-        //                       << pdm[currNode] << ") "
-	//          << " NewPool: "      << pdm[NNode]->getName() << "("
-	//                               << pdm[NNode] << ")" << std::endl;
-        pdm[NNode]->merge(pdm[currNode]);
-        /*
-        Value *currN = pdm[currNode]->getMetaPoolValue();
-        Value *NN = pdm[NNode]->getMetaPoolValue();
-        if (currN != NN) {
-          std::cerr << "LLVA: Two Pools for one DSNode\n";
-          currN->replaceAllUsesWith(NN);
-          pdm[currNode]->merge(pdm[NNode]);
-        } else {
-          //The nodes are same
-        }
-        */
-      }
-    }
-  }
-#endif  
+
   // Merge the type entries of the two nodes together...
-  if (NH.getNode()->Ty && NH.getNode()->Ty->getTypeID() != Type::VoidTyID)
-    CurNodeH.getNode()->mergeTypeInfo(NH.getNode()->Ty, NOffset);
+  for (TyMapTy::iterator ii = NH.getNode()->TyMap.begin(),
+      ee = NH.getNode()->TyMap.end(); ii != ee; ++ii)
+    CurNodeH.getNode()->mergeTypeInfo(ii, NOffset);
   assert(!CurNodeH.getNode()->isDeadNode());
 
   // If we are merging a node with a completely folded node, then both nodes are
@@ -970,6 +433,8 @@ void DSNode::MergeNodes(DSNodeHandle& CurNodeH, DSNodeHandle& NH) {
     assert(NOffset == 0 && NSize == 1);
   }
 
+
+
   DSNode *N = NH.getNode();
   if (CurNodeH.getNode() == N || N == 0) return;
   assert(!CurNodeH.getNode()->isDeadNode());
@@ -983,9 +448,9 @@ void DSNode::MergeNodes(DSNodeHandle& CurNodeH, DSNodeHandle& NH) {
 
   // Make all of the outgoing links of N now be outgoing links of CurNodeH.
   //
-  for (unsigned i = 0; i < N->getNumLinks(); ++i) {
-    DSNodeHandle &Link = N->getLink(i);
-    if (Link.getNode()) {
+  for (LinkMapTy::iterator ii = N->Links.begin(), ee = N->Links.end();
+       ii != ee; ++ii)
+    if (ii->second.getNode()) {
       // Compute the offset into the current node at which to
       // merge this link.  In the common case, this is a linear
       // relation to the offset in the original node (with
@@ -995,10 +460,9 @@ void DSNode::MergeNodes(DSNodeHandle& CurNodeH, DSNodeHandle& NH) {
       unsigned MergeOffset = 0;
       DSNode *CN = CurNodeH.getNode();
       if (CN->Size != 1)
-        MergeOffset = (i+NOffset) % CN->getSize();
-      CN->addEdgeTo(MergeOffset, Link);
+        MergeOffset = (ii->first+NOffset) % CN->getSize();
+      CN->addEdgeTo(MergeOffset, ii->second);
     }
-  }
 
   // Now that there are no outgoing edges, all of the Links are dead.
   N->Links.clear();
@@ -1103,26 +567,15 @@ DSNodeHandle ReachabilityCloner::getClonedNH(const DSNodeHandle &SrcNH) {
   DN->maskNodeTypes(BitsToKeep);
   NH = DN;
   //DOUT << "getClonedNH: " << SN << " becomes " << DN << "\n";
-#if 1
-#ifdef LLVA_KERNEL
-    //Again we have created a new DSNode, we need to fill in the
-    // pool desc map appropriately
-    hash_map<const DSNode *, MetaPoolHandle*> &pdm = Dest.getPoolDescriptorsMap();
-    if (pdm.count(SN) > 0) {
-      pdm[DN] = pdm[SN];
-    } else {
-      //do nothing 
-    }
-#endif    
-#endif
 
   // Next, recursively clone all outgoing links as necessary.  Note that
   // adding these links can cause the node to collapse itself at any time, and
   // the current node may be merged with arbitrary other nodes.  For this
   // reason, we must always go through NH.
   DN = 0;
-  for (unsigned i = 0, e = SN->getNumLinks(); i != e; ++i) {
-    const DSNodeHandle &SrcEdge = SN->getLink(i);
+  for (DSNode::LinkMapTy::const_iterator ii = SN->edge_begin(),
+          ee = SN->edge_end(); ii != ee; ++ii) {
+    const DSNodeHandle &SrcEdge = ii->second;
     if (!SrcEdge.isNull()) {
       const DSNodeHandle &DestEdge = getClonedNH(SrcEdge);
       // Compute the offset into the current node at which to
@@ -1134,7 +587,7 @@ DSNodeHandle ReachabilityCloner::getClonedNH(const DSNodeHandle &SrcNH) {
       unsigned MergeOffset = 0;
       DSNode *CN = NH.getNode();
       if (CN->getSize() != 1)
-        MergeOffset = (i + NH.getOffset()) % CN->getSize();
+        MergeOffset = (ii->first + NH.getOffset()) % CN->getSize();
       CN->addEdgeTo(MergeOffset, DestEdge);
     }
   }
@@ -1206,12 +659,15 @@ void ReachabilityCloner::merge(const DSNodeHandle &NH,
 #endif
       }
 
+      if (DN->getSize() < SN->getSize())
+        DN->growSize(SN->getSize());
+
       // Merge the type entries of the two nodes together...
-      if ((SN->getType() && SN->getType()->getTypeID() != Type::VoidTyID)
-              && !DN->isNodeCompletelyFolded()) {
-        DN->mergeTypeInfo(SN->getType(), NH.getOffset() - SrcNH.getOffset());
-        DN = NH.getNode();
-      }
+      if (!DN->isNodeCompletelyFolded())
+        for (DSNode::TyMapTy::const_iterator ii = SN->type_begin(),
+             ee = SN->type_end(); ii != ee; ++ii)
+          DN->mergeTypeInfo(ii, NH.getOffset() - SrcNH.getOffset());
+
     }
 
     assert(!DN->isDeadNode());
@@ -1276,59 +732,14 @@ void ReachabilityCloner::merge(const DSNodeHandle &NH,
 
   //  DOUT << "LLVA: mergeWith: " << SN << " becomes " << DN << "\n";
 
-#ifdef LLVA_KERNEL
-  //Here some merge is going on just like in DSNode::merge
-  //I think because of the inplace merging we don't update the pool desc maps
-  //This is modification from DSNode::MergeNodes
-  //Here DN and SN may belong to different graphs
- DN = NH.getNode(); 
-#if 0
-  DSGraph *destGraph =  DN->getParentGraph();
-  DSGraph *srcGraph =  SN->getParentGraph();
-#else
-  DSGraph *destGraph = NH.getNode()->getParentGraph();
-  DSGraph *srcGraph =  SN->getParentGraph();
-#endif
-  if (destGraph && srcGraph) {
-    //get the pooldescriptor map
-    hash_map<const DSNode *, MetaPoolHandle*> &destpdm = destGraph->getPoolDescriptorsMap();
-    hash_map<const DSNode *, MetaPoolHandle*> &srcpdm = srcGraph->getPoolDescriptorsMap();
-    if (destpdm.count(DN) == 0) {
-      if (srcpdm.count(SN) == 0) {
-        //do nothing  (common case)
-      } else {
-        if (srcpdm[SN]) {
-          DEBUG(errs() << "DN becomes " << srcpdm[SN]->getName() << std::endl);
-          destpdm[DN] = srcpdm[SN];
-        }
-      }
-    } else {
-      if (srcpdm.count(SN) == 0) {
-        srcpdm[SN] = destpdm[DN];
-      } else {
-        if (destpdm[DN] != srcpdm[SN]) {
-          srcpdm[SN]->merge(destpdm[DN]);
-          /*
-          Value *dnv = destpdm[DN]->getMetaPoolValue();
-          Value *snv = srcpdm[SN]->getMetaPoolValue();
-          if (dnv != snv) {
-            DEBUG(std::cerr << "LLVA: Two Pools for one DSNode\n");
-            dnv->replaceAllUsesWith(snv);
-            destpdm[DN]->setMetaPoolValue(snv);
-          }
-          */
-        }
-      }
-    }
-  }
-#endif  
   // Next, recursively merge all outgoing links as necessary.  Note that
   // adding these links can cause the destination node to collapse itself at
   // any time, and the current node may be merged with arbitrary other nodes.
   // For this reason, we must always go through NH.
   DN = 0;
-  for (unsigned i = 0, e = SN->getNumLinks(); i != e; ++i) {
-    const DSNodeHandle &SrcEdge = SN->getLink(i);
+  for (DSNode::LinkMapTy::const_iterator ii = SN->edge_begin(),
+          ee = SN->edge_end(); ii != ee; ++ii) {
+    const DSNodeHandle &SrcEdge = ii->second;
     if (!SrcEdge.isNull()) {
       // Compute the offset into the current node at which to
       // merge this link.  In the common case, this is a linear
@@ -1337,8 +748,7 @@ void ReachabilityCloner::merge(const DSNodeHandle &NH,
       // recursive merging, we must make sure to merge in all remaining
       // links at offset zero.
       DSNode *CN = SCNH.getNode();
-      unsigned MergeOffset =
-        (i+SCNH.getOffset()) % CN->getSize();
+      unsigned MergeOffset = (ii->first+SCNH.getOffset()) % CN->getSize();
 
       DSNodeHandle Tmp = CN->getLink(MergeOffset);
       if (!Tmp.isNull()) {
@@ -1353,7 +763,7 @@ void ReachabilityCloner::merge(const DSNodeHandle &NH,
 
         unsigned MergeOffset = 0;
         CN = SCNH.getNode();
-        MergeOffset = (i + SCNH.getOffset()) %CN->getSize();
+        MergeOffset = (ii->first + SCNH.getOffset()) % CN->getSize();
         CN->getLink(MergeOffset).mergeWith(Tmp);
       }
     }
@@ -1405,53 +815,6 @@ void DSCallSite::InitNH(DSNodeHandle &NH, const DSNodeHandle &Src,
   NH = RC.getClonedNH(Src);
 }
 
-#ifdef LLVA_KERNEL
-// MetaPoolHandle Implementation
-  //The following should go in a cpp file later
-   MetaPoolHandle::MetaPoolHandle(MetaPool *mp, Instruction * Maker) {
-    Rep = mp;
-    Rep->insert(this);
-    Creator = Maker;
-  }
-  const std::string& MetaPoolHandle::getName() {
-    assert(Rep != 0 && "Null meta pool ??\n");
-    return Rep->getName();
-  }
-  Value *MetaPoolHandle::getMetaPoolValue() {
-    assert(Rep != 0 && "Null meta pool ??\n");
-    return Rep->getMetaPoolValue();
-  }
-  void MetaPoolHandle::merge(MetaPoolHandle *other) {
-    //after this operation other points to what this points to .
-    //first replace all uses 
-     Value *dest = getMetaPoolValue();
-     Value *curr = other->getMetaPoolValue();
-     if (dest != curr) {
-       std::cerr << "LLVA: Merging metapools: " << this->Creator->getParent()->getParent()->getName() << " : " << other->Creator->getParent()->getParent()->getName() << "\n"
-                 << "LLVA:   " << *(this->Creator) << "\n"
-                 << "LLVA:   " << *(other->Creator) << "\n";
-       curr->replaceAllUsesWith(dest);
-     }
-   
-     //merge the hash sets in to other
-     hash_set<MetaPoolHandle *> &otherHandleSet = other->getMetaPool()->getHandleSet();
-     hash_set<MetaPoolHandle *>::iterator ohsI = otherHandleSet.begin(), ohsE = otherHandleSet.end();
-     for (; ohsI != ohsE; ++ohsI) {
-     MetaPoolHandle *omph = *ohsI;
-     //now make sure that this omph points to what we point to
-     omph->setMetaPool(Rep);
-     Rep->insert(omph);
-     }
-
-     //now delete others MetaPool
-     //gd     delete other->getMetaPool(); 
-
-     //Assign our metapool to other 
-     other->setMetaPool(Rep);
-}
-
-#endif
-
 //===----------------------------------------------------------------------===//
 // DSGraph Implementation
 //===----------------------------------------------------------------------===//
@@ -1502,12 +865,13 @@ void DSGraph::dump() const { print(errs()); }
 /// specified mapping.
 ///
 void DSNode::remapLinks(DSGraph::NodeMapTy &OldNodeMap) {
-  for (unsigned i = 0, e = Links.size(); i != e; ++i)
-    if (DSNode *N = Links[i].getNode()) {
+  for (LinkMapTy::iterator ii = edge_begin(), ee = edge_end();
+       ii != ee; ++ii)
+    if (DSNode *N = ii->second.getNode()) {
       DSGraph::NodeMapTy::const_iterator ONMI = OldNodeMap.find(N);
       if (ONMI != OldNodeMap.end()) {
         DSNode *ONMIN = ONMI->second.getNode();
-        Links[i].setTo(ONMIN, Links[i].getOffset()+ONMI->second.getOffset());
+        ii->second.setTo(ONMIN, ii->second.getOffset()+ONMI->second.getOffset());
       }
     }
 }
@@ -1534,8 +898,7 @@ void DSGraph::removeFunctionCalls(Function& F) {
 /// and does not point to any other objects in the graph.
 DSNode *DSGraph::addObjectToGraph(Value *Ptr, bool UseDeclaredType) {
   assert(isa<PointerType>(Ptr->getType()) && "Ptr is not a pointer!");
-  const Type *Ty = cast<PointerType>(Ptr->getType())->getElementType();
-  DSNode *N = new DSNode(UseDeclaredType ? Ty : 0, this);
+  DSNode *N = new DSNode(this);
   assert(ScalarMap[Ptr].isNull() && "Object already in this graph!");
   ScalarMap[Ptr] = N;
 
@@ -1758,7 +1121,7 @@ VisitForSCCs(const DSNode *N) {
   bool AnyDirectSuccessorsReachClonedNodes = false;
   for (DSNode::const_edge_iterator EI = N->edge_begin(), EE = N->edge_end();
        EI != EE; ++EI)
-    if (DSNode *Succ = EI->getNode()) {
+    if (DSNode *Succ = EI->second.getNode()) {
       std::pair<unsigned, bool> &SuccInfo = VisitForSCCs(Succ);
       if (SuccInfo.first < Min) Min = SuccInfo.first;
       AnyDirectSuccessorsReachClonedNodes |= SuccInfo.second;
@@ -1778,7 +1141,7 @@ VisitForSCCs(const DSNode *N) {
     for (unsigned i = SCCStack.size()-1; SCCStack[i] != N; --i)
       for (DSNode::const_edge_iterator EI = N->edge_begin(), EE = N->edge_end();
            EI != EE; ++EI)
-        if (DSNode *N = EI->getNode())
+        if (DSNode *N = EI->second.getNode())
           if (NodeInfo[N].second) {
             AnyDirectSuccessorsReachClonedNodes = true;
             goto OutOfLoop;
@@ -1872,7 +1235,7 @@ void DSGraph::mergeInGraph(const DSCallSite &CS,
     DSNode *GlobalNode = Graph.getNodeForValue(*GI).getNode();
     for (DSNode::edge_iterator EI = GlobalNode->edge_begin(),
            EE = GlobalNode->edge_end(); EI != EE; ++EI)
-      if (SCCFinder.PathExistsToClonedNode(EI->getNode())) {
+      if (SCCFinder.PathExistsToClonedNode(EI->second.getNode())) {
         GlobalsToCopy.push_back(*GI);
         break;
       }
@@ -1961,7 +1324,7 @@ static void markIncompleteNode(DSNode *N) {
 
   // Recursively process children...
   for (DSNode::edge_iterator I = N->edge_begin(),E = N->edge_end(); I != E; ++I)
-    if (DSNode *DSN = I->getNode())
+    if (DSNode *DSN = I->second.getNode())
       markIncompleteNode(DSN);
 }
 
@@ -2037,9 +1400,9 @@ static inline void killIfUselessEdge(DSNodeHandle &Edge) {
   if (DSNode * N = Edge.getNode()) // Is there an edge?
     if (N->getNumReferrers() == 1)  // Does it point to a lonely node?
       // No interesting info?
-      if ((N->getNodeFlags() & ~DSNode::IncompleteNode) == 0 &&
-          (!N->getType() || N->getType()->getTypeID() == Type::VoidTyID)
-              && !N->isNodeCompletelyFolded())
+      if ((N->getNodeFlags() & ~DSNode::IncompleteNode) == 0
+          && N->type_begin() == N->type_end()
+          && !N->isNodeCompletelyFolded())
         Edge.setTo(0, 0);  // Kill the edge!
 }
 
@@ -2288,16 +1651,16 @@ void DSGraph::removeTriviallyDeadNodes(bool updateForwarders) {
 /// DSNodes, marking any nodes which are reachable.  All reachable nodes it adds
 /// to the set, which allows it to only traverse visited nodes once.
 ///
-void DSNode::markReachableNodes(std::set<const DSNode*> &ReachableNodes) const {
+void DSNode::markReachableNodes(DenseSet<const DSNode*> &ReachableNodes) const {
   if (this == 0) return;
   assert(getForwardNode() == 0 && "Cannot mark a forwarded node!");
   if (ReachableNodes.insert(this).second)        // Is newly reachable?
     for (DSNode::const_edge_iterator I = edge_begin(), E = edge_end();
          I != E; ++I)
-      I->getNode()->markReachableNodes(ReachableNodes);
+      I->second.getNode()->markReachableNodes(ReachableNodes);
 }
 
-void DSCallSite::markReachableNodes(std::set<const DSNode*> &Nodes) const {
+void DSCallSite::markReachableNodes(DenseSet<const DSNode*> &Nodes) const {
   getRetVal().getNode()->markReachableNodes(Nodes);
   if (isIndirectCall()) getCalleeNode()->markReachableNodes(Nodes);
 
@@ -2310,8 +1673,8 @@ void DSCallSite::markReachableNodes(std::set<const DSNode*> &Nodes) const {
 // true, otherwise return false.  If an alive node is reachable, this node is
 // marked as alive...
 //
-static bool CanReachAliveNodes(DSNode *N, std::set<const DSNode*> &Alive,
-                               std::set<const DSNode*> &Visited,
+static bool CanReachAliveNodes(DSNode *N, DenseSet<const DSNode*> &Alive,
+                               DenseSet<const DSNode*> &Visited,
                                bool IgnoreGlobals) {
   if (N == 0) return false;
   assert(N->getForwardNode() == 0 && "Cannot mark a forwarded node!");
@@ -2329,7 +1692,7 @@ static bool CanReachAliveNodes(DSNode *N, std::set<const DSNode*> &Alive,
   Visited.insert(N);   // No recursion, insert into Visited...
 
   for (DSNode::edge_iterator I = N->edge_begin(),E = N->edge_end(); I != E; ++I)
-    if (CanReachAliveNodes(I->getNode(), Alive, Visited, IgnoreGlobals)) {
+    if (CanReachAliveNodes(I->second.getNode(), Alive, Visited, IgnoreGlobals)) {
       N->markReachableNodes(Alive);
       return true;
     }
@@ -2340,8 +1703,8 @@ static bool CanReachAliveNodes(DSNode *N, std::set<const DSNode*> &Alive,
 // alive nodes.
 //
 static bool CallSiteUsesAliveArgs(const DSCallSite &CS,
-                                  std::set<const DSNode*> &Alive,
-                                  std::set<const DSNode*> &Visited,
+                                  DenseSet<const DSNode*> &Alive,
+                                  DenseSet<const DSNode*> &Visited,
                                   bool IgnoreGlobals) {
   if (CanReachAliveNodes(CS.getRetVal().getNode(), Alive, Visited,
                          IgnoreGlobals))
@@ -2372,7 +1735,7 @@ void DSGraph::removeDeadNodes(unsigned Flags) {
   // FIXME: Merge non-trivially identical call nodes...
 
   // Alive - a set that holds all nodes found to be reachable/alive.
-  std::set<const DSNode*> Alive;
+  DenseSet<const DSNode*> Alive;
   std::vector<std::pair<const Value*, DSNode*> > GlobalNodes;
 
   // Copy and merge all information about globals to the GlobalsGraph if this is
@@ -2420,7 +1783,7 @@ void DSGraph::removeDeadNodes(unsigned Flags) {
   // value (which makes them live in turn), and continue till no more are found.
   //
   bool Iterate;
-  std::set<const DSNode*> Visited;
+  DenseSet<const DSNode*> Visited;
   std::set<const DSCallSite*> AuxFCallsAlive;
   do {
     Visited.clear();
@@ -2849,7 +2212,7 @@ void DataStructures::eliminateUsesOfECGlobals(DSGraph &G,
   bool MadeChange = false;
   for (DSScalarMap::global_iterator GI = SM.global_begin(), E = SM.global_end();
        GI != E; ) {
-    const GlobalValue *GV = *GI++;
+    const GlobalValue *GV = *GI; ++GI;
     if (!ECGlobals.count(GV)) continue;
 
     const DSNodeHandle &GVNH = SM[GV];

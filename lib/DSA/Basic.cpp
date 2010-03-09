@@ -38,11 +38,9 @@ bool BasicDataStructures::runOnModule(Module &M) {
   //
   // Create a void pointer type.  This is simply a pointer to an 8 bit value.
   //
-  const IntegerType * IT = IntegerType::getInt8Ty(M.getContext());
-  const PointerType * VoidPtrTy = PointerType::getUnqual(IT);
 
-  DSNode * GVNodeInternal = new DSNode(VoidPtrTy, GlobalsGraph);
-  DSNode * GVNodeExternal = new DSNode(VoidPtrTy, GlobalsGraph);
+  DSNode * GVNodeInternal = new DSNode(GlobalsGraph);
+  DSNode * GVNodeExternal = new DSNode(GlobalsGraph);
   for (Module::global_iterator I = M.global_begin(), E = M.global_end();
        I != E; ++I) {
     if (I->isDeclaration()) {
@@ -64,7 +62,7 @@ bool BasicDataStructures::runOnModule(Module &M) {
   for (Module::iterator F = M.begin(), E = M.end(); F != E; ++F) {
     if (!F->isDeclaration()) {
       DSGraph* G = new DSGraph(GlobalECs, getTargetData(), GlobalsGraph);
-      DSNode * Node = new DSNode(VoidPtrTy, G);
+      DSNode * Node = new DSNode(G);
           
       if (!F->hasInternalLinkage())
         Node->setExternalMarker();

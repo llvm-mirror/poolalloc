@@ -15,6 +15,8 @@
 #define LLVM_ANALYSIS_DSNODE_H
 
 #include "dsa/DSSupport.h"
+#include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/ilist_node.h"
 
 #include <map>
@@ -24,7 +26,6 @@ namespace llvm {
 
 template<typename BaseType>
 class DSNodeIterator;          // Data structure graph traversal iterator
-class TargetData;
 
 //===----------------------------------------------------------------------===//
 /// DSNode - Data structure node class
@@ -34,9 +35,14 @@ class TargetData;
 /// different types represented in this object.
 ///
 class DSNode : public ilist_node<DSNode> {
+public:
+  typedef std::map<unsigned, std::set<const Type*> > TyMapTy;
+  typedef std::map<unsigned, DSNodeHandle> LinkMapTy;
+
+private:
   friend struct ilist_sentinel_traits<DSNode>;
   //Sentinel
-  DSNode() : NumReferrers(0), Size(0), Ty(0), NodeType(0) {}
+  DSNode() : NumReferrers(0), Size(0), NodeType(0) {}
   
   /// NumReferrers - The number of DSNodeHandles pointing to this node... if
   /// this is a forwarding node, then this is the number of node handles which
@@ -51,12 +57,6 @@ class DSNode : public ilist_node<DSNode> {
   ///
   DSNodeHandle ForwardNH;
 
-  /// Next, Prev - These instance variables are used to keep the node on a
-  /// doubly-linked ilist in the DSGraph.
-  ///
-  //DSNode *Next, *Prev;
-  //friend struct ilist_traits<DSNode>;
-
   /// Size - The current size of the node.  This should be equal to the size of
   /// the current type record.
   ///
@@ -66,18 +66,14 @@ class DSNode : public ilist_node<DSNode> {
   ///
   DSGraph *ParentGraph;
 
-  /// Ty - Keep track of the current outer most type of this object, in addition
-  /// to whether or not it has been indexed like an array or not.  If the
-  /// isArray bit is set, the node cannot grow.
-  ///
-  const Type *Ty;                 // The type itself...
+  /// TyMap - Keep track of the loadable types and offsets those types are seen
+  // at.
+  TyMapTy TyMap;
 
-  /// Links - Contains one entry for every sizeof(void*) bytes in this memory
-  /// object.  Note that if the node is not a multiple of size(void*) bytes
-  /// large, that there is an extra entry for the "remainder" of the node as
-  /// well.  For this reason, nodes of 1 byte in size do have one link.
+  /// Links - Contains one entry for every byte in this memory
+  /// object.  
   ///
-  std::vector<DSNodeHandle> Links;
+  LinkMapTy Links;
 
   /// Globals - The list of global values that are merged into this node.
   ///
@@ -100,13 +96,14 @@ public:
     ReadNode        = 1 << 8,   // This node is read in this context
 
     ArrayNode       = 1 << 9,   // This node is treated like an array
-    ExternalNode    = 1 << 10,  // This node comes from an external source
-    IntToPtrNode    = 1 << 11,   // This node comes from an int cast
-    PtrToIntNode    = 1 << 12,  // This node excapes to an int cast
-    VAStartNode     = 1 << 13,  // This node excapes to an int cast
+    CollapsedNode   = 1 << 10,  // This node is collapsed
+    ExternalNode    = 1 << 11,  // This node comes from an external source
+    IntToPtrNode    = 1 << 12,   // This node comes from an int cast
+    PtrToIntNode    = 1 << 13,  // This node excapes to an int cast
+    VAStartNode     = 1 << 14,  // This node excapes to an int cast
 
     //#ifndef NDEBUG
-    DeadNode        = 1 << 14,   // This node is dead and should not be pointed to
+    DeadNode        = 1 << 15,   // This node is dead and should not be pointed to
     //#endif
 
     Composition = AllocaNode | HeapNode | GlobalNode | UnknownNode
@@ -123,7 +120,7 @@ public:
   /// DSNode ctor - Create a node of the specified type, inserting it into the
   /// specified graph.
   ///
-  DSNode(const Type *T, DSGraph *G);
+  explicit DSNode(DSGraph *G);
 
   /// DSNode "copy ctor" - Copy the specified node, inserting it into the
   /// specified graph.  If NullLinks is true, then null out all of the links,
@@ -149,18 +146,27 @@ public:
   inline const_iterator begin() const;
   inline const_iterator end() const;
 
+  /// type_* - Provide iterators for accessing types.  Some types may be null
+  TyMapTy::iterator type_begin() { return TyMap.begin(); }
+  TyMapTy::iterator type_end()   { return TyMap.end(); }
+  TyMapTy::const_iterator type_begin() const { return TyMap.begin(); }
+  TyMapTy::const_iterator type_end()   const { return TyMap.end(); }
+
+  /// edge_* - Provide iterators for accessing outgoing edges.  Some outgoing
+  /// edges may be null.
+  typedef LinkMapTy::iterator edge_iterator;
+  typedef LinkMapTy::const_iterator const_edge_iterator;
+  edge_iterator edge_begin() { return Links.begin(); }
+  edge_iterator edge_end() { return Links.end(); }
+  const_edge_iterator edge_begin() const { return Links.begin(); }
+  const_edge_iterator edge_end() const { return Links.end(); }
+
   //===--------------------------------------------------
   // Accessors
 
   /// getSize - Return the maximum number of bytes occupied by this object...
   ///
   unsigned getSize() const { return Size; }
-
-  /// getType - Return the node type of this object...
-  ///
-  const Type *getType() const { return Ty; }
-
-  bool isArray() const { return NodeType & ArrayNode; }
 
   /// hasNoReferrers - Return true if nothing is pointing to this node at all.
   ///
@@ -171,13 +177,9 @@ public:
   /// return the number of nodes forwarding over the node!
   unsigned getNumReferrers() const { return NumReferrers; }
 
+
   DSGraph *getParentGraph() const { return ParentGraph; }
   void setParentGraph(DSGraph *G) { ParentGraph = G; }
-
-
-  /// getTargetData - Get the target data object used to construct this node.
-  ///
-  const TargetData &getTargetData() const;
 
   /// getForwardNode - This method returns the node that this node is forwarded
   /// to, if any.
@@ -200,37 +202,29 @@ public:
     delete this;
   }
 
+  void growSize(unsigned NSize) {
+    assert(NSize > Size && "Cannot shrink");
+    assert(!isCollapsedNode() && "growing a collapsed node");
+    Size = NSize;
+  }
+
   /// hasLink - Return true if this memory object has a link in slot LinkNo
   ///
   bool hasLink(unsigned Offset) const {
-    assert(Offset < Links.size() && "Link index is out of range!");
-    return Links[Offset].getNode();
+    assert(Offset < getSize() && "Link index is out of range!");
+    return Links.find(Offset) != Links.end();
   }
 
   /// getLink - Return the link at the specified offset.
   ///
   DSNodeHandle &getLink(unsigned Offset) {
-    assert(Offset < Links.size() && "Link index is out of range!");
+    assert(Offset < getSize() && "Link index is out of range!");
     return Links[Offset];
   }
   const DSNodeHandle &getLink(unsigned Offset) const {
-    assert(Offset < Links.size() && "Link index is out of range!");
-    return Links[Offset];
+    assert(hasLink(Offset) && "No Link");
+    return Links.find(Offset)->second;
   }
-
-  /// getNumLinks - Return the number of links in a node...
-  ///
-  unsigned getNumLinks() const { return Links.size(); }
-
-  /// edge_* - Provide iterators for accessing outgoing edges.  Some outgoing
-  /// edges may be null.
-  typedef std::vector<DSNodeHandle>::iterator edge_iterator;
-  typedef std::vector<DSNodeHandle>::const_iterator const_edge_iterator;
-  edge_iterator edge_begin() { return Links.begin(); }
-  edge_iterator edge_end() { return Links.end(); }
-  const_edge_iterator edge_begin() const { return Links.begin(); }
-  const_edge_iterator edge_end() const { return Links.end(); }
-
 
   /// mergeTypeInfo - This method merges the specified type into the current
   /// node at the specified offset.  This may update the current node's type
@@ -239,12 +233,10 @@ public:
   /// completely (and return true) if the information is incompatible with what
   /// is already known.
   ///
-  /// This method returns true if the node is completely folded, otherwise
-  /// false.
-  ///
-  bool mergeTypeInfo(const Type *Ty, unsigned Offset,
-                     bool FoldIfIncompatible = true);
-
+  /// FIXME: description
+  void mergeTypeInfo(const Type *Ty, unsigned Offset);
+  void mergeTypeInfo(TyMapTy::const_iterator TyIt, unsigned Offset = 0);
+ 
   /// foldNodeCompletely - If we determine that this node has some funny
   /// behavior happening to it that we cannot represent, we fold it down to a
   /// single, completely pessimistic, node.  This node is represented as a
@@ -263,7 +255,7 @@ public:
   /// instead one of the higher level methods should be used, below.
   ///
   void setLink(unsigned Offset, const DSNodeHandle &NH) {
-    assert(Offset < Links.size() && "Link index is out of range!");
+    assert(Offset < getSize() && "Link index is out of range!");
     Links[Offset] = NH;
   }
 
@@ -341,6 +333,7 @@ public:
   bool isModifiedNode()   const { return NodeType & ModifiedNode;  }
   bool isReadNode()       const { return NodeType & ReadNode;      }
   bool isArrayNode()      const { return NodeType & ArrayNode;     }
+  bool isCollapsedNode()  const { return NodeType & CollapsedNode; }
   bool isIncompleteNode() const { return NodeType & IncompleteNode;}
   bool isCompleteNode()   const { return !isIncompleteNode();      }
   bool isDeadNode()       const { return NodeType & DeadNode;      }
@@ -358,6 +351,7 @@ public:
   DSNode* setModifiedMarker()   { NodeType |= ModifiedNode;   return this; }
   DSNode* setReadMarker()       { NodeType |= ReadNode;       return this; }
   DSNode* setArrayMarker()      { NodeType |= ArrayNode;      return this; }
+  DSNode* setCollapsedMarker()  { NodeType |= CollapsedNode;  return this; }
   DSNode* setIncompleteMarker() { NodeType |= IncompleteNode; return this; }
   DSNode* setExternalMarker()   { NodeType |= ExternalNode;   return this; }
   DSNode* setIntToPtrMarker()   { NodeType |= IntToPtrNode;   return this; }
@@ -395,7 +389,7 @@ public:
   /// DSNodes, marking any nodes which are reachable.  All reachable nodes it
   /// adds to the set, which allows it to only traverse visited nodes once.
   ///
-  void markReachableNodes(std::set<const DSNode*> &ReachableNodes) const;
+  void markReachableNodes(llvm::DenseSet<const DSNode*> &ReachableNodes) const;
 
 private:
   friend class DSNodeHandle;
