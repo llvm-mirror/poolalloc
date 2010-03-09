@@ -5,6 +5,20 @@ LICENSE:
 Before using the Automatic Pool Allocator, you should read the pre-release
 license in LICENSE.TXT.
 
+KNOWN ISSUES:
+=============
+
+Automatic Pool Allocation is currently broken on 2.7 due to malloc and
+free instructions being removed.  Use the release_26 branch of llvm
+and poolalloc for a working poolalloc module.
+
+DSA is undergoing significant changes and may not be entirely stable or 
+correct.  See lib/DSA/README.
+
+Windows does not support loadable modules in llvm, so poolalloc must
+be linked into opt.
+
+
 BUILDING:
 =========
 To build the Automatic Pool Allocator, you will need to have installed and
