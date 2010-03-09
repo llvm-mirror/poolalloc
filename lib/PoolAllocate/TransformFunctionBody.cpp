@@ -271,7 +271,7 @@ void FuncTransform::visitAllocaInst(AllocaInst &MI) {
 
   // Get the pool handle for the node that this contributes to...
   DSNode *Node = getDSNodeHFor(&MI).getNode();
-  if (Node->isArray()) {
+  if (Node->isArrayNode()) {
     Value *PH = getPoolHandle(&MI);
     if (PH == 0 || isa<ConstantPointerNull>(PH)) return;
     TargetData &TD = PAInfo.getAnalysis<TargetData>();
@@ -751,7 +751,7 @@ void FuncTransform::visitCallSite(CallSite& CS) {
         if (FI.PoolDescriptors.count(LocalNode))
           ArgVal = FI.PoolDescriptors.find(LocalNode)->second;
     if (isa<Constant>(ArgVal) && cast<Constant>(ArgVal)->isNullValue()) {
-      if ((!(PAInfo.BoundsChecksEnabled)) || (ArgNodes[i]->isArray())) {
+      if ((!(PAInfo.BoundsChecksEnabled)) || (ArgNodes[i]->isArrayNode())) {
         if (!isa<InvokeInst>(TheCall)) {
           // Dinakar: We need pooldescriptors for allocas in the callee if it
           //          escapes

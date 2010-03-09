@@ -57,9 +57,10 @@ Heuristic::~Heuristic() {}
 
 unsigned Heuristic::getRecommendedSize(const DSNode *N) {
   unsigned PoolSize = 0;
-  if (!N->isArray() && N->getType()->isSized()) {
-    PoolSize = N->getParentGraph()->getTargetData().getTypeAllocSize(N->getType());
-  }
+  //FIXME: types
+//  if (!N->isArray() && N->getType()->isSized()) {
+//    PoolSize = N->getParentGraph()->getTargetData().getTypeAllocSize(N->getType());
+//  }
   if (PoolSize == 1) PoolSize = 0;
   return PoolSize;
 }
@@ -121,14 +122,15 @@ unsigned Heuristic::getRecommendedAlignment(const Type *Ty,
 /// DSNode.
 ///
 unsigned Heuristic::getRecommendedAlignment(const DSNode *N) {
-  if (!N->getType() || N->getType()->isVoidTy())  // Is this void or collapsed?
+  //FIXME: Type
+  //if (!N->getType() || N->getType()->isVoidTy())  // Is this void or collapsed?
     return 0;  // No known alignment, let runtime decide.
 
-  const TargetData &TD = N->getParentGraph()->getTargetData();
+  //const TargetData &TD = N->getParentGraph()->getTargetData();
 
   // If there are no doubles on an 8-byte boundary in this structure, there is
   // no reason to 8-byte align objects in the pool.
-  return Wants8ByteAlignment(N->getType(), 0, TD) ? 8 : 4;
+  //return Wants8ByteAlignment(N->getType(), 0, TD) ? 8 : 4;
 }
  
 
@@ -231,7 +233,7 @@ struct SmartCoallesceNodesHeuristic : public Heuristic {
     if (F == 0) {
       for (unsigned i = 0, e = NodesToPA.size(); i != e; ++i) {
         const DSNode *Node = NodesToPA[i];
-        if ((Node->isNodeCompletelyFolded() || !Node->isArray()) &&
+        if ((Node->isNodeCompletelyFolded() || !Node->isArrayNode()) &&
             NodeExistsInCycle(Node))
           ResultPools.push_back(OnePool(Node));
       }

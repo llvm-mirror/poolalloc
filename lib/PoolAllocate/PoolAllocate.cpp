@@ -349,13 +349,13 @@ void PoolAllocate::MicroOptimizePoolCalls() {
 
 
 static void GetNodesReachableFromGlobals(DSGraph* G,
-                                  std::set<const DSNode*> &NodesFromGlobals) {
+                                  DenseSet<const DSNode*> &NodesFromGlobals) {
   for (DSScalarMap::global_iterator I = G->getScalarMap().global_begin(), 
          E = G->getScalarMap().global_end(); I != E; ++I)
     G->getNodeForValue(*I).getNode()->markReachableNodes(NodesFromGlobals);
 }
 
-static void MarkNodesWhichMustBePassedIn(std::set<const DSNode*> &MarkedNodes,
+static void MarkNodesWhichMustBePassedIn(DenseSet<const DSNode*> &MarkedNodes,
                                          Function &F, DSGraph* G,
                                          bool PassAllArguments) {
   // Mark globals and incomplete nodes as live... (this handles arguments)
@@ -377,16 +377,16 @@ static void MarkNodesWhichMustBePassedIn(std::set<const DSNode*> &MarkedNodes,
   // Calculate which DSNodes are reachable from globals.  If a node is reachable
   // from a global, we will create a global pool for it, so no argument passage
   // is required.
-  std::set<const DSNode*> NodesFromGlobals;
+  DenseSet<const DSNode*> NodesFromGlobals;
   GetNodesReachableFromGlobals(G, NodesFromGlobals);
 
   // Remove any nodes reachable from a global.  These nodes will be put into
   // global pools, which do not require arguments to be passed in.  Also, erase
   // any marked node that is not a heap node.  Since no allocations or frees
   // will be done with it, it needs no argument.
-  for (std::set<const DSNode*>::iterator I = MarkedNodes.begin(),
+  for (DenseSet<const DSNode*>::iterator I = MarkedNodes.begin(),
          E = MarkedNodes.end(); I != E; ) {
-    const DSNode *N = *I++;
+    const DSNode *N = *I; ++I;
     if ((!(1 || N->isHeapNode()) && !PassAllArguments) || NodesFromGlobals.count(N))
       MarkedNodes.erase(N);
   }
@@ -402,7 +402,7 @@ void PoolAllocate::FindFunctionPoolArgs(Function &F) {
   // Create a new entry for F.
   FuncInfo &FI =
     FunctionInfo.insert(std::make_pair(&F, FuncInfo(F))).first->second;
-  std::set<const DSNode*> &MarkedNodes = FI.MarkedNodes;
+  DenseSet<const DSNode*> &MarkedNodes = FI.MarkedNodes;
 
   if (G->node_begin() == G->node_end())
     return;  // No memory activity, nothing is required
@@ -411,8 +411,13 @@ void PoolAllocate::FindFunctionPoolArgs(Function &F) {
   // current function.  This set will contain all of the DSNodes which require
   // pools to be passed in from outside of the function.
   MarkNodesWhichMustBePassedIn(MarkedNodes, F, G, PassAllArguments);
-  
-  FI.ArgNodes.insert(FI.ArgNodes.end(), MarkedNodes.begin(), MarkedNodes.end());
+
+
+  //FI.ArgNodes.insert(FI.ArgNodes.end(), MarkedNodes.begin(), MarkedNodes.end());
+  //Work around DenseSet not having iterator traits
+  for (DenseSet<const DSNode*>::iterator ii = MarkedNodes.begin(),
+       ee = MarkedNodes.end(); ii != ee; ++ii)
+    FI.ArgNodes.insert(FI.ArgNodes.end(), *ii);
 }
 
 // MakeFunctionClone - If the specified function needs to be modified for pool
@@ -527,13 +532,13 @@ bool PoolAllocate::SetupGlobalPools(Module &M) {
   DSGraph* GG = Graphs->getGlobalsGraph();
 
   // Get all of the nodes reachable from globals.
-  std::set<const DSNode*> GlobalHeapNodes;
+  DenseSet<const DSNode*> GlobalHeapNodes;
   GetNodesReachableFromGlobals(GG, GlobalHeapNodes);
 
   // Filter out all nodes which have no heap allocations merged into them.
-  for (std::set<const DSNode*>::iterator I = GlobalHeapNodes.begin(),
+  for (DenseSet<const DSNode*>::iterator I = GlobalHeapNodes.begin(),
          E = GlobalHeapNodes.end(); I != E; ) {
-    std::set<const DSNode*>::iterator Last = I++;
+    DenseSet<const DSNode*>::iterator Last = I; ++I;
 
 #if 0
     //
@@ -547,10 +552,11 @@ bool PoolAllocate::SetupGlobalPools(Module &M) {
     }
 #endif
 
+    //FIXME: erase on a densemap invalidates all iterators
     const DSNode *tmp = *Last;
     //    errs() << "test \n";
-    if (!(tmp->isHeapNode() || tmp->isArray()))
-      GlobalHeapNodes.erase(Last);
+    if (!(tmp->isHeapNode() || tmp->isArrayNode()))
+      GlobalHeapNodes.erase(tmp);
   }
   
   // Otherwise get the main function to insert the poolinit calls.
@@ -565,8 +571,14 @@ bool PoolAllocate::SetupGlobalPools(Module &M) {
             << " global nodes!\n";
 
 
-  std::vector<const DSNode*> NodesToPA(GlobalHeapNodes.begin(),
-                                       GlobalHeapNodes.end());
+  //std::vector<const DSNode*> NodesToPA(GlobalHeapNodes.begin(),
+  //                                     GlobalHeapNodes.end());
+  //DenseSet Doesn't have polite iterators
+  std::vector<const DSNode*> NodesToPA;
+  for (DenseSet<const DSNode*>::iterator ii = GlobalHeapNodes.begin(),
+         ee = GlobalHeapNodes.end(); ii != ee; ++ii)
+    NodesToPA.push_back(*ii);
+
   std::vector<Heuristic::OnePool> ResultPools;
   CurHeuristic->AssignToPools(NodesToPA, 0, GG, ResultPools);
 
@@ -590,7 +602,7 @@ bool PoolAllocate::SetupGlobalPools(Module &M) {
   }
 
   // Any unallocated DSNodes get null pool descriptor pointers.
-  for (std::set<const DSNode*>::iterator I = GlobalHeapNodes.begin(),
+  for (DenseSet<const DSNode*>::iterator I = GlobalHeapNodes.begin(),
          E = GlobalHeapNodes.end(); I != E; ++I) {
     GlobalNodes[*I] = ConstantPointerNull::get(PointerType::getUnqual(PoolDescType));
     ++NumNonprofit;
@@ -704,7 +716,7 @@ void PoolAllocate::ProcessFunctionBody(Function &F, Function &NewF) {
   if (G->node_begin() == G->node_end()) return;  // Quick exit if nothing to do.
   
   FuncInfo &FI = *getFuncInfo(F);
-  std::set<const DSNode*> &MarkedNodes = FI.MarkedNodes;
+  DenseSet<const DSNode*> &MarkedNodes = FI.MarkedNodes;
 
   // Calculate which DSNodes are reachable from globals.  If a node is reachable
   // from a global, we will create a global pool for it, so no argument passage
@@ -721,7 +733,7 @@ void PoolAllocate::ProcessFunctionBody(Function &F, Function &NewF) {
   for (DSGraph::node_iterator I = G->node_begin(), E = G->node_end(); I != E;++I){
     // We only need to make a pool if there is a heap object in it...
     DSNode *N = I;
-    if ((N->isHeapNode()) || (BoundsChecksEnabled && (N->isArray()))) {
+    if ((N->isHeapNode()) || (BoundsChecksEnabled && (N->isArrayNode()))) {
       if (GlobalsGraphNodeMapping.count(N)) {
         // If it is a global pool, set up the pool descriptor appropriately.
         DSNode *GGN = GlobalsGraphNodeMapping[N].getNode();

@@ -31,7 +31,6 @@
 #include "dsa/DataStructure.h"
 #include "poolalloc/Config/config.h"
 
-#include <set>
 #include <utility>
 
 namespace llvm {
@@ -59,7 +58,7 @@ namespace PA {
     /// MarkedNodes - The set of nodes which are not locally pool allocatable in
     /// the current function.
     ///
-    std::set<const DSNode*> MarkedNodes;
+    DenseSet<const DSNode*> MarkedNodes;
 
     /// F - The function this FuncInfo corresponds to.
     ///

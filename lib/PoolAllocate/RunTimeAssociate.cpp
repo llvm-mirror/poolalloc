@@ -56,13 +56,13 @@ STATISTIC(NumPools, "Number of pools allocated");
 ////////////////////////////////////////////////////////////////////////////////
 
 static void GetNodesReachableFromGlobals(DSGraph* G,
-                                         std::set<const DSNode*> &NodesFromGlobals) {
+                                         DenseSet<const DSNode*> &NodesFromGlobals) {
   for (DSScalarMap::global_iterator I = G->getScalarMap().global_begin(),
           E = G->getScalarMap().global_end(); I != E; ++I)
     G->getNodeForValue(*I).getNode()->markReachableNodes(NodesFromGlobals);
 }
 
-static void MarkNodesWhichMustBePassedIn(std::set<const DSNode*> &MarkedNodes,
+static void MarkNodesWhichMustBePassedIn(DenseSet<const DSNode*> &MarkedNodes,
                                          Function &F, DSGraph* G,
                                          EntryPointAnalysis* EPA) {
   // All DSNodes reachable from arguments must be passed in...
@@ -84,13 +84,13 @@ static void MarkNodesWhichMustBePassedIn(std::set<const DSNode*> &MarkedNodes,
   // Calculate which DSNodes are reachable from globals.  If a node is reachable
   // from a global, we will create a global pool for it, so no argument passage
   // is required.
-  std::set<const DSNode*> NodesFromGlobals;
+  DenseSet<const DSNode*> NodesFromGlobals;
   GetNodesReachableFromGlobals(G, NodesFromGlobals);
 
   // Remove any nodes reachable from a global.  These nodes will be put into
   // global pools, which do not require arguments to be passed in.
 
-  for (std::set<const DSNode*>::iterator I = NodesFromGlobals.begin(),
+  for (DenseSet<const DSNode*>::iterator I = NodesFromGlobals.begin(),
           E = NodesFromGlobals.end(); I != E; ++I)
     MarkedNodes.erase(*I);
 }
@@ -101,7 +101,7 @@ static void MarkNodesWhichMustBePassedIn(std::set<const DSNode*> &MarkedNodes,
 /// map and recording this info in the ArgNodes set.
 static void FindFunctionPoolArgs(Function &F, FuncInfo& FI,
                                  EntryPointAnalysis* EPA) {
-  std::set<const DSNode*> MarkedNodes;
+  DenseSet<const DSNode*> MarkedNodes;
 
   if (FI.G->node_begin() == FI.G->node_end())
     return; // No memory activity, nothing is required
@@ -111,10 +111,12 @@ static void FindFunctionPoolArgs(Function &F, FuncInfo& FI,
   // pools to be passed in from outside of the function.
   MarkNodesWhichMustBePassedIn(MarkedNodes, F, FI.G,EPA);
 
-  FI.ArgNodes.insert(FI.ArgNodes.end(), MarkedNodes.begin(), MarkedNodes.end());
+  //FI.ArgNodes.insert(FI.ArgNodes.end(), MarkedNodes.begin(), MarkedNodes.end());
+  //Work around DenseSet not having iterator traits
+  for (DenseSet<const DSNode*>::iterator ii = MarkedNodes.begin(),
+       ee = MarkedNodes.end(); ii != ee; ++ii)
+    FI.ArgNodes.insert(FI.ArgNodes.end(), *ii);
 }
-
-
 
 
 
@@ -286,7 +288,7 @@ void RTAssociate::SetupGlobalPools(Module* M, DSGraph* GG) {
   // DSGraph* GG = Graphs->getGlobalsGraph();
 
   // Get all of the nodes reachable from globals.
-  std::set<const DSNode*> GlobalHeapNodes;
+  DenseSet<const DSNode*> GlobalHeapNodes;
   GetNodesReachableFromGlobals(GG, GlobalHeapNodes);
 
   errs() << "Pool allocating " << GlobalHeapNodes.size()

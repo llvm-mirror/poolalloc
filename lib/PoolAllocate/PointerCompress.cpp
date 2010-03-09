@@ -228,10 +228,13 @@ void CompressedPoolInfo::Initialize(std::map<const DSNode*,
                                     const TargetData &TD) {
   // First step, compute the type of the compressed node.  This basically
   // replaces all pointers to compressed pools with uints.
-  NewTy = ComputeCompressedType(Pool->getType(), 0, Nodes);
+//FIXME: TYPE
+  //  NewTy = ComputeCompressedType(Pool->getType(), 0, Nodes);
+  NewTy = 0;
 
   // Get the compressed type size.
-  NewSize = NewTy->isSized() ? TD.getTypeAllocSize(NewTy) : 0;
+  //NewSize = NewTy->isSized() ? TD.getTypeAllocSize(NewTy) : 0;
+  NewSize = 0;
 }
 
 
@@ -320,14 +323,15 @@ Value *CompressedPoolInfo::EmitPoolBaseLoad(Instruction &I) const {
 /// dump - Emit a debugging dump for this pool info.
 ///
 void CompressedPoolInfo::dump() const {
-  const TargetData &TD = getNode()->getParentGraph()->getTargetData();
-  errs() << "  From size: "
-            << (getNode()->getType()->isSized() ? 
-                        TD.getTypeAllocSize(getNode()->getType()) : 0)
-            << "  To size: "
-            << (NewTy->isSized() ? TD.getTypeAllocSize(NewTy) : 0) << "\n";
-  errs() << "Node: "; getNode()->dump();
-  errs() << "New Type: " << *NewTy << "\n";
+//  const TargetData &TD = getNode()->getParentGraph()->getTargetData();
+//FIXME: type
+  //errs() << "  From size: "
+//            << (getNode()->getType()->isSized() ?
+//                        TD.getTypeAllocSize(getNode()->getType()) : 0)
+//            << "  To size: "
+//            << (NewTy->isSized() ? TD.getTypeAllocSize(NewTy) : 0) << "\n";
+//  errs() << "Node: "; getNode()->dump();
+//  errs() << "New Type: " << *NewTy << "\n";
 }
 
 
@@ -704,9 +708,10 @@ void InstructionRewriter::visitGetElementPtrInst(GetElementPtrInst &GEPI) {
     const Type* PT =
       cast<PointerType>(GEPI.getOperand(0)->getType())->getElementType();
     if(isa<ArrayType>(PT)) {
-      if (cast<ArrayType>(PT)->getElementType() == PI->getNode()->getType())
-        NTy = PointerType::getUnqual(ArrayType::get(PI->getNewType(),
-                                              cast<ArrayType>(PT)->getNumElements()));
+      //FIXME: TYPE
+//      if (cast<ArrayType>(PT)->getElementType() == PI->getNode()->getType())
+//        NTy = PointerType::getUnqual(ArrayType::get(PI->getNewType(),
+//                                              cast<ArrayType>(PT)->getNumElements()));
     }
   }
 
