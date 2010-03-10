@@ -278,6 +278,8 @@ public:
   ///
   void addGlobal(const GlobalValue *GV);
 
+  void addFunction(const Function* F);
+
   /// removeGlobal - Remove the specified global that is explicitly in the
   /// globals list.
   void removeGlobal(const GlobalValue *GV);

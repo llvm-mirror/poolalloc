@@ -234,19 +234,19 @@ DSNodeHandle GraphBuilder::getValueDest(Value* V) {
   // Check first for constant expressions that must be traversed to
   // extract the actual value.
   DSNode* N;
-  if (GlobalVariable* GV = dyn_cast<GlobalVariable>(V)) {
+  if (Function * F = dyn_cast<Function > (V)) {
+    // Create a new global node for this function.
+    N = createNode();
+    N->addFunction(F);
+    if (F->isDeclaration())
+      N->setExternFuncMarker();
+  } else if (GlobalValue * GV = dyn_cast<GlobalValue > (V)) {
     // Create a new global node for this global variable.
     N = createNode();
     N->addGlobal(GV);
     if (GV->isDeclaration())
       N->setExternGlobalMarker();
-  } else if (Function* GV = dyn_cast<Function>(V)) {
-    // Create a new global node for this function.
-    N = createNode();
-    N->addGlobal(GV);
-    if (GV->isDeclaration())
-      N->setExternFuncMarker();
-  } else if (Constant *C = dyn_cast<Constant>(V)) {
+  } else if (Constant * C = dyn_cast<Constant > (V)) {
     if (ConstantExpr *CE = dyn_cast<ConstantExpr>(C)) {
       if (CE->isCast()) {
         if (isa<PointerType>(CE->getOperand(0)->getType()))
@@ -269,13 +269,6 @@ DSNodeHandle GraphBuilder::getValueDest(Value* V) {
     } else if (isa<UndefValue>(C)) {
       G.eraseNodeForValue(V);
       return 0;
-    } else if (isa<GlobalAlias>(C)) {
-      // XXX: Need more investigation
-      // According to Andrew, DSA is broken on global aliasing, since it does
-      // not handle the aliases of parameters correctly. Here is only a quick
-      // fix for some special cases.
-      NH = getValueDest(cast<GlobalAlias>(C)->getAliasee());
-      return NH;
     } else {
       errs() << "Unknown constant: " << *C << "\n";
       assert(0 && "Unknown constant type!");
