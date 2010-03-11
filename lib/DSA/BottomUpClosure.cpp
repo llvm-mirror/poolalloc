@@ -96,7 +96,7 @@ bool BUDataStructures::runOnModuleInternal(Module& M) {
 
   //finalizeGlobals();
 
-  GlobalsGraph->removeTriviallyDeadNodes(true);
+  GlobalsGraph->removeTriviallyDeadNodes();
   GlobalsGraph->maskIncompleteMarkers();
 
   // Mark external globals incomplete.
@@ -449,7 +449,7 @@ void BUDataStructures::calculateGraph(DSGraph* Graph) {
                 E = CalledFuncs.end();
 
         // Start with a copy of the first graph.
-        GI = IndCallGraph.first = new DSGraph(getDSGraph(**I), GlobalECs);
+        GI = IndCallGraph.first = new DSGraph(getDSGraph(**I), GlobalECs, *TypeSS);
         GI->setGlobalsGraph(Graph->getGlobalsGraph());
         std::vector<DSNodeHandle> &Args = IndCallGraph.second;
 
@@ -537,7 +537,10 @@ void BUDataStructures::cloneIntoGlobals(DSGraph* Graph) {
   // When this graph is finalized, clone the globals in the graph into the
   // globals graph to make sure it has everything, from all graphs.
   DSScalarMap &MainSM = Graph->getScalarMap();
-  ReachabilityCloner RC(GlobalsGraph, Graph, DSGraph::StripAllocaBit);
+  ReachabilityCloner RC(GlobalsGraph, Graph,
+                        DSGraph::DontCloneCallNodes |
+                        DSGraph::DontCloneAuxCallNodes |
+                        DSGraph::StripAllocaBit);
 
   // Clone everything reachable from globals in the function graph into the
   // globals graph.

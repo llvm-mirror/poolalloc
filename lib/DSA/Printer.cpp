@@ -64,11 +64,14 @@ static std::string getCaption(const DSNode *N, const DSGraph *G) {
       for (DSNode::TyMapTy::const_iterator ii = N->type_begin(),
            ee = N->type_end(); ii != ee; ++ii) {
         OS << ii->first << ": ";
-        for (DSNode::TyMapTy::mapped_type::iterator ni = ii->second.begin(),
-                ne = ii->second.end(); ni != ne; ++ni) {
-          WriteTypeSymbolic(OS, *ni, M);
-          OS << ", ";
-        }
+        if (ii->second)
+          for (sv::set<const Type*>::const_iterator ni = ii->second->begin(),
+               ne = ii->second->end(); ni != ne; ++ni) {
+            WriteTypeSymbolic(OS, *ni, M);
+            OS << ", ";
+          }
+        else
+          OS << "VOID";
         OS << " ";
       }
     else

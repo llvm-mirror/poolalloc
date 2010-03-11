@@ -61,7 +61,7 @@ bool BasicDataStructures::runOnModule(Module &M) {
 
   for (Module::iterator F = M.begin(), E = M.end(); F != E; ++F) {
     if (!F->isDeclaration()) {
-      DSGraph* G = new DSGraph(GlobalECs, getTargetData(), GlobalsGraph);
+      DSGraph* G = new DSGraph(GlobalECs, getTargetData(), *TypeSS, GlobalsGraph);
       DSNode * Node = new DSNode(G);
           
       if (!F->hasInternalLinkage())

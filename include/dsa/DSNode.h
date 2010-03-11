@@ -21,6 +21,9 @@
 
 #include <map>
 #include <set>
+#include "dsa/sv/set.h"
+#include "dsa/sv/super_set.h"
+#include "DSGraph.h"
 
 namespace llvm {
 
@@ -36,7 +39,7 @@ class DSNodeIterator;          // Data structure graph traversal iterator
 ///
 class DSNode : public ilist_node<DSNode> {
 public:
-  typedef std::map<unsigned, std::set<const Type*> > TyMapTy;
+  typedef std::map<unsigned, SuperSet<const Type*>::setPtr> TyMapTy;
   typedef std::map<unsigned, DSNodeHandle> LinkMapTy;
 
 private:
@@ -77,7 +80,7 @@ private:
 
   /// Globals - The list of global values that are merged into this node.
   ///
-  std::vector<const GlobalValue*> Globals;
+  sv::set<const GlobalValue*> Globals;
 
   void operator=(const DSNode &); // DO NOT IMPLEMENT
   DSNode(const DSNode &);         // DO NOT IMPLEMENT
@@ -219,12 +222,19 @@ public:
   ///
   DSNodeHandle &getLink(unsigned Offset) {
     assert(Offset < getSize() && "Link index is out of range!");
+    assert(!isForwarding() && "Link on a forwarding node");
     return Links[Offset];
-  }
+   }
   const DSNodeHandle &getLink(unsigned Offset) const {
     assert(hasLink(Offset) && "No Link");
+    assert(!isForwarding() && "Link on a forwarding node");
     return Links.find(Offset)->second;
   }
+
+  //unsigned getNumLinks() const {
+//     assert(!isForwarding() && "Link on a forwarding node");
+//    return Links.size();
+//  }
 
   /// mergeTypeInfo - This method merges the specified type into the current
   /// node at the specified offset.  This may update the current node's type
@@ -235,8 +245,9 @@ public:
   ///
   /// FIXME: description
   void mergeTypeInfo(const Type *Ty, unsigned Offset);
-  void mergeTypeInfo(TyMapTy::const_iterator TyIt, unsigned Offset = 0);
- 
+  void mergeTypeInfo(const TyMapTy::mapped_type TyIt, unsigned Offset);
+  void mergeTypeInfo(const DSNode* D, unsigned Offset);
+
   /// foldNodeCompletely - If we determine that this node has some funny
   /// behavior happening to it that we cannot represent, we fold it down to a
   /// single, completely pessimistic, node.  This node is represented as a
@@ -303,7 +314,7 @@ public:
   /// value leaders set that is merged into this node.  Like the getGlobalsList
   /// method, these iterators do not return globals that are part of the
   /// equivalence classes for globals in this node, but aren't leaders.
-  typedef std::vector<const GlobalValue*>::const_iterator globals_iterator;
+  typedef sv::set<const GlobalValue*>::const_iterator globals_iterator;
   globals_iterator globals_begin() const { return Globals.begin(); }
   globals_iterator globals_end() const { return Globals.end(); }
 
@@ -378,6 +389,7 @@ public:
 
   void dropAllReferences() {
     Links.clear();
+    TyMap.clear();
     if (isForwarding())
       ForwardNH.setTo(0, 0);
   }

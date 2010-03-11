@@ -20,6 +20,8 @@
 #include "llvm/ADT/EquivalenceClasses.h"
 
 #include "dsa/EntryPointAnalysis.h"
+#include "dsa/sv/set.h"
+#include "dsa/sv/super_set.h"
 
 #include <map>
 
@@ -37,10 +39,10 @@ FunctionPass *createDataStructureStatsPass();
 FunctionPass *createDataStructureGraphCheckerPass();
 
 class DataStructures : public ModulePass {
-  typedef std::map<const Instruction*, std::set<const Function*> > ActualCalleesTy;
+  typedef std::map<const Instruction*, sv::set<const Function*> > ActualCalleesTy;
   typedef std::map<const Function*, DSGraph*> DSInfoTy;
 public:
-  typedef std::set<const Function*>::const_iterator callee_iterator;
+  typedef sv::set<const Function*>::const_iterator callee_iterator;
   
 private:
   /// TargetData, comes in handy
@@ -58,9 +60,9 @@ private:
   /// Were are DSGraphs stolen by another pass?
   bool DSGraphsStolen;
 
-  void buildGlobalECs(std::set<const GlobalValue*>& ECGlobals);
+  void buildGlobalECs(sv::set<const GlobalValue*>& ECGlobals);
 
-  void eliminateUsesOfECGlobals(DSGraph& G, const std::set<const GlobalValue*> &ECGlobals);
+  void eliminateUsesOfECGlobals(DSGraph& G, const sv::set<const GlobalValue*> &ECGlobals);
 
   // DSInfo, one graph for each function
   DSInfoTy DSInfo;
@@ -80,6 +82,7 @@ protected:
   /// with other global values in the DSGraphs.
   EquivalenceClasses<const GlobalValue*> GlobalECs;
 
+  SuperSet<const Type*>* TypeSS;
 
   void init(DataStructures* D, bool clone, bool printAuxCalls, bool copyGlobalAuxCalls, bool resetAux);
   void init(TargetData* T);
@@ -173,6 +176,8 @@ public:
 
   TargetData& getTargetData() const { return *TD; }
 
+  SuperSet<const Type*>& getTypeSS() const { return *TypeSS; }
+  
   /// deleteValue/copyValue - Interfaces to update the DSGraphs in the program.
   /// These correspond to the interfaces defined in the AliasAnalysis class.
   void deleteValue(Value *V);
@@ -348,7 +353,7 @@ public:
 /// by the bottom-up pass.
 ///
 class TDDataStructures : public DataStructures {
-  std::set<const Function*> ArgsRemainIncomplete;
+  sv::set<const Function*> ArgsRemainIncomplete;
 
   /// CallerCallEdges - For a particular graph, we keep a list of these records
   /// which indicates which graphs call this function and from where.
@@ -400,10 +405,10 @@ public:
 
 private:
   void markReachableFunctionsExternallyAccessible(DSNode *N,
-                                                  std::set<DSNode*> &Visited);
+                                                  sv::set<DSNode*> &Visited);
 
   void InlineCallersIntoGraph(DSGraph* G);
-  void ComputePostOrder(const Function &F, std::set<DSGraph*> &Visited,
+  void ComputePostOrder(const Function &F, sv::set<DSGraph*> &Visited,
                         std::vector<DSGraph*> &PostOrder);
 };
 

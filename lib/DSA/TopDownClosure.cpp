@@ -54,20 +54,20 @@ EQTDDataStructures::~EQTDDataStructures() {
 }
 
 void TDDataStructures::markReachableFunctionsExternallyAccessible(DSNode *N,
-                                                   std::set<DSNode*> &Visited) {
+                                                   sv::set<DSNode*> &Visited) {
   if (!N || Visited.count(N)) return;
   Visited.insert(N);
 
-  for (DSNode::LinkMapTy::iterator ii = N->edge_begin(),
-          ee = N->edge_end(); ii != ee; ++ii) {
-    DSNodeHandle &NH = ii->second;
-    if (DSNode *NN = NH.getNode()) {
+  for (DSNode::edge_iterator ii = N->edge_begin(),
+          ee = N->edge_end(); ii != ee; ++ii)
+    if (!ii->second.isNull()) {
+      DSNodeHandle &NH = ii->second;
+      DSNode * NN = NH.getNode();
       std::vector<const Function*> Functions;
       NN->addFullFunctionList(Functions);
       ArgsRemainIncomplete.insert(Functions.begin(), Functions.end());
       markReachableFunctionsExternallyAccessible(NN, Visited);
     }
-  }
 }
 
 
@@ -85,7 +85,7 @@ bool TDDataStructures::runOnModule(Module &M) {
   // arguments are functions which are reachable by global variables in the
   // globals graph.
   const DSScalarMap &GGSM = GlobalsGraph->getScalarMap();
-  std::set<DSNode*> Visited;
+  sv::set<DSNode*> Visited;
   for (DSScalarMap::global_iterator I=GGSM.global_begin(), E=GGSM.global_end();
        I != E; ++I) {
     DSNode *N = GGSM.find(*I)->second.getNode();
@@ -114,7 +114,7 @@ bool TDDataStructures::runOnModule(Module &M) {
 
   // We want to traverse the call graph in reverse post-order.  To do this, we
   // calculate a post-order traversal, then reverse it.
-  std::set<DSGraph*> VisitedGraph;
+  sv::set<DSGraph*> VisitedGraph;
   std::vector<DSGraph*> PostOrder;
 
 {TIME_REGION(XXX, "td:Compute postorder");
@@ -156,7 +156,7 @@ bool TDDataStructures::runOnModule(Module &M) {
 
 
 void TDDataStructures::ComputePostOrder(const Function &F,
-                                        std::set<DSGraph*> &Visited,
+                                        sv::set<DSGraph*> &Visited,
                                         std::vector<DSGraph*> &PostOrder) {
   if (F.isDeclaration()) return;
   DSGraph* G = getOrCreateGraph(&F);
@@ -353,7 +353,7 @@ void TDDataStructures::InlineCallersIntoGraph(DSGraph* DSG) {
       IndCallGraph = IndCallRecI->second;
     } else {
       // Otherwise, create a new DSGraph to represent this.
-      IndCallGraph = new DSGraph(DSG->getGlobalECs(), DSG->getTargetData());
+      IndCallGraph = new DSGraph(DSG->getGlobalECs(), DSG->getTargetData(), *TypeSS);
       // Make a nullary dummy call site, which will eventually get some content
       // merged into it.  The actual callee function doesn't matter here, so we
       // just pass it something to keep the ctor happy.

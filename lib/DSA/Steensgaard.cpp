@@ -55,10 +55,10 @@ SteensgaardDataStructures::runOnModuleInternal(Module &M) {
   
   // Get a copy for the globals graph.
   DSGraph * GG = DS->getGlobalsGraph();
-  GlobalsGraph = new DSGraph(GG, GG->getGlobalECs());
+  GlobalsGraph = new DSGraph(GG, GG->getGlobalECs(), *TypeSS);
 
   // Create a new, empty, graph...
-  ResultGraph = new DSGraph(GG->getGlobalECs(), getTargetData());
+  ResultGraph = new DSGraph(GG->getGlobalECs(), getTargetData(), *TypeSS);
   ResultGraph->setGlobalsGraph(GlobalsGraph);
   // ResultGraph->spliceFrom(DS->getGlobalsGraph());
 
@@ -132,7 +132,7 @@ SteensgaardDataStructures::runOnModuleInternal(Module &M) {
 
   ResultGraph->removeDeadNodes(DSGraph::KeepUnreachableGlobals);
 
-  GlobalsGraph->removeTriviallyDeadNodes(true);
+  GlobalsGraph->removeTriviallyDeadNodes();
   GlobalsGraph->maskIncompleteMarkers();
 
   // Mark external globals incomplete.

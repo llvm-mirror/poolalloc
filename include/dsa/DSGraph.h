@@ -42,7 +42,7 @@ class DSScalarMap {
   typedef std::map<const Value*, DSNodeHandle> ValueMapTy;
   ValueMapTy ValueMap;
 
-  typedef std::set<const GlobalValue*> GlobalSetTy;
+  typedef sv::set<const GlobalValue*> GlobalSetTy;
   GlobalSetTy GlobalSet;
 
   EquivalenceClasses<const GlobalValue*> &GlobalECs;
@@ -232,14 +232,17 @@ private:
   /// constructed for.
   const TargetData &TD;
 
+  SuperSet<const Type*>& TypeSS;
+
   void operator=(const DSGraph &); // DO NOT IMPLEMENT
   DSGraph(const DSGraph&);         // DO NOT IMPLEMENT
 public:
   // Create a new, empty, DSGraph.
   DSGraph(EquivalenceClasses<const GlobalValue*> &ECs, const TargetData &td,
+          SuperSet<const Type*>& tss,
           DSGraph *GG = 0) 
     :GlobalsGraph(GG), PrintAuxCalls(false), 
-     ScalarMap(ECs), TD(td)
+     ScalarMap(ECs), TD(td), TypeSS(tss)
   { }
 
   // Copy ctor - If you want to capture the node mapping between the source and
@@ -251,6 +254,7 @@ public:
   // method.
   //
   DSGraph( DSGraph* DSG, EquivalenceClasses<const GlobalValue*> &ECs,
+          SuperSet<const Type*>& tss,
           unsigned CloneFlags = 0);
   ~DSGraph();
 
@@ -261,6 +265,10 @@ public:
   /// variables in the program form.
   EquivalenceClasses<const GlobalValue*> &getGlobalECs() const {
     return ScalarMap.getGlobalECs();
+  }
+
+  SuperSet<const Type*>& getTypeSS() const {
+    return TypeSS;
   }
 
   /// getTargetData - Return the TargetData object for the current target.
@@ -558,7 +566,7 @@ public:
   /// merged with other nodes in the graph.  This is used as the first step of
   /// removeDeadNodes.
   ///
-  void removeTriviallyDeadNodes(bool updateForwarders = false);
+  void removeTriviallyDeadNodes();
 };
 
 
@@ -581,7 +589,11 @@ class ReachabilityCloner {
 
   // NodeMap - A mapping from nodes in the source graph to the nodes that
   // represent them in the destination graph.
-  DSGraph::NodeMapTy NodeMap;
+  // We cannot use a densemap here as references into it are not stable across
+  // insertion
+  typedef std::map<const DSNode*, DSNodeHandle> RCNodeMap;
+  RCNodeMap NodeMap;
+
 public:
   ReachabilityCloner(DSGraph* dest, const DSGraph* src, unsigned cloneFlags,
                      bool _createDest = true)

@@ -35,7 +35,7 @@ class DSNodeIterator : public forward_iterator<const DSNode, ptrdiff_t> {
   DSNodeIterator(NodeTy *N, bool) : Node(N) {         // Create end iterator
     if (N != 0) {
       Offset = N->getSize();
-      if (Offset == 0 && Node->getForwardNode() &&
+      if (Offset == 0 && Node->isForwarding() &&
           Node->isDeadNode())        // Model Forward link
         Offset += 1;
     } else {
@@ -60,8 +60,10 @@ public:
   pointer operator*() const {
     if (Node->isDeadNode())
       return Node->getForwardNode();
-    else
+    else if (Node->hasLink(Offset))
       return Node->getLink(Offset).getNode();
+    else
+      return 0;
   }
   pointer operator->() const { return operator*(); }
 

@@ -169,10 +169,12 @@ namespace {
       // graph
        if (g.getScalarMap().global_begin() != g.getScalarMap().global_end()) {
         ReachabilityCloner RC(&g, g.getGlobalsGraph(), 0);
-        for (DSScalarMap::global_iterator I = g.getScalarMap().global_begin();
-             I != g.getScalarMap().global_end(); ++I)
+        std::vector<const GlobalValue*> GVV(g.getScalarMap().global_begin(),
+                                            g.getScalarMap().global_end());
+        for (std::vector<const GlobalValue*>::iterator I = GVV.begin();
+             I != GVV.end(); ++I)
           if (const GlobalVariable * GV = dyn_cast<GlobalVariable > (*I))
-            //if (GV->isConstant())
+            if (GV->isConstant())
               RC.merge(g.getNodeForValue(GV), g.getGlobalsGraph()->getNodeForValue(GV));
       }
 
@@ -246,7 +248,7 @@ DSNodeHandle GraphBuilder::getValueDest(Value* V) {
     N->addGlobal(GV);
     if (GV->isDeclaration())
       N->setExternGlobalMarker();
-  } else if (Constant * C = dyn_cast<Constant > (V)) {
+  } else if (Constant *C = dyn_cast<Constant>(V)) {
     if (ConstantExpr *CE = dyn_cast<ConstantExpr>(C)) {
       if (CE->isCast()) {
         if (isa<PointerType>(CE->getOperand(0)->getType()))
@@ -269,6 +271,13 @@ DSNodeHandle GraphBuilder::getValueDest(Value* V) {
     } else if (isa<UndefValue>(C)) {
       G.eraseNodeForValue(V);
       return 0;
+    } else if (isa<GlobalAlias>(C)) {
+      // XXX: Need more investigation
+      // According to Andrew, DSA is broken on global aliasing, since it does
+      // not handle the aliases of parameters correctly. Here is only a quick
+      // fix for some special cases.
+      NH = getValueDest(cast<GlobalAlias>(C)->getAliasee());
+      return NH;
     } else {
       errs() << "Unknown constant: " << *C << "\n";
       assert(0 && "Unknown constant type!");
@@ -866,7 +875,7 @@ void handleMagicSections(DSGraph* GlobalsGraph, Module& M) {
     while (count) {
       std::string section;
       msf >> section;
-      std::set<Value*> inSection;
+      sv::set<Value*> inSection;
       for (Module::iterator MI = M.begin(), ME = M.end();
               MI != ME; ++MI)
         if (MI->hasSection() && MI->getSection() == section)
@@ -882,7 +891,7 @@ void handleMagicSections(DSGraph* GlobalsGraph, Module& M) {
         Value* V = M.getNamedValue(global);
         if (V) {
           DSNodeHandle& DHV = GlobalsGraph->getNodeForValue(V);
-          for (std::set<Value*>::iterator SI = inSection.begin(),
+          for (sv::set<Value*>::iterator SI = inSection.begin(),
                   SE = inSection.end(); SI != SE; ++SI) {
             DEBUG(errs() << "Merging " << V->getNameStr() << " with "
                     << (*SI)->getNameStr() << "\n");
@@ -931,7 +940,7 @@ bool LocalDataStructures::runOnModule(Module &M) {
   // Calculate all of the graphs...
   for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I)
     if (!I->isDeclaration()) {
-      DSGraph* G = new DSGraph(GlobalECs, getTargetData(), GlobalsGraph);
+      DSGraph* G = new DSGraph(GlobalECs, getTargetData(), *TypeSS, GlobalsGraph);
       GraphBuilder GGB(*I, *G, *this);
       G->getAuxFunctionCalls() = G->getFunctionCalls();
       setDSGraph(*I, G);
