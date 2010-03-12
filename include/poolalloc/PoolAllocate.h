@@ -26,6 +26,7 @@
 #include "llvm/ADT/EquivalenceClasses.h"
 #include "llvm/ADT/VectorExtras.h"
 #include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/DenseSet.h"
 #include "llvm/Support/CommandLine.h"
 
 #include "dsa/DataStructure.h"
