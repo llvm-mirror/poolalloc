@@ -18,13 +18,14 @@
 
 #include "dsa/DSGraph.h"
 #include "llvm/ADT/GraphTraits.h"
-#include "llvm/ADT/iterator.h"
 #include "llvm/ADT/STLExtras.h"
+
+#include <iterator>
 
 namespace llvm {
 
 template<typename NodeTy>
-class DSNodeIterator : public forward_iterator<const DSNode, ptrdiff_t> {
+class DSNodeIterator : public std::iterator<std::forward_iterator_tag, const DSNode, ptrdiff_t> {
   friend class DSNode;
   NodeTy * const Node;
   unsigned Offset;
