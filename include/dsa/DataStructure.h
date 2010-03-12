@@ -20,6 +20,7 @@
 #include "llvm/ADT/EquivalenceClasses.h"
 
 #include "dsa/EntryPointAnalysis.h"
+#include "dsa/DSCallGraph.h"
 #include "dsa/sv/set.h"
 #include "dsa/sv/super_set.h"
 
@@ -39,12 +40,8 @@ FunctionPass *createDataStructureStatsPass();
 FunctionPass *createDataStructureGraphCheckerPass();
 
 class DataStructures : public ModulePass {
-  typedef std::map<const Instruction*, sv::set<const Function*> > ActualCalleesTy;
   typedef std::map<const Function*, DSGraph*> DSInfoTy;
-public:
-  typedef sv::set<const Function*>::const_iterator callee_iterator;
-  
-private:
+
   /// TargetData, comes in handy
   TargetData* TD;
 
@@ -67,9 +64,6 @@ private:
   // DSInfo, one graph for each function
   DSInfoTy DSInfo;
 
-  // Callgraph, as computed so far
-  ActualCalleesTy ActualCallees;
-
   // Name for printing
   const char* printname;
 
@@ -84,29 +78,16 @@ protected:
 
   SuperSet<const Type*>* TypeSS;
 
+  // Callgraph, as computed so far
+  DSCallGraph callgraph;
+
   void init(DataStructures* D, bool clone, bool printAuxCalls, bool copyGlobalAuxCalls, bool resetAux);
   void init(TargetData* T);
 
   void formGlobalECs();
 
-
-  void callee_add(const Instruction* I, const Function* F) {
-    ActualCallees[I].insert(F);
-  }
-
-  template<class Iterator>
-  void callee_add_many(const Instruction* I, Iterator _begin, Iterator _end) {
-    ActualCallees[I].insert(_begin,_end);
-//    typename ActualCalleesTy::mapped_type& S = ActualCallees[I];
-//    for (; _begin != _end; ++_begin)
-//      S.insert(*_begin);
-  }
-
   DataStructures(intptr_t id, const char* name) 
-    : ModulePass(id), TD(0), GraphSource(0), printname(name), GlobalsGraph(0) {
-    //a dummy node for empty call sites
-    ActualCallees[0];
-    
+    : ModulePass(id), TD(0), GraphSource(0), printname(name), GlobalsGraph(0) {  
     // For now, the graphs are owned by this pass
     DSGraphsStolen = false;
   }
@@ -116,39 +97,6 @@ public:
   ///
   void print(llvm::raw_ostream &O, const Module *M) const;
   void dumpCallGraph() const;
-
-  callee_iterator callee_begin(const Instruction *I) const {
-    ActualCalleesTy::const_iterator ii = ActualCallees.find(I);
-    if (ii == ActualCallees.end())
-      ii = ActualCallees.find(0);
-    return ii->second.begin();
-  }
-
-  callee_iterator callee_end(const Instruction *I) const {
-    ActualCalleesTy::const_iterator ii = ActualCallees.find(I);
-    if (ii == ActualCallees.end())
-      ii = ActualCallees.find(0);
-    return ii->second.end();
-  }
-
-  void callee_site(const Instruction* I) {
-    ActualCallees[I];
-  }
-
-  unsigned callee_size() const {
-    unsigned sum = 0;
-    for (ActualCalleesTy::const_iterator ii = ActualCallees.begin(),
-           ee = ActualCallees.end(); ii != ee; ++ii)
-      sum += ii->second.size();
-    return sum;
-  }
-
-  void callee_get_keys(std::vector<const Instruction*>& keys) {
-    for (ActualCalleesTy::const_iterator ii = ActualCallees.begin(),
-           ee = ActualCallees.end(); ii != ee; ++ii)
-      if (ii->first)
-        keys.push_back(ii->first);
-  }
 
   virtual void releaseMemory();
 
@@ -175,6 +123,8 @@ public:
   EquivalenceClasses<const GlobalValue*> &getGlobalECs() { return GlobalECs; }
 
   TargetData& getTargetData() const { return *TD; }
+
+  const DSCallGraph& getCallGraph() const { return callgraph; }
 
   SuperSet<const Type*>& getTypeSS() const { return *TypeSS; }
   

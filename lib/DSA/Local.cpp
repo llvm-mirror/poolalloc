@@ -782,7 +782,7 @@ void GraphBuilder::visitCallSite(CallSite CS) {
   // Add a new function call entry...
   if (CalleeNode) {
     G.getFunctionCalls().push_back(DSCallSite(CS, RetVal, CalleeNode, Args));
-    DS->callee_site(CS.getInstruction());
+//    DS->callee_site(CS.getInstruction());
   }else
     G.getFunctionCalls().push_back(DSCallSite(CS, RetVal, cast<Function>(Callee),
                                               Args));

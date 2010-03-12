@@ -45,6 +45,13 @@ bool BUDataStructures::runOnModule(Module &M) {
   return runOnModuleInternal(M);
 }
 
+// BU:
+// Construct the callgraph from the local graphs
+// Find SCCs
+// inline bottum up
+//
+// We must split these out (they were merged in PLDI07) to handle multiple
+// entry-points correctly.
 bool BUDataStructures::runOnModuleInternal(Module& M) {
   std::vector<const Function*> Stack;
   std::map<const Function*, unsigned> ValMap;
@@ -59,24 +66,24 @@ bool BUDataStructures::runOnModuleInternal(Module& M) {
     if (!hasDSGraph(**ii)) {
       errs() << debugname << ": Main Function: " << (*ii)->getName() << "\n";
       calculateGraphs(*ii, Stack, NextID, ValMap);
-      CloneAuxIntoGlobal(getDSGraph(**ii));
+      //CloneAuxIntoGlobal(getDSGraph(**ii));
     }
 
-  //errs() << "done main Funcs\n";
+  errs() << "done main Funcs\n";
 
   // Calculate the graphs for any functions that are unreachable from main...
   for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I)
     if (!I->isDeclaration() && !hasDSGraph(*I)) {
-      DEBUG(
+      //DEBUG(
             if (EntryPoints.size())
             errs() << debugname << ": Function unreachable from main: "
             << I->getName() << "\n";
-      );
+      //);
       calculateGraphs(I, Stack, NextID, ValMap); // Calculate all graphs.
-      CloneAuxIntoGlobal(getDSGraph(*I));
+      //CloneAuxIntoGlobal(getDSGraph(*I));
     }
 
-  //errs() << "done unreachable Funcs\n";
+  errs() << "done unreachable Funcs\n";
 
   // If we computed any temporary indcallgraphs, free them now.
   for (std::map<std::vector<const Function*>,
@@ -117,7 +124,7 @@ bool BUDataStructures::runOnModuleInternal(Module& M) {
                                    DSGraph::IgnoreGlobals);
   }
 
-  NumCallEdges += callee_size();
+  NumCallEdges += callgraph.size();
 
   return false;
 }
@@ -371,7 +378,6 @@ void BUDataStructures::calculateGraph(DSGraph* Graph) {
     DEBUG(Graph->AssertGraphOK(); Graph->getGlobalsGraph()->AssertGraphOK());
     
     DSCallSite &CS = *TempFCs.begin();
-    Instruction *TheCall = CS.getCallSite().getInstruction();
 
     CalledFuncs.clear();
 
@@ -380,7 +386,7 @@ void BUDataStructures::calculateGraph(DSGraph* Graph) {
     if (CS.getRetVal().isNull() && CS.getNumPtrArgs() == 0) {
       if (!CS.isDirectCall()) {
         GetAnyCallees(CS, CalledFuncs);
-        callee_add_many(TheCall, CalledFuncs.begin(), CalledFuncs.end());
+        callgraph.insert(CS.getCallSite(), CalledFuncs.begin(), CalledFuncs.end());
       }
       TempFCs.erase(TempFCs.begin());
       continue;
@@ -392,7 +398,7 @@ void BUDataStructures::calculateGraph(DSGraph* Graph) {
       //Get any callees we do have for the callgraph
       if (!CS.isDirectCall()) {
         GetAnyCallees(CS, CalledFuncs);
-        callee_add_many(TheCall, CalledFuncs.begin(), CalledFuncs.end());
+        callgraph.insert(CS.getCallSite(), CalledFuncs.begin(), CalledFuncs.end());
       }
       // Remember that we could not resolve this yet!
       AuxCallsList.splice(AuxCallsList.end(), TempFCs, TempFCs.begin());
@@ -401,9 +407,7 @@ void BUDataStructures::calculateGraph(DSGraph* Graph) {
 
     DSGraph *GI;
     
-    for (std::vector<const Function*>::iterator ii = CalledFuncs.begin(), ee = CalledFuncs.end();
-         ii != ee; ++ii) 
-      callee_add(TheCall, *ii);
+    callgraph.insert(CS.getCallSite(), CalledFuncs.begin(), CalledFuncs.end());
 
     if (CalledFuncs.size() == 1) {
       const Function *Callee = CalledFuncs[0];
@@ -510,7 +514,7 @@ void BUDataStructures::calculateGraph(DSGraph* Graph) {
   // reach live nodes as live.
   Graph->removeDeadNodes(DSGraph::KeepUnreachableGlobals);
 
-  cloneIntoGlobals(Graph);
+//  cloneIntoGlobals(Graph);
   //Graph.writeGraphToFile(cerr, "bu_" + F.getName());
 }
 

@@ -15,7 +15,6 @@
 #define LLVM_ANALYSIS_DSNODE_H
 
 #include "dsa/DSSupport.h"
-#include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/ilist_node.h"
 
@@ -150,10 +149,12 @@ public:
   inline const_iterator end() const;
 
   /// type_* - Provide iterators for accessing types.  Some types may be null
-  TyMapTy::iterator type_begin() { return TyMap.begin(); }
-  TyMapTy::iterator type_end()   { return TyMap.end(); }
-  TyMapTy::const_iterator type_begin() const { return TyMap.begin(); }
-  TyMapTy::const_iterator type_end()   const { return TyMap.end(); }
+  typedef TyMapTy::iterator type_iterator;
+  typedef TyMapTy::const_iterator const_type_iterator;
+  type_iterator type_begin() { return TyMap.begin(); }
+  type_iterator type_end()   { return TyMap.end(); }
+  const_type_iterator type_begin() const { return TyMap.begin(); }
+  const_type_iterator type_end()   const { return TyMap.end(); }
 
   /// edge_* - Provide iterators for accessing outgoing edges.  Some outgoing
   /// edges may be null.
@@ -247,6 +248,16 @@ public:
   void mergeTypeInfo(const Type *Ty, unsigned Offset);
   void mergeTypeInfo(const TyMapTy::mapped_type TyIt, unsigned Offset);
   void mergeTypeInfo(const DSNode* D, unsigned Offset);
+
+  // Types records might exist without types in them
+  bool hasNoType() {
+    type_iterator ii = type_begin(), ee = type_end();
+    while (ii != ee) {
+      if (ii->second) return false;
+      ++ii;
+    }
+    return true;
+  }
 
   /// foldNodeCompletely - If we determine that this node has some funny
   /// behavior happening to it that we cannot represent, we fold it down to a
@@ -381,6 +392,8 @@ public:
   /// should be forwarded to the specified node and offset.
   ///
   void forwardNode(DSNode *To, unsigned Offset);
+
+  void cleanEdges();
 
   void print(llvm::raw_ostream &O, const DSGraph *G) const;
   void dump() const;

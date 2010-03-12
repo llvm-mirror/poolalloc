@@ -365,17 +365,15 @@ static void printCollection(const Collection &C, llvm::raw_ostream &O,
 
 
 void DataStructures::dumpCallGraph() const {
-  for(  ActualCalleesTy::const_iterator ii = ActualCallees.begin(), ee = ActualCallees.end();
-        ii != ee; ++ii) {
-    if (ii->first) errs() << ii->first->getParent()->getParent()->getName() << " ";
-    errs() << ii->first << ": [";
-    for (callee_iterator cbi = ii->second.begin(), cbe = ii->second.end();
-         cbi != cbe; ++cbi) {
-      errs() << (*cbi)->getName() << " ";
+  for (DSCallGraph::key_iterator ki = callgraph.key_begin(),
+          ke = callgraph.key_end(); ki != ke; ++ki)
+    if (*ki != CallSite()) {
+      errs() << ki->getInstruction()->getParent()->getParent()->getName() << ": [";
+      for (DSCallGraph::iterator cbi = callgraph.callee_begin(*ki),
+           cbe = callgraph.callee_end(*ki); cbi != cbe; ++cbi)
+        errs() << (*cbi)->getName() << " ";
+      errs() << "]\n";
     }
-    errs() << "]\n";
-    if (ii->first) ii->first->dump();
-  }
 }
 
 // print - Print out the analysis results...

@@ -44,16 +44,15 @@ void CompleteBUDataStructures::buildIndirectFunctionSets(Module &M) {
   // Loop over all of the indirect calls in the program.  If a call site can
   // call multiple different functions, we need to unify all of the callees into
   // the same equivalence class.
-  std::vector<const Instruction*> keys;
-  callee_get_keys(keys);
 
   DSGraph* G = getGlobalsGraph();
   DSGraph::ScalarMapTy& SM = G->getScalarMap();
 
   //mege nodes in the global graph for these functions
-  for (std::vector<const Instruction*>::iterator ii = keys.begin(), ee = keys.end();
-       ii != ee; ++ii) {
-    callee_iterator csi = callee_begin(*ii), cse = callee_end(*ii);
+  for (DSCallGraph::key_iterator ii = callgraph.key_begin(),
+       ee = callgraph.key_end(); ii != ee; ++ii) {
+    DSCallGraph::iterator csi = callgraph.callee_begin(*ii),
+            cse = callgraph.callee_end(*ii);
     if (csi != cse && SM.find(*csi) != SM.end()) {
       DSNodeHandle& SrcNH = SM.find(*csi)->second;
       ++csi;

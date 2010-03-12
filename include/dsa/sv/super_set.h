@@ -16,6 +16,7 @@
 
 template<typename Ty>
 class SuperSet {
+  //std::set provides stable iterators, and that matters a lot
   typedef sv::set<Ty> InnerSetTy;
   typedef std::set<InnerSetTy> OuterSetTy;
   OuterSetTy container;
@@ -23,6 +24,7 @@ public:
   typedef const typename OuterSetTy::value_type* setPtr;
 
   setPtr getOrCreate(sv::set<Ty>& S) {
+    if (S.empty()) return 0;
     return &(*container.insert(S).first);
   }
 

@@ -147,8 +147,6 @@ public:
 
   virtual Value * getGlobalPool (const DSNode * Node) {return 0;}
 
-  virtual DataStructures::callee_iterator callee_begin (Instruction *I) { return Graphs->callee_begin(I);}
-  virtual DataStructures::callee_iterator callee_end   (Instruction *I) { return Graphs->callee_end(I);}
 };
 
 /// PoolAllocate - The main pool allocation pass
@@ -364,16 +362,6 @@ protected:
       return 0;
     else
       return I->second;
-  }
-
-  virtual DataStructures::callee_iterator
-  callee_begin (Instruction * I) {
-    return Graphs->callee_begin(I);
-  }
-
-  virtual DataStructures::callee_iterator
-  callee_end (Instruction * I) {
-    return Graphs->callee_end(I);
   }
 
 protected:
