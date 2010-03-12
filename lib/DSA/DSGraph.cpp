@@ -42,7 +42,6 @@ namespace {
   STATISTIC (NumDNE            , "Number of nodes removed by reachability");
   STATISTIC (NumTrivialDNE     , "Number of nodes trivially removed");
   STATISTIC (NumTrivialGlobalDNE, "Number of globals trivially removed");
-  static cl::opt<unsigned>
 }
 
 /// getFunctionNames - Return a space separated list of the name of the

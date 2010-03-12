@@ -40,7 +40,6 @@ using namespace llvm;
 namespace {
   STATISTIC (NumFolds, "Number of nodes completely folded");
   STATISTIC (NumNodeAllocated  , "Number of nodes allocated");
-  static cl::opt<unsigned>
 }
 
 /// isForwarding - Return true if this NodeHandle is forwarding to another
