@@ -171,13 +171,13 @@ public:
 
   const_iterator find(const key_type& k) const {
     const_iterator i = std::lower_bound(container_.begin(), container_.end(), k);
-    if (*i == k) return i;
+    if (i != container_.end() && *i == k) return i;
     return container_.end();
   }
 
   iterator find(const key_type& k) {
     iterator i = std::lower_bound(container_.begin(), container_.end(), k);
-    if (*i == k) return i;
+    if (i != container_.end() && *i == k) return i;
     return container_.end();
   }
 
