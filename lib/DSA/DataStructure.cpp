@@ -53,7 +53,7 @@ DSNode *DSNodeHandle::HandleForwarding() const {
   DEBUG(
         { //assert not looping
           DSNode* NH = N;
-          sv::set<DSNode*> seen;
+          svset<DSNode*> seen;
           while(NH && NH->isForwarding()) {
             assert(seen.find(NH) == seen.end() && "Loop detected");
             seen.insert(NH);
@@ -339,7 +339,7 @@ void DSNode::mergeTypeInfo(const TyMapTy::mapped_type TyIt, unsigned Offset) {
   if (!TyMap[Offset])
     TyMap[Offset] = TyIt;
   if (TyIt) {
-    sv::set<const Type*> S(*TyMap[Offset]);
+    svset<const Type*> S(*TyMap[Offset]);
     S.insert(TyIt->begin(), TyIt->end());
     TyMap[Offset] = getParentGraph()->getTypeSS().getOrCreate(S);
   }
@@ -1125,7 +1125,7 @@ DSGraph* DataStructures::getOrCreateGraph(const Function* F) {
 void DataStructures::formGlobalECs() {
   // Grow the equivalence classes for the globals to include anything that we
   // now know to be aliased.
-  sv::set<const GlobalValue*> ECGlobals;
+  svset<const GlobalValue*> ECGlobals;
   buildGlobalECs(ECGlobals);
   if (!ECGlobals.empty()) {
     DEBUG(errs() << "Eliminating " << ECGlobals.size() << " EC Globals!\n");
@@ -1140,7 +1140,7 @@ void DataStructures::formGlobalECs() {
 /// apart.  Instead of maintaining this information in all of the graphs
 /// throughout the entire program, store only a single global (the "leader") in
 /// the graphs, and build equivalence classes for the rest of the globals.
-void DataStructures::buildGlobalECs(sv::set<const GlobalValue*> &ECGlobals) {
+void DataStructures::buildGlobalECs(svset<const GlobalValue*> &ECGlobals) {
   DSScalarMap &SM = GlobalsGraph->getScalarMap();
   EquivalenceClasses<const GlobalValue*> &GlobalECs = SM.getGlobalECs();
   for (DSGraph::node_iterator I = GlobalsGraph->node_begin(), 
@@ -1179,7 +1179,7 @@ void DataStructures::buildGlobalECs(sv::set<const GlobalValue*> &ECGlobals) {
 /// really just equivalent to some other globals, remove the globals from the
 /// specified DSGraph (if present), and merge any nodes with their leader nodes.
 void DataStructures::eliminateUsesOfECGlobals(DSGraph &G,
-                                              const sv::set<const GlobalValue*> &ECGlobals) {
+                                              const svset<const GlobalValue*> &ECGlobals) {
   DSScalarMap &SM = G.getScalarMap();
   EquivalenceClasses<const GlobalValue*> &GlobalECs = SM.getGlobalECs();
 

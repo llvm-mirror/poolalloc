@@ -69,8 +69,8 @@ bool BUDataStructures::runOnModuleInternal(Module& M) {
   //Post order traversal:
   {
     //errs() << *DSG.knownRoots.begin() << " -> " << *DSG.knownRoots.rbegin() << "\n";
-    sv::set<unsigned> marked;
-    for (sv::set<unsigned>::const_iterator ii = DSG.knownRoots.begin(),
+    svset<unsigned> marked;
+    for (svset<unsigned>::const_iterator ii = DSG.knownRoots.begin(),
          ee = DSG.knownRoots.end(); ii != ee; ++ii) {
       //errs() << *ii << " ";
       DSGraph* G = postOrder(DSG, *ii, marked);
@@ -196,11 +196,11 @@ void BUDataStructures::mergeSCCs(DSSCCGraph& DSG) {
 }
 
 DSGraph* BUDataStructures::postOrder(DSSCCGraph& DSG, unsigned scc,
-                                     sv::set<unsigned>& marked) {
+                                     svset<unsigned>& marked) {
   DSGraph* G = getDSGraph(**DSG.SCCs[scc].begin());
   if (marked.count(scc)) return G;
 
-  for(sv::set<unsigned>::iterator ii = DSG.SCCCallees[scc].begin(),
+  for(svset<unsigned>::iterator ii = DSG.SCCCallees[scc].begin(),
           ee = DSG.SCCCallees[scc].end(); ii != ee; ++ii)
     postOrder(DSG, *ii, marked);
 

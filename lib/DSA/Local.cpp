@@ -880,7 +880,7 @@ void handleMagicSections(DSGraph* GlobalsGraph, Module& M) {
     while (count) {
       std::string section;
       msf >> section;
-      sv::set<Value*> inSection;
+      svset<Value*> inSection;
       for (Module::iterator MI = M.begin(), ME = M.end();
               MI != ME; ++MI)
         if (MI->hasSection() && MI->getSection() == section)
@@ -896,7 +896,7 @@ void handleMagicSections(DSGraph* GlobalsGraph, Module& M) {
         Value* V = M.getNamedValue(global);
         if (V) {
           DSNodeHandle& DHV = GlobalsGraph->getNodeForValue(V);
-          for (sv::set<Value*>::iterator SI = inSection.begin(),
+          for (svset<Value*>::iterator SI = inSection.begin(),
                   SE = inSection.end(); SI != SE; ++SI) {
             DEBUG(errs() << "Merging " << V->getNameStr() << " with "
                     << (*SI)->getNameStr() << "\n");

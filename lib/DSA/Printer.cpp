@@ -65,7 +65,7 @@ static std::string getCaption(const DSNode *N, const DSGraph *G) {
            ee = N->type_end(); ii != ee; ++ii) {
         OS << ii->first << ": ";
         if (ii->second)
-          for (sv::set<const Type*>::const_iterator ni = ii->second->begin(),
+          for (svset<const Type*>::const_iterator ni = ii->second->begin(),
                ne = ii->second->end(); ni != ne; ++ni) {
             WriteTypeSymbolic(OS, *ni, M);
             OS << ", ";

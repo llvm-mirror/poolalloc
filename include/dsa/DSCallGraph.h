@@ -14,7 +14,7 @@
 #ifndef LLVM_DSCALLGRAPH_H
 #define	LLVM_DSCALLGRAPH_H
 
-#include "dsa/sv/set.h"
+#include "dsa/svset.h"
 #include <map>
 
 #include "llvm/Function.h"
@@ -98,7 +98,7 @@ public:
 
 class DSCallGraph {
 public:
-  typedef sv::set<const llvm::Function*> FuncSet;
+  typedef svset<const llvm::Function*> FuncSet;
   typedef std::map<llvm::CallSite, FuncSet> ActualCalleesTy;
   typedef std::map<const llvm::Function*, FuncSet> SimpleCalleesTy;
 
@@ -210,10 +210,10 @@ public:
   unsigned nextSCC;
 
   //Functions we know about that aren't called
-  sv::set<unsigned> knownRoots;
+  svset<unsigned> knownRoots;
 
-  std::map<unsigned, sv::set<unsigned> > SCCCallees;
-  std::map<unsigned, sv::set<unsigned> > ExtCallees;
+  std::map<unsigned, svset<unsigned> > SCCCallees;
+  std::map<unsigned, svset<unsigned> > ExtCallees;
 
   DSCallGraph oldGraph;
 
@@ -306,14 +306,14 @@ private:
   }
 
   void buildRoots() {
-    sv::set<unsigned> knownCallees;
-    sv::set<unsigned> knownCallers;
-    for (std::map<unsigned, sv::set<unsigned> >::iterator
+    svset<unsigned> knownCallees;
+    svset<unsigned> knownCallers;
+    for (std::map<unsigned, svset<unsigned> >::iterator
       ii = SCCCallees.begin(), ee = SCCCallees.end(); ii != ee; ++ii) {
       knownCallees.insert(ii->second.begin(), ii->second.end());
       knownCallers.insert(ii->first);
     }
-    for (sv::set<unsigned>::iterator ii = knownCallers.begin(),
+    for (svset<unsigned>::iterator ii = knownCallers.begin(),
             ee = knownCallers.end(); ii != ee; ++ii)
       if (!knownCallees.count(*ii))
         knownRoots.insert(*ii);
@@ -368,10 +368,10 @@ public:
 //      llvm::errs() << ii->first << " -> " << ii->second << "\n";
 
     //SCC map
-    for (std::map<unsigned, sv::set<unsigned> >::iterator ii = SCCCallees.begin(),
+    for (std::map<unsigned, svset<unsigned> >::iterator ii = SCCCallees.begin(),
             ee = SCCCallees.end(); ii != ee; ++ii) {
       llvm::errs() << "CallGraph[" << ii->first << "]";
-      for (sv::set<unsigned>::iterator i = ii->second.begin(),
+      for (svset<unsigned>::iterator i = ii->second.begin(),
               e = ii->second.end(); i != e; ++i)
         llvm::errs() << " " << *i;
       llvm::errs() << "\n";
@@ -379,7 +379,7 @@ public:
 
     //Functions we know about that aren't called
     llvm::errs() << "Roots:";
-    for (sv::set<unsigned>::iterator ii = knownRoots.begin(),
+    for (svset<unsigned>::iterator ii = knownRoots.begin(),
             ee = knownRoots.end(); ii != ee; ++ii)
       llvm::errs() << " " << *ii;
     llvm::errs() << "\n";

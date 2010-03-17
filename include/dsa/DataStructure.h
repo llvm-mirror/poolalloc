@@ -21,8 +21,8 @@
 
 #include "dsa/EntryPointAnalysis.h"
 #include "dsa/DSCallGraph.h"
-#include "dsa/sv/set.h"
-#include "dsa/sv/super_set.h"
+#include "dsa/svset.h"
+#include "dsa/super_set.h"
 
 #include <map>
 
@@ -57,9 +57,9 @@ class DataStructures : public ModulePass {
   /// Were are DSGraphs stolen by another pass?
   bool DSGraphsStolen;
 
-  void buildGlobalECs(sv::set<const GlobalValue*>& ECGlobals);
+  void buildGlobalECs(svset<const GlobalValue*>& ECGlobals);
 
-  void eliminateUsesOfECGlobals(DSGraph& G, const sv::set<const GlobalValue*> &ECGlobals);
+  void eliminateUsesOfECGlobals(DSGraph& G, const svset<const GlobalValue*> &ECGlobals);
 
   // DSInfo, one graph for each function
   DSInfoTy DSInfo;
@@ -237,7 +237,7 @@ protected:
 private:
   void mergeSCCs(DSSCCGraph& DSG);
   
-  DSGraph* postOrder(DSSCCGraph& DSG, unsigned scc, sv::set<unsigned>& marked);
+  DSGraph* postOrder(DSSCCGraph& DSG, unsigned scc, svset<unsigned>& marked);
   
   void calculateGraph(DSGraph* G, DSSCCGraph& DSG);
 
@@ -301,7 +301,7 @@ public:
 /// by the bottom-up pass.
 ///
 class TDDataStructures : public DataStructures {
-  sv::set<const Function*> ArgsRemainIncomplete;
+  svset<const Function*> ArgsRemainIncomplete;
 
   /// CallerCallEdges - For a particular graph, we keep a list of these records
   /// which indicates which graphs call this function and from where.
@@ -353,10 +353,10 @@ public:
 
 private:
   void markReachableFunctionsExternallyAccessible(DSNode *N,
-                                                  sv::set<DSNode*> &Visited);
+                                                  svset<DSNode*> &Visited);
 
   void InlineCallersIntoGraph(DSGraph* G);
-  void ComputePostOrder(const Function &F, sv::set<DSGraph*> &Visited,
+  void ComputePostOrder(const Function &F, svset<DSGraph*> &Visited,
                         std::vector<DSGraph*> &PostOrder);
 };
 

@@ -20,8 +20,8 @@
 
 #include <map>
 #include <set>
-#include "dsa/sv/set.h"
-#include "dsa/sv/super_set.h"
+#include "dsa/svset.h"
+#include "dsa/super_set.h"
 #include "DSGraph.h"
 
 namespace llvm {
@@ -79,7 +79,7 @@ private:
 
   /// Globals - The list of global values that are merged into this node.
   ///
-  sv::set<const GlobalValue*> Globals;
+  svset<const GlobalValue*> Globals;
 
   void operator=(const DSNode &); // DO NOT IMPLEMENT
   DSNode(const DSNode &);         // DO NOT IMPLEMENT
@@ -317,7 +317,7 @@ public:
   /// value leaders set that is merged into this node.  Like the getGlobalsList
   /// method, these iterators do not return globals that are part of the
   /// equivalence classes for globals in this node, but aren't leaders.
-  typedef sv::set<const GlobalValue*>::const_iterator globals_iterator;
+  typedef svset<const GlobalValue*>::const_iterator globals_iterator;
   globals_iterator globals_begin() const { return Globals.begin(); }
   globals_iterator globals_end() const { return Globals.end(); }
 
