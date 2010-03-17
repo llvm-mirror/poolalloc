@@ -461,7 +461,7 @@ void RTAssociate::replaceCall(CallSite CS, FuncInfo& FI, DataStructures* DS) {
     Instruction *OrigInst =
       cast<Instruction>(FI.getOldValueIfAvailable(CS.getInstruction()));
 
-    DSCallGraph::iterator I = DS->getCallGraph().callee_begin(CS);
+    DSCallGraph::callee_iterator I = DS->getCallGraph().callee_begin(CS);
     if (I != DS->getCallGraph().callee_end(CS))
       CF = *I;
 
@@ -508,7 +508,7 @@ void RTAssociate::replaceCall(CallSite CS, FuncInfo& FI, DataStructures* DS) {
 
 #ifndef NDEBUG
     // Verify that all potential callees at call site have the same DS graph.
-    DSCallGraph::iterator E = DS->getCallGraph().callee_end(CS);
+    DSCallGraph::callee_iterator E = DS->getCallGraph().callee_end(CS);
     for (; I != E; ++I)
       if (!(*I)->isDeclaration())
         assert(CalleeGraph == DS->getDSGraph(**I) &&

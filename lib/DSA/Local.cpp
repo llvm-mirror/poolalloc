@@ -522,8 +522,13 @@ void GraphBuilder::visitGetElementPtrInst(User &GEP) {
       Offset += (unsigned)TD.getStructLayout(STy)->getElementOffset(FieldNo);
     } else if (isa<PointerType>(*I)) {
       if (!isa<Constant>(I.getOperand()) ||
-          !cast<Constant>(I.getOperand())->isNullValue())
+          !cast<Constant>(I.getOperand())->isNullValue()) {
         Value.getNode()->setArrayMarker();
+        Value.getNode()->foldNodeCompletely();
+        Value.getNode();
+        Offset = 0;
+        break;
+      }
     }
 
 
@@ -945,6 +950,7 @@ bool LocalDataStructures::runOnModule(Module &M) {
       G->getAuxFunctionCalls() = G->getFunctionCalls();
       setDSGraph(*I, G);
       propagateUnknownFlag(G);
+      G->buildCallGraph(callgraph);
     }
 
 

@@ -85,6 +85,7 @@ DSNode *DSNodeHandle::HandleForwarding() const {
 //===----------------------------------------------------------------------===//
 
 DSNodeHandle &DSScalarMap::AddGlobal(const GlobalValue *GV) {
+  assert(GV);
   assert(ValueMap.count(GV) == 0 && "GV already exists!");
 
   // If the node doesn't exist, check to see if it's a global that is
@@ -179,8 +180,9 @@ void DSNode::forwardNode(DSNode *To, unsigned Offset) {
   DSNodeHandle ToNH(To,Offset);
 
   //Move the Links
-  for (unsigned x = 0, xe = Links.size(); x != xe; ++x)
-    if (!Links[x].isNull()) {
+  for (LinkMapTy::iterator ii = Links.begin(), ee = Links.end();
+       ii != ee; ++ii) {
+    if (!ii->second.isNull()) {
       // Compute the offset into the current node at which to
       // merge this link.  In the common case, this is a linear
       // relation to the offset in the original node (with
@@ -189,9 +191,10 @@ void DSNode::forwardNode(DSNode *To, unsigned Offset) {
       // links at offset zero.
       unsigned MergeOffset = 0;
       if (ToNH.getNode()->getSize() != 1)
-        MergeOffset = (x + Offset) % ToNH.getNode()->getSize();
-      ToNH.getNode()->addEdgeTo(MergeOffset, Links[x]);
+        MergeOffset = (ii->first + Offset) % ToNH.getNode()->getSize();
+      ToNH.getNode()->addEdgeTo(MergeOffset, ii->second);
     }
+  }
   Links.clear();
 
   // Remove this node from the parent graph's Nodes list.
@@ -452,12 +455,35 @@ void DSNode::MergeNodes(DSNodeHandle& CurNodeH, DSNodeHandle& NH) {
     CurNodeH.getNode()->growSize(NH.getNode()->getSize() + NOffset);
   assert(!CurNodeH.getNode()->isDeadNode());
 
+
+
   // Merge the NodeType information.
   CurNodeH.getNode()->NodeType |= N->NodeType;
 
   // Start forwarding to the new node!
   N->forwardNode(CurNodeH.getNode(), NOffset);
   assert(!CurNodeH.getNode()->isDeadNode());
+
+  // Make all of the outgoing links of N now be outgoing links of CurNodeH.
+  //
+  for (LinkMapTy::iterator ii = N->Links.begin(), ee = N->Links.end();
+       ii != ee; ++ii)
+    if (ii->second.getNode()) {
+      // Compute the offset into the current node at which to
+      // merge this link.  In the common case, this is a linear
+      // relation to the offset in the original node (with
+      // wrapping), but if the current node gets collapsed due to
+      // recursive merging, we must make sure to merge in all remaining
+      // links at offset zero.
+      unsigned MergeOffset = 0;
+       DSNode *CN = CurNodeH.getNode();
+      if (CN->Size != 1)
+        MergeOffset = (ii->first + NOffset) % CN->getSize();
+      CN->addEdgeTo(MergeOffset, ii->second);
+    }
+
+  // Now that there are no outgoing edges, all of the Links are dead.
+  N->Links.clear();
 
   // Merge the globals list...
   CurNodeH.getNode()->mergeGlobals(*N);

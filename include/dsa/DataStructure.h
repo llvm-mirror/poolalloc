@@ -235,13 +235,11 @@ protected:
   bool runOnModuleInternal(Module &M);
 
 private:
-  void calculateGraph(DSGraph* G);
-
-  unsigned calculateGraphs(const Function *F, 
-                           std::vector<const Function*> &Stack,
-                           unsigned &NextID,
-                           std::map<const Function*, unsigned> &ValMap);
-
+  void mergeSCCs(DSSCCGraph& DSG);
+  
+  DSGraph* postOrder(DSSCCGraph& DSG, unsigned scc, sv::set<unsigned>& marked);
+  
+  void calculateGraph(DSGraph* G, DSSCCGraph& DSG);
 
   void CloneAuxIntoGlobal(DSGraph* G);
   void cloneGlobalsInto(DSGraph* G);

@@ -130,15 +130,7 @@ public:
   /// links are just going to be clobbered anyway.
   ///
   DSNode(const DSNode &, DSGraph *G, bool NullLinks = false);
-
-#if 0
-  ~DSNode() {
-    dropAllReferences();
-    assert(hasNoReferrers() && "Referrers to dead node exist!");
-  }
-#else
   ~DSNode();
-#endif
 
   // Iterator for graph interface... Defined in DSGraphTraits.h
   typedef DSNodeIterator<DSNode> iterator;

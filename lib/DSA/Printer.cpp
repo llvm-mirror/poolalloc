@@ -365,15 +365,14 @@ static void printCollection(const Collection &C, llvm::raw_ostream &O,
 
 
 void DataStructures::dumpCallGraph() const {
-  for (DSCallGraph::key_iterator ki = callgraph.key_begin(),
-          ke = callgraph.key_end(); ki != ke; ++ki)
-    if (*ki != CallSite()) {
-      errs() << ki->getInstruction()->getParent()->getParent()->getName() << ": [";
-      for (DSCallGraph::iterator cbi = callgraph.callee_begin(*ki),
-           cbe = callgraph.callee_end(*ki); cbi != cbe; ++cbi)
-        errs() << (*cbi)->getName() << " ";
-      errs() << "]\n";
-    }
+  for (DSCallGraph::flat_key_iterator ki = callgraph.flat_key_begin(),
+       ke = callgraph.flat_key_end(); ki != ke; ++ki) {
+    errs() << (*ki)->getName() << ": [";
+    for (DSCallGraph::flat_iterator cbi = callgraph.flat_callee_begin(*ki),
+         cbe = callgraph.flat_callee_end(*ki); cbi != cbe; ++cbi)
+      errs() << (*cbi)->getName() << " ";
+    errs() << "]\n";
+  }
 }
 
 // print - Print out the analysis results...

@@ -16,6 +16,7 @@
 #define LLVM_ANALYSIS_DSGRAPH_H
 
 #include "dsa/DSNode.h"
+#include "dsa/DSCallGraph.h"
 #include "llvm/ADT/EquivalenceClasses.h"
 
 #include <list>
@@ -42,7 +43,7 @@ class DSScalarMap {
   typedef std::map<const Value*, DSNodeHandle> ValueMapTy;
   ValueMapTy ValueMap;
 
-  typedef sv::set<const GlobalValue*> GlobalSetTy;
+  typedef std::set<const GlobalValue*> GlobalSetTy;
   GlobalSetTy GlobalSet;
 
   EquivalenceClasses<const GlobalValue*> &GlobalECs;
@@ -68,6 +69,7 @@ public:
 
 
   iterator find(const Value *V) {
+    assert(V);
     iterator I = ValueMap.find(V);
     if (I != ValueMap.end()) return I;
 
@@ -81,6 +83,7 @@ public:
     return I;
   }
   const_iterator find(const Value *V) const {
+    assert(V);
     const_iterator I = ValueMap.find(V);
     if (I != ValueMap.end()) return I;
 
@@ -135,6 +138,7 @@ public:
   /// operator[] - Return the DSNodeHandle for the specified value, creating a
   /// new null handle if there is no entry yet.
   DSNodeHandle &operator[](const Value *V) {
+    assert(V);
     iterator I = ValueMap.find(V);
     if (I != ValueMap.end())
       return I->second;   // Return value if already exists.
@@ -327,6 +331,7 @@ public:
   // addAuxFunctionCall - Add a call site to the AuxFunctionCallList
   void addAuxFunctionCall(DSCallSite D) { AuxFunctionCalls.push_front(D); }
 
+  void buildCallGraph(DSCallGraph& DCG) const;
 
   /// removeFunction - Specify that all call sites to the function have been
   /// fully specified by a pass such as StdLibPass.

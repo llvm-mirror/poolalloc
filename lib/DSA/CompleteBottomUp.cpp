@@ -51,7 +51,7 @@ void CompleteBUDataStructures::buildIndirectFunctionSets(Module &M) {
   //mege nodes in the global graph for these functions
   for (DSCallGraph::key_iterator ii = callgraph.key_begin(),
        ee = callgraph.key_end(); ii != ee; ++ii) {
-    DSCallGraph::iterator csi = callgraph.callee_begin(*ii),
+    DSCallGraph::callee_iterator csi = callgraph.callee_begin(*ii),
             cse = callgraph.callee_end(*ii);
     if (csi != cse && SM.find(*csi) != SM.end()) {
       DSNodeHandle& SrcNH = SM.find(*csi)->second;

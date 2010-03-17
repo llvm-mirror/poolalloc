@@ -645,7 +645,7 @@ void FuncTransform::visitCallSite(CallSite& CS) {
     Instruction *OrigInst =
       cast<Instruction>(getOldValueIfAvailable(CS.getInstruction()));
 
-    DSCallGraph::iterator I = Graphs.getCallGraph().callee_begin(CS);
+    DSCallGraph::callee_iterator I = Graphs.getCallGraph().callee_begin(CS);
     if (I != Graphs.getCallGraph().callee_end(CS))
       CF = *I;
     
@@ -685,7 +685,7 @@ void FuncTransform::visitCallSite(CallSite& CS) {
     
 #ifndef NDEBUG
     // Verify that all potential callees at call site have the same DS graph.
-    DSCallGraph::iterator E = Graphs.getCallGraph().callee_end(OrigInst);
+    DSCallGraph::callee_iterator E = Graphs.getCallGraph().callee_end(OrigInst);
     for (; I != E; ++I)
       if (!(*I)->isDeclaration())
         assert(CalleeGraph == Graphs.getDSGraph(**I) &&

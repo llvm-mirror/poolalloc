@@ -38,10 +38,20 @@ using namespace llvm;
 
 #define COLLAPSE_ARRAYS_AGGRESSIVELY 0
 namespace {
-  STATISTIC (NumCallNodesMerged, "Number of call nodes merged");
-  STATISTIC (NumDNE            , "Number of nodes removed by reachability");
-  STATISTIC (NumTrivialDNE     , "Number of nodes trivially removed");
+  STATISTIC (NumCallNodesMerged , "Number of call nodes merged");
+  STATISTIC (NumDNE             , "Number of nodes removed by reachability");
+  STATISTIC (NumTrivialDNE      , "Number of nodes trivially removed");
   STATISTIC (NumTrivialGlobalDNE, "Number of globals trivially removed");
+  STATISTIC (NumFiltered        , "Number of calls filtered");
+  static cl::opt<bool> noDSACallConv("dsa-no-filter-callcc",
+         cl::desc("Don't filter call sites based on calling convention."),
+         cl::Hidden);
+  static cl::opt<bool> noDSACallVA("dsa-no-filter-vararg",
+         cl::desc("Don't filter call sites based on vararg presense"),
+         cl::Hidden);
+  static cl::opt<bool> noDSACallFP("dsa-no-filter-intfp",
+         cl::desc("Don't filter call sites based on implicit integer to fp conversion"),
+         cl::Hidden);
 }
 
 /// getFunctionNames - Return a space separated list of the name of the
@@ -1215,4 +1225,53 @@ void DSGraph::updateFromGlobalGraph() {
   }
 }
 
+// Filter potential call targets
+static bool functionIsCallable(CallSite CS, const Function* F) {
+  //Which targets do we choose?
+  //Conservative: all of them
+  //Pretty Safe: same calling convention, otherwise undefined behavior
+  //Safe on some archs:
+  //Safe?: vararg call only calling vararg functions
+  //Safe?: non-vararg call only calling non-vararg functions
+  //Safe?: iany/ptr can't be interchanged in args w/ float/double
+  //Not so safe: number of args matching
+  const PointerType*  PT = cast<PointerType>(CS.getCalledValue()->getType());
+  const FunctionType* FT = cast<FunctionType>(PT->getElementType());
 
+  if (!noDSACallConv && CS.getCallingConv() != F->getCallingConv()) return false;
+  if (!noDSACallVA && FT->isVarArg() != F->isVarArg()) return false;
+  if (!noDSACallFP) {
+    FunctionType::param_iterator Pi = FT->param_begin(), Pe = FT->param_end(),
+            Ai = F->getFunctionType()->param_begin(),
+            Ae = F->getFunctionType()->param_end();
+    while (Ai != Ae && Pi != Pe) {
+      if ((Ai->get()->isFPOrFPVectorTy() && !Pi->get()->isFPOrFPVectorTy())
+          ||
+          (!Ai->get()->isFPOrFPVectorTy() && Pi->get()->isFPOrFPVectorTy()))
+        return false;
+      ++Ai;
+      ++Pi;
+    }
+  }
+  //F can be called from CS;
+  return true;
+}
+
+void DSGraph::buildCallGraph(DSCallGraph& DCG) const {
+  const std::list<DSCallSite>& Calls = getAuxFunctionCalls();
+  for (std::list<DSCallSite>::const_iterator ii = Calls.begin(), ee = Calls.end();
+       ii != ee; ++ii)
+    if (ii->isDirectCall()) {
+      DCG.insert(ii->getCallSite(), ii->getCalleeFunc());
+    } else {
+      CallSite CS = ii->getCallSite();
+      std::vector<const Function*> MaybeTargets;
+      ii->getCalleeNode()->addFullFunctionList(MaybeTargets);
+      for (std::vector<const Function*>::iterator Fi = MaybeTargets.begin(),
+           Fe = MaybeTargets.end(); Fi != Fe; ++Fi)
+        if (functionIsCallable(CS, *Fi))
+          DCG.insert(CS, *Fi);
+        else
+          ++NumFiltered;
+    }
+}
