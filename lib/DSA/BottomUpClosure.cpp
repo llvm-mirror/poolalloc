@@ -55,25 +55,26 @@ bool BUDataStructures::runOnModule(Module &M) {
 // entry-points correctly.  As a bonus, we can be more aggressive at propagating
 // information upwards, as long as we don't remove unresolved call sites.
 bool BUDataStructures::runOnModuleInternal(Module& M) {
+  llvm::errs() << "BU is currently being worked in in very invasive ways.\n"
+          << "It is probably broken right now\n";
+
   //Find SCCs and make SCC call graph
-  DSSCCGraph DSG(callgraph);
+  callgraph.buildSCCs();
+  callgraph.buildRoots();
 
-  errs() << "DSNode: " << sizeof(DSNode) << "\nDSCallSite: "
-          << sizeof(DSCallSite) << "\n";
-
-//  DSG.dump();
+  //  callgraph.dump();
 
   //merge SCCs
-  mergeSCCs(DSG);
+  mergeSCCs();
 
   //Post order traversal:
   {
     //errs() << *DSG.knownRoots.begin() << " -> " << *DSG.knownRoots.rbegin() << "\n";
-    svset<unsigned> marked;
-    for (svset<unsigned>::const_iterator ii = DSG.knownRoots.begin(),
-         ee = DSG.knownRoots.end(); ii != ee; ++ii) {
-      //errs() << *ii << " ";
-      DSGraph* G = postOrder(DSG, *ii, marked);
+    svset<const Function*> marked;
+    for (DSCallGraph::root_iterator ii = callgraph.root_begin(),
+         ee = callgraph.root_end(); ii != ee; ++ii) {
+      errs() << (*ii)->getName() << " ";
+      DSGraph* G = postOrder(*ii, marked);
       CloneAuxIntoGlobal(G);
     }
   }
@@ -164,22 +165,23 @@ bool BUDataStructures::runOnModuleInternal(Module& M) {
   return false;
 }
 
-void BUDataStructures::mergeSCCs(DSSCCGraph& DSG) {
+void BUDataStructures::mergeSCCs() {
 
-  for (std::map<unsigned, DSCallGraph::FuncSet>::iterator ii = DSG.SCCs.begin(),
-       ee = DSG.SCCs.end(); ii != ee; ++ii) {
+  for (DSCallGraph::flat_key_iterator ii = callgraph.flat_key_begin(),
+       ee = callgraph.flat_key_end(); ii != ee; ++ii) {
+    // Externals can be singleton SCCs
+    if ((*ii)->isDeclaration()) continue;
+    DSGraph* SCCGraph = getOrCreateGraph(*ii);
+    unsigned SCCSize = 1;
+    callgraph.assertSCCRoot(*ii);
 
-    DSGraph* SCCGraph = 0;
-    unsigned SCCSize = 0;
-    for (DSCallGraph::FuncSet::iterator Fi = ii->second.begin(),
-         Fe = ii->second.end(); Fi != Fe; ++Fi) {
+    for (DSCallGraph::scc_iterator Fi = callgraph.scc_begin(*ii),
+         Fe = callgraph.scc_end(*ii); Fi != Fe; ++Fi) {
       const Function* F = *Fi;
       if (F->isDeclaration()) continue;
+      if (F == *ii) continue;
       ++SCCSize;
       DSGraph* NFG = getOrCreateGraph(F);
-      if (!SCCGraph) {
-        SCCGraph = NFG;
-      }
       if (NFG != SCCGraph) {
         ++NumSCCMerges;
         // Update the Function -> DSG map.
@@ -195,17 +197,22 @@ void BUDataStructures::mergeSCCs(DSSCCGraph& DSG) {
   }
 }
 
-DSGraph* BUDataStructures::postOrder(DSSCCGraph& DSG, unsigned scc,
-                                     svset<unsigned>& marked) {
-  DSGraph* G = getDSGraph(**DSG.SCCs[scc].begin());
-  if (marked.count(scc)) return G;
+DSGraph* BUDataStructures::postOrder(const Function* F,
+                                     svset<const Function*>& marked) {
+  callgraph.assertSCCRoot(F);
+  DSGraph* G = getDSGraph(*F);
+  if (marked.count(F)) return G;
 
-  for(svset<unsigned>::iterator ii = DSG.SCCCallees[scc].begin(),
-          ee = DSG.SCCCallees[scc].end(); ii != ee; ++ii)
-    postOrder(DSG, *ii, marked);
+  for(DSCallGraph::flat_iterator ii = callgraph.flat_callee_begin(F),
+          ee = callgraph.flat_callee_end(F); ii != ee; ++ii) {
+    callgraph.assertSCCRoot(*ii);
+    assert (*ii != F && "Simple loop in callgraph");
+    if (!(*ii)->isDeclaration())
+      postOrder(*ii, marked);
+  }
 
-  marked.insert(scc);
-  calculateGraph(G, DSG);
+  marked.insert(F);
+  calculateGraph(G);
   return G;
 }
 
@@ -262,7 +269,7 @@ void BUDataStructures::CloneAuxIntoGlobal(DSGraph* G) {
   }
 }
 
-void BUDataStructures::calculateGraph(DSGraph* Graph, DSSCCGraph& DSG) {
+void BUDataStructures::calculateGraph(DSGraph* Graph) {
   DEBUG(Graph->AssertGraphOK(); Graph->getGlobalsGraph()->AssertGraphOK());
 
   // If this graph contains the main function, clone the globals graph into this
@@ -281,8 +288,8 @@ void BUDataStructures::calculateGraph(DSGraph* Graph, DSSCCGraph& DSG) {
    // Note that this is *required* for correctness.  If a callee contains a use
    // of a global, we have to make sure to link up nodes due to global-argument
    // bindings.
-   if (ContainsMain)
-     cloneGlobalsInto(Graph);
+//   if (ContainsMain)
+//     cloneGlobalsInto(Graph);
 
   // Move our call site list into TempFCs so that inline call sites go into the
   // new call site list and doesn't invalidate our iterators!
@@ -305,8 +312,8 @@ void BUDataStructures::calculateGraph(DSGraph* Graph, DSSCCGraph& DSG) {
       continue;
     }
 
-    std::copy(DSG.oldGraph.callee_begin(CS.getCallSite()),
-              DSG.oldGraph.callee_end(CS.getCallSite()),
+    std::copy(callgraph.callee_begin(CS.getCallSite()),
+              callgraph.callee_end(CS.getCallSite()),
               std::back_inserter(CalledFuncs));
 
     std::vector<const Function*>::iterator ErasePoint =

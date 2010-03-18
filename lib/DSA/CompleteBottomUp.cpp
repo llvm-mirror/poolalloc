@@ -49,7 +49,7 @@ void CompleteBUDataStructures::buildIndirectFunctionSets(Module &M) {
   DSGraph::ScalarMapTy& SM = G->getScalarMap();
 
   //mege nodes in the global graph for these functions
-  for (DSCallGraph::key_iterator ii = callgraph.key_begin(),
+  for (DSCallGraph::callee_key_iterator ii = callgraph.key_begin(),
        ee = callgraph.key_end(); ii != ee; ++ii) {
     DSCallGraph::callee_iterator csi = callgraph.callee_begin(*ii),
             cse = callgraph.callee_end(*ii);

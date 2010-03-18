@@ -134,6 +134,11 @@ public:
     return std::make_pair(i, insertion);
   }
 
+  /// Insert a value into the sorted vector.
+  iterator insert(iterator position, const value_type& x) {
+    return insert(x).first;
+  }
+
   /// Insert a range.
   template < typename Iterator >
   void insert(Iterator _begin, Iterator _end) {

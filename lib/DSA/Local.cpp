@@ -749,7 +749,14 @@ void GraphBuilder::visitCallSite(CallSite CS) {
   if (visitAllocation(CS))
     return;
 
+  //Can't do much about inline asm (yet!)
   if (isa<InlineAsm>(CS.getCalledValue())) return;
+
+  //uninteresting call
+  if (!DSCallGraph::hasPointers(CS))
+    return;
+  
+
 //  if (InlineAsm* IASM = dyn_cast<InlineAsm>(CS.getCalledValue())) {
 //    if (IASM->hasSideEffects())
 //      errs() << ASM w/ Side Effects\n";

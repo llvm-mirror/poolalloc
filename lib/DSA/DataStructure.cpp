@@ -1268,7 +1268,8 @@ void DataStructures::releaseMemory() {
   // Empty map so next time memory is released, data structures are not
   // re-deleted.
   DSInfo.clear();
-  callgraph.clear();
+  //FIXME:
+//  callgraph.clear();
   delete GlobalsGraph;
   GlobalsGraph = 0;
 }

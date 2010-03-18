@@ -18,10 +18,10 @@
 #include "dsa/keyiterator.h"
 #include <map>
 
-#include "llvm/Function.h"
-#include "llvm/DerivedTypes.h"
+//Fix in 2.8, EQC includes cassert
+#include <cassert>
+#include "llvm/ADT/EquivalenceClasses.h"
 #include "llvm/Support/CallSite.h"
-#include "llvm/Support/FormattedStream.h"
 
 
 class DSCallGraph {
@@ -31,31 +31,44 @@ public:
   typedef std::map<const llvm::Function*, FuncSet> SimpleCalleesTy;
 
 private:
+  //ActualCallees contains CallSite -> Function mappings
   ActualCalleesTy ActualCallees;
+  //SimpleCallees contains Function -> Function mappings
   SimpleCalleesTy SimpleCallees;
 
+  //These are used for returning empty sets when the caller has no callees
   FuncSet EmptyActual;
   FuncSet EmptySimple;
+
+  //An equivalence class is exactly an SCC
+  llvm::EquivalenceClasses<const llvm::Function*> SCCs;
+
+  //Functions we know about that aren't called
+  svset<const llvm::Function*> knownRoots;
+
+  //Types for SCC construction
+  typedef std::map<const llvm::Function*, unsigned> TFMap;
+  typedef std::vector<const llvm::Function*> TFStack;
+
+  // Tarjan's SCC algorithm
+  unsigned tarjan_rec(const llvm::Function* F, TFStack& Stack, unsigned &NextID,
+                      TFMap& ValMap);
+
+  void removeECFunctions();
 
 public:
 
   DSCallGraph() {}
 
   typedef ActualCalleesTy::mapped_type::const_iterator callee_iterator;
-  typedef KeyIterator<ActualCalleesTy::const_iterator> key_iterator;
+  typedef KeyIterator<ActualCalleesTy::const_iterator> callee_key_iterator;
   typedef SimpleCalleesTy::mapped_type::const_iterator flat_iterator;
   typedef KeyIterator<SimpleCalleesTy::const_iterator> flat_key_iterator;
+  typedef FuncSet::const_iterator                      root_iterator;
+  typedef llvm::EquivalenceClasses<const llvm::Function*>::member_iterator scc_iterator;
 
-  void insert(llvm::CallSite CS, const llvm::Function* F) {
-    if (F) {
-      ActualCallees[CS].insert(F);
-      SimpleCallees[CS.getInstruction()->getParent()->getParent()].insert(F);
-      //Create an empty set for the callee, hence all called functions get to be
-      // in the call graph also.  This simplifies SCC formation
-      SimpleCallees[F];
-    }
-  }
-
+  void insert(llvm::CallSite CS, const llvm::Function* F);
+  
   template<class Iterator>
   void insert(llvm::CallSite CS, Iterator _begin, Iterator _end) {
     for (; _begin != _end; ++_begin)
@@ -76,12 +89,12 @@ public:
     return ii->second.end();
   }
 
-  key_iterator key_begin() const {
-    return key_iterator(ActualCallees.begin());
+  callee_key_iterator key_begin() const {
+    return callee_key_iterator(ActualCallees.begin());
   }
 
-  key_iterator key_end() const {
-    return key_iterator(ActualCallees.end());
+  callee_key_iterator key_end() const {
+    return callee_key_iterator(ActualCallees.end());
   }
 
   flat_iterator flat_callee_begin(const llvm::Function* F) const {
@@ -106,6 +119,24 @@ public:
     return flat_key_iterator(SimpleCallees.end());
   }
 
+  root_iterator root_begin() const {
+    return knownRoots.begin();
+  }
+
+  root_iterator root_end() const {
+    return knownRoots.end();
+  }
+
+  scc_iterator scc_begin(const llvm::Function* F) const {
+    assert(F == SCCs.getLeaderValue(F) && "Requested non-leader");
+    return SCCs.member_begin(SCCs.findValue(F));
+  }
+
+  scc_iterator scc_end(const llvm::Function* F) const {
+    assert(F == SCCs.getLeaderValue(F) && "Requested non-leader");
+    return SCCs.member_end();
+  }
+
 
   unsigned callee_size(llvm::CallSite CS) const {
     ActualCalleesTy::const_iterator ii = ActualCallees.find(CS);
@@ -122,196 +153,19 @@ public:
     return sum;
   }
 
-  void clear() {
-    ActualCallees.clear();
+  void buildSCCs();
+
+  void buildRoots();
+
+  void dump();
+
+  void assertSCCRoot(const llvm::Function* F) {
+    assert(F == SCCs.getLeaderValue(F) && "Not Leader?");
   }
 
-};
-
-class DSSCCGraph {
-public:
-  //SCCs, each element is an SCC
-  std::map<unsigned, DSCallGraph::FuncSet> SCCs;
-  //mapping of functions in SCCs to SCCs index
-  std::map<const llvm::Function*, unsigned> invmap;
-
-  unsigned nextSCC;
-
-  //Functions we know about that aren't called
-  svset<unsigned> knownRoots;
-
-  std::map<unsigned, svset<unsigned> > SCCCallees;
-  std::map<unsigned, svset<unsigned> > ExtCallees;
-
-  DSCallGraph oldGraph;
-
-private:
-  typedef std::map<const llvm::Function*, unsigned> TFMap;
-  typedef std::vector<const llvm::Function*> TFStack;
-
-  bool hasPointers(const llvm::Function* F) {
-    if (F->isVarArg()) return true;
-    if (F->getReturnType()->isPointerTy()) return true;
-    for (llvm::Function::const_arg_iterator ii = F->arg_begin(), ee = F->arg_end();
-            ii != ee; ++ii)
-      if (ii->getType()->isPointerTy()) return true;
-    return false;
-  }
-
-  unsigned tarjan_rec(const llvm::Function* F, TFStack& Stack, unsigned &NextID,
-                      TFMap& ValMap, DSCallGraph& cg) {
-    assert(!ValMap.count(F) && "Shouldn't revisit functions!");
-    unsigned Min = NextID++, MyID = Min;
-    ValMap[F] = Min;
-    Stack.push_back(F);
-
-    // The edges out of the current node are the call site targets...
-    for (DSCallGraph::flat_iterator ii = cg.flat_callee_begin(F),
-            ee = cg.flat_callee_end(F); ii != ee; ++ii) {
-      if (hasPointers(*ii) && !(*ii)->isDeclaration()) {
-        unsigned M = Min;
-        // Have we visited the destination function yet?
-        TFMap::iterator It = ValMap.find(*ii);
-        if (It == ValMap.end()) // No, visit it now.
-          M = tarjan_rec(*ii, Stack, NextID, ValMap, cg);
-        else if (std::find(Stack.begin(), Stack.end(), *ii) != Stack.end())
-          M = It->second;
-        if (M < Min) Min = M;
-      }
-    }
-
-    assert(ValMap[F] == MyID && "SCC construction assumption wrong!");
-    if (Min != MyID)
-      return Min; // This is part of a larger SCC!
-
-    // If this is a new SCC, process it now.
-    ++nextSCC;
-
-    const llvm::Function* NF = 0;
-    do {
-      NF = Stack.back();
-      Stack.pop_back();
-      assert(NF && "Null Function");
-      assert(invmap.find(NF) == invmap.end() && "Function already in invmap");
-      invmap[NF] = nextSCC;
-      assert(SCCs[nextSCC].find(NF) == SCCs[nextSCC].end() &&
-             "Function already in SCC");
-      SCCs[nextSCC].insert(NF);
-    } while (NF != F);
-
-    return MyID;
-  }
-
-  void buildSCC(DSCallGraph& DSG) {
-    TFStack Stack;
-    TFMap ValMap;
-    unsigned NextID = 1;
-
-    for (DSCallGraph::flat_key_iterator ii = DSG.flat_key_begin(),
-            ee = DSG.flat_key_end(); ii != ee; ++ii)
-      if (!ValMap.count(*ii))
-        tarjan_rec(*ii, Stack, NextID, ValMap, DSG);
-  }
-
-  void buildCallGraph(DSCallGraph& DSG) {
-    for(DSCallGraph::flat_key_iterator ii = DSG.flat_key_begin(),
-            ee = DSG.flat_key_end(); ii != ee; ++ii) {
-      assert (*ii && "Null Function");
-      assert(invmap.find(*ii) != invmap.end() && "Unknown Function");
-      for (DSCallGraph::flat_iterator fi = DSG.flat_callee_begin(*ii),
-              fe = DSG.flat_callee_end(*ii); fi != fe; ++fi) {
-        assert(*fi && "Null Function");
-        assert(invmap.find(*fi) != invmap.end() && "Unknown Function");
-        if (invmap[*ii] != invmap[*fi]) // No self calls
-          if (hasPointers(*fi)) {
-            if ((*fi)->isDeclaration())
-              ExtCallees[invmap[*ii]].insert(invmap[*fi]);
-            else
-              SCCCallees[invmap[*ii]].insert(invmap[*fi]);
-          }
-      }
-    }
-  }
-
-  void buildRoots() {
-    svset<unsigned> knownCallees;
-    svset<unsigned> knownCallers;
-    for (std::map<unsigned, svset<unsigned> >::iterator
-      ii = SCCCallees.begin(), ee = SCCCallees.end(); ii != ee; ++ii) {
-      knownCallees.insert(ii->second.begin(), ii->second.end());
-      knownCallers.insert(ii->first);
-    }
-    for (svset<unsigned>::iterator ii = knownCallers.begin(),
-            ee = knownCallers.end(); ii != ee; ++ii)
-      if (!knownCallees.count(*ii))
-        knownRoots.insert(*ii);
-  }
-
-  void assertMapValid() {
-    for (std::map<unsigned, DSCallGraph::FuncSet>::iterator ii = SCCs.begin(),
-            ee = SCCs.end(); ii != ee; ++ii) {
-      for (DSCallGraph::FuncSet::iterator i = ii->second.begin(),
-              e = ii->second.end(); i != e; ++i) {
-        assert(*i && "Null Function in map");
-        assert(invmap.find(*i) != invmap.end() && "Function not in invmap");
-        assert(invmap[*i] == ii->first && "invmap doesn't match map");
-      }
-    }
-
-    for (std::map<const llvm::Function*, unsigned>::iterator ii = invmap.begin(),
-            ee = invmap.end(); ii != ee; ++ii) {
-      assert(ii->first && "Null Function in invmap");
-      assert(SCCs.find(ii->second) != SCCs.end() && "Function in invmap but not in map");
-      assert(SCCs[ii->second].count(ii->first) && "SCC doesn't contain function");
-    }
-  }
-
-public:
-
-  DSSCCGraph(DSCallGraph& DSG) :nextSCC(0) {
-    oldGraph = DSG;
-
-    buildSCC(DSG);
-    assertMapValid();
-
-    buildCallGraph(DSG);
-
-    buildRoots();
-    
-  }
-
-  void dump() {
-    //function map
-    for (std::map<unsigned, DSCallGraph::FuncSet>::iterator ii = SCCs.begin(),
-            ee = SCCs.end(); ii != ee; ++ii) {
-      llvm::errs() << "Functions in " << ii->first << ":";
-      for (DSCallGraph::FuncSet::iterator i = ii->second.begin(),
-              e = ii->second.end(); i != e; ++i)
-        llvm::errs() << " " << *i << "(" << invmap[*i] << ")";
-      llvm::errs() << "\n";
-    }
-
-//    for (std::map<const llvm::Function*, unsigned>::iterator ii = invmap.begin(),
-//            ee = invmap.end(); ii != ee; ++ii)
-//      llvm::errs() << ii->first << " -> " << ii->second << "\n";
-
-    //SCC map
-    for (std::map<unsigned, svset<unsigned> >::iterator ii = SCCCallees.begin(),
-            ee = SCCCallees.end(); ii != ee; ++ii) {
-      llvm::errs() << "CallGraph[" << ii->first << "]";
-      for (svset<unsigned>::iterator i = ii->second.begin(),
-              e = ii->second.end(); i != e; ++i)
-        llvm::errs() << " " << *i;
-      llvm::errs() << "\n";
-    }
-
-    //Functions we know about that aren't called
-    llvm::errs() << "Roots:";
-    for (svset<unsigned>::iterator ii = knownRoots.begin(),
-            ee = knownRoots.end(); ii != ee; ++ii)
-      llvm::errs() << " " << *ii;
-    llvm::errs() << "\n";
-  }
+  //common helper, no good reason for it to be here rather than elsewhere
+  static bool hasPointers(const llvm::Function* F);
+  static bool hasPointers(llvm::CallSite& CS);
 
 };
 
