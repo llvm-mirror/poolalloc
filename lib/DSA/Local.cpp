@@ -752,8 +752,8 @@ void GraphBuilder::visitCallSite(CallSite CS) {
   //Can't do much about inline asm (yet!)
   if (isa<InlineAsm>(CS.getCalledValue())) return;
 
-  //uninteresting call
-  if (!DSCallGraph::hasPointers(CS))
+  //uninteresting direct call
+  if (CS.getCalledFunction() && !DSCallGraph::hasPointers(CS))
     return;
   
 

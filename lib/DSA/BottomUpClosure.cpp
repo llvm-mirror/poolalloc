@@ -73,7 +73,7 @@ bool BUDataStructures::runOnModuleInternal(Module& M) {
     svset<const Function*> marked;
     for (DSCallGraph::root_iterator ii = callgraph.root_begin(),
          ee = callgraph.root_end(); ii != ee; ++ii) {
-      errs() << (*ii)->getName() << " ";
+      errs() << (*ii)->getName() << "\n";
       DSGraph* G = postOrder(*ii, marked);
       CloneAuxIntoGlobal(G);
     }
