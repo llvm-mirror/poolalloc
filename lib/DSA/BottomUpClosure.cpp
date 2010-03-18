@@ -73,7 +73,7 @@ bool BUDataStructures::runOnModuleInternal(Module& M) {
     svset<const Function*> marked;
     for (DSCallGraph::root_iterator ii = callgraph.root_begin(),
          ee = callgraph.root_end(); ii != ee; ++ii) {
-      errs() << (*ii)->getName() << "\n";
+      //errs() << (*ii)->getName() << "\n";
       DSGraph* G = postOrder(*ii, marked);
       CloneAuxIntoGlobal(G);
     }
@@ -288,8 +288,8 @@ void BUDataStructures::calculateGraph(DSGraph* Graph) {
    // Note that this is *required* for correctness.  If a callee contains a use
    // of a global, we have to make sure to link up nodes due to global-argument
    // bindings.
-//   if (ContainsMain)
-//     cloneGlobalsInto(Graph);
+   if (ContainsMain)
+    cloneGlobalsInto(Graph);
 
   // Move our call site list into TempFCs so that inline call sites go into the
   // new call site list and doesn't invalidate our iterators!
@@ -356,7 +356,7 @@ void BUDataStructures::calculateGraph(DSGraph* Graph) {
   // reach live nodes as live.
   Graph->removeDeadNodes(DSGraph::KeepUnreachableGlobals);
 
-//  cloneIntoGlobals(Graph);
+  cloneIntoGlobals(Graph);
   //Graph.writeGraphToFile(cerr, "bu_" + F.getName());
 }
 

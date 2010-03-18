@@ -750,12 +750,25 @@ void GraphBuilder::visitCallSite(CallSite CS) {
     return;
 
   //Can't do much about inline asm (yet!)
-  if (isa<InlineAsm>(CS.getCalledValue())) return;
+  if (isa<InlineAsm>(CS.getCalledValue())) {
+    DSNodeHandle RetVal;
+    Instruction *I = CS.getInstruction();
+    if (isa<PointerType > (I->getType()))
+      RetVal = getValueDest(I);
+
+    // Calculate the arguments vector...
+    for (CallSite::arg_iterator I = CS.arg_begin(), E = CS.arg_end(); I != E; ++I)
+      if (isa<PointerType > ((*I)->getType()))
+        RetVal.mergeWith(getValueDest(*I));
+    if (!RetVal.isNull())
+      RetVal.getNode()->foldNodeCompletely();
+    return;
+  }
 
   //uninteresting direct call
   if (CS.getCalledFunction() && !DSCallGraph::hasPointers(CS))
     return;
-  
+
 
 //  if (InlineAsm* IASM = dyn_cast<InlineAsm>(CS.getCalledValue())) {
 //    if (IASM->hasSideEffects())
