@@ -12,6 +12,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#define DEBUG_TYPE "dsa-local"
 #include "dsa/DataStructure.h"
 #include "dsa/DSGraph.h"
 #include "llvm/Constants.h"
@@ -38,11 +39,19 @@
 
 using namespace llvm;
 
-static RegisterPass<LocalDataStructures>
+namespace {
+STATISTIC(NumDirectCall,    "Number of direct calls added");
+STATISTIC(NumIndirectCall,  "Number of indirect calls added");
+STATISTIC(NumAsmCall,       "Number of asm calls collapsed/seen");
+STATISTIC(NumBoringCall,    "Number of pointer-free direct calls ignored");
+STATISTIC(NumIntrinsicCall, "Number of intrinsics called");
+
+RegisterPass<LocalDataStructures>
 X("dsa-local", "Local Data Structure Analysis");
 
-static cl::opt<std::string> hasMagicSections("dsa-magic-sections",
-       cl::desc("File with section to global mapping")); //, cl::ReallyHidden);
+cl::opt<std::string> hasMagicSections("dsa-magic-sections",
+        cl::desc("File with section to global mapping")); //, cl::ReallyHidden);
+}
 
 namespace {
   //===--------------------------------------------------------------------===//
@@ -597,6 +606,7 @@ void GraphBuilder::visitInvokeInst(InvokeInst &II) {
 
 /// returns true if the intrinsic is handled
 bool GraphBuilder::visitIntrinsic(CallSite CS, Function *F) {
+  ++NumIntrinsicCall;
   switch (F->getIntrinsicID()) {
   case Intrinsic::vastart: {
     // Mark the memory written by the vastart intrinsic as incomplete
@@ -751,6 +761,7 @@ void GraphBuilder::visitCallSite(CallSite CS) {
 
   //Can't do much about inline asm (yet!)
   if (isa<InlineAsm>(CS.getCalledValue())) {
+    ++NumAsmCall;
     DSNodeHandle RetVal;
     Instruction *I = CS.getInstruction();
     if (isa<PointerType > (I->getType()))
@@ -766,15 +777,10 @@ void GraphBuilder::visitCallSite(CallSite CS) {
   }
 
   //uninteresting direct call
-  if (CS.getCalledFunction() && !DSCallGraph::hasPointers(CS))
+  if (CS.getCalledFunction() && !DSCallGraph::hasPointers(CS)) {
+    ++NumBoringCall;
     return;
-
-
-//  if (InlineAsm* IASM = dyn_cast<InlineAsm>(CS.getCalledValue())) {
-//    if (IASM->hasSideEffects())
-//      errs() << ASM w/ Side Effects\n";
-//    return;
-//  }
+  }
 
   // Set up the return value...
   DSNodeHandle RetVal;
@@ -806,11 +812,13 @@ void GraphBuilder::visitCallSite(CallSite CS) {
 
   // Add a new function call entry...
   if (CalleeNode) {
+    ++NumIndirectCall;
     G.getFunctionCalls().push_back(DSCallSite(CS, RetVal, CalleeNode, Args));
-//    DS->callee_site(CS.getInstruction());
-  }else
+  } else {
+    ++NumDirectCall;
     G.getFunctionCalls().push_back(DSCallSite(CS, RetVal, cast<Function>(Callee),
                                               Args));
+  }
 }
 
 // visitInstruction - For all other instruction types, if we have any arguments
@@ -970,10 +978,9 @@ bool LocalDataStructures::runOnModule(Module &M) {
       G->getAuxFunctionCalls() = G->getFunctionCalls();
       setDSGraph(*I, G);
       propagateUnknownFlag(G);
+      callgraph.insureEntry(I);
       G->buildCallGraph(callgraph);
     }
-
-
 
   GlobalsGraph->removeTriviallyDeadNodes();
   GlobalsGraph->markIncompleteNodes(DSGraph::MarkFormalArgs);

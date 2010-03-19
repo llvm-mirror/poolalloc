@@ -1267,6 +1267,8 @@ void DSGraph::buildCallGraph(DSCallGraph& DCG) const {
       CallSite CS = ii->getCallSite();
       std::vector<const Function*> MaybeTargets;
       ii->getCalleeNode()->addFullFunctionList(MaybeTargets);
+      //Assure have a record for this callsite
+      DCG.insert(CS, 0);
       for (std::vector<const Function*>::iterator Fi = MaybeTargets.begin(),
            Fe = MaybeTargets.end(); Fi != Fe; ++Fi)
         if (functionIsCallable(CS, *Fi))

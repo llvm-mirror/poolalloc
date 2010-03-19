@@ -54,16 +54,14 @@ unsigned DSCallGraph::tarjan_rec(const llvm::Function* F, TFStack& Stack,
   // The edges out of the current node are the call site targets...
   for (flat_iterator ii = flat_callee_begin(F),
        ee = flat_callee_end(F); ii != ee; ++ii) {
-    if (!(*ii)->isDeclaration()) {
-      unsigned M = Min;
-      // Have we visited the destination function yet?
-      TFMap::iterator It = ValMap.find(*ii);
-      if (It == ValMap.end()) // No, visit it now.
-        M = tarjan_rec(*ii, Stack, NextID, ValMap);
-      else if (std::find(Stack.begin(), Stack.end(), *ii) != Stack.end())
-        M = It->second;
-      if (M < Min) Min = M;
-    }
+    unsigned M = Min;
+    // Have we visited the destination function yet?
+    TFMap::iterator It = ValMap.find(*ii);
+    if (It == ValMap.end()) // No, visit it now.
+      M = tarjan_rec(*ii, Stack, NextID, ValMap);
+    else if (std::find(Stack.begin(), Stack.end(), *ii) != Stack.end())
+      M = It->second;
+    if (M < Min) Min = M;
   }
 
   assert(ValMap[F] == MyID && "SCC construction assumption wrong!");
@@ -209,11 +207,15 @@ void DSCallGraph::dump() {
 
 //Filter all call edges.  We only want pointer edges.
 void DSCallGraph::insert(llvm::CallSite CS, const llvm::Function* F) {
+  //Create an empty set for the callee, hence all called functions get to be
+  // in the call graph also.  This simplifies SCC formation
+  SimpleCallees[CS.getInstruction()->getParent()->getParent()];
   if (F) {
     ActualCallees[CS].insert(F);
     SimpleCallees[CS.getInstruction()->getParent()->getParent()].insert(F);
-    //Create an empty set for the callee, hence all called functions get to be
-    // in the call graph also.  This simplifies SCC formation
-    SimpleCallees[F];
   }
+}
+
+void DSCallGraph::insureEntry(const llvm::Function* F) {
+  SimpleCallees[F];
 }

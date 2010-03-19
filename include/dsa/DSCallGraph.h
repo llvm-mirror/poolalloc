@@ -68,7 +68,9 @@ public:
   typedef llvm::EquivalenceClasses<const llvm::Function*>::member_iterator scc_iterator;
 
   void insert(llvm::CallSite CS, const llvm::Function* F);
-  
+
+  void insureEntry(const llvm::Function* F);
+
   template<class Iterator>
   void insert(llvm::CallSite CS, Iterator _begin, Iterator _end) {
     for (; _begin != _end; ++_begin)
@@ -151,6 +153,10 @@ public:
             ee = ActualCallees.end(); ii != ee; ++ii)
       sum += ii->second.size();
     return sum;
+  }
+
+  unsigned flat_size() const {
+    return SimpleCallees.size();
   }
 
   void buildSCCs();

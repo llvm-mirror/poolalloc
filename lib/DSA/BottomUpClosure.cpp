@@ -29,6 +29,9 @@ namespace {
   STATISTIC (NumInlines, "Number of graphs inlined");
   STATISTIC (NumCallEdges, "Number of 'actual' call edges");
   STATISTIC (NumSCCMerges, "Number of SCC merges");
+  STATISTIC (NumIndResolved, "Number of resolved IndCalls");
+  STATISTIC (NumIndUnresolved, "Number of unresolved IndCalls");
+  STATISTIC (NumEmptyCalls, "Number of calls we know nothing about");
 
   RegisterPass<BUDataStructures>
   X("dsa-bu", "Bottom-up Data Structure Analysis");
@@ -269,6 +272,9 @@ void BUDataStructures::CloneAuxIntoGlobal(DSGraph* G) {
   }
 }
 
+
+//Inline all graphs in the callgraph, remove callsites that are completely dealt
+//with
 void BUDataStructures::calculateGraph(DSGraph* Graph) {
   DEBUG(Graph->AssertGraphOK(); Graph->getGlobalsGraph()->AssertGraphOK());
 
@@ -297,13 +303,10 @@ void BUDataStructures::calculateGraph(DSGraph* Graph) {
   std::list<DSCallSite> &AuxCallsList = Graph->getAuxFunctionCalls();
   TempFCs.swap(AuxCallsList);
 
-  std::vector<const Function*> CalledFuncs;
   while (!TempFCs.empty()) {
     DEBUG(Graph->AssertGraphOK(); Graph->getGlobalsGraph()->AssertGraphOK());
     
     DSCallSite &CS = *TempFCs.begin();
-
-    CalledFuncs.clear();
 
     // Fast path for noop calls.  Note that we don't care about merging globals
     // in the callee with nodes in the caller here.
@@ -312,19 +315,49 @@ void BUDataStructures::calculateGraph(DSGraph* Graph) {
       continue;
     }
 
-    std::copy(callgraph.callee_begin(CS.getCallSite()),
-              callgraph.callee_end(CS.getCallSite()),
-              std::back_inserter(CalledFuncs));
+    std::vector<const Function*> CalledFuncs;
+    //Get the callees from the callgraph
+    {
+      std::copy(callgraph.callee_begin(CS.getCallSite()),
+                callgraph.callee_end(CS.getCallSite()),
+                std::back_inserter(CalledFuncs));
 
-    std::vector<const Function*>::iterator ErasePoint =
-            std::remove_if(CalledFuncs.begin(), CalledFuncs.end(),
-                           std::mem_fun(&Function::isDeclaration));
-    CalledFuncs.erase(ErasePoint, CalledFuncs.end());
+      std::vector<const Function*>::iterator ErasePoint =
+              std::remove_if(CalledFuncs.begin(), CalledFuncs.end(),
+                             std::mem_fun(&Function::isDeclaration));
+      CalledFuncs.erase(ErasePoint, CalledFuncs.end());
+    }
 
     if (CalledFuncs.empty()) {
+      ++NumEmptyCalls;
       // Remember that we could not resolve this yet!
       AuxCallsList.splice(AuxCallsList.end(), TempFCs, TempFCs.begin());
       continue;
+    }
+
+    //Direct calls are always inlined and removed from AuxCalls
+    //Indirect calls are removed if the callnode is complete and the callnode's
+    //functions set is a subset of the Calls from the callgraph
+    //We only inline from the callgraph (which is immutable during this phase
+    //of bu) so as to not introduce SCCs and still be able to inline
+    //aggressively
+    bool eraseCS = true;
+    if (CS.isIndirectCall()) {
+      eraseCS = false;
+      if (CS.getCalleeNode()->isCompleteNode()) {
+        std::vector<const Function*> NodeCallees;
+        CS.getCalleeNode()->addFullFunctionList(NodeCallees);
+        std::vector<const Function*>::iterator ErasePoint =
+                std::remove_if(NodeCallees.begin(), NodeCallees.end(),
+                               std::mem_fun(&Function::isDeclaration));
+        NodeCallees.erase(ErasePoint, NodeCallees.end());
+        std::sort(CalledFuncs.begin(), CalledFuncs.end());
+        std::sort(NodeCallees.begin(), NodeCallees.end());
+        eraseCS = std::includes(CalledFuncs.begin(), CalledFuncs.end(),
+                                NodeCallees.begin(), NodeCallees.end());
+      }
+      if (eraseCS) ++NumIndResolved;
+      else ++NumIndUnresolved;
     }
 
     DSGraph *GI;
@@ -345,7 +378,10 @@ void BUDataStructures::calculateGraph(DSGraph* Graph) {
       ++NumInlines;
       DEBUG(Graph->AssertGraphOK(););
     }
-    TempFCs.erase(TempFCs.begin());
+    if (eraseCS)
+      TempFCs.erase(TempFCs.begin());
+    else
+      AuxCallsList.splice(AuxCallsList.end(), TempFCs, TempFCs.begin());
   }
 
   // Recompute the Incomplete markers
