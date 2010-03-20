@@ -147,6 +147,15 @@ public:
     sort_unique();
   }
 
+  //specialized insert for another svset
+  void insert(const_iterator ii, const_iterator ie ) {
+    internal_type ctemp;
+    ctemp.reserve(container_.size());
+    std::set_union(ii, ie, container_.begin(), container_.end(),
+                   std::back_inserter(ctemp));
+    container_.swap(ctemp);
+  }
+
   void erase ( iterator position ) {
     container_.erase(position);
   }
