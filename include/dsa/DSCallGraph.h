@@ -46,6 +46,8 @@ private:
   //Functions we know about that aren't called
   svset<const llvm::Function*> knownRoots;
 
+  svset<llvm::CallSite> completeCS;
+
   //Types for SCC construction
   typedef std::map<const llvm::Function*, unsigned> TFMap;
   typedef std::vector<const llvm::Function*> TFStack;
@@ -145,6 +147,14 @@ public:
     if (ii == ActualCallees.end())
       return 0;
     return ii->second.size();
+  }
+
+  void callee_mark_complete(llvm::CallSite CS) {
+    completeCS.insert(CS);
+  }
+
+  bool callee_is_complete(llvm::CallSite CS) const {
+    return completeCS.find(CS) != completeCS.end();
   }
 
   unsigned size() const {

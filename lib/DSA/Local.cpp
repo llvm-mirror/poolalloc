@@ -953,10 +953,12 @@ bool LocalDataStructures::runOnModule(Module &M) {
     // Add initializers for all of the globals to the globals graph.
     for (Module::global_iterator I = M.global_begin(), E = M.global_end();
          I != E; ++I)
-      if (I->isDeclaration())
-        GGB.mergeExternalGlobal(I);
-      else
-        GGB.mergeInGlobalInitializer(I);
+      if (!(I->hasSection() && I->getSection() == "llvm.metadata")) {
+        if (I->isDeclaration())
+          GGB.mergeExternalGlobal(I);
+        else
+          GGB.mergeInGlobalInitializer(I);
+      }
     // Add Functions to the globals graph.
     for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I)
       if (I->hasAddressTaken())

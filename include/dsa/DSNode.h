@@ -22,7 +22,8 @@
 #include <set>
 #include "dsa/svset.h"
 #include "dsa/super_set.h"
-#include "DSGraph.h"
+#include "dsa/keyiterator.h"
+#include "dsa/DSGraph.h"
 
 namespace llvm {
 

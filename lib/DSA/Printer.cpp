@@ -145,18 +145,21 @@ struct DOTGraphTraits<const DSGraph*> : public DefaultDOTGraphTraits {
 
   static bool edgeTargetsEdgeSource(const void *Node,
                                     DSNode::const_iterator I) {
-    unsigned O = I.getNode()->getLink(I.getOffset()).getOffset();
+    unsigned O = I->getLink(I.getOffset()).getOffset();
     return O != 0;
   }
 
   static std::string getEdgeSourceLabel(const void* Node,
                                         DSNode::const_iterator I) {
-    return "*";
+    std::string S;
+    llvm::raw_string_ostream O(S);
+    O << I.getOffset();
+    return O.str();
   }
 
   static DSNode::const_iterator getEdgeTarget(const DSNode *Node,
                                               DSNode::const_iterator I) {
-    unsigned O = I.getNode()->getLink(I.getOffset()).getOffset();
+    unsigned O = I->getLink(I.getOffset()).getOffset();
     unsigned LinkNo = O;
     const DSNode *N = *I;
     DSNode::const_iterator R = N->begin();

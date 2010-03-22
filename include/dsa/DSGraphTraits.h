@@ -27,57 +27,42 @@ namespace llvm {
 template<typename NodeTy>
 class DSNodeIterator : public std::iterator<std::forward_iterator_tag, const DSNode, ptrdiff_t> {
   friend class DSNode;
-  NodeTy * const Node;
-  unsigned Offset;
+
+  DSNode::const_edge_iterator NH;
 
   typedef DSNodeIterator<NodeTy> _Self;
 
-  DSNodeIterator(NodeTy *N) : Node(N), Offset(0) {}   // begin iterator
-  DSNodeIterator(NodeTy *N, bool) : Node(N) {         // Create end iterator
-    if (N != 0) {
-      Offset = N->getSize();
-      if (Offset == 0 && Node->isForwarding() &&
-          Node->isDeadNode())        // Model Forward link
-        Offset += 1;
-    } else {
-      Offset = 0;
-    }
-  }
+  DSNodeIterator(NodeTy *N) : NH(N->edge_begin()) {}   // begin iterator
+  DSNodeIterator(NodeTy *N, bool) : NH(N->edge_end()) {}  // Create end iterator
+
 public:
-  DSNodeIterator(const DSNodeHandle &NH)
-    : Node(NH.getNode()), Offset(NH.getOffset()) {}
+//  DSNodeIterator(const DSNodeHandle &NH)
+//    : Node(NH.getNode()), Offset(NH.getOffset()) {}
 
   bool operator==(const _Self& x) const {
-    return Offset == x.Offset;
+    return NH == x.NH;
   }
   bool operator!=(const _Self& x) const { return !operator==(x); }
 
   const _Self &operator=(const _Self &I) {
-    assert(I.Node == Node && "Cannot assign iterators to two different nodes!");
-    Offset = I.Offset;
+    NH = I.NH;
     return *this;
   }
 
   pointer operator*() const {
-    if (Node->isDeadNode())
-      return Node->getForwardNode();
-    else if (Node->hasLink(Offset))
-      return Node->getLink(Offset).getNode();
-    else
-      return 0;
+    return NH->second.getNode();
   }
   pointer operator->() const { return operator*(); }
 
   _Self& operator++() {                // Preincrement
-    Offset += 1;
+    ++NH;
     return *this;
   }
   _Self operator++(int) { // Postincrement
     _Self tmp = *this; ++*this; return tmp;
   }
 
-  unsigned getOffset() const { return Offset; }
-  const DSNode *getNode() const { return Node; }
+  unsigned getOffset() const { return NH->first; }
 };
 
 // Provide iterators for DSNode...

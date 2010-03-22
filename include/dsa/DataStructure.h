@@ -202,12 +202,7 @@ public:
 class BUDataStructures : public DataStructures {
 protected:
 
-  // This map is only maintained during construction of BU Graphs
-  std::map<std::vector<const Function*>,
-           std::pair<DSGraph*, std::vector<DSNodeHandle> > > IndCallGraphMap;
-
   const char* debugname;
-  bool useCallGraph;
 
   EntryPointAnalysis* EP;
 
@@ -215,11 +210,10 @@ public:
   static char ID;
   //Child constructor (CBU)
   BUDataStructures(intptr_t CID, const char* name, const char* printname)
-    : DataStructures(CID, printname), debugname(name), useCallGraph(true) {}
+    : DataStructures(CID, printname), debugname(name) {}
   //main constructor
   BUDataStructures() 
-    : DataStructures((intptr_t)&ID, "bu."), debugname("dsa-bu"),
-      useCallGraph(false) {}
+    : DataStructures((intptr_t)&ID, "bu."), debugname("dsa-bu") {}
   ~BUDataStructures() { releaseMemory(); }
 
   virtual bool runOnModule(Module &M);
