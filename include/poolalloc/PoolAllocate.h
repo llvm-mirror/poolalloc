@@ -107,7 +107,7 @@ namespace PA {
 } // end PA namespace
 
 
-class PoolAllocateGroup {
+class PoolAllocateGroup : public ModulePass {
 protected:
   DataStructures *Graphs;
   const Type * VoidType;
@@ -125,7 +125,10 @@ public:
   enum PASS_TYPE {PASS_EQTD, PASS_BUEQ, PASS_DEFAULT};
   PASS_TYPE dsa_pass_to_use;
 
+                
+  PoolAllocateGroup  (intptr_t IDp = (intptr_t) (&ID)) : ModulePass (IDp) { }
   virtual ~PoolAllocateGroup () {return;}
+
   virtual PA::FuncInfo *getFuncInfo(const Function &F) { return 0;}
   virtual PA::FuncInfo *getFuncInfoOrClone(const Function &F) {return 0;}
   virtual Function *getOrigFunctionFromClone(const Function *F) const {return 0;}
@@ -152,7 +155,7 @@ public:
 
 /// PoolAllocate - The main pool allocation pass
 ///
-class PoolAllocate : public ModulePass , public PoolAllocateGroup {
+class PoolAllocate : public PoolAllocateGroup {
   /// PassAllArguments - If set to true, we should pass pool descriptor
   /// arguments into any function that loads or stores to a pool, in addition to
   /// those functions that allocate or deallocate.  See also the
@@ -188,7 +191,7 @@ protected:
   PoolAllocate (bool passAllArguments,
                 bool SAFECode = true,
                 intptr_t IDp = (intptr_t) (&ID))
-    : ModulePass((intptr_t)IDp),
+    : PoolAllocateGroup ((intptr_t)IDp),
       PassAllArguments(passAllArguments)
       {
 		  SAFECodeEnabled = BoundsChecksEnabled = SAFECode |  PA::PA_SAFECODE;
@@ -202,7 +205,7 @@ protected:
 				bool passAllArguments = false,
 				bool SAFECode = true,
                 intptr_t IDp = (intptr_t) (&ID))
-      : ModulePass((intptr_t)IDp),
+      : PoolAllocateGroup ((intptr_t)IDp),
         PassAllArguments(passAllArguments)
         {
   		  SAFECodeEnabled = BoundsChecksEnabled = SAFECode |  PA::PA_SAFECODE;
