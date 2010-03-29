@@ -156,9 +156,10 @@ bool PoolAllocateSimple::runOnModule(Module &M) {
 
 void
 PoolAllocateSimple::ProcessFunctionBodySimple (Function& F, TargetData & TD) {
+  // Set of instructions to delete because they have been replaced.  We record
+  // all instructions to delete first and then delete them later to avoid
+  // invalidating the iterators over the instruction list.
   std::vector<Instruction*> toDelete;
-  std::vector<ReturnInst*> Returns;
-  std::vector<Instruction*> ToFree;
 
   //
   // Create a silly Function Info structure for this function.
@@ -171,48 +172,67 @@ PoolAllocateSimple::ProcessFunctionBodySimple (Function& F, TargetData & TD) {
   //
   DSGraph* ECG = Graphs->getDSGraph(F);
 
-  for (Function::iterator i = F.begin(), e = F.end(); i != e; ++i)
+  for (Function::iterator i = F.begin(), e = F.end(); i != e; ++i) {
     for (BasicBlock::iterator ii = i->begin(), ee = i->end(); ii != ee; ++ii) {
-      if (false) {
-        //FIXME: malloc
-#if 0
-        if (MallocInst * MI = dyn_cast<MallocInst>(ii)) {
-        // Associate the global pool decriptor with the DSNode
-        DSNode * Node = ECG->getNodeForValue(MI).getNode();
-        FInfo.PoolDescriptors.insert(std::make_pair(Node,TheGlobalPool));
-
-        // Mark the malloc as an instruction to delete
-        toDelete.push_back(ii);
-
-        // Create instructions to calculate the size of the allocation in
-        // bytes
-        Value * AllocSize;
-        if (MI->isArrayAllocation()) {
-          Value * NumElements = MI->getArraySize();
-          Value * ElementSize = ConstantInt::get(Int32Type,
-						 TD.getTypeAllocSize(MI->getAllocatedType()));
-          AllocSize = BinaryOperator::Create (Instruction::Mul,
-                                              ElementSize,
-                                              NumElements,
-                                              "sizetmp",
-                                              MI);
-        } else {
-          AllocSize = ConstantInt::get(Int32Type,
-				       TD.getTypeAllocSize(MI->getAllocatedType()));
-        }
-
-        Value* args[] = {TheGlobalPool, AllocSize};
-        Instruction* x = CallInst::Create(PoolAlloc, &args[0], &args[2], MI->getName(), ii);
-        ii->replaceAllUsesWith(CastInst::CreatePointerCast(x, ii->getType(), "", ii));
-        #endif
-      } else if (CallInst * CI = dyn_cast<CallInst>(ii)) {
+      if (CallInst * CI = dyn_cast<CallInst>(ii)) {
+        //
+        // Get the name of the called function.
+        //
         CallSite CS(CI);
         Function *CF = CS.getCalledFunction();
-        if (ConstantExpr *CE = dyn_cast<ConstantExpr>(CS.getCalledValue()))
+        if (ConstantExpr *CE = dyn_cast<ConstantExpr>(CS.getCalledValue())) {
           if (CE->getOpcode() == Instruction::BitCast &&
-              isa<Function>(CE->getOperand(0)))
+              isa<Function>(CE->getOperand(0))) {
             CF = cast<Function>(CE->getOperand(0));
-        if (CF && (CF->isDeclaration()) && (CF->getName() == "realloc")) {
+          }
+        }
+
+        //
+        // Process functions that we recognize as allocators.
+        //
+        if (CF && (CF->isDeclaration()) && (CF->getName() == "malloc")) {
+          // Associate the global pool decriptor with the DSNode
+          DSNode * Node = ECG->getNodeForValue(CI).getNode();
+          FInfo.PoolDescriptors.insert(std::make_pair(Node,TheGlobalPool));
+
+          // Mark the call to malloc as an instruction to delete
+          toDelete.push_back(CI);
+
+          // Insertion point - Instruction before which all our instructions go
+          Instruction *InsertPt = CI;
+          Value *Size        = CS.getArgument(0);
+
+          // Ensure the size and pointer arguments are of the correct type
+          if (Size->getType() != Int32Type)
+            Size = CastInst::CreateIntegerCast (Size,
+                                                Int32Type,
+                                                false,
+                                                Size->getName(),
+                                                InsertPt);
+
+          //
+          // Remember the name of the old instruction and then clear it.  This
+          // allows us to give the name to the new call to poolalloc().
+          //
+          std::string Name = CI->getName(); CI->setName("");
+
+          //
+          // Insert the call to poolalloc()
+          //
+          Value* Opts[3] = {TheGlobalPool, Size};
+          Instruction *V = CallInst::Create (PoolAlloc,
+                                             Opts,
+                                             Opts + 2,
+                                             Name,
+                                             InsertPt);
+
+          Instruction *Casted = V;
+          if (V->getType() != CI->getType())
+            Casted = CastInst::CreatePointerCast (V, CI->getType(), V->getName(), InsertPt);
+
+          // Update def-use info
+          CI->replaceAllUsesWith(Casted);
+        } else if (CF && (CF->isDeclaration()) && (CF->getName() == "realloc")) {
           // Associate the global pool decriptor with the DSNode
           DSNode * Node = ECG->getNodeForValue(CI).getNode();
           FInfo.PoolDescriptors.insert(std::make_pair(Node,TheGlobalPool));
@@ -328,33 +348,20 @@ PoolAllocateSimple::ProcessFunctionBodySimple (Function& F, TargetData & TD) {
 
           // Update def-use info
           CI->replaceAllUsesWith(Casted);
+        } else if (CF && (CF->isDeclaration()) && (CF->getName() == "free")) {
+          Type * VoidPtrTy = PointerType::getUnqual(Int8Type);
+          Value * FreedNode = castTo (CI->getOperand(1), VoidPtrTy, "cast", ii);
+          toDelete.push_back(ii);
+          Value* args[] = {TheGlobalPool, FreedNode};
+          CallInst::Create(PoolFree, &args[0], &args[2], "", ii);
         }
-        //FIXME: free
-        #if 0
-      } else if (FreeInst * FI = dyn_cast<FreeInst>(ii)) {
-        Type * VoidPtrTy = PointerType::getUnqual(Int8Type);
-        Value * FreedNode = castTo (FI->getPointerOperand(), VoidPtrTy, "cast", ii);
-        toDelete.push_back(ii);
-        Value* args[] = {TheGlobalPool, FreedNode};
-        CallInst::Create(PoolFree, &args[0], &args[2], "", ii);
-        #endif
-      } else if (isa<ReturnInst>(ii)) {
-        Returns.push_back(cast<ReturnInst>(ii));
       }
     }
+  }
 
-  //add frees at each return for the allocas
-  for (std::vector<ReturnInst*>::iterator i = Returns.begin(), e = Returns.end();
-       i != e; ++i)
-    for (std::vector<Instruction*>::iterator ii = ToFree.begin(), ee = ToFree.end();
-         ii != ee; ++ii) {
-        std::vector<Value*> args;
-        args.push_back (TheGlobalPool);
-        args.push_back (*ii);
-        CallInst::Create(PoolFree, args.begin(), args.end(), "", *i);
-    }
-  
-  //delete malloc and alloca insts
+  //
+  // Delete all instructions that were previously scheduled for deletion.
+  //
   for (unsigned x = 0; x < toDelete.size(); ++x)
     toDelete[x]->eraseFromParent();
 }
