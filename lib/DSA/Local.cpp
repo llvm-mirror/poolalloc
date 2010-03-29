@@ -717,6 +717,9 @@ bool GraphBuilder::visitIntrinsic(CallSite CS, Function *F) {
   case Intrinsic::prefetch:
     return true;
 
+  case Intrinsic::objectsize:
+    return true;
+
   //
   // The return address aliases with the stack, is type-unknown, and should
   // have the unknown flag set since we don't know where it goes.
