@@ -8,14 +8,9 @@
 ##===----------------------------------------------------------------------===##
 
 LEVEL = ../..
-LIBRARYNAME = LLVMDataStructure
-BUILD_ARCHIVE := 1
-ifneq ($(OS),Cygwin)
-ifneq ($(OS),MingW)
-SHARED_LIBRARY := 1
-#LOADABLE_MODULE := 1
-endif
-endif
+LOADABLE_MODULE=1
+BUILD_ARCHIVE = 1
+LIBRARYNAME = librDSA
 
 include $(LEVEL)/Makefile.common
 

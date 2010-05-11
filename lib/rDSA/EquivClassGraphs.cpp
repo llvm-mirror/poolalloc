@@ -15,11 +15,11 @@
 //===----------------------------------------------------------------------===//
 
 #define DEBUG_TYPE "ECGraphs"
-#include "dsa/DataStructure.h"
+#include "rdsa/DataStructure.h"
 #include "llvm/DerivedTypes.h"
 #include "llvm/Module.h"
 #include "llvm/Pass.h"
-#include "dsa/DSGraph.h"
+#include "rdsa/DSGraph.h"
 #include "llvm/Support/CallSite.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/ADT/SCCIterator.h"
@@ -64,16 +64,14 @@ void EquivBUDataStructures::mergeGraphsByGlobalECs() {
     for (EquivalenceClasses<const GlobalValue*>::member_iterator MI = GlobalECs.member_begin(EQSI);
          MI != GlobalECs.member_end(); ++MI) {
       if (const Function* F = dyn_cast<Function>(*MI)) {
-        if(F->isDeclaration()) //ignore functions with no body
-    	  continue;
         if (!BaseGraph) {
-          BaseGraph = getOrCreateGraph(F);
+          BaseGraph = getOrFetchDSGraph(F);
           BaseGraph->getFunctionArgumentsForCall(F, Args);
         } else if (BaseGraph->containsFunction(F)) {
           //already merged
         } else {
           std::vector<DSNodeHandle> NextArgs;
-          BaseGraph->cloneInto(getOrCreateGraph(F));
+          BaseGraph->cloneInto(getOrFetchDSGraph(F));
           BaseGraph->getFunctionArgumentsForCall(F, NextArgs);
           unsigned i = 0, e = Args.size();
           for (; i != e; ++i) {
@@ -82,7 +80,7 @@ void EquivBUDataStructures::mergeGraphsByGlobalECs() {
           }
           for (e = NextArgs.size(); i != e; ++i)
             Args.push_back(NextArgs[i]);
-          setDSGraph(*F, BaseGraph);
+          setDSGraph(F, BaseGraph);
         }       
       }
     }

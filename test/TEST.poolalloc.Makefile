@@ -19,21 +19,22 @@ endif
 CURDIR  := $(shell cd .; pwd)
 PROGDIR := $(shell cd $(LLVM_SRC_ROOT)/projects/test-suite; pwd)/
 RELDIR  := $(subst $(PROGDIR),,$(CURDIR))
-PADIR   := /home/andrewl/Research/llvm/projects/poolalloc
+#PADIR   := /home/andrewl/Research/llvm/projects/poolalloc
+PADIR   := $(LLVM_OBJ_ROOT)/projects/poolalloc
 
 # Bits of runtime to improve analysis
-PA_PRE_RT := $(PADIR)/Release/lib/libpa_pre_rt.bca
+PA_PRE_RT := $(PADIR)/$(CONFIGURATION)/lib/libpa_pre_rt.bca
 
 # Pool allocator pass shared object
-PA_SO    := $(PADIR)/Debug/lib/libpoolalloc$(SHLIBEXT)
-DSA_SO   := $(PADIR)/Debug/lib/libLLVMDataStructure$(SHLIBEXT)
-ASSIST_SO := $(PADIR)/Debug/lib/libAssistDS$(SHLIBEXT)
+PA_SO    := $(PADIR)/$(CONFIGURATION)/lib/libpoolalloc$(SHLIBEXT)
+DSA_SO   := $(PADIR)/$(CONFIGURATION)/lib/libLLVMDataStructure$(SHLIBEXT)
+ASSIST_SO := $(PADIR)/$(CONFIGURATION)/lib/libAssistDS$(SHLIBEXT)
 
 # Pool allocator runtime library
-#PA_RT    := $(PADIR)/Debug/lib/libpoolalloc_fl_rt.bc
+#PA_RT    := $(PADIR)/$(CONFIGURATION)/lib/libpoolalloc_fl_rt.bc
 #PA_RT_O  := $(PROJECT_DIR)/lib/$(CONFIGURATION)/poolalloc_rt.o
-PA_RT_O  := $(PADIR)/Debug/lib/poolalloc_rt.o
-#PA_RT_O  := $(PROJECT_DIR)/lib/Release/poolalloc_fl_rt.o
+PA_RT_O  := $(PADIR)/$(CONFIGURATION)/lib/libpoolalloc_rt.a
+#PA_RT_O  := $(PROJECT_DIR)/lib/$(CONFIGURATION)/poolalloc_fl_rt.o
 
 # Command to run opt with the pool allocator pass loaded
 OPT_PA := $(LOPT) -load $(DSA_SO) -load $(PA_SO)

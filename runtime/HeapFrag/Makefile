@@ -1,7 +1,17 @@
 LEVEL = ../..
-#BYTECODE_LIBRARY=1
-#SHARED_LIBRARY=1
 LIBRARYNAME=heapfrag
+
+#BYTECODE_LIBRARY=1
+
+#
+# Build shared libraries on all platforms except Cygwin and MingW (which do
+# not support them).
+#
+ifneq ($(OS),Cygwin)
+ifneq ($(OS),MingW)
+#SHARED_LIBRARY=1
+endif
+endif
 
 include $(LEVEL)/Makefile.common
 

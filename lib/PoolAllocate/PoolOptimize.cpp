@@ -32,7 +32,7 @@ namespace {
     static char ID;
     bool SAFECodeEnabled;
 
-    PoolOptimize(bool SAFECode = false) : ModulePass((intptr_t)&ID) {
+    PoolOptimize(bool SAFECode = true) : ModulePass((intptr_t)&ID) {
       SAFECodeEnabled = SAFECode;
     }
     bool runOnModule(Module &M);
@@ -72,7 +72,7 @@ bool PoolOptimize::runOnModule(Module &M) {
   const Type *VoidPtrTy = PointerType::getUnqual(Int8Type);
   const Type *PoolDescPtrTy;
   if (SAFECodeEnabled)
-    PoolDescPtrTy = PointerType::getUnqual(ArrayType::get(VoidPtrTy, 50));
+    PoolDescPtrTy = PointerType::getUnqual(ArrayType::get(VoidPtrTy, 92));
   else
     PoolDescPtrTy = PointerType::getUnqual(ArrayType::get(VoidPtrTy, 16));
 

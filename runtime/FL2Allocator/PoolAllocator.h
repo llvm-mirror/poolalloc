@@ -23,6 +23,7 @@
 #define POOLALLOCATOR_RUNTIME_H
 
 #include <assert.h>
+#include <pthread.h>
 
 template<typename PoolTraits>
 struct PoolSlab;
@@ -174,6 +175,9 @@ struct PoolTy {
   // BytesAllocated - The total number of bytes ever allocated from this pool.
   // Together with NumObjects, allows us to calculate average object size.
   unsigned BytesAllocated;
+
+  // Lock for the pool
+  pthread_mutex_t pool_lock;
 };
 
 extern "C" {
@@ -229,6 +233,13 @@ extern "C" {
   // Access tracing runtime library support.
   void poolaccesstraceinit(void);
   void poolaccesstrace(void *Ptr, void *PD);
+
+  // Auxiliary functions for thread support
+#ifdef USE_DYNCALL
+  int poolalloc_pthread_create(pthread_t* thread,
+							   const pthread_attr_t* attr,
+							   void *(*start_routine)(void*), int num_pools, ...);
+#endif
 }
 
 #endif

@@ -366,6 +366,7 @@ void PoolSlab<PoolTraits>::destroy() {
 
 void poolinit_bp(PoolTy<NormalPoolTraits> *Pool, unsigned ObjAlignment) {
   DO_IF_PNP(memset(Pool, 0, sizeof(PoolTy<NormalPoolTraits>)));
+  pthread_mutex_init(&Pool->pool_lock,NULL);
   Pool->Slabs = 0;
   if (ObjAlignment < 4) ObjAlignment = __alignof(double);
   Pool->AllocSize = INITIAL_SLAB_SIZE;
@@ -392,6 +393,8 @@ void *poolalloc_bp(PoolTy<NormalPoolTraits> *Pool, unsigned NumBytes) {
                       getPoolNumber(Pool), NumBytes));
   DO_IF_PNP(if (Pool->NumObjects == 0) ++PoolCounter);  // Track # pools.
 
+  pthread_mutex_lock(&Pool->pool_lock);
+
   if (NumBytes >= LARGE_SLAB_SIZE)
     goto LargeObject;
 
@@ -415,6 +418,7 @@ TryAgain:
     // Update bump ptr.
     Pool->ObjFreeList = (FreedNodeHeader<NormalPoolTraits>*)(BumpPtr+NumBytes);
     DO_IF_TRACE(fprintf(stderr, "%p\n", Result));
+    pthread_mutex_unlock(&Pool->pool_lock);
     return Result;
   }
   
@@ -431,6 +435,7 @@ LargeObject:
   LAH->Marker = ~0U;
   LAH->LinkIntoList(&Pool->LargeArrays);
   DO_IF_TRACE(fprintf(stderr, "%p  [large]\n", LAH+1));
+  pthread_mutex_unlock(&Pool->pool_lock);
   return LAH+1;
 }
 
@@ -443,6 +448,8 @@ void pooldestroy_bp(PoolTy<NormalPoolTraits> *Pool) {
   DO_IF_TRACE(fprintf(stderr, "[%d] pooldestroy_bp", PID));
 #endif
   DO_IF_POOLDESTROY_STATS(PrintPoolStats(Pool));
+
+  pthread_mutex_destroy(&Pool->pool_lock);
 
   // Free all allocated slabs.
   PoolSlab<NormalPoolTraits> *PS = Pool->Slabs;
@@ -476,6 +483,7 @@ static void poolinit_internal(PoolTy<PoolTraits> *Pool,
                               unsigned DeclaredSize, unsigned ObjAlignment) {
   assert(Pool && "Null pool pointer passed into poolinit!\n");
   memset(Pool, 0, sizeof(PoolTy<PoolTraits>));
+  pthread_mutex_init(&Pool->pool_lock,NULL);
   Pool->AllocSize = INITIAL_SLAB_SIZE;
 
   if (ObjAlignment < 4) ObjAlignment = __alignof(double);
@@ -516,6 +524,7 @@ void poolinit(PoolTy<NormalPoolTraits> *Pool,
 //
 void pooldestroy(PoolTy<NormalPoolTraits> *Pool) {
   assert(Pool && "Null pool pointer passed in to pooldestroy!\n");
+  pthread_mutex_destroy(&Pool->pool_lock);
 
 #ifdef ENABLE_POOL_IDS
   unsigned PID;
@@ -858,29 +867,74 @@ unsigned poolobjsize(PoolTy<NormalPoolTraits> *Pool, void *Node) {
 
 void *poolalloc(PoolTy<NormalPoolTraits> *Pool, unsigned NumBytes) {
   DO_IF_FORCE_MALLOCFREE(return malloc(NumBytes));
-  return poolalloc_internal(Pool, NumBytes);
+  pthread_mutex_lock(&Pool->pool_lock);
+  void* to_return = poolalloc_internal(Pool, NumBytes);
+  pthread_mutex_unlock(&Pool->pool_lock);
+  return to_return;
 }
 
 void *poolmemalign(PoolTy<NormalPoolTraits> *Pool,
                    unsigned Alignment, unsigned NumBytes) {
   //punt and use pool alloc.
   //I don't know if this is safe or breaks any assumptions in the runtime
+  pthread_mutex_lock(&Pool->pool_lock);
   intptr_t base = (intptr_t)poolalloc_internal(Pool, NumBytes + Alignment - 1);
+  pthread_mutex_unlock(&Pool->pool_lock);
   return (void*)((base + (Alignment - 1)) & ~((intptr_t)Alignment -1));
 }
 
 void poolfree(PoolTy<NormalPoolTraits> *Pool, void *Node) {
   DO_IF_FORCE_MALLOCFREE(free(Node); return);
+  pthread_mutex_lock(&Pool->pool_lock);
   poolfree_internal(Pool, Node);
+  pthread_mutex_unlock(&Pool->pool_lock);
 }
 
 void *poolrealloc(PoolTy<NormalPoolTraits> *Pool, void *Node,
                   unsigned NumBytes) {
   DO_IF_FORCE_MALLOCFREE(return realloc(Node, NumBytes));
-  return poolrealloc_internal(Pool, Node, NumBytes);
+  pthread_mutex_lock(&Pool->pool_lock);
+  void* to_return = poolrealloc_internal(Pool, Node, NumBytes);
+  pthread_mutex_unlock(&Pool->pool_lock);
+  return to_return;
 }
 
+#ifdef USE_DYNCALL
+#include <dyncall.h>
+#include <pthread.h>
+#include <stdarg.h>
 
+void* poolalloc_thread_start(void* arg_)
+{
+	void** arg = (void**)arg_;
+	DCCallVM* callVM = dcNewCallVM((size_t)arg[1]*sizeof(size_t)+108);
+	int i;
+	for(i=0; i<(size_t)arg[1]; i++)
+		dcArgPointer(callVM,arg[2+i]);
+	dcArgPointer(callVM,arg[2+i]);
+	void* to_return = dcCallPointer(callVM,arg[0]);
+	dcFree(callVM);
+	return to_return;
+}
+
+int poolalloc_pthread_create(pthread_t* thread,
+							 const pthread_attr_t* attr,
+							 void *(*start_routine)(void*), int num_pools, ...)
+{
+	void** arg_array = (void**)malloc(sizeof(void*)*(2+num_pools));
+	arg_array[0] = (void*)start_routine;
+	arg_array[1] = (void*)num_pools;
+	va_list argpools;
+	va_start(argpools,num_pools);
+	int i;
+	for(i=0; i<num_pools; i++)
+		arg_array[2+i]=va_arg(argpools,void*);
+	arg_array[2+i]=va_arg(argpools,void*);
+	va_end(argpools);
+	return pthread_create(thread,attr,poolalloc_thread_start,arg_array);
+}
+
+#endif
 
 //===----------------------------------------------------------------------===//
 // Pointer Compression runtime library.  Most of these are just wrappers
@@ -945,6 +999,7 @@ void *poolinit_pc(PoolTy<CompressedPoolTraits> *Pool,
 
 void pooldestroy_pc(PoolTy<CompressedPoolTraits> *Pool) {
   assert(Pool && "Null pool pointer passed in to pooldestroy!\n");
+  pthread_mutex_destroy(&Pool->pool_lock);
   if (Pool->Slabs == 0)
     return;   // no memory allocated from this pool.
 
@@ -970,17 +1025,23 @@ void pooldestroy_pc(PoolTy<CompressedPoolTraits> *Pool) {
 
 unsigned long long poolalloc_pc(PoolTy<CompressedPoolTraits> *Pool,
                                 unsigned NumBytes) {
+  pthread_mutex_lock(&Pool->pool_lock);
   void *Result = poolalloc_internal(Pool, NumBytes);
+  pthread_mutex_unlock(&Pool->pool_lock);
   return (char*)Result-(char*)Pool->Slabs;
 }
 
 void poolfree_pc(PoolTy<CompressedPoolTraits> *Pool, unsigned long long Node) {
+  pthread_mutex_lock(&Pool->pool_lock);
   poolfree_internal(Pool, (char*)Pool->Slabs+Node);
+  pthread_mutex_unlock(&Pool->pool_lock);
 }
 
 unsigned long long poolrealloc_pc(PoolTy<CompressedPoolTraits> *Pool,
                                   unsigned long long Node, unsigned NumBytes) {
+  pthread_mutex_lock(&Pool->pool_lock);
   void *Result = poolrealloc_internal(Pool, (char*)Pool->Slabs+Node, NumBytes);
+  pthread_mutex_unlock(&Pool->pool_lock);
   return (char*)Result-(char*)Pool->Slabs;
 }
 
@@ -998,18 +1059,26 @@ void pooldestroy_pca(PoolTy<CompressedPoolTraits> *Pool)
 
 void* poolalloc_pca(PoolTy<CompressedPoolTraits> *Pool, unsigned NumBytes)
 {
-  return poolalloc_internal(Pool, NumBytes);
+  pthread_mutex_lock(&Pool->pool_lock);
+  void* to_return = poolalloc_internal(Pool, NumBytes);
+  pthread_mutex_unlock(&Pool->pool_lock);
+  return to_return;
 }
 
 void poolfree_pca(PoolTy<CompressedPoolTraits> *Pool, void* Node)
 {
+  pthread_mutex_lock(&Pool->pool_lock);
   poolfree_internal(Pool, Node);
+  pthread_mutex_unlock(&Pool->pool_lock);
 }
 
 void* poolrealloc_pca(PoolTy<CompressedPoolTraits> *Pool, void* Node, 
 		      unsigned NumBytes)
 {
-  return poolrealloc_internal(Pool, Node, NumBytes);
+  pthread_mutex_lock(&Pool->pool_lock);
+  void* to_return = poolrealloc_internal(Pool, Node, NumBytes);
+  pthread_mutex_unlock(&Pool->pool_lock);
+  return to_return;
 }
 
 //===----------------------------------------------------------------------===//

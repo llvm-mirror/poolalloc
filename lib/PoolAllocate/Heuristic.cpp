@@ -122,15 +122,31 @@ unsigned Heuristic::getRecommendedAlignment(const Type *Ty,
 /// DSNode.
 ///
 unsigned Heuristic::getRecommendedAlignment(const DSNode *N) {
-  //FIXME: Type
-  //if (!N->getType() || N->getType()->isVoidTy())  // Is this void or collapsed?
-    return 0;  // No known alignment, let runtime decide.
+#if 0
+  const Type * VoidType = Type::getVoidTy(getGlobalContext());
 
-  //const TargetData &TD = N->getParentGraph()->getTargetData();
+  //
+  // If this node has a void type (which can be signified by getType()
+  // returning NULL) or the node is collapsed, then there is no known
+  // alignment.  We will return 0 to let the runtime decide.
+  //
+  if ((!(N->getType())) || (N->getType() == VoidType))
+    return 0;
+
+  const TargetData &TD = N->getParentGraph()->getTargetData();
 
   // If there are no doubles on an 8-byte boundary in this structure, there is
   // no reason to 8-byte align objects in the pool.
-  //return Wants8ByteAlignment(N->getType(), 0, TD) ? 8 : 4;
+  return Wants8ByteAlignment(N->getType(), 0, TD) ? 8 : 4;
+#else
+  //
+  // I believe there was a FIXME in the previous version of this code, but it
+  // was too vague for me to understand what, exactly, needed to be fixed.
+  //
+  // In any event, it seems that this code should be deactivated for now.
+  //
+  return 0;
+#endif
 }
  
 
@@ -455,7 +471,7 @@ static Value *getDynamicallyNullPool(BasicBlock::iterator I) {
   if (!NullGlobal) {
     Module *M = I->getParent()->getParent()->getParent();
     const Type * PoolTy = PoolAllocate::PoolDescPtrTy;
-    Constant * Init = ConstantAggregateZero::get(PoolTy);
+    Constant * Init = ConstantPointerNull::get(cast<PointerType>(PoolTy));
     NullGlobal = new GlobalVariable(*M,
                                     PoolAllocate::PoolDescPtrTy, false,
                                     GlobalValue::ExternalLinkage,

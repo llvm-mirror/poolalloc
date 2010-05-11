@@ -54,7 +54,7 @@ namespace PA {
   /// maps to the original function...
   ///
   struct FuncInfo {
-    FuncInfo(Function &f) : F(f), Clone(0) {}
+    FuncInfo(Function &f) : F(f), Clone(0), rev_pool_desc_map_computed(false) {}
 
     /// MarkedNodes - The set of nodes which are not locally pool allocatable in
     /// the current function.
@@ -82,6 +82,23 @@ namespace PA {
     /// passed in because of indirect function calls that are not used in the
     /// function.
     std::map<const DSNode*, Value*> PoolDescriptors;
+
+    //Reverse mapping for PoolDescriptors, needed by TPPA
+    std::map<Value*, const DSNode*> ReversePoolDescriptors;
+
+    //This is a hack -- a function should be added which maintains these in parallel
+    //and all of PoolAlloc and SafeCode should be updated to use it instead of adding
+    //to either map directly.
+    bool rev_pool_desc_map_computed;
+    void calculate_reverse_pool_descriptors()
+    {
+    	if(rev_pool_desc_map_computed)
+    		return;
+    	rev_pool_desc_map_computed = true;
+
+    	for(std::map<const DSNode*, Value*>::iterator i = PoolDescriptors.begin(); i!=PoolDescriptors.end(); i++)
+    		ReversePoolDescriptors[i->second] = i->first;
+    }
 
     /// This is a map from Old to New Values (the reverse of NewToOldValueMap).
     /// SAFECode uses this for check insertion.
@@ -147,6 +164,7 @@ public:
     return Graphs->getGlobalsGraph ();
   }
 
+  /* Return value is of type PoolDescPtrTy */
   virtual Value * getPool (const DSNode * N, Function & F) {return 0;}
 
   virtual Value * getGlobalPool (const DSNode * Node) {return 0;}
@@ -168,7 +186,7 @@ class PoolAllocate : public PoolAllocateGroup {
   std::map<const Function*, Function*> CloneToOrigMap;
 public:
 
-  Constant *PoolInit, *PoolDestroy, *PoolAlloc, *PoolRealloc, *PoolMemAlign;
+  Constant *PoolInit, *PoolDestroy, *PoolAlloc, *PoolRealloc, *PoolMemAlign, *PoolThreadWrapper;
   Constant *PoolFree;
   Constant *PoolCalloc;
   Constant *PoolStrdup;
@@ -354,10 +372,10 @@ protected:
     }
 
     //
-    // We either do not have a pool, or the pool is not accessible from the
-    // specified function.  Return NULL.
+    // Perhaps this is a global pool.  If it isn't, then return a NULL
+    // pointer.
     //
-    return 0;
+    return getGlobalPool (N);
   }
 
   virtual Value * getGlobalPool (const DSNode * Node) {

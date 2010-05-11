@@ -8,7 +8,11 @@
 ##===----------------------------------------------------------------------===##
 
 LEVEL = ../..
+ifneq ($(OS),Cygwin)
+ifneq ($(OS),MingW)
 SHARED_LIBRARY=1
+endif
+endif
 LIBRARYNAME = AssistDS
 
 include $(LEVEL)/Makefile.common

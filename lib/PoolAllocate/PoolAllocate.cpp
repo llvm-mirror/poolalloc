@@ -268,6 +268,18 @@ void PoolAllocate::AddPoolPrototypes(Module* M) {
   //Get the poolregister function
   PoolRegister = M->getOrInsertFunction("poolregister", VoidType,
                                  PoolDescPtrTy, VoidPtrTy, Int32Type, NULL);
+
+  Function* pthread_create_func = M->getFunction("pthread_create");
+  if(pthread_create_func)
+  {
+      Function::arg_iterator i = pthread_create_func->arg_begin();
+      std::vector<const Type*> non_vararg_params;
+      non_vararg_params.push_back(i++->getType());
+      non_vararg_params.push_back(i++->getType());
+      non_vararg_params.push_back(i++->getType());
+      non_vararg_params.push_back(Int32Type);
+      PoolThreadWrapper = M->getOrInsertFunction("poolalloc_pthread_create",FunctionType::get(Int32Type,non_vararg_params,true));
+  }
 }
 
 static void getCallsOf(Constant *C, std::vector<CallInst*> &Calls) {
@@ -733,7 +745,8 @@ void PoolAllocate::ProcessFunctionBody(Function &F, Function &NewF) {
   for (DSGraph::node_iterator I = G->node_begin(), E = G->node_end(); I != E;++I){
     // We only need to make a pool if there is a heap object in it...
     DSNode *N = I;
-    if ((N->isHeapNode()) || (BoundsChecksEnabled && (N->isArrayNode()))) {
+    if ((N->isHeapNode()) || (BoundsChecksEnabled && (N->isArrayNode())) ||
+    	GlobalsGraphNodeMapping.count(N) && GlobalsGraphNodeMapping[N].getNode()->isHeapNode()) {
       if (GlobalsGraphNodeMapping.count(N)) {
         // If it is a global pool, set up the pool descriptor appropriately.
         DSNode *GGN = GlobalsGraphNodeMapping[N].getNode();
