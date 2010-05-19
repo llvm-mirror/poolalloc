@@ -184,18 +184,32 @@ struct AllButUnreachableFromMemoryHeuristic : public Heuristic {
     for (DSGraph::node_iterator I = G->node_begin(), E = G->node_end();
          I != E; ++I) {
       DSNode *N = I;
+#if 0
+      //
       // Ignore nodes that are just globals and not arrays.
-      /*
+      //
       if (N->isArray() || N->isHeapNode() || N->isAllocaNode() ||
           N->isUnknownNode())
-      */
+#endif
       // If a node is marked, all children are too.
-      if (!ReachableFromMemory.count(N))
-        for (DSNode::iterator NI = N->begin(), E = N->end(); NI != E; ++NI)
+      if (!ReachableFromMemory.count(N)) {
+        for (DSNode::iterator NI = N->begin(), E = N->end(); NI != E; ++NI) {
+          //
+          // Sometimes this results in a NULL DSNode.  Skip it if that is the
+          // case.
+          //
+          if (!(*NI)) continue;
+
+          //
+          // Do a depth-first iteration over the DSGraph starting with this
+          // child node.
+          //
           for (df_ext_iterator<const DSNode*>
                  DI = df_ext_begin(*NI, ReachableFromMemory),
                  E = df_ext_end(*NI, ReachableFromMemory); DI != E; ++DI)
           /*empty*/;
+        }
+      }
     }
 
     // Only pool allocate a node if it is reachable from a memory object (itself
