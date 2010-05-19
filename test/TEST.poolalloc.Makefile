@@ -235,7 +235,9 @@ Output/%.$(TEST).report.txt: Output/%.out-nat                \
 			     Output/%.mallocrepl.diff-nat    \
 			     Output/%.onlyoverhead.diff-nat  \
                              Output/%.LOC.txt
+	@cat $<
 	@echo > $@
+	@echo ">>> ========= '$(RELDIR)/$*' Program" >> $@
 	@-if test -f Output/$*.nonpa.diff-nat; then \
 	  printf "GCC-RUN-TIME: " >> $@;\
 	  grep "^program" Output/$*.out-nat.time >> $@;\
