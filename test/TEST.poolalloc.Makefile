@@ -235,9 +235,12 @@ Output/%.$(TEST).report.txt: Output/%.out-nat                \
 			     Output/%.mallocrepl.diff-nat    \
 			     Output/%.onlyoverhead.diff-nat  \
                              Output/%.LOC.txt
-	@cat $<
+	@-cat $<
 	@echo > $@
+	@echo "---------------------------------------------------------------" >> $@
 	@echo ">>> ========= '$(RELDIR)/$*' Program" >> $@
+	@echo "---------------------------------------------------------------" >> $@
+	@echo >> $@
 	@-if test -f Output/$*.nonpa.diff-nat; then \
 	  printf "GCC-RUN-TIME: " >> $@;\
 	  grep "^program" Output/$*.out-nat.time >> $@;\
@@ -262,9 +265,9 @@ Output/%.$(TEST).report.txt: Output/%.out-nat                \
 	  printf "RUN-TIME-POOLALLOC: " >> $@;\
 	  grep "^program" Output/$*.poolalloc.out.time >> $@;\
 	fi
-	printf "LOC: " >> $@
-	cat Output/$*.LOC.txt >> $@
-	@cat Output/$*.$(TEST).bc.info >> $@
+	-printf "LOC: " >> $@
+	-cat Output/$*.LOC.txt >> $@
+	@-cat Output/$*.$(TEST).bc.info >> $@
 	@#cat Output/$*.$(TEST).basepa.bc.out  >> $@
 
 
@@ -273,6 +276,6 @@ test.$(TEST).%: Output/%.$(TEST).report.txt
 	@echo "---------------------------------------------------------------"
 	@echo ">>> ========= '$(RELDIR)/$*' Program"
 	@echo "---------------------------------------------------------------"
-	@cat $<
+	@-cat $<
 
 REPORT_DEPENDENCIES := $(PA_RT_O) $(PA_SO) $(PROGRAMS_TO_TEST:%=Output/%.llvm.bc) $(LLC) $(LOPT)
