@@ -914,6 +914,7 @@ void* poolalloc_thread_start(void* arg_)
 	dcArgPointer(callVM,arg[2+i]);
 	void* to_return = dcCallPointer(callVM,arg[0]);
 	dcFree(callVM);
+	free(arg_);
 	return to_return;
 }
 
@@ -921,7 +922,7 @@ int poolalloc_pthread_create(pthread_t* thread,
 							 const pthread_attr_t* attr,
 							 void *(*start_routine)(void*), int num_pools, ...)
 {
-	void** arg_array = (void**)malloc(sizeof(void*)*(2+num_pools));
+	void** arg_array = (void**)malloc(sizeof(void*)*(3+num_pools));
 	arg_array[0] = (void*)start_routine;
 	arg_array[1] = (void*)num_pools;
 	va_list argpools;

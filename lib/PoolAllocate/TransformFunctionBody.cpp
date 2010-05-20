@@ -588,13 +588,12 @@ void FuncTransform::visitCallSite(CallSite& CS) {
       abort();
     } else if (CF->getName() == "pthread_create") {
       thread_creation_point = true;
-      //Get DSNode representing the void* passed to the callee
-	  DSNodeHandle passed_dsnode_handle = G->getNodeForValue(CS.getArgument(3));
 
       //Get DSNode representing the DSNode of the function pointer Value of the pthread_create call
       DSNode* thread_callee_node = G->getNodeForValue(CS.getArgument(2)).getNode();
       if(!thread_callee_node)
       {
+    	  assert(0 && "apparently you need this code");
     	  FuncInfo *CFI = PAInfo.getFuncInfo(*CF);
     	  thread_callee_node = G->getNodeForValue(CFI->MapValueToOriginal(CS.getArgument(2))).getNode();
       }
@@ -712,7 +711,7 @@ void FuncTransform::visitCallSite(CallSite& CS) {
   }
 
   Function::const_arg_iterator FAI = CF->arg_begin(), E = CF->arg_end();
-  CallSite::arg_iterator AI = CS.arg_begin(), AE = CS.arg_end();
+  CallSite::arg_iterator AI = CS.arg_begin() + (thread_creation_point ? 3 : 0), AE = CS.arg_end();
   for ( ; FAI != E && AI != AE; ++FAI, ++AI)
     if (!isa<Constant>(*AI))
       DSGraph::computeNodeMapping(CalleeGraph->getNodeForValue(FAI),
