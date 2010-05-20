@@ -37,12 +37,14 @@ LARGE_PROBLEM_SIZE_DIRS := \
 
 
 NORMAL_PROBLEM_SIZE_DIRS := \
-   MultiSource/Benchmarks/Olden/bh \
-   #MultiSource/Benchmarks/Olden \
-   #MultiSource/Benchmarks/SciMark2-C/scimark2 \
-   #External/Povray \
+   MultiSource/Benchmarks/Olden/bisort \
+   #MultiSource/Benchmarks/Olden/bh \
+   #External/SPEC/CINT2000 \
    #External/FPGrowth \
    #External/Namd \
+   #External/Povray \
+   #MultiSource/Benchmarks/Olden \
+   #MultiSource/Benchmarks/SciMark2-C/scimark2 \
    #External/SPEC/CINT2000/164.gzip \
    #External/SPEC/CINT2000/175.vpr \
    #External/SPEC/CINT2000/176.gcc \
@@ -82,6 +84,29 @@ PCNORMAL_PROBLEM_SIZE_DIRS := \
 ##############################################################################
 # Targets for gathering statistics for programs for papers
 ##############################################################################
+# Program tests for DSA
+progdsa::
+	for dir in $(LARGE_PROBLEM_SIZE_DIRS); do \
+            (cd $$dir; \
+               PROJECT_DIR=$(PROJ_OBJ_ROOT) $(MAKE) -j1 TEST=dsgraph \
+                   LARGE_PROBLEM_SIZE=1 report.html) \
+        done
+	for dir in $(NORMAL_PROBLEM_SIZE_DIRS); do \
+	    (cd $$dir; \
+               PROJECT_DIR=$(PROJ_OBJ_ROOT) $(MAKE) -j1 TEST=dsgraph \
+                   report.html) \
+        done
+	@for dir in $(LARGE_PROBLEM_SIZE_DIRS); do \
+            (cd $$dir; \
+               PROJECT_DIR=$(PROJ_OBJ_ROOT) $(MAKE) -s -j1 TEST=dsgraph \
+                   LARGE_PROBLEM_SIZE=1 report) \
+        done
+	@for dir in $(NORMAL_PROBLEM_SIZE_DIRS); do \
+	    (cd $$dir; \
+               PROJECT_DIR=$(PROJ_OBJ_ROOT) $(MAKE) -s -j1 TEST=dsgraph \
+                   report) \
+        done
+	@printf "\a"; sleep 1; printf "\a"; sleep 1; printf "\a"
 
 # Program tests for Pool Allocation
 progtest::
