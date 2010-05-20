@@ -17,7 +17,7 @@ PADIR   := $(LLVM_OBJ_ROOT)/projects/poolalloc
 DSA_SO   := $(PADIR)/$(CONFIGURATION)/lib/libLLVMDataStructure$(SHLIBEXT)
 
 # PASS - The dsgraph pass to run: ds, bu, td
-PASS := eqtd
+PASS := td
 
 #ANALYZE_OPTS := -stats -time-passes -only-print-main-ds -dsstats
 ANALYZE_OPTS := -stats -time-passes -dsstats
@@ -33,8 +33,8 @@ Output/%.$(TEST).report.txt: Output/%.llvm.bc Output/%.LOC.txt $(LOPT)
 	-($(LOPT) -load $(DSA_SO) -steens-aa $(MEM) -disable-output $<) > $@.mem.2 2>&1
 	@# Emit data.
 	@echo "---------------------------------------------------------------" > $@
-	@echo ">>> ========= '$(RELDIR)/$*' Program" > $@
-	@echo "---------------------------------------------------------------" > $@
+	@echo ">>> ========= '$(RELDIR)/$*' Program" >> $@
+	@echo "---------------------------------------------------------------" >> $@
 	@/bin/echo -n "LOC: " >> $@
 	@cat Output/$*.LOC.txt >> $@
 	@echo >> $@
