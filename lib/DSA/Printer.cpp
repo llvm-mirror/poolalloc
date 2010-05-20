@@ -145,8 +145,16 @@ struct DOTGraphTraits<const DSGraph*> : public DefaultDOTGraphTraits {
 
   static bool edgeTargetsEdgeSource(const void *Node,
                                     DSNode::const_iterator I) {
-    unsigned O = I->getLink(I.getOffset()).getOffset();
-    return O != 0;
+    if (I.getOffset() < I->getSize()) {
+      if (I->hasLink (I.getOffset())) {
+        unsigned O = I->getLink(I.getOffset()).getOffset();
+        return O != 0;
+      } else {
+        return false;
+      }
+    } else {
+      return false;
+    }
   }
 
   static std::string getEdgeSourceLabel(const void* Node,
