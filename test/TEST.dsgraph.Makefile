@@ -16,6 +16,9 @@ PADIR   := $(LLVM_OBJ_ROOT)/projects/poolalloc
 # Pathame to the DSA pass dynamic library
 DSA_SO   := $(PADIR)/$(CONFIGURATION)/lib/libLLVMDataStructure$(SHLIBEXT)
 
+# Command for running the opt program
+RUNOPT := $(LLVM_OBJ_ROOT)/projects/poolalloc/$(CONFIGURATION)/bin/watchdog $(LOPT) -load $(DSA_SO)
+
 # PASS - The dsgraph pass to run: ds, bu, td
 PASS := td
 
@@ -27,10 +30,10 @@ MEM := -track-memory -time-passes
 $(PROGRAMS_TO_TEST:%=Output/%.$(TEST).report.txt): \
 Output/%.$(TEST).report.txt: Output/%.llvm.bc Output/%.LOC.txt $(LOPT)
 	@# Gather data
-	-($(LOPT) -load $(DSA_SO) -analyze -dsa-$(PASS) $(ANALYZE_OPTS) $<)> $@.time.1 2>&1
-	-($(LOPT) -load $(DSA_SO) -analyze $(MEM) -dsa-$(PASS) -disable-verify $<)> $@.mem.1 2>&1
-	-($(LOPT) -load $(DSA_SO) -steens-aa -time-passes -disable-output $<) > $@.time.2 2>&1
-	-($(LOPT) -load $(DSA_SO) -steens-aa $(MEM) -disable-output $<) > $@.mem.2 2>&1
+	-($(RUNOPT) -analyze -dsa-$(PASS) $(ANALYZE_OPTS) $<)> $@.time.1 2>&1
+	-($(RUNOPT) -analyze $(MEM) -dsa-$(PASS) -disable-verify $<)> $@.mem.1 2>&1
+	-($(RUNOPT) -steens-aa -time-passes -disable-output $<) > $@.time.2 2>&1
+	-($(RUNOPT) -steens-aa $(MEM) -disable-output $<) > $@.mem.2 2>&1
 	@# Emit data.
 	@echo "---------------------------------------------------------------" > $@
 	@echo ">>> ========= '$(RELDIR)/$*' Program" >> $@
