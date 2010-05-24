@@ -22,6 +22,9 @@ RELDIR  := $(subst $(PROGDIR),,$(CURDIR))
 #PADIR   := /home/andrewl/Research/llvm/projects/poolalloc
 PADIR   := $(LLVM_OBJ_ROOT)/projects/poolalloc
 
+# Watchdog utility
+WATCHDOG := $(LLVM_OBJ_ROOT)/projects/poolalloc/$(CONFIGURATION)/bin/watchdog
+
 # Bits of runtime to improve analysis
 PA_PRE_RT := $(PADIR)/$(CONFIGURATION)/lib/libpa_pre_rt.bca
 
@@ -37,7 +40,7 @@ PA_RT_O  := $(PADIR)/$(CONFIGURATION)/lib/libpoolalloc_rt.a
 #PA_RT_O  := $(PROJECT_DIR)/lib/$(CONFIGURATION)/poolalloc_fl_rt.o
 
 # Command to run opt with the pool allocator pass loaded
-OPT_PA := $(LOPT) -load $(DSA_SO) -load $(PA_SO)
+OPT_PA := $(WATCHDOG) $(LOPT) -load $(DSA_SO) -load $(PA_SO)
 
 # OPT_PA_STATS - Run opt with the -stats and -time-passes options, capturing the
 # output to a file.
