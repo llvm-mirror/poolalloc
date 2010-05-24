@@ -13,6 +13,7 @@
 //
 //===--------------------------------------------------------------------===//
 
+#include "llvm/Config/config.h"
 #include "llvm/Module.h"
 #include "llvm/LLVMContext.h"
 #include "llvm/Bitcode/ReaderWriter.h"
@@ -26,7 +27,7 @@
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/Analysis/Verifier.h"
 #include "llvm/System/Signals.h"
-#include "llvm/Config/config.h"
+#include "llvm/Support/raw_os_ostream.h"
 
 #include "dsa/DSSupport.h"
 #include "dsa/DataStructure.h"
@@ -100,7 +101,8 @@ int main(int argc, char **argv) {
     Passes.add(createVerifierPass());
 
     // Figure out where we are going to send the output...
-    std::ostream *Out = 0;
+    raw_fd_ostream *Out = 0;
+    std::string error;
     if (OutputFilename != "") {
       if (OutputFilename != "-") {
         // Specified an output filename?
@@ -111,18 +113,18 @@ int main(int argc, char **argv) {
                     << "Use -f command line argument to force output\n";
           return 1;
         }
-        Out = new std::ofstream(OutputFilename.c_str());
+        Out = new raw_fd_ostream (OutputFilename.c_str(), error);
 
         // Make sure that the Out file gets unlinked from the disk if we get a
         // SIGINT
         sys::RemoveFileOnSignal(sys::Path(OutputFilename));
       } else {
-        Out = &std::cout;
+        Out = new raw_stdout_ostream();
       }
     } else {
       if (InputFilename == "-") {
         OutputFilename = "-";
-        Out = &std::cout;
+        Out = new raw_stdout_ostream();
       } else {
         OutputFilename = GetFileNameRoot(InputFilename);
 
@@ -137,8 +139,8 @@ int main(int argc, char **argv) {
           return 1;
       }
       
-      Out = new std::ofstream(OutputFilename.c_str());
-      if (!Out->good()) {
+      Out = new raw_fd_ostream(OutputFilename.c_str(), error);
+      if (error.length()) {
         std::cerr << argv[0] << ": error opening " << OutputFilename << "!\n";
         delete Out;
         return 1;
@@ -150,15 +152,13 @@ int main(int argc, char **argv) {
     }
     
     // Add the writing of the output file to the list of passes
-    Passes.add (CreateBitcodeWriterPass(*Out));
+    Passes.add (createBitcodeWriterPass(*Out));
 
     // Run our queue of passes all at once now, efficiently.
     Passes.run(*M.get());
 
-    
-
-    // Delete the ostream if it's not a stdout stream
-    if (Out != &std::cout) delete Out;
+    // Delete the ostream
+    delete Out;
   
     return 0;
   } catch (msg) {
