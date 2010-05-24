@@ -1,0 +1,4 @@
+The WatchDog program is covered under the University of Illinois Open Source
+License (located in the top-level source directory).  The source code also
+contains code posted by Terry Lambert to Apple Computer's unix-porting mailing
+list.
