@@ -68,104 +68,95 @@ GetFileNameRoot(const std::string &InputFilename) {
 // main - Entry point for the sc compiler.
 //
 int main(int argc, char **argv) {
-  std::string mt;
-  std::string & msg = mt;
 
-  try {
-    cl::ParseCommandLineOptions(argc, argv, " llvm system compiler\n");
-    sys::PrintStackTraceOnErrorSignal();
+  cl::ParseCommandLineOptions(argc, argv, " llvm system compiler\n");
+  sys::PrintStackTraceOnErrorSignal();
 
-    // Load the module to be compiled...
-    std::auto_ptr<Module> M;
-    std::string ErrorMessage;
-    if (MemoryBuffer *Buffer
-          = MemoryBuffer::getFileOrSTDIN(InputFilename, &ErrorMessage)) {
-      M.reset(ParseBitcodeFile(Buffer, getGlobalContext(), &ErrorMessage));
-      delete Buffer;
-    }
+  // Load the module to be compiled...
+  std::auto_ptr<Module> M;
+  std::string ErrorMessage;
+  if (MemoryBuffer *Buffer
+      = MemoryBuffer::getFileOrSTDIN(InputFilename, &ErrorMessage)) {
+    M.reset(ParseBitcodeFile(Buffer, getGlobalContext(), &ErrorMessage));
+    delete Buffer;
+  }
 
-    if (M.get() == 0) {
-      std::cerr << argv[0] << ": bytecode didn't read correctly.\n";
-      return 1;
-    }
+  if (M.get() == 0) {
+    std::cerr << argv[0] << ": bytecode didn't read correctly.\n";
+    return 1;
+  }
 
-    // Build up all of the passes that we want to do to the module...
-    PassManager Passes;
+  // Build up all of the passes that we want to do to the module...
+  PassManager Passes;
 
-    Passes.add(new TargetData(M.get()));
+  Passes.add(new TargetData(M.get()));
 
-    // Currently deactiviated
-    Passes.add(new PoolAllocate());
+  // Currently deactiviated
+  Passes.add(new PoolAllocate());
 
-    // Verify the final result
-    Passes.add(createVerifierPass());
+  // Verify the final result
+  Passes.add(createVerifierPass());
 
-    // Figure out where we are going to send the output...
-    raw_fd_ostream *Out = 0;
-    std::string error;
-    if (OutputFilename != "") {
-      if (OutputFilename != "-") {
-        // Specified an output filename?
-        if (!Force && std::ifstream(OutputFilename.c_str())) {
-          // If force is not specified, make sure not to overwrite a file!
-          std::cerr << argv[0] << ": error opening '" << OutputFilename
-                    << "': file exists!\n"
-                    << "Use -f command line argument to force output\n";
-          return 1;
-        }
-        Out = new raw_fd_ostream (OutputFilename.c_str(), error);
-
-        // Make sure that the Out file gets unlinked from the disk if we get a
-        // SIGINT
-        sys::RemoveFileOnSignal(sys::Path(OutputFilename));
-      } else {
-        Out = new raw_stdout_ostream();
-      }
-    } else {
-      if (InputFilename == "-") {
-        OutputFilename = "-";
-        Out = new raw_stdout_ostream();
-      } else {
-        OutputFilename = GetFileNameRoot(InputFilename);
-
-        OutputFilename += ".abc.bc";
-      }
-
+  // Figure out where we are going to send the output...
+  raw_fd_ostream *Out = 0;
+  std::string error;
+  if (OutputFilename != "") {
+    if (OutputFilename != "-") {
+      // Specified an output filename?
       if (!Force && std::ifstream(OutputFilename.c_str())) {
         // If force is not specified, make sure not to overwrite a file!
-          std::cerr << argv[0] << ": error opening '" << OutputFilename
-                    << "': file exists!\n"
-                    << "Use -f command line argument to force output\n";
-          return 1;
-      }
-      
-      Out = new raw_fd_ostream(OutputFilename.c_str(), error);
-      if (error.length()) {
-        std::cerr << argv[0] << ": error opening " << OutputFilename << "!\n";
-        delete Out;
+        std::cerr << argv[0] << ": error opening '" << OutputFilename
+          << "': file exists!\n"
+          << "Use -f command line argument to force output\n";
         return 1;
       }
+      Out = new raw_fd_ostream (OutputFilename.c_str(), error);
 
       // Make sure that the Out file gets unlinked from the disk if we get a
       // SIGINT
       sys::RemoveFileOnSignal(sys::Path(OutputFilename));
+    } else {
+      Out = new raw_stdout_ostream();
     }
-    
-    // Add the writing of the output file to the list of passes
-    Passes.add (createBitcodeWriterPass(*Out));
+  } else {
+    if (InputFilename == "-") {
+      OutputFilename = "-";
+      Out = new raw_stdout_ostream();
+    } else {
+      OutputFilename = GetFileNameRoot(InputFilename);
 
-    // Run our queue of passes all at once now, efficiently.
-    Passes.run(*M.get());
+      OutputFilename += ".abc.bc";
+    }
 
-    // Delete the ostream
-    delete Out;
-  
-    return 0;
-  } catch (msg) {
-    std::cerr << argv[0] << ": " << msg << "\n";
-  } catch (...) {
-    std::cerr << argv[0] << ": Unexpected unknown exception occurred.\n";
+    if (!Force && std::ifstream(OutputFilename.c_str())) {
+      // If force is not specified, make sure not to overwrite a file!
+      std::cerr << argv[0] << ": error opening '" << OutputFilename
+        << "': file exists!\n"
+        << "Use -f command line argument to force output\n";
+      return 1;
+    }
+
+    Out = new raw_fd_ostream(OutputFilename.c_str(), error);
+    if (error.length()) {
+      std::cerr << argv[0] << ": error opening " << OutputFilename << "!\n";
+      delete Out;
+      return 1;
+    }
+
+    // Make sure that the Out file gets unlinked from the disk if we get a
+    // SIGINT
+    sys::RemoveFileOnSignal(sys::Path(OutputFilename));
   }
-  return 1;
+
+  // Add the writing of the output file to the list of passes
+  Passes.add (createBitcodeWriterPass(*Out));
+
+  // Run our queue of passes all at once now, efficiently.
+  Passes.run(*M.get());
+
+  // Delete the ostream
+  delete Out;
+
+  return 0;
 }
 
