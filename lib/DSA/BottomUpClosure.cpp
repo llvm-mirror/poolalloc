@@ -67,7 +67,9 @@ bool BUDataStructures::runOnModuleInternal(Module& M) {
 
   //  callgraph.dump();
 
-  //merge SCCs
+  //
+  // Merge the DSGraphs of functions belonging to an SCC.
+  //
   mergeSCCs();
 
   //Post order traversal:
@@ -102,6 +104,10 @@ bool BUDataStructures::runOnModuleInternal(Module& M) {
   // Mark external globals incomplete.
   GlobalsGraph->markIncompleteNodes(DSGraph::IgnoreGlobals);
 
+  //
+  // Create equivalence classes for aliasing globals so that we only need to
+  // record one global per DSNode.
+  //
   formGlobalECs();
 
   // Merge the globals variables (not the calls) from the globals graph back
@@ -122,6 +128,14 @@ bool BUDataStructures::runOnModuleInternal(Module& M) {
   return false;
 }
 
+//
+// Method: mergeSCCs()
+//
+// Description:
+//  For every Strongly Connected Component (SCC) in the callgraph, this method
+//  iterates through every function in the SCC and merges its DSGraph into a
+//  single DSGraph for the SCC.
+//
 void BUDataStructures::mergeSCCs() {
 
   for (DSCallGraph::flat_key_iterator ii = callgraph.flat_key_begin(),
@@ -154,6 +168,20 @@ void BUDataStructures::mergeSCCs() {
   }
 }
 
+//
+// Method: postOrder()
+//
+// Description:
+//  I have no idea.
+//
+// Inputs:
+//  F - The function on which to do whatever.
+//  marked - A reference to a set containing all values processed by
+//           previous invocation (this method is recursive).
+//
+// Outputs:
+//  marked - Updated to contain function F.
+//
 DSGraph* BUDataStructures::postOrder(const Function* F,
                                      svset<const Function*>& marked) {
   callgraph.assertSCCRoot(F);
@@ -204,20 +232,52 @@ void BUDataStructures::finalizeGlobals(void) {
 }
 
 
+//
+// Method: CloneAuxIntoGlobal()
+//
+// Description:
+//  This method takes the specified graph and processes each unresolved call
+//  site (a call site for which all targets are not yet known).  For each
+//  unresolved call site, it adds it to the globals graph and merges
+//  information about the call site if the globals graph already had the call
+//  site in its own list of unresolved call sites.
+//
 void BUDataStructures::CloneAuxIntoGlobal(DSGraph* G) {
   DSGraph* GG = G->getGlobalsGraph();
   ReachabilityCloner RC(GG, G, 0);
 
-  for(DSGraph::afc_iterator ii = G->afc_begin(), ee = G->afc_end();
-      ii != ee; ++ii) {
-    //cerr << "Pushing " << ii->getCallSite().getInstruction()->getOperand(0) << "\n";
-    //If we can, merge with an existing call site for this instruction
-    if (GG->hasNodeForValue(ii->getCallSite().getInstruction()->getOperand(0))) {
+  //
+  // Scan through all unresolved call sites (call sites for which we do not yet
+  // know all of the callees) in the specified graph and see if the globals
+  // graph also has an unresolved call site for the same function pointer.  If
+  // it does, merge them together; otherwise, just bring the unresolved call
+  // site into the global graph's set of unresolved call sites.
+  //
+  for (DSGraph::afc_iterator ii = G->afc_begin(), ee = G->afc_end();
+       ii != ee;
+       ++ii) {
+#if 0
+    cerr << "Pushing " << ii->getCallSite().getInstruction()->getOperand(0) << "\n";
+#endif
+
+    //
+    // If we can, merge with an existing call site for this instruction.
+    //
+    if (GG->hasNodeForValue(ii->getCallSite().getCalledValue())) {
+      //
+      // Determine whether the globals graph knows about this call site and
+      // consider it to be unresolved.
+      //
       DSGraph::afc_iterator GGii;
       for(GGii = GG->afc_begin(); GGii != GG->afc_end(); ++GGii)
-        if (GGii->getCallSite().getInstruction()->getOperand(0) ==
-            ii->getCallSite().getInstruction()->getOperand(0))
+        if (GGii->getCallSite().getCalledValue() ==
+            ii->getCallSite().getCalledValue())
           break;
+
+      //
+      // If the globals graph knows about the call site, merge it in.
+      // Otherwise, just record it as an unresolved call site.
+      //
       if (GGii != GG->afc_end())
         RC.cloneCallSite(*ii).mergeWith(*GGii);
       else
@@ -228,9 +288,11 @@ void BUDataStructures::CloneAuxIntoGlobal(DSGraph* G) {
   }
 }
 
-
-//Inline all graphs in the callgraph, remove callsites that are completely dealt
-//with
+//
+// Description:
+//  Inline all graphs in the callgraph and remove callsites that are completely
+//  dealt with
+//
 void BUDataStructures::calculateGraph(DSGraph* Graph) {
   DEBUG(Graph->AssertGraphOK(); Graph->getGlobalsGraph()->AssertGraphOK());
 
@@ -252,13 +314,18 @@ void BUDataStructures::calculateGraph(DSGraph* Graph) {
       continue;
     }
 
+    //
+    // Find all called functions called by this call site.  Remove from the
+    // list all calls to external functions (functions with no bodies).
+    //
     std::vector<const Function*> CalledFuncs;
-    //Get the callees from the callgraph
     {
+      // Get the callees from the callgraph
       std::copy(callgraph.callee_begin(CS.getCallSite()),
                 callgraph.callee_end(CS.getCallSite()),
                 std::back_inserter(CalledFuncs));
 
+      // Remove calls to external functions
       std::vector<const Function*>::iterator ErasePoint =
               std::remove_if(CalledFuncs.begin(), CalledFuncs.end(),
                              std::mem_fun(&Function::isDeclaration));
@@ -272,12 +339,12 @@ void BUDataStructures::calculateGraph(DSGraph* Graph) {
       continue;
     }
 
-    //Direct calls are always inlined and removed from AuxCalls
-    //Indirect calls are removed if the callnode is complete and the callnode's
-    //functions set is a subset of the Calls from the callgraph
-    //We only inline from the callgraph (which is immutable during this phase
-    //of bu) so as to not introduce SCCs and still be able to inline
-    //aggressively
+    // Direct calls are always inlined and removed from AuxCalls
+    // Indirect calls are removed if the callnode is complete and the callnode's
+    // functions set is a subset of the Calls from the callgraph
+    // We only inline from the callgraph (which is immutable during this phase
+    // of bu) so as to not introduce SCCs and still be able to inline
+    // aggressively
     bool eraseCS = true;
     if (CS.isIndirectCall()) {
       eraseCS = false;
@@ -310,6 +377,13 @@ void BUDataStructures::calculateGraph(DSGraph* Graph) {
 	    << GI->getAuxFunctionCalls().size() << "] into '"
 	    << Graph->getFunctionNames() << "' [" << Graph->getGraphSize() <<"+"
 	    << Graph->getAuxFunctionCalls().size() << "]\n");
+
+      //
+      // Merge in the DSGraph of the called function.
+      //
+      // TODO:
+      //  Why are the strip alloca bit and don't clone call nodes bit set?
+      //
       Graph->mergeInGraph(CS, *Callee, *GI,
                           DSGraph::StripAllocaBit|DSGraph::DontCloneCallNodes);
       ++NumInlines;
