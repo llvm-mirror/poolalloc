@@ -594,7 +594,8 @@ void DSGraph::markIncompleteNodes(unsigned Flags) {
   // Mark any node with the VAStart flag as incomplete.
   if (Flags & DSGraph::MarkVAStart) {
     for (node_iterator i=node_begin(); i != node_end(); ++i) {
-      markIncompleteNode(i);
+      if (i->isVAStartNode())
+        markIncompleteNode(i);
     }
   }
 }
