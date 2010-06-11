@@ -1226,8 +1226,15 @@ void DSGraph::updateFromGlobalGraph() {
   }
 }
 
-// Filter potential call targets
-static bool functionIsCallable(CallSite CS, const Function* F) {
+//
+// Function: functionIsCallable()
+//
+// Description:
+//  Determine whether the specified function can be a target of the specified
+//  call site.  We allow the user to configure what we consider to be
+//  uncallable at an indirect function call site.
+//
+static bool functionIsCallable (CallSite CS, const Function* F) {
   //Which targets do we choose?
   //Conservative: all of them
   //Pretty Safe: same calling convention, otherwise undefined behavior
@@ -1258,18 +1265,46 @@ static bool functionIsCallable(CallSite CS, const Function* F) {
   return true;
 }
 
+//
+// Method: buildCallGraph()
+//
+// Description:
+//  This method updates the given call graph with new information about targets
+//  of function calls that can be inferred from the unresolved call sites
+//  within the DSGraph.
+//
 void DSGraph::buildCallGraph(DSCallGraph& DCG) const {
+  //
+  // Get the list of unresolved call sites.
+  //
   const std::list<DSCallSite>& Calls = getAuxFunctionCalls();
-  for (std::list<DSCallSite>::const_iterator ii = Calls.begin(), ee = Calls.end();
-       ii != ee; ++ii)
+  for (std::list<DSCallSite>::const_iterator ii = Calls.begin(),
+                                             ee = Calls.end();
+       ii != ee; ++ii) {
+    //
+    // Direct calls are easy.  We know to where they go.
+    //
     if (ii->isDirectCall()) {
       DCG.insert(ii->getCallSite(), ii->getCalleeFunc());
     } else {
       CallSite CS = ii->getCallSite();
       std::vector<const Function*> MaybeTargets;
+
+      //
+      // Get the list of known targets of this function.
+      //
       ii->getCalleeNode()->addFullFunctionList(MaybeTargets);
-      //Assure have a record for this callsite
+
+      //
+      // Ensure that the call graph at least knows about (has a record of) this
+      //  call site.
+      //
       DCG.insert(CS, 0);
+
+      //
+      // Add to the call graph only function targets that have well-defined
+      // behavior using LLVM semantics.
+      //
       for (std::vector<const Function*>::iterator Fi = MaybeTargets.begin(),
            Fe = MaybeTargets.end(); Fi != Fe; ++Fi)
         if (functionIsCallable(CS, *Fi))
@@ -1277,4 +1312,5 @@ void DSGraph::buildCallGraph(DSCallGraph& DCG) const {
         else
           ++NumFiltered;
     }
+  }
 }

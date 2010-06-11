@@ -72,14 +72,26 @@ bool BUDataStructures::runOnModuleInternal(Module& M) {
   //
   mergeSCCs();
 
-  //Post order traversal:
+  //
+  // Do a post-order traversal of the SCC callgraph and do bottom-up inlining.
+  //
   {
     //errs() << *DSG.knownRoots.begin() << " -> " << *DSG.knownRoots.rbegin() << "\n";
     svset<const Function*> marked;
     for (DSCallGraph::root_iterator ii = callgraph.root_begin(),
          ee = callgraph.root_end(); ii != ee; ++ii) {
       //errs() << (*ii)->getName() << "\n";
+
+      //
+      // Do bottom-up inlining of the function.
+      //
       DSGraph* G = postOrder(*ii, marked);
+
+      //
+      // Update the list of unresolved indirect function call sites in the
+      // globals graph with the new information learned about the current
+      // function.
+      //
       CloneAuxIntoGlobal(G);
     }
   }
@@ -132,16 +144,19 @@ bool BUDataStructures::runOnModuleInternal(Module& M) {
 // Method: mergeSCCs()
 //
 // Description:
-//  For every Strongly Connected Component (SCC) in the callgraph, this method
-//  iterates through every function in the SCC and merges its DSGraph into a
-//  single DSGraph for the SCC.
+//  Create a single DSGraph for every Strongly Connected Component (SCC) in the
+//  callgraph.  This is done by merging the DSGraphs of every function within
+//  each SCC.
 //
 void BUDataStructures::mergeSCCs() {
 
   for (DSCallGraph::flat_key_iterator ii = callgraph.flat_key_begin(),
        ee = callgraph.flat_key_end(); ii != ee; ++ii) {
-    // Externals can be singleton SCCs
+    //
+    // External functions form their own singleton SCC.
+    //
     if ((*ii)->isDeclaration()) continue;
+
     DSGraph* SCCGraph = getOrCreateGraph(*ii);
     unsigned SCCSize = 1;
     callgraph.assertSCCRoot(*ii);
@@ -177,18 +192,22 @@ void BUDataStructures::mergeSCCs() {
 // Inputs:
 //  F - The function on which to do whatever.
 //  marked - A reference to a set containing all values processed by
-//           previous invocation (this method is recursive).
+//           previous invocations (this method is recursive).
 //
 // Outputs:
 //  marked - Updated to contain function F.
 //
 DSGraph* BUDataStructures::postOrder(const Function* F,
                                      svset<const Function*>& marked) {
+  //
+  // If we have already processed this function before, do not process it
+  // again.
+  //
   callgraph.assertSCCRoot(F);
   DSGraph* G = getDSGraph(*F);
   if (marked.count(F)) return G;
 
-  for(DSCallGraph::flat_iterator ii = callgraph.flat_callee_begin(F),
+  for (DSCallGraph::flat_iterator ii = callgraph.flat_callee_begin(F),
           ee = callgraph.flat_callee_end(F); ii != ee; ++ii) {
     callgraph.assertSCCRoot(*ii);
     assert (*ii != F && "Simple loop in callgraph");
@@ -196,9 +215,20 @@ DSGraph* BUDataStructures::postOrder(const Function* F,
       postOrder(*ii, marked);
   }
 
+  //
+  // Record that we are about to process the given function.
+  //
   marked.insert(F);
+
+  //
+  // Inline the graphs of callees into this function's callgraph.
+  //
   calculateGraph(G);
-  //once calculated, we can update the callgraph
+
+  //
+  // Now that we have new information merged into the function's DSGraph,
+  // update the call graph using this new information.
+  //
   G->buildCallGraph(callgraph);
   return G;
 }
