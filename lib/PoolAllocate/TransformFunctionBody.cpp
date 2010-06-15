@@ -73,11 +73,13 @@ namespace {
     void visitInstruction(Instruction &I);
     //void visitMallocInst(MallocInst &MI);
     void visitAllocaInst(AllocaInst &MI);
+    void visitMallocCall(CallSite & CS);
     void visitCallocCall(CallSite CS);
     void visitReallocCall(CallSite CS);
     void visitMemAlignCall(CallSite CS);
     void visitStrdupCall(CallSite CS);
     //void visitFreeInst(FreeInst &FI);
+    void visitFreeCall(CallSite &CS);
     void visitCallSite(CallSite &CS);
     void visitCallInst(CallInst &CI) {
       CallSite CS(&CI);
@@ -277,12 +279,35 @@ void FuncTransform::visitAllocaInst(AllocaInst &MI) {
   return;
 }
 
-
-Instruction *FuncTransform::InsertPoolFreeInstr(Value *Arg, Instruction *Where){
+//
+// Method: InsertPoolFreeInstr()
+//
+// Description:
+//  Insert a call to poolfree() at the specified point to free the specified
+//  value.
+//
+// Inputs:
+//  Arg   - The value that should be freed by the call to poolfree().
+//  Where - The instruction before which the poolfree() call should be
+//          inserted.
+//
+// Return value:
+//  NULL - No call to poolfree() was inserted.
+//  Otherwise, a pointer to the call instruction that calls poolfree() will be
+//  returned.
+//
+Instruction *
+FuncTransform::InsertPoolFreeInstr (Value *Arg, Instruction *Where){
+  //
+  // Attempt to get the pool handle of the specified value.  If there is no
+  // pool handle, then just return NULL.
+  //
   Value *PH = getPoolHandle(Arg);  // Get the pool handle for this DSNode...
   if (PH == 0 || isa<ConstantPointerNull>(PH)) return 0;
 
-  // Insert a cast and a call to poolfree...
+  //
+  // Cast the pointer to be freed to a void pointer type if necessary.
+  //
   Value *Casted = Arg;
   if (Arg->getType() != PointerType::getUnqual(Type::getInt8Ty(Arg->getContext()))) {
     Casted = CastInst::CreatePointerCast(Arg, PointerType::getUnqual(Type::getInt8Ty(Arg->getContext())),
@@ -290,6 +315,9 @@ Instruction *FuncTransform::InsertPoolFreeInstr(Value *Arg, Instruction *Where){
     G->getScalarMap()[Casted] = G->getScalarMap()[Arg];
   }
 
+  //
+  // Insert a call to poolfree()
+  //
   Value* Opts[2] = {PH, Casted};
   CallInst *FreeI = CallInst::Create(PAInfo.PoolFree, Opts, Opts + 2, "", Where);
   AddPoolUse(*FreeI, PH, PoolFrees);
@@ -314,6 +342,53 @@ void FuncTransform::visitFreeInst(FreeInst &FrI) {
   }
 }
 #endif
+
+void
+FuncTransform::visitFreeCall (CallSite & CS) {
+  //
+  // Replace the call to the free() function with a call to poolfree().
+  //
+  Instruction * InsertPt = CS.getInstruction();
+  if (Instruction *I = InsertPoolFreeInstr (CS.getArgument(0), InsertPt)) {
+    // Delete the now obsolete free instruction...
+    InsertPt->getParent()->getInstList().erase(InsertPt);
+ 
+    // Update the NewToOldValueMap if this is a clone
+    if (!FI.NewToOldValueMap.empty()) {
+      std::map<Value*,const Value*>::iterator II =
+        FI.NewToOldValueMap.find(InsertPt);
+      assert(II != FI.NewToOldValueMap.end() && 
+             "free call not found in clone?");
+      FI.NewToOldValueMap.insert(std::make_pair(I, II->second));
+      FI.NewToOldValueMap.erase(II);
+    }
+  }
+}
+
+void
+FuncTransform::visitMallocCall(CallSite &CS) {
+  //
+  // Get the instruction to which the call site refers
+  //
+  Instruction * MI = CS.getInstruction();
+
+  //
+  // Get the pool handle for the node that this contributes to...
+  //
+  Value *PH = getPoolHandle(MI);
+  if (PH == 0 || isa<ConstantPointerNull>(PH)) return;
+
+  //
+  // Find the size of the allocation.
+  //
+  Value *AllocSize = CS.getArgument(0);
+
+  //
+  // Transform the allocation site to use poolalloc().
+  //
+  TransformAllocationInstr(MI, AllocSize);  
+}
+
 
 void FuncTransform::visitCallocCall(CallSite CS) {
   TargetData& TD = PAInfo.getAnalysis<TargetData>();
@@ -570,7 +645,13 @@ void FuncTransform::visitCallSite(CallSite& CS) {
   // If this function is one of the memory manipulating functions built into
   // libc, emulate it with pool calls as appropriate.
   if (CF && CF->isDeclaration()) {
-    if (CF->getName() == "calloc") {
+    if (CF->getName() == "free") {
+      visitFreeCall(CS);
+      return;
+    } else if (CF->getName() == "malloc") {
+      visitMallocCall(CS);
+      return;
+    } else if (CF->getName() == "calloc") {
       visitCallocCall(CS);
       return;
     } else if (CF->getName() == "realloc") {

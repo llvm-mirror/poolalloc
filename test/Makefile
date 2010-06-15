@@ -37,13 +37,15 @@ LARGE_PROBLEM_SIZE_DIRS := \
 
 
 NORMAL_PROBLEM_SIZE_DIRS := \
-   MultiSource/Benchmarks/Olden/bisort \
-   #MultiSource/Benchmarks/Olden/bh \
+   External/SPEC/CINT2000/175.vpr \
    #External/SPEC/CINT2000 \
+   #External/SPEC/CINT2000/181.mcf \
+   #External/SPEC/CINT2000/186.crafty \
+   #MultiSource/Benchmarks/Olden \
+   #MultiSource/Benchmarks/Olden/bh \
    #External/FPGrowth \
    #External/Namd \
    #External/Povray \
-   #MultiSource/Benchmarks/Olden \
    #MultiSource/Benchmarks/SciMark2-C/scimark2 \
    #External/SPEC/CINT2000/164.gzip \
    #External/SPEC/CINT2000/175.vpr \
