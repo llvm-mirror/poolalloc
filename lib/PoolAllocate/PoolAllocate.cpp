@@ -138,10 +138,14 @@ bool PoolAllocate::runOnModule(Module &M) {
   // Map that maps an original function to its clone
   std::map<Function*, Function*> FuncMap;
 
+  //
   // Now clone a function using the pool arg list obtained in the previous
   // pass over the modules.  Loop over only the function initially in the
   // program, don't traverse newly added ones.  If the function needs new
   // arguments, make its clone.
+  //
+  // FIXME: Can the code below invalidate the function iterator?
+  //
   std::set<Function*> ClonedFunctions;
   for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I)
     if (!I->isDeclaration() && !ClonedFunctions.count(I) &&
@@ -367,10 +371,38 @@ static void GetNodesReachableFromGlobals(DSGraph* G,
     G->getNodeForValue(*I).getNode()->markReachableNodes(NodesFromGlobals);
 }
 
-static void MarkNodesWhichMustBePassedIn(DenseSet<const DSNode*> &MarkedNodes,
-                                         Function &F, DSGraph* G,
-                                         bool PassAllArguments) {
+//
+// Function: MarkNodesWhichMustBePassedIn()
+//
+// Description:
+//  Given a function and its DSGraph, determine which values will need to have
+//  their pools passed in from the caller.
+//
+// Inputs:
+//  F                - A reference to the function to analyze.
+//  G                - The DSGraph of the function F.
+//  PassAllArguments - Flags whether all arguments should have their pool
+//                     handles passed into the function.
+//
+// Outputs:
+//  MarkedNodes      - A set of DSNodes whose associated pools should be
+//                     passed into the function when it is called.
+//
+static void
+MarkNodesWhichMustBePassedIn (DenseSet<const DSNode*> &MarkedNodes,
+                              Function &F, DSGraph* G,
+                              bool PassAllArguments) {
   // Mark globals and incomplete nodes as live... (this handles arguments)
+
+  //
+  // Scan through all of the function's arguments.  If they have an associated
+  // DSNode, then we need to pass the argument's pool handle into the function.
+  // We also need to pass in pools for any value that is reachable via a
+  // function argument.
+  //
+  // Of course, skip this is this function is the main() function.  We can't
+  // really add pools to main().  :)
+  //
   if (F.getName() != "main") {
     // All DSNodes reachable from arguments must be passed in.
     for (Function::arg_iterator I = F.arg_begin(), E = F.arg_end();
@@ -382,20 +414,30 @@ static void MarkNodesWhichMustBePassedIn(DenseSet<const DSNode*> &MarkedNodes,
     }
   }
 
-  // Marked the returned node as needing to be passed in.
+  //
+  // Mark the returned node as needing to be passed in.
+  //
   if (DSNode *RetNode = G->getReturnNodeFor(F).getNode())
     RetNode->markReachableNodes(MarkedNodes);
 
+  //
   // Calculate which DSNodes are reachable from globals.  If a node is reachable
   // from a global, we will create a global pool for it, so no argument passage
   // is required.
+  //
   DenseSet<const DSNode*> NodesFromGlobals;
   GetNodesReachableFromGlobals(G, NodesFromGlobals);
 
+  //
   // Remove any nodes reachable from a global.  These nodes will be put into
   // global pools, which do not require arguments to be passed in.  Also, erase
   // any marked node that is not a heap node.  Since no allocations or frees
   // will be done with it, it needs no argument.
+  //
+  // FIXME:
+  //  1) PassAllArguments seems to be ignored here.  Why is that?
+  //  2) Why is the heap node check part of the PassAllArguments check?
+  //
   for (DenseSet<const DSNode*>::iterator I = MarkedNodes.begin(),
          E = MarkedNodes.end(); I != E; ) {
     const DSNode *N = *I; ++I;
@@ -449,13 +491,14 @@ Function *PoolAllocate::MakeFunctionClone(Function &F) {
   if (MaxArgsAdded < FI.ArgNodes.size()) MaxArgsAdded = FI.ArgNodes.size();
   ++NumCloned;
  
-      
-  // Figure out what the arguments are to be for the new version of the
-  // function
-  const FunctionType *OldFuncTy = F.getFunctionType();
+  //
+  // Determine the type of the new function.  We will insert new parameters
+  // for the pools to pass into the function, and then we will insert the
+  // original parameter values after that.
+  //
   std::vector<const Type*> ArgTys(FI.ArgNodes.size(), PoolDescPtrTy);
+  const FunctionType *OldFuncTy = F.getFunctionType();
   ArgTys.reserve(OldFuncTy->getNumParams() + FI.ArgNodes.size());
-
   ArgTys.insert(ArgTys.end(), OldFuncTy->param_begin(), OldFuncTy->param_end());
 
   // Create the new function prototype
@@ -471,7 +514,6 @@ Function *PoolAllocate::MakeFunctionClone(Function &F) {
   // pool descriptors map
   std::map<const DSNode*, Value*> &PoolDescriptors = FI.PoolDescriptors;
   Function::arg_iterator NI = New->arg_begin();
-  
   for (unsigned i = 0, e = FI.ArgNodes.size(); i != e; ++i, ++NI) {
     NI->setName("PDa");
     PoolDescriptors[FI.ArgNodes[i]] = NI;
@@ -500,6 +542,10 @@ Function *PoolAllocate::MakeFunctionClone(Function &F) {
   // verbatim.  This is incorrect; each attribute should be shifted one so
   // that the pool descriptor has no attributes.
   //
+  // FIXME: I believe the code below assumes that we've only added one pool
+  //        handle.  We actually add one pool handle per incoming argument
+  //        that needs a pool handle.
+  //
   const AttrListPtr OldAttrs = New->getAttributes();
   if (!OldAttrs.isEmpty()) {
     AttrListPtr NewAttrsVector;
@@ -519,9 +565,10 @@ Function *PoolAllocate::MakeFunctionClone(Function &F) {
     New->setAttributes (NewAttrsVector);
   }
 
-  // Invert the ValueMap into the NewToOldValueMap
+  //
+  // Invert the ValueMap into the NewToOldValueMap.
+  //
   std::map<Value*, const Value*> &NewToOldValueMap = FI.NewToOldValueMap;
-
   for (DenseMap<const Value*, Value*>::iterator I = ValueMap.begin(),
          E = ValueMap.end(); I != E; ++I)
     NewToOldValueMap.insert(std::make_pair(I->second, I->first));
@@ -661,10 +708,16 @@ GlobalVariable *PoolAllocate::CreateGlobalPool(unsigned RecSize, unsigned Align,
 // the DSNodes specified by the NodesToPA list.  This adds an entry to the
 // PoolDescriptors map for each DSNode.
 //
-void PoolAllocate::CreatePools(Function &F, DSGraph* DSG,
-                               const std::vector<const DSNode*> &NodesToPA,
-                               std::map<const DSNode*,
-                                        Value*> &PoolDescriptors) {
+// Note that this method does not insert calls to poolinit() or pooldestroy().
+// Those are added later.
+//
+void
+PoolAllocate::CreatePools (Function &F, DSGraph* DSG,
+                           const std::vector<const DSNode*> &NodesToPA,
+                           std::map<const DSNode*, Value*> &PoolDescriptors) {
+  //
+  // If there are no pools to create, then do nothing.
+  //
   if (NodesToPA.empty()) return;
 
   std::vector<Heuristic::OnePool> ResultPools;
@@ -679,13 +732,18 @@ void PoolAllocate::CreatePools(Function &F, DSGraph* DSG,
   // vars.
   bool IsMain = F.getNameStr() == "main" && F.hasExternalLinkage();
 
-  // Perform all global assignments as specified.
+  //
+  // Create each pool and update the DSGraph to account for the new pool.
+  // Additionally, update the mapping between DSNodes and pools.
+  //
   for (unsigned i = 0, e = ResultPools.size(); i != e; ++i) {
     Heuristic::OnePool &Pool = ResultPools[i];
     Value *PoolDesc = Pool.PoolDesc;
     if (PoolDesc == 0) {
+      //
       // Create a pool descriptor for the pool.  The poolinit will be inserted
       // later.
+      //
       if (!IsMain) {
         PoolDesc = new AllocaInst(PoolDescType, 0, "PD", InsertPoint);
 
@@ -705,13 +763,22 @@ void PoolAllocate::CreatePools(Function &F, DSGraph* DSG,
           ++NumTSPools;
       }
     }
+
+    //
+    // Update the mapping of DSNodes to pool descriptors.
+    //
+    // FIXME:
+    //  What are unallocated DSNodes?
+    //
     for (unsigned N = 0, e = Pool.NodesInPool.size(); N != e; ++N) {
       PoolDescriptors[Pool.NodesInPool[N]] = PoolDesc;
       UnallocatedNodes.erase(Pool.NodesInPool[N]);  // Handled!
     }
   }
 
+  //
   // Any unallocated DSNodes get null pool descriptor pointers.
+  //
   for (std::set<const DSNode*>::iterator I = UnallocatedNodes.begin(),
          E = UnallocatedNodes.end(); I != E; ++I) {
     PoolDescriptors[*I] = ConstantPointerNull::get(PointerType::getUnqual(PoolDescType));
@@ -740,10 +807,20 @@ void PoolAllocate::ProcessFunctionBody(Function &F, Function &NewF) {
   DSGraph::NodeMapTy GlobalsGraphNodeMapping;
   G->computeGToGGMapping(GlobalsGraphNodeMapping);
 
+  //
   // Loop over all of the nodes which are non-escaping, adding pool-allocatable
-  // ones to the NodesToPA vector.
-  for (DSGraph::node_iterator I = G->node_begin(), E = G->node_end(); I != E;++I){
-    // We only need to make a pool if there is a heap object in it...
+  // ones to the NodesToPA vector.  In other words, scan over the DSGraph and
+  // find nodes for which a new pool must be created within this function.
+  //
+  for (DSGraph::node_iterator I = G->node_begin(), E = G->node_end();
+       I != E;
+       ++I){
+    //
+    // Only the following nodes are pool allocated:
+    //  1) Heap nodes
+    //  2) Array nodes when bounds checking is enabled.
+    //  3) Nodes which are mirrored in the globals graph and are heap nodes.
+    //
     DSNode *N = I;
     if ((N->isHeapNode()) || (BoundsChecksEnabled && (N->isArrayNode())) ||
     	(GlobalsGraphNodeMapping.count(N) && GlobalsGraphNodeMapping[N].getNode()->isHeapNode())) {
@@ -761,6 +838,9 @@ void PoolAllocate::ProcessFunctionBody(Function &F, Function &NewF) {
     }
   }
 
+  //
+  // Add code to create the pools that are local to this function.
+  //
   if (!FI.NodesToPA.empty()) {
     errs() << "[" << F.getNameStr() << "] " << FI.NodesToPA.size()
               << " nodes pool allocatable\n";
@@ -1040,6 +1120,9 @@ void PoolAllocate::InitializeAndDestroyPools(Function &F,
     assert(isa<AllocaInst>(PoolDescriptors[Node]) && "Why pool allocate this?");
     AllocaInst *PD = cast<AllocaInst>(PoolDescriptors[Node]);
     
+    //
+    // FIXME: What is the purpose of the PoolUses and AllocasHandled code
+    //        below?
     // FIXME: Turn this into an assert and fix the problem!!
     //assert(PoolUses.count(PD) && "Pool is not used, but is marked heap?!");
     if (!PoolUses.count(PD) && !PoolFrees.count(PD)) continue;

@@ -50,7 +50,8 @@ namespace {
     // PoolUses - For each pool (identified by the pool descriptor) keep track
     // of which blocks require the memory in the pool to not be freed.  This
     // does not include poolfree's.  Note that this is only tracked for pools
-    // which this is the home of, ie, they are Alloca instructions.
+    // for which the given function is the pool's home i.e., the pool is an
+    // alloca instruction because it is allocated within the current function.
     std::multimap<AllocaInst*, Instruction*> &PoolUses;
 
     // PoolDestroys - For each pool, keep track of the actual poolfree calls
@@ -96,6 +97,14 @@ namespace {
     Instruction *TransformAllocationInstr(Instruction *I, Value *Size);
     Instruction *InsertPoolFreeInstr(Value *V, Instruction *Where);
 
+    //
+    // Method: UpdateNewToOldValueMap()
+    //
+    // Description:
+    //  This method removes the old mapping indexed by OldVal and inserts one
+    //  or two new mappings mapping NewV1 and NewV2 to the value that was
+    //  indexed by OldVal.
+    //
     void UpdateNewToOldValueMap(Value *OldVal, Value *NewV1, Value *NewV2 = 0) {
       std::map<Value*, const Value*>::iterator I =
         FI.NewToOldValueMap.find(OldVal);
@@ -132,10 +141,11 @@ namespace {
   };
 }
 
-void PoolAllocate::TransformBody(DSGraph* g, PA::FuncInfo &fi,
-                              std::multimap<AllocaInst*,Instruction*> &poolUses,
-                              std::multimap<AllocaInst*, CallInst*> &poolFrees,
-                                 Function &F) {
+void
+PoolAllocate::TransformBody (DSGraph* g, PA::FuncInfo &fi,
+                             std::multimap<AllocaInst*,Instruction*> &poolUses,
+                             std::multimap<AllocaInst*, CallInst*> &poolFrees,
+                             Function &F) {
   FuncTransform(*this, g, fi, poolUses, poolFrees).visit(F);
 }
 
