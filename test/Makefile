@@ -37,12 +37,12 @@ LARGE_PROBLEM_SIZE_DIRS := \
 
 
 NORMAL_PROBLEM_SIZE_DIRS := \
-   External/SPEC/CINT2000/175.vpr \
+   MultiSource/Benchmarks/Olden/bh \
+   #MultiSource/Benchmarks/Olden \
+   #External/SPEC/CINT2000/175.vpr \
    #External/SPEC/CINT2000 \
    #External/SPEC/CINT2000/181.mcf \
    #External/SPEC/CINT2000/186.crafty \
-   #MultiSource/Benchmarks/Olden \
-   #MultiSource/Benchmarks/Olden/bh \
    #External/FPGrowth \
    #External/Namd \
    #External/Povray \
@@ -106,6 +106,30 @@ progdsa::
 	@for dir in $(NORMAL_PROBLEM_SIZE_DIRS); do \
 	    (cd $$dir; \
                PROJECT_DIR=$(PROJ_OBJ_ROOT) $(MAKE) -s -j1 TEST=dsgraph \
+                   report) \
+        done
+	@printf "\a"; sleep 1; printf "\a"; sleep 1; printf "\a"
+
+# Program tests for the allocator
+progalloc::
+	for dir in $(LARGE_PROBLEM_SIZE_DIRS); do \
+            (cd $$dir; \
+               PROJECT_DIR=$(PROJ_OBJ_ROOT) $(MAKE) -j1 TEST=FL2 \
+                   LARGE_PROBLEM_SIZE=1 report.html) \
+        done
+	for dir in $(NORMAL_PROBLEM_SIZE_DIRS); do \
+	    (cd $$dir; \
+               PROJECT_DIR=$(PROJ_OBJ_ROOT) $(MAKE) -j1 TEST=FL2 \
+                   report.html) \
+        done
+	@for dir in $(LARGE_PROBLEM_SIZE_DIRS); do \
+            (cd $$dir; \
+               PROJECT_DIR=$(PROJ_OBJ_ROOT) $(MAKE) -s -j1 TEST=FL2 \
+                   LARGE_PROBLEM_SIZE=1 report) \
+        done
+	@for dir in $(NORMAL_PROBLEM_SIZE_DIRS); do \
+	    (cd $$dir; \
+               PROJECT_DIR=$(PROJ_OBJ_ROOT) $(MAKE) -s -j1 TEST=FL2 \
                    report) \
         done
 	@printf "\a"; sleep 1; printf "\a"; sleep 1; printf "\a"

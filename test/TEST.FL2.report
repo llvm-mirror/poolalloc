@@ -1,0 +1,89 @@
+##=== TEST.poolalloc.report - Report description for poolalloc -*- perl -*-===##
+#
+# This file defines a report to be generated for the pool allocator tests.
+#
+##===----------------------------------------------------------------------===##
+
+# Sort by program name
+$SortCol = 0;
+$TrimRepeatedPrefix = 1;
+
+# FormatTime - Convert a time from 1m23.45 into 83.45
+sub FormatTime {
+  my $Time = shift;
+  if ($Time =~ m/([0-9]+)[m:]([0-9.]+)/) {
+    return sprintf("%7.3f", $1*60.0+$2);
+  }
+
+  return sprintf("%6.2f", $Time);
+}
+
+
+sub RuntimePercent {
+  my ($Cols, $Col) = @_;
+  if ($Cols->[$Col-1] ne "*" and $Cols->[4] ne "*" and
+      $Cols->[4] != "0") {
+    return sprintf "%7.2f", 100*$Cols->[$Col-1]/$Cols->[4];
+  } else {
+    return "n/a";
+  }
+}
+
+@LatexColumns = (1, 5, 8, 12, 9, 13, 14, 15, 2, 16);
+
+my $FREEBENCH = 'MultiSource/Benchmarks/FreeBench';
+my $PTRDIST   = 'MultiSource/Benchmarks/Ptrdist';
+
+@LatexRowMapOrder = (
+                     '164.gzip/164.gzip' => '164.gzip',
+                     '175.vpr/175.vpr' => '175.vpr',
+                     '181.mcf/181.mcf' => '181.mcf',
+                     '186.crafty/186.crafty' => '186.crafty',
+                     '197.parser/197.parser' => '197.parser',
+                     '197.parser.hacked/197.parser.hacked' => '197.parser(b)',
+                     '255.vortex/255.vortex' => '255.vortex',
+                     '256.bzip2/256.bzip2' => '256.bzip2',
+                     '300.twolf/300.twolf' => '300.twolf',
+                     '-' => '-',
+                     "anagram/anagram"       => 'anagram',
+                     "bc/bc"                 => 'bc',
+                     "ft/ft"                 => 'ft',
+                     "ks/ks"                 => 'ks',
+                     "yacr2/yacr2"           => 'yacr2',
+                     '-' => '-',
+                     "analyzer"     => 'analyzer',
+                     "neural"       => 'neural',
+                     "pcompress2"   => 'pcompress2',
+                     "piff2"        => 'piff2',
+                     '-' => '-',
+                     "bh/bh" => 'bh',
+                     "bisort/bisort" => 'bisort',
+                     "em3d/em3d" => 'em3d',
+                     "health/health" => 'health',
+                     "mst/mst" => 'mst',
+                     "perimeter/perimeter" => 'perimeter',
+                     "power/power" => 'power',
+                     "treeadd/treeadd" => 'treeadd',
+                     "tsp/tsp" => 'tsp',
+                     '-' => '-',
+                     "llu"          => 'llu-bench',
+                  );
+
+
+# These are the columns for the report.  The first entry is the header for the
+# column, the second is the regex to use to match the value.  Empty list create
+# seperators, and closures may be put in for custom processing.
+(
+# Name
+ ["Name:" , '\'([^\']+)\' Program'],
+ ["LOC"   , 'LOC:\s*([0-9]+)'],
+ [],
+# Times
+ ["GCC",            'GCC-RUN-TIME: program\s*([.0-9m:]+)', \&FormatTime],
+ ["NonPATime",      'RUN-TIME-NORMAL: program\s*([.0-9m:]+)', \&FormatTime],
+ [],
+ ["FL2 Time",        'RUN-TIME-POOLALLOC: program\s*([.0-9m:]+)', \&FormatTime],
+ ["FL2 run%",        \&RuntimePercent],
+ []
+);
+
