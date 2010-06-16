@@ -683,6 +683,14 @@ bool GraphBuilder::visitIntrinsic(CallSite CS, Function *F) {
     return true;
   }
 
+  case Intrinsic::eh_selector: {
+    DSNode * Node = createNode();
+    Node->setIncompleteMarker();
+    Node->foldNodeCompletely();
+    setDestTo (*(CS.getInstruction()), Node);
+    return true;
+  }
+
   case Intrinsic::atomic_cmp_swap: {
     DSNodeHandle Ptr = getValueDest(*CS.arg_begin());
     Ptr.getNode()->setReadMarker();

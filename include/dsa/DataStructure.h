@@ -285,6 +285,7 @@ public:
   virtual bool runOnModule(Module &M);
 
   virtual void getAnalysisUsage(AnalysisUsage &AU) const {
+	AU.addRequired<EntryPointAnalysis>();
     AU.addRequired<CompleteBUDataStructures>();
     AU.setPreservesCFG();
   }
