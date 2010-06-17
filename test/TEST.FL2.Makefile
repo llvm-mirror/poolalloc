@@ -59,7 +59,7 @@ Output/%.base.bc: Output/%.temp.bc $(LOPT) $(ASSIST_SO)
 $(PROGRAMS_TO_TEST:%=Output/%.poolalloc.bc): \
 Output/%.poolalloc.bc: Output/%.base.bc $(PA_SO) $(LOPT)
 	-@rm -f $(CURDIR)/$@.info
-	-$(OPT_PA_STATS) -poolalloc-simple $(EXTRA_PA_FLAGS) $(OPTZN_PASSES) $< -o $@ -f 2>&1 > $@.out
+	-$(OPT_PA_STATS) -poolalloc -poolalloc-heuristic=AllInOneGlobalPool $(EXTRA_PA_FLAGS) $(OPTZN_PASSES) $< -o $@ -f 2>&1 > $@.out
 
 $(PROGRAMS_TO_TEST:%=Output/%.nonpa.bc): \
 Output/%.nonpa.bc: Output/%.base.bc $(LOPT)
