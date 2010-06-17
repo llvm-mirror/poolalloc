@@ -11,10 +11,15 @@
 //RUN: llvm-gcc -O0 %s -S --emit-llvm -o - | llvm-as > %t.bc
 //--check if ds-aa breaks, breaks opts, or results in miscompiled code
 //RUN: lli %t.bc > %t.refout
-//RUN: dsaopt %t.bc -ds-aa -instcombine -ds-aa -gvn -ds-aa -dce -o - | lli > %t.out
+//RUN: dsaopt %t.bc -ds-aa -instcombine -ds-aa -gvn -ds-aa -dce -o - 2>/dev/null | lli > %t.out
 //RUN: diff %t.refout %t.out
 //--check properties of this particular test
-//N/A
+//RUN: dsaopt %t.bc -ds-aa -aa-eval -print-all-alias-modref-info >& %t.aa
+//ds-aa should tell us that assign modifies p1
+//RUN: cat %t.aa | grep {Ptr:.*p1.*@assign} | grep {^\[ \]*ModRef}
+//ds-aa should tell us that assign does something to p2
+//RUN: cat %t.aa | grep {Ptr:.*p2.*@assign} | grep -v NoModRef
+
 
 static int assign( int count, ... )
 {

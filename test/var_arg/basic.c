@@ -6,7 +6,7 @@
 //RUN: llvm-gcc -O0 %s -S --emit-llvm -o - | llvm-as > %t.bc
 //--check if ds-aa breaks, breaks opts, or results in miscompiled code
 //RUN: lli %t.bc > %t.refout
-//RUN: dsaopt %t.bc -ds-aa -O3 -o - | lli > %t.out
+//RUN: dsaopt %t.bc -ds-aa -O3 -o - 2>/dev/null | lli > %t.out
 //RUN: diff %t.refout %t.out
 //--check properties of this particular test
 //N/A
