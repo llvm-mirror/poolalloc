@@ -10,8 +10,8 @@
 //--build the code into a .bc
 //RUN: llvm-gcc -O0 %s -S --emit-llvm -o - | llvm-as > %t.bc
 //--check if ds-aa breaks, breaks opts, or results in miscompiled code
-//RUN: lli -force-interpreter %t.bc > %t.refout
-//RUN: dsaopt %t.bc -ds-aa -O3 -o - | lli -force-interpreter > %t.out
+//RUN: lli %t.bc > %t.refout
+//RUN: dsaopt %t.bc -ds-aa -instcombine -ds-aa -gvn -ds-aa -dce -o - | lli > %t.out
 //RUN: diff %t.refout %t.out
 //--check properties of this particular test
 //N/A
@@ -44,11 +44,13 @@ int main()
   int * p1 = &stack_val;
   int * p2 = &stack_val2;
 
+  //This will change p1 to point to *p2
   assign( 2, &p1, &p2 );
 
-  if ( p1 != &stack_val || p2 != &stack_val2 )
+  //This check should succeed, p1 points to stack_val now
+  if ( p1 != &stack_val )
   {
-    return -1;
+    return 0;
   }
-  return 0;
+  return -1;
 }

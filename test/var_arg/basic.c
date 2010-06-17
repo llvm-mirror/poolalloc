@@ -5,9 +5,9 @@
 //--build the code into a .bc
 //RUN: llvm-gcc -O0 %s -S --emit-llvm -o - | llvm-as > %t.bc
 //--check if ds-aa breaks, breaks opts, or results in miscompiled code
-//RUN: dsaopt %t.bc -ds-aa -O3 -o - | lli -force-interpreter > %t.out1
-//RUN: opt %t.bc -O3 -o - | lli -force-interpreter > %t.out2
-//RUN: diff %t.out1 %t.out2
+//RUN: lli %t.bc > %t.refout
+//RUN: dsaopt %t.bc -ds-aa -O3 -o - | lli > %t.out
+//RUN: diff %t.refout %t.out
 //--check properties of this particular test
 //N/A
 
@@ -29,5 +29,5 @@ int main()
 
   int ret = get( 0, &stack_val );
 
-  return ret;
+  return ret - 5;
 }
