@@ -1,5 +1,7 @@
 #include <stdarg.h>
 //This tests having multiple parameters
+//In particular, this verifies that dsa doesn't unnecessarily
+//set the mod/ref flag for functions.
 
 //What to check:
 //'val' should alias stack_val and stack_val2
@@ -16,10 +18,10 @@
 //--check properties of this particular test
 //RUN: dsaopt %t.bc -ds-aa -aa-eval -o /dev/null \
 //  RUN: -print-all-alias-modref-info >& %t.aa
-//ds-aa should tell us that assign modifies p1
-//RUN: cat %t.aa | grep {Ptr:.*p1.*@assign} | grep {^\[ \]*ModRef}
-//ds-aa should tell us that assign does something to p2
-//RUN: cat %t.aa | grep {Ptr:.*p2.*@assign} | grep -v NoModRef
+//ds-aa should tell us that assign doesn't mod/ref p1
+//RUN: cat %t.aa | grep {Ptr:.*p1.*@assign} | grep NoModRef
+//ds-aa should tell us that assign doesn't mod/ref p2
+//RUN: cat %t.aa | grep {Ptr:.*p2.*@assign} | grep NoModRef
 
 
 static int assign( int count, ... )
@@ -33,7 +35,8 @@ static int assign( int count, ... )
   for ( ; i < count; ++i )
   {
     int **val = va_arg( ap, int** );
-    *old = *val;
+    //Unlike 'multiple_callee.c', don't mod/ref the value
+    //*old = *val;
     old = val;
   }
 
@@ -50,11 +53,11 @@ int main()
   int * p1 = &stack_val;
   int * p2 = &stack_val2;
 
-  //This will change p1 to point to *p2
+  //Doesn't mod/ref either param
   assign( 2, &p1, &p2 );
 
-  //This check should succeed, p1 points to stack_val now
-  if ( p1 != &stack_val )
+  //p1 is still intact, pointing to stack_val
+  if ( p1 == &stack_val )
   {
     return 0;
   }
