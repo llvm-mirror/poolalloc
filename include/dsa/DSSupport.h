@@ -25,6 +25,7 @@
 namespace llvm {
 
 class Function;
+class FunctionType;
 class CallInst;
 class Value;
 class GlobalValue;
@@ -158,6 +159,7 @@ class DSCallSite {
   const Function *CalleeF;            // The function called (direct call)
   DSNodeHandle    CalleeN;            // The function node called (indirect call)
   DSNodeHandle    RetVal;             // Returned value
+  DSNodeHandle    VarArgVal;          // Merged var-arg val
   std::vector<DSNodeHandle> CallArgs; // The pointer arguments
 
   static void InitNH(DSNodeHandle &NH, const DSNodeHandle &Src,
@@ -189,22 +191,23 @@ public:
   /// Constructor.  Note - This ctor destroys the argument vector passed in.  On
   /// exit, the argument vector is empty.
   ///
-  DSCallSite(CallSite CS, const DSNodeHandle &rv, DSNode *Callee,
-             std::vector<DSNodeHandle> &Args)
-    : Site(CS), CalleeF(0), CalleeN(Callee), RetVal(rv) {
+  DSCallSite(CallSite CS, const DSNodeHandle &rv, const DSNodeHandle &va,
+             DSNode *Callee, std::vector<DSNodeHandle> &Args)
+    : Site(CS), CalleeF(0), CalleeN(Callee), RetVal(rv), VarArgVal(va) {
     assert(Callee && "Null callee node specified for call site!");
     Args.swap(CallArgs);
   }
-  DSCallSite(CallSite CS, const DSNodeHandle &rv, const Function *Callee,
-             std::vector<DSNodeHandle> &Args)
-    : Site(CS), CalleeF(Callee), RetVal(rv) {
+  DSCallSite(CallSite CS, const DSNodeHandle &rv, const DSNodeHandle &va,
+             const Function *Callee, std::vector<DSNodeHandle> &Args)
+    : Site(CS), CalleeF(Callee), RetVal(rv), VarArgVal(va) {
     assert(Callee && "Null callee function specified for call site!");
     Args.swap(CallArgs);
   }
 
   DSCallSite(const DSCallSite &DSCS)   // Simple copy ctor
     : Site(DSCS.Site), CalleeF(DSCS.CalleeF), CalleeN(DSCS.CalleeN),
-      RetVal(DSCS.RetVal), CallArgs(DSCS.CallArgs) {}
+      RetVal(DSCS.RetVal), VarArgVal(DSCS.VarArgVal),
+      CallArgs(DSCS.CallArgs) {}
 
   /// Mapping copy constructor - This constructor takes a preexisting call site
   /// to copy plus a map that specifies how the links should be transformed.
@@ -215,6 +218,7 @@ public:
     Site = FromCall.Site;
     InitNH(RetVal, FromCall.RetVal, NodeMap);
     InitNH(CalleeN, FromCall.CalleeN, NodeMap);
+    InitNH(VarArgVal, FromCall.VarArgVal, NodeMap);
     CalleeF = FromCall.CalleeF;
 
     CallArgs.resize(FromCall.CallArgs.size());
@@ -227,6 +231,7 @@ public:
     CalleeF  = RHS.CalleeF;
     CalleeN  = RHS.CalleeN;
     RetVal   = RHS.RetVal;
+    VarArgVal = RHS.VarArgVal;
     CallArgs = RHS.CallArgs;
     return *this;
   }
@@ -244,6 +249,8 @@ public:
   CallSite            getCallSite()   const { return Site; }
         DSNodeHandle &getRetVal()           { return RetVal; }
   const DSNodeHandle &getRetVal()     const { return RetVal; }
+        DSNodeHandle &getVAVal()            { return VarArgVal; }
+  const DSNodeHandle &getVAVal()      const { return VarArgVal; }
 
   DSNode *getCalleeNode() const {
     assert(!CalleeF && CalleeN.getNode()); return CalleeN.getNode();
@@ -271,6 +278,7 @@ public:
     if (this != &CS) {
       std::swap(Site, CS.Site);
       std::swap(RetVal, CS.RetVal);
+      std::swap(VarArgVal, CS.VarArgVal);
       std::swap(CalleeN, CS.CalleeN);
       std::swap(CalleeF, CS.CalleeF);
       std::swap(CallArgs, CS.CallArgs);
@@ -282,6 +290,7 @@ public:
   ///
   void mergeWith(DSCallSite &CS) {
     getRetVal().mergeWith(CS.getRetVal());
+    getVAVal().mergeWith(CS.getVAVal());
     unsigned MinArgs = getNumPtrArgs();
     if (CS.getNumPtrArgs() < MinArgs) MinArgs = CS.getNumPtrArgs();
 
@@ -310,13 +319,26 @@ public:
     }
     if (RetVal < CS.RetVal) return true;
     if (RetVal > CS.RetVal) return false;
+    if (VarArgVal < CS.VarArgVal) return true;
+    if (VarArgVal > CS.VarArgVal) return false;
     return CallArgs < CS.CallArgs;
   }
 
   bool operator==(const DSCallSite &CS) const {
     return CalleeF == CS.CalleeF && CalleeN == CS.CalleeN &&
-           RetVal == CS.RetVal && CallArgs == CS.CallArgs;
+           RetVal == CS.RetVal && CallArgs == CS.CallArgs &&
+           VarArgVal == CS.VarArgVal;
   }
+
+  /// FunctionTypeOfCallSite - Helper method to extract the signature of a function
+  /// that is called a given CallSite
+  ///
+  static const FunctionType *FunctionTypeOfCallSite(const CallSite & Site);
+
+  /// isVarArg - Determines if the call this represents is to a variable argument
+  /// function
+  ///
+  bool isVarArg() const;
 };
 
 } // End llvm namespace

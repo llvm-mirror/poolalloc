@@ -813,6 +813,7 @@ void ReachabilityCloner::merge(const DSNodeHandle &NH,
 void ReachabilityCloner::mergeCallSite(DSCallSite &DestCS,
                                        const DSCallSite &SrcCS) {
   merge(DestCS.getRetVal(), SrcCS.getRetVal());
+  merge(DestCS.getVAVal(), SrcCS.getVAVal());
   unsigned MinArgs = DestCS.getNumPtrArgs();
   if (SrcCS.getNumPtrArgs() < MinArgs) MinArgs = SrcCS.getNumPtrArgs();
 
@@ -830,11 +831,13 @@ DSCallSite ReachabilityCloner::cloneCallSite(const DSCallSite& SrcCS) {
   if (SrcCS.isDirectCall())
     return DSCallSite(SrcCS.getCallSite(),
                       getClonedNH(SrcCS.getRetVal()),
+                      getClonedNH(SrcCS.getVAVal()),
                       SrcCS.getCalleeFunc(),
                       Args);
   else
     return DSCallSite(SrcCS.getCallSite(),
                       getClonedNH(SrcCS.getRetVal()),
+                      getClonedNH(SrcCS.getVAVal()),
                       getClonedNH(SrcCS.getCalleeNode()).getNode(),
                       Args);
 }
@@ -851,6 +854,39 @@ const Function &DSCallSite::getCaller() const {
 void DSCallSite::InitNH(DSNodeHandle &NH, const DSNodeHandle &Src,
                         ReachabilityCloner &RC) {
   NH = RC.getClonedNH(Src);
+}
+
+/// FunctionTypeOfCallSite - Helper method to extract the signature of a function
+/// that is called a given CallSite
+///
+const FunctionType *DSCallSite::FunctionTypeOfCallSite(const CallSite & Site) {
+  Value *Callee = Site.getCalledValue();
+
+  // Direct call, simple
+  if (Function *F = dyn_cast<Function>(Callee))
+    return F->getFunctionType();
+
+  // Indirect call, extract the type
+  const FunctionType *CalleeFuncType = NULL;
+
+  const PointerType *CalleeType = dyn_cast<PointerType>(Callee->getType());
+  if (!CalleeType) {
+    assert(0 && "Call through a non-pointer type?");
+  } else {
+    CalleeFuncType = dyn_cast<FunctionType>(CalleeType->getElementType());
+    assert(CalleeFuncType &&
+        "Call through pointer to non-function?");
+  }
+
+  return CalleeFuncType;
+}
+
+/// isVarArg - Determines if the call this represents is to a variable argument
+/// function
+///
+bool DSCallSite::isVarArg() const {
+  const FunctionType *FT = FunctionTypeOfCallSite(Site);
+  return FT->isVarArg();
 }
 
 /// remapLinks - Change all of the Links in the current node according to the
@@ -896,6 +932,8 @@ namespace {
       if (PathExistsToClonedNode(CS.getRetVal().getNode()))
         return true;
       if (CS.isDirectCall() || PathExistsToClonedNode(CS.getCalleeNode()))
+        return true;
+      if (PathExistsToClonedNode(CS.getVAVal().getNode()))
         return true;
       for (unsigned i = 0, e = CS.getNumPtrArgs(); i != e; ++i)
         if (PathExistsToClonedNode(CS.getPtrArg(i).getNode()))
@@ -990,6 +1028,7 @@ void DSNode::markReachableNodes(DenseSet<const DSNode*> &ReachableNodes) const {
 
 void DSCallSite::markReachableNodes(DenseSet<const DSNode*> &Nodes) const {
   getRetVal().getNode()->markReachableNodes(Nodes);
+  getVAVal().getNode()->markReachableNodes(Nodes);
   if (isIndirectCall()) getCalleeNode()->markReachableNodes(Nodes);
 
   for (unsigned i = 0, e = getNumPtrArgs(); i != e; ++i)

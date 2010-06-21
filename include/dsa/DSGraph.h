@@ -18,6 +18,7 @@
 #include "dsa/DSNode.h"
 #include "dsa/DSCallGraph.h"
 #include "llvm/ADT/EquivalenceClasses.h"
+#include "llvm/Function.h"
 
 #include <list>
 #include <map>
@@ -195,6 +196,7 @@ public:
   // Public data-type declarations...
   typedef DSScalarMap ScalarMapTy;
   typedef std::map<const Function*, DSNodeHandle> ReturnNodesTy;
+  typedef std::map<const Function*, DSNodeHandle> VANodesTy;
   typedef ilist<DSNode> NodeListTy;
 
   /// NodeMapTy - This data type is used when cloning one graph into another to
@@ -217,6 +219,10 @@ private:
   // is used for representing SCCs.
   //
   ReturnNodesTy ReturnNodes;
+
+  // VANodes - Special "Variable Argument" Node for each function
+  //
+  VANodesTy VANodes;
 
   // FunctionCalls - This list maintains a single entry for each call
   // instruction in the current graph.  The first entry in the vector is the
@@ -377,6 +383,10 @@ public:
   typedef ReturnNodesTy::const_iterator retnodes_iterator;
   retnodes_iterator retnodes_begin() const { return ReturnNodes.begin(); }
   retnodes_iterator retnodes_end() const { return ReturnNodes.end(); }
+  
+  typedef VANodesTy::const_iterator vanodes_iterator;
+  vanodes_iterator vanodes_begin() const { return VANodes.begin(); }
+  vanodes_iterator vanodes_end() const { return VANodes.end(); }
 
 
   /// getReturnNodes - Return the mapping of functions to their return nodes for
@@ -399,8 +409,26 @@ public:
     return I->second;
   }
 
+  /// getVANodeFor - Return the var-arg node for the specified function.
+  ///
+  DSNodeHandle &getVANodeFor(const Function &F) {
+    VANodesTy::iterator I = VANodes.find(&F);
+    assert(I != VANodes.end() && "Var-arg info for F not in this graph!");
+    return I->second;
+  }
+
+  const DSNodeHandle &getVANodeFor(const Function &F) const {
+    VANodesTy::const_iterator I = VANodes.find(&F);
+    assert(I != VANodes.end() && "Var-arg info for F not in this graph!");
+    return I->second;
+  }
+
   DSNodeHandle& getOrCreateReturnNodeFor(const Function& F) {
     return ReturnNodes[&F];
+  }
+
+  DSNodeHandle& getOrCreateVANodeFor(const Function& F) {
+    return VANodes[&F];
   }
 
   /// containsFunction - Return true if this DSGraph contains information for

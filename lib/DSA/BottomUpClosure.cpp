@@ -58,8 +58,10 @@ bool BUDataStructures::runOnModule(Module &M) {
 // entry-points correctly.  As a bonus, we can be more aggressive at propagating
 // information upwards, as long as we don't remove unresolved call sites.
 bool BUDataStructures::runOnModuleInternal(Module& M) {
+#if 0
   llvm::errs() << "BU is currently being worked in in very invasive ways.\n"
           << "It is probably broken right now\n";
+#endif
 
   //Find SCCs and make SCC call graph
   callgraph.buildSCCs();
@@ -248,6 +250,7 @@ void BUDataStructures::finalizeGlobals(void) {
   for (std::set<DSCallSite>::iterator ii = BadCalls.begin(),
          ee = BadCalls.end(); ii != ee; ++ii) {
     ii->getRetVal().getNode()->markReachableNodes(reachable);
+    ii->getVAVal().getNode()->markReachableNodes(reachable);
     for (unsigned x = 0; x < ii->getNumPtrArgs(); ++x)
       ii->getPtrArg(x).getNode()->markReachableNodes(reachable);
   }
@@ -339,7 +342,7 @@ void BUDataStructures::calculateGraph(DSGraph* Graph) {
 
     // Fast path for noop calls.  Note that we don't care about merging globals
     // in the callee with nodes in the caller here.
-    if (CS.getRetVal().isNull() && CS.getNumPtrArgs() == 0) {
+    if (CS.getRetVal().isNull() && CS.getNumPtrArgs() == 0 && !CS.isVarArg()) {
       TempFCs.erase(TempFCs.begin());
       continue;
     }

@@ -29,6 +29,7 @@
 #include "llvm/Support/Timer.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/ADT/DenseSet.h"
+#include "llvm/ADT/Triple.h"
 
 #include <fstream>
 
@@ -148,6 +149,8 @@ namespace {
 
     bool visitIntrinsic(CallSite CS, Function* F);
     void visitCallSite(CallSite CS);
+    void visitVAStartInst(CallSite CS);
+    void visitVAStartNode(DSNode* N);
 
   public:
     GraphBuilder(Function &f, DSGraph &g, DataStructures& DSi)
@@ -167,6 +170,9 @@ namespace {
       // Create an entry for the return, which tracks which functions are in
       // the graph
       g.getOrCreateReturnNodeFor(f);
+
+      // Create a node to handle information about variable arguments
+      g.getOrCreateVANodeFor(f);
 
       visit(f);  // Single pass over the function
 
@@ -391,6 +397,7 @@ void GraphBuilder::visitReturnInst(ReturnInst &RI) {
 }
 
 void GraphBuilder::visitVAArgInst(VAArgInst &I) {
+  assert(0 && "What frontend generates this?");
   //FIXME: also updates the argument
   DSNodeHandle Ptr = getValueDest(I.getOperand(0));
   if (Ptr.isNull()) return;
@@ -604,45 +611,105 @@ void GraphBuilder::visitInvokeInst(InvokeInst &II) {
   visitCallSite(&II);
 }
 
+void GraphBuilder::visitVAStartInst(CallSite CS) {
+  // Build out DSNodes for the va_list depending on the target arch
+  // And assosiate the right node with the VANode for this function
+  // so it can be merged with the right arguments from callsites
+
+  DSNodeHandle RetNH = getValueDest(*CS.arg_begin());
+
+  if (DSNode *N = RetNH.getNode())
+    visitVAStartNode(N);
+  else
+  {
+    //
+    // Sometimes the argument to the vastart is casted and has no DSNode.
+    // Peer past the cast.
+    //
+    Value * Operand = CS.getInstruction()->getOperand(1);
+    if (CastInst * CI = dyn_cast<CastInst>(Operand))
+      Operand = CI->getOperand (0);
+    const DSNodeHandle & CastNH = getValueDest(Operand);
+    visitVAStartNode(CastNH.getNode());
+    //We assert out here because it's not clear when this happens
+    assert(0 && "When does this happen?");
+  }
+}
+
+void GraphBuilder::visitVAStartNode(DSNode* N) {
+  assert(FB && "No function for this graph?");
+  Module *M = FB->getParent();
+  assert(M && "No module for function");
+  Triple TargetTriple(M->getTargetTriple());
+  Triple::ArchType Arch = TargetTriple.getArch();
+
+  // Fetch the VANode associated with the func containing the call to va_start
+  DSNodeHandle & VANH = G.getVANodeFor(*FB);
+  // Make sure this NodeHandle has a node to go with it
+  if (VANH.isNull()) VANH.mergeWith(createNode());
+
+  // Create a dsnode for an array of pointers to the VAInfo for this func
+  DSNode * VAArray = createNode();
+  VAArray->setArrayMarker();
+  VAArray->foldNodeCompletely();
+  VAArray->setLink(0,VANH);
+
+  //VAStart modifies its argument
+  N->setModifiedMarker();
+
+  // For the architectures we support, build dsnodes that match
+  // how we know va_list is used.
+  switch (Arch) {
+    case Triple::x86:
+      // On x86, we have:
+      // va_list as a pointer to an array of pointers to the variable arguments
+      N->growSize(1);
+      N->setLink(0, VAArray);
+      break;
+    case Triple::x86_64:
+      // On x86_64, we have va_list as a struct {i32, i32, i8*, i8* }
+      // The first i8* is where arguments generally go, but the second i8* can be used
+      // also to pass arguments by register.
+      // We model this by having both the i8*'s point to an array of pointers to the arguments.
+      N->growSize(24); //sizeof the va_list struct mentioned above
+      N->setLink(8,VAArray); //first i8*
+      N->setLink(16,VAArray); //second i8*
+      break;
+    default:
+      // FIXME: For now we abort if we don't know how to handle this arch
+      // Either add support for other architectures, or at least mark the
+      // nodes unknown/incomplete or whichever results in the correct
+      // conservative behavior in the general case
+      assert(0 && "VAstart not supported on this architecture!");
+      //XXX: This might be good enough in those cases that we don't know
+      //what the arch does
+      N->setIncompleteMarker()->setUnknownMarker()->foldNodeCompletely();
+  }
+
+  //XXX: We used to set the alloca marker for the DSNode passed to va_start.
+  //Seems to me that you could allocate the va_list on the heap, so ignoring for now.
+  N->setModifiedMarker()->setVAStartMarker();
+}
+
 /// returns true if the intrinsic is handled
 bool GraphBuilder::visitIntrinsic(CallSite CS, Function *F) {
   ++NumIntrinsicCall;
   switch (F->getIntrinsicID()) {
   case Intrinsic::vastart: {
-    // Mark the memory written by the vastart intrinsic as incomplete
-    DSNodeHandle RetNH = getValueDest(*CS.arg_begin());
-    if (DSNode *N = RetNH.getNode()) {
-      N->setModifiedMarker()->setAllocaMarker()->setIncompleteMarker()
-       ->setVAStartMarker()->setUnknownMarker()->foldNodeCompletely();
-    }
-
-    if (RetNH.hasLink(0)) {
-      DSNodeHandle Link = RetNH.getLink(0);
-      if (DSNode *N = Link.getNode()) {
-        N->setModifiedMarker()->setAllocaMarker()->setIncompleteMarker()
-         ->setVAStartMarker()->setUnknownMarker()->foldNodeCompletely();
-      }
-    } else {
-      //
-      // Sometimes the argument to the vastart is casted and has no DSNode.
-      // Peer past the cast.
-      //
-      Value * Operand = CS.getInstruction()->getOperand(1);
-      if (CastInst * CI = dyn_cast<CastInst>(Operand))
-        Operand = CI->getOperand (0);
-      RetNH = getValueDest(Operand);
-      if (DSNode *N = RetNH.getNode()) {
-        N->setModifiedMarker()->setAllocaMarker()->setIncompleteMarker()
-         ->setVAStartMarker()->setUnknownMarker()->foldNodeCompletely();
-      }
-    }
-
+    visitVAStartInst(CS);
     return true;
   }
-  case Intrinsic::vacopy:
-    getValueDest(CS.getInstruction()).
-      mergeWith(getValueDest(*(CS.arg_begin())));
+  case Intrinsic::vacopy: {
+    // Simply merge the two arguments to va_copy.
+    // This results in loss of precision on the temporaries used to manipulate
+    // the va_list, and so isn't a big deal.  In theory we would build a
+    // separate graph for this (like the one created in visitVAStartNode)
+    // and only merge the node containing the variable arguments themselves.
+    DSNodeHandle destNH = getValueDest(CS.getArgument(0));
+    DSNodeHandle srcNH = getValueDest(CS.getArgument(1));
+    destNH.mergeWith(srcNH);
     return true;
+  }
   case Intrinsic::stacksave: {
     DSNode * Node = createNode();
     Node->setAllocaMarker()->setIncompleteMarker()->setUnknownMarker();
@@ -813,23 +880,64 @@ void GraphBuilder::visitCallSite(CallSite CS) {
     }
   }
 
+  //NOTE: This code is identical to 'DSGraph::getDSCallSiteForCallSite',
+  //the reason it's duplicated apparently is so we can increment the
+  //stats 'NumIndirectCall' and 'NumDirectCall'.
+  //FIXME: refactor so we don't have this duplication
+
+  //Get the FunctionType for the called function
+  const FunctionType *CalleeFuncType = DSCallSite::FunctionTypeOfCallSite(CS);
+  unsigned NumFixedArgs = CalleeFuncType->getNumParams();
+
+  // Sanity check--this really, really shouldn't happen
+  if (!CalleeFuncType->isVarArg())
+    assert(CS.arg_size() == NumFixedArgs &&
+        "Too many arguments/incorrect function signature!");
+
   std::vector<DSNodeHandle> Args;
   Args.reserve(CS.arg_end()-CS.arg_begin());
+  DSNodeHandle VarArgNH;
 
   // Calculate the arguments vector...
-  for (CallSite::arg_iterator I = CS.arg_begin(), E = CS.arg_end(); I != E; ++I)
-    if (isa<PointerType>((*I)->getType()))
-      Args.push_back(getValueDest(*I));
+  if (!CalleeFuncType->isVarArg()) {
+    // Add all pointer arguments
+    for (CallSite::arg_iterator I = CS.arg_begin(), E = CS.arg_end();
+        I != E; ++I) {
+      if (isa<PointerType>((*I)->getType()))
+        Args.push_back(getValueDest(*I));
+      if (I - CS.arg_begin() >= NumFixedArgs) {
+        errs() << "WARNING: Call contains too many arguments:\n";
+        CS.getInstruction()->dump();
+        assert(0 && "Failing for now");
+      }
+    }
+  } else {
+    // Add all fixed pointer arguments, then merge the rest together
+    for (CallSite::arg_iterator I = CS.arg_begin(), E = CS.arg_end();
+        I != E; ++I)
+      if (isa<PointerType>((*I)->getType())) {
+        DSNodeHandle ArgNode = getValueDest(*I);
+        if (I - CS.arg_begin() < NumFixedArgs) {
+          Args.push_back(ArgNode);
+        } else {
+          VarArgNH.mergeWith(ArgNode);
+        }
+      }
+  }
 
   // Add a new function call entry...
   if (CalleeNode) {
     ++NumIndirectCall;
-    G.getFunctionCalls().push_back(DSCallSite(CS, RetVal, CalleeNode, Args));
+    G.getFunctionCalls().push_back(DSCallSite(CS, RetVal, VarArgNH, CalleeNode,
+                                              Args));
   } else {
     ++NumDirectCall;
-    G.getFunctionCalls().push_back(DSCallSite(CS, RetVal, cast<Function>(Callee),
+    G.getFunctionCalls().push_back(DSCallSite(CS, RetVal, VarArgNH,
+                                              cast<Function>(Callee),
                                               Args));
   }
+
+
 }
 
 // visitInstruction - For all other instruction types, if we have any arguments

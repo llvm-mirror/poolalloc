@@ -84,6 +84,7 @@ DSGraph::~DSGraph() {
   AuxFunctionCalls.clear();
   ScalarMap.clear();
   ReturnNodes.clear();
+  VANodes.clear();
 
   // Drop all intra-node references, so that assertions don't fail...
   for (node_iterator NI = node_begin(), E = node_end(); NI != E; ++NI)
@@ -137,8 +138,8 @@ DSNode *DSGraph::addObjectToGraph(Value *Ptr, bool UseDeclaredType) {
 
 /// cloneInto - Clone the specified DSGraph into the current graph.  The
 /// translated ScalarMap for the old function is filled into the ScalarMap
-/// for the graph, and the translated ReturnNodes map is returned into
-/// ReturnNodes.
+/// for the graph, the translated ReturnNodes map is returned into
+/// ReturnNodes, and the translated VANodes map is return into VANodes.
 ///
 /// The CloneFlags member controls various aspects of the cloning process.
 ///
@@ -208,6 +209,17 @@ void DSGraph::cloneInto( DSGraph* G, unsigned CloneFlags) {
                                       DSNodeHandle(MappedRetN,
                                      MappedRet.getOffset()+Ret.getOffset())));
   }
+
+  // Map the VA node pointers over...
+  for (vanodes_iterator I = G->vanodes_begin(),
+         E = G->vanodes_end(); I != E; ++I) {
+    const DSNodeHandle &VarArg = I->second;
+    DSNodeHandle &MappedVarArg = OldNodeMap[VarArg.getNode()];
+    DSNode *MappedVarArgN = MappedVarArg.getNode();
+    VANodes.insert(std::make_pair(I->first,
+                   DSNodeHandle(MappedVarArgN,
+                                MappedVarArg.getOffset()+VarArg.getOffset())));
+  }
 }
 
 /// spliceFrom - Logically perform the operation of cloning the RHS graph into
@@ -235,6 +247,14 @@ void DSGraph::spliceFrom(DSGraph* RHS) {
     RHS->ReturnNodes.clear();
   }
 
+  // Same for the VA nodes
+  if (VANodes.empty()) {
+    VANodes.swap(RHS->VANodes);
+  } else {
+    VANodes.insert(RHS->VANodes.begin(), RHS->VANodes.end());
+    RHS->VANodes.clear();
+  }
+
  // Merge the scalar map in.
   ScalarMap.spliceFrom(RHS->ScalarMap);
 }
@@ -242,11 +262,12 @@ void DSGraph::spliceFrom(DSGraph* RHS) {
 /// getFunctionArgumentsForCall - Given a function that is currently in this
 /// graph, return the DSNodeHandles that correspond to the pointer-compatible
 /// function arguments.  The vector is filled in with the return value (or
-/// null if it is not pointer compatible), followed by all of the
-/// pointer-compatible arguments.
+/// null if it is not pointer compatible), a vararg node (null if not
+/// applicable) followed by all of the pointer-compatible arguments.
 void DSGraph::getFunctionArgumentsForCall(const Function *F,
                                        std::vector<DSNodeHandle> &Args) const {
   Args.push_back(getReturnNodeFor(*F));
+  Args.push_back(getVANodeFor(*F));
   for (Function::const_arg_iterator AI = F->arg_begin(), E = F->arg_end();
        AI != E; ++AI)
     if (isa<PointerType>(AI->getType())) {
@@ -287,6 +308,8 @@ namespace {
       for (unsigned i = 0, e = CS.getNumPtrArgs(); i != e; ++i)
         if (PathExistsToClonedNode(CS.getPtrArg(i).getNode()))
           return true;
+      if (PathExistsToClonedNode(CS.getVAVal().getNode()))
+        return true;
       return false;
     }
   };
@@ -378,13 +401,16 @@ void DSGraph::mergeInGraph(const DSCallSite &CS,
     // Merge the return value with the return value of the context.
     Args[0].mergeWith(CS.getRetVal());
 
+    // Merge var-arg node
+    Args[1].mergeWith(CS.getVAVal());
+
     // Resolve all of the function arguments.
     for (unsigned i = 0, e = CS.getNumPtrArgs(); i != e; ++i) {
-      if (i == Args.size()-1)
+      if (i == Args.size()-2)
         break;
 
       // Add the link from the argument scalar to the provided value.
-      Args[i+1].mergeWith(CS.getPtrArg(i));
+      Args[i+2].mergeWith(CS.getPtrArg(i));
     }
     return;
   }
@@ -398,13 +424,17 @@ void DSGraph::mergeInGraph(const DSCallSite &CS,
   if (!CS.getRetVal().isNull())
     RC.merge(CS.getRetVal(), Args[0]);
 
+  // Map the variable arguments
+  if (!CS.getVAVal().isNull())
+    RC.merge(CS.getVAVal(), Args[1]);
+
   // Map over all of the arguments.
   for (unsigned i = 0, e = CS.getNumPtrArgs(); i != e; ++i) {
-    if (i == Args.size()-1)
+    if (i == Args.size()-2)
       break;
 
     // Add the link from the argument scalar to the provided value.
-    RC.merge(CS.getPtrArg(i), Args[i+1]);
+    RC.merge(CS.getPtrArg(i), Args[i+2]);
   }
 
   // We generally don't want to copy global nodes or aux calls from the callee
@@ -479,16 +509,22 @@ DSCallSite DSGraph::getCallSiteForArguments(const Function &F) const {
     if (isa<PointerType>(I->getType()))
       Args.push_back(getNodeForValue(I));
 
-  return DSCallSite(CallSite(), getReturnNodeFor(F), &F, Args);
+  return DSCallSite(CallSite(), getReturnNodeFor(F), getVANodeFor(F), &F, Args);
 }
 
 /// getDSCallSiteForCallSite - Given an LLVM CallSite object that is live in
 /// the context of this graph, return the DSCallSite for it.
 DSCallSite DSGraph::getDSCallSiteForCallSite(CallSite CS) const {
-  DSNodeHandle RetVal;
+  DSNodeHandle RetVal, VarArg;
   Instruction *I = CS.getInstruction();
   if (isa<PointerType>(I->getType()))
     RetVal = getNodeForValue(I);
+
+  //FIXME: Here we trust the signature of the callsite to determine which arguments
+  //are var-arg and which are fixed.  Apparently we can't assume this, but I'm not sure
+  //of a better way.  For now, this assumption is known limitation.
+  const FunctionType *CalleeFuncType = DSCallSite::FunctionTypeOfCallSite(CS);
+  unsigned NumFixedArgs = CalleeFuncType->getNumParams();
 
   std::vector<DSNodeHandle> Args;
   Args.reserve(CS.arg_end()-CS.arg_begin());
@@ -496,17 +532,19 @@ DSCallSite DSGraph::getDSCallSiteForCallSite(CallSite CS) const {
   // Calculate the arguments vector...
   for (CallSite::arg_iterator I = CS.arg_begin(), E = CS.arg_end(); I != E; ++I)
     if (isa<PointerType>((*I)->getType())) {
-      if (isa<ConstantPointerNull>(*I))
-        Args.push_back(DSNodeHandle());
-      else
-        Args.push_back(getNodeForValue(*I));
+      const DSNodeHandle ArgNode = getNodeForValue(*I);
+      if (I - CS.arg_begin() < NumFixedArgs) {
+        Args.push_back(ArgNode);
+      } else {
+        VarArg.mergeWith(ArgNode);
+      }
     }
 
   // Add a new function call entry...
   if (Function *F = CS.getCalledFunction())
-    return DSCallSite(CS, RetVal, F, Args);
+    return DSCallSite(CS, RetVal, VarArg, F, Args);
   else
-    return DSCallSite(CS, RetVal,
+    return DSCallSite(CS, RetVal, VarArg,
                       getNodeForValue(CS.getCalledValue()).getNode(), Args);
 }
 
@@ -535,6 +573,8 @@ static void markIncomplete(DSCallSite &Call) {
   // Then the return value is certainly incomplete!
   markIncompleteNode(Call.getRetVal().getNode());
 
+  markIncompleteNode(Call.getVAVal().getNode());
+
   // All objects pointed to by function arguments are incomplete!
   for (unsigned i = 0, e = Call.getNumPtrArgs(); i != e; ++i)
     markIncompleteNode(Call.getPtrArg(i).getNode());
@@ -552,7 +592,7 @@ static void markIncomplete(DSCallSite &Call) {
 //
 void DSGraph::markIncompleteNodes(unsigned Flags) {
   // Mark any incoming arguments as incomplete.
-  if (Flags & DSGraph::MarkFormalArgs)
+  if (Flags & DSGraph::MarkFormalArgs) {
     for (ReturnNodesTy::iterator FI = ReturnNodes.begin(), E =ReturnNodes.end();
          FI != E; ++FI) {
       const Function &F = *FI->first;
@@ -562,6 +602,11 @@ void DSGraph::markIncompleteNodes(unsigned Flags) {
           markIncompleteNode(getNodeForValue(I).getNode());
       markIncompleteNode(FI->second.getNode());
     }
+    // Mark all vanodes as incomplete (they are also arguments)
+    for (vanodes_iterator I = vanodes_begin(), E = vanodes_end();
+        I != E; ++I)
+      markIncompleteNode(I->second.getNode());
+  }
 
   // Mark stuff passed into functions calls as being incomplete.
   if (!shouldPrintAuxCalls())
@@ -667,6 +712,7 @@ static void removeIdenticalCalls(std::list<DSCallSite> &Calls) {
     // to it, remove the edge to the node (killing the node).
     //
     killIfUselessEdge(CS.getRetVal());
+    killIfUselessEdge(CS.getVAVal());
     for (unsigned a = 0, e = CS.getNumPtrArgs(); a != e; ++a)
       killIfUselessEdge(CS.getPtrArg(a));
 
@@ -883,6 +929,8 @@ static bool CallSiteUsesAliveArgs(const DSCallSite &CS,
   if (CanReachAliveNodes(CS.getRetVal().getNode(), Alive, Visited,
                          IgnoreGlobals))
     return true;
+  if (CanReachAliveNodes(CS.getVAVal().getNode(), Alive, Visited, IgnoreGlobals))
+    return true;
   if (CS.isIndirectCall() &&
       CanReachAliveNodes(CS.getCalleeNode(), Alive, Visited, IgnoreGlobals))
     return true;
@@ -1059,6 +1107,7 @@ void DSGraph::AssertCallSiteInGraph(const DSCallSite &CS) const {
 #endif
   }
   AssertNodeInGraph(CS.getRetVal().getNode());
+  AssertNodeInGraph(CS.getVAVal().getNode());
   for (unsigned j = 0, e = CS.getNumPtrArgs(); j != e; ++j)
     AssertNodeInGraph(CS.getPtrArg(j).getNode());
 }
@@ -1099,6 +1148,9 @@ void DSGraph::AssertGraphOK() const {
       if (isa<PointerType>(AI->getType()))
         assert(!getNodeForValue(AI).isNull() &&
                "Pointer argument must be in the scalar map!");
+    if (F.isVarArg())
+      assert(VANodes.find(&F) != VANodes.end() &&
+          "VarArg function missing VANode!");
   }
 }
 
@@ -1186,6 +1238,7 @@ void DSGraph::computeCalleeCallerMapping(DSCallSite CS, const Function &Callee,
     CalleeGraph.getCallSiteForArguments(const_cast<Function&>(Callee));
 
   computeNodeMapping(CalleeArgs.getRetVal(), CS.getRetVal(), NodeMap);
+  computeNodeMapping(CalleeArgs.getVAVal(), CS.getVAVal(), NodeMap);
 
   unsigned NumArgs = CS.getNumPtrArgs();
   if (NumArgs > CalleeArgs.getNumPtrArgs())

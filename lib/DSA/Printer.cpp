@@ -91,11 +91,21 @@ static std::string getCaption(const DSNode *N, const DSGraph *G) {
     if (NodeType & DSNode::ExternalNode   ) OS << "E";
     if (NodeType & DSNode::IntToPtrNode   ) OS << "P";
     if (NodeType & DSNode::PtrToIntNode   ) OS << "2";
+    if (NodeType & DSNode::VAStartNode    ) OS << "V";
 
 #ifndef NDEBUG
     if (NodeType & DSNode::DeadNode       ) OS << "<dead>";
 #endif
     OS << "\n";
+  }
+
+  //Indicate if this is a VANode for some function
+  for (DSGraph::vanodes_iterator I = G->vanodes_begin(), E = G->vanodes_end();
+      I != E; ++I) {
+    DSNodeHandle VANode = I->second;
+    if (N == VANode.getNode()) {
+      OS << "(VANode for " << I->first->getNameStr() << ")\n";
+    }
   }
 
   EquivalenceClasses<const GlobalValue*> *GlobalECs = 0;
@@ -256,6 +266,8 @@ struct DOTGraphTraits<const DSGraph*> : public DefaultDOTGraphTraits {
         if (EdgeDest == 0) EdgeDest = -1;
         GW.emitEdge(&Call, 0, N, EdgeDest, "color=gray63,tailclip=false");
       }
+
+      // FIXME: visualize the VANode?
 
       // Print out the callee...
       if (Call.isIndirectCall()) {

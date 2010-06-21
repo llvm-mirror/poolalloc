@@ -103,7 +103,7 @@ public:
     ExternalNode    = 1 << 11,  // This node comes from an external source
     IntToPtrNode    = 1 << 12,   // This node comes from an int cast
     PtrToIntNode    = 1 << 13,  // This node excapes to an int cast
-    VAStartNode     = 1 << 14,  // This node excapes to an int cast
+    VAStartNode     = 1 << 14,  // This node is from a vastart call
 
     //#ifndef NDEBUG
     DeadNode        = 1 << 15,   // This node is dead and should not be pointed to

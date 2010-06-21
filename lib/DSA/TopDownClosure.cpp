@@ -355,8 +355,8 @@ void TDDataStructures::InlineCallersIntoGraph(DSGraph* DSG) {
       // merged into it.  The actual callee function doesn't matter here, so we
       // just pass it something to keep the ctor happy.
       std::vector<DSNodeHandle> ArgDummyVec;
-      DSCallSite DummyCS(CI->getCallSite(), DSNodeHandle(), Callees[0]/*dummy*/,
-                         ArgDummyVec);
+      DSCallSite DummyCS(CI->getCallSite(), DSNodeHandle(), DSNodeHandle(),
+                         Callees[0]/*dummy*/, ArgDummyVec);
       IndCallGraph->getFunctionCalls().push_back(DummyCS);
 
       IndCallRecI = IndCallMap.insert(IndCallRecI,
