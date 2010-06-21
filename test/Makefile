@@ -7,8 +7,8 @@
 
 # The default target in this directory is the test:: target
 test::
-#Eventually we'll want to automatically run the dejagnu tests too
-#test:: unit
+#Eventually we'll want to automatically run the lit tests too
+#test:: lit
 
 LEVEL = ..
 include $(LEVEL)/Makefile.common
@@ -321,10 +321,10 @@ cputrack::
 	@printf "\a"; sleep 1; printf "\a"; sleep 1; printf "\a"
 
 ##===----------------------------------------------------------------------===##
-# Unit tests
+# Lit tests
 ##===----------------------------------------------------------------------===##
 
-.PHONY: unit
+.PHONY: lit
 
 #Path to 'lit'
 LIT=$(LLVM_SRC_ROOT)/utils/lit/lit.py
@@ -366,8 +366,8 @@ lit.site.cfg: $(PROJ_SRC_ROOT)/test/lit.site.cfg.in
 SETPATH = \
 	PATH=$(LLVMToolDir):$(LLVM_SRC_ROOT)/test/Scripts:$(LLVMGCCDIR)/bin:$(PATH):$(PROJ_OBJ_ROOT)/test/tools
 
-#Run the dejagnu tests for this project
-unit: lit.site.cfg $(TOOLS)
+#Run the lit tests for this project
+lit: lit.site.cfg $(TOOLS)
 	$(SETPATH) $(MAKE) -C $(LLVM_OBJ_ROOT)/test check-local-lit TESTSUITE=$(PROJ_OBJ_ROOT)/test
 
 clean::
