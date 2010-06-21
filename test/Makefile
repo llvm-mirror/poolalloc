@@ -324,16 +324,10 @@ cputrack::
 # Unit tests
 ##===----------------------------------------------------------------------===##
 
-#DISCLAIMER
-#I would prefer being able to do something like above, by setting
-#some "PROJECT_DIR" variable, but alas I don't see that for the dejagnu
-#test framework.  So for now we hijack the existing framework as much as
-#possible--feel free to replace this if you know a cleaner way.
+.PHONY: unit
 
-.PHONY: check_runtest unit
-
-#Path to dejagnu's runtest binary.
-RUNTEST=runtest
+#Path to 'lit'
+LIT=$(LLVM_SRC_ROOT)/utils/lit/lit.py
 
 #Figure out what our configuration is
 #Better way?
@@ -352,26 +346,6 @@ DSAOPT := $(PROJ_OBJ_ROOT)/test/tools/dsaopt
 
 TOOLS= $(DSAOPT)
 
-#Check that our RUNTEST variable points to a runtest we can use
-check_runtest:
-	@which runtest; \
-	if [ $$? -ne 0 ]; then \
-		echo \"$(RUNTEST)\" is not valid. Please put runtest on your PATH; \
-		echo or set the RUNTEST variable correctly.; \
-		exit 1; \
-	fi
-
-#Grab site.exp per normal llvm testing, but modify it to run in this project
-site.exp:
-	@echo "Generating site.exp..."
-	@make -C $(LLVM_OBJ_ROOT)/test site.exp
-	@cp $(LLVM_OBJ_ROOT)/test/site.exp     site.tmp
-	@echo "set srcdir $(PROJ_SRC_DIR)"  >> site.tmp
-	@echo "set srcroot $(PROJ_SRC_DIR)" >> site.tmp
-	@echo "set objdir $(PROJ_OBJ_DIR)"  >> site.tmp
-	@echo "set objroot $(PROJ_OBJ_DIR)" >> site.tmp
-	@cp site.tmp $@
-
 #wrapper script for 'opt' so we can avoid manually loading the dsa lib
 $(DSAOPT):
 	@mkdir -p `dirname $@`
@@ -380,20 +354,23 @@ $(DSAOPT):
 	@chmod +x $@.tmp
 	@mv $@.tmp $@
 
-#We need this locally, might be able to avoid this by modifying site.exp
-llvm.exp:
-	cp $(LLVM_SRC_ROOT)/test/lib/llvm.exp $@
+lit.site.cfg: $(PROJ_SRC_ROOT)/test/lit.site.cfg.in
+	@echo "Making LLVM 'lit.site.cfg' file..."
+	@sed -e "s#@LLVM_SOURCE_DIR@#$(LLVM_SRC_ROOT)#g" \
+	     -e "s#@LLVM_BINARY_DIR@#$(LLVM_OBJ_ROOT)#g" \
+	     -e "s#@LLVM_TOOLS_DIR@#$(ToolDir)#g" \
+	     -e "s#@LLVMGCCDIR@#$(LLVMGCCDIR)#g" \
+	     -e "s#@PROJ_SRC_ROOT@#$(PROJ_SRC_ROOT)#g" \
+	     $(PROJ_SRC_ROOT)/test/lit.site.cfg.in > $@
 
-#Build up the runtest command by making sure useful tools are on its path
-RUNTEST_CMD = \
-	PATH=$(LLVMToolDir):$(LLVM_SRC_ROOT)/test/Scripts:$(LLVMGCCDIR)/bin:$(PATH):$(PROJ_OBJ_ROOT)/test/tools \
-	$(RUNTEST)
+SETPATH = \
+	PATH=$(LLVMToolDir):$(LLVM_SRC_ROOT)/test/Scripts:$(LLVMGCCDIR)/bin:$(PATH):$(PROJ_OBJ_ROOT)/test/tools
 
 #Run the dejagnu tests for this project
-unit: check_runtest site.exp llvm.exp $(TOOLS)
-	$(RUNTEST_CMD)
+unit: lit.site.cfg $(TOOLS)
+	$(SETPATH) $(MAKE) -C $(LLVM_OBJ_ROOT)/test check-local-lit TESTSUITE=$(PROJ_OBJ_ROOT)/test
 
 clean::
 	-$(RM) -rf  `find $(PROJ_OBJ_DIR) -name Output -type d -print`
-	-$(RM) $(PROJ_OBJ_ROOT)/test/site.exp $(PROJ_OBJ_ROOT)/test/llvm.exp
+	-$(RM) lit.site.cfg
 	-$(RM) -rf tools
