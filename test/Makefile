@@ -326,9 +326,6 @@ cputrack::
 
 .PHONY: lit
 
-#Path to 'lit'
-LIT=$(LLVM_SRC_ROOT)/utils/lit/lit.py
-
 #Figure out what our configuration is
 #Better way?
 ifeq ($(ENABLE_OPTIMIZED),1)
