@@ -867,9 +867,9 @@ unsigned poolobjsize(PoolTy<NormalPoolTraits> *Pool, void *Node) {
 
 void *poolalloc(PoolTy<NormalPoolTraits> *Pool, unsigned NumBytes) {
   DO_IF_FORCE_MALLOCFREE(return malloc(NumBytes));
-  pthread_mutex_lock(&Pool->pool_lock);
+  if (Pool) pthread_mutex_lock(&Pool->pool_lock);
   void* to_return = poolalloc_internal(Pool, NumBytes);
-  pthread_mutex_unlock(&Pool->pool_lock);
+  if (Pool) pthread_mutex_unlock(&Pool->pool_lock);
   return to_return;
 }
 
@@ -877,25 +877,25 @@ void *poolmemalign(PoolTy<NormalPoolTraits> *Pool,
                    unsigned Alignment, unsigned NumBytes) {
   //punt and use pool alloc.
   //I don't know if this is safe or breaks any assumptions in the runtime
-  pthread_mutex_lock(&Pool->pool_lock);
+  if (Pool) pthread_mutex_lock(&Pool->pool_lock);
   intptr_t base = (intptr_t)poolalloc_internal(Pool, NumBytes + Alignment - 1);
-  pthread_mutex_unlock(&Pool->pool_lock);
+  if (Pool) pthread_mutex_unlock(&Pool->pool_lock);
   return (void*)((base + (Alignment - 1)) & ~((intptr_t)Alignment -1));
 }
 
 void poolfree(PoolTy<NormalPoolTraits> *Pool, void *Node) {
   DO_IF_FORCE_MALLOCFREE(free(Node); return);
-  pthread_mutex_lock(&Pool->pool_lock);
+  if (Pool) pthread_mutex_lock(&Pool->pool_lock);
   poolfree_internal(Pool, Node);
-  pthread_mutex_unlock(&Pool->pool_lock);
+  if (Pool) pthread_mutex_unlock(&Pool->pool_lock);
 }
 
 void *poolrealloc(PoolTy<NormalPoolTraits> *Pool, void *Node,
                   unsigned NumBytes) {
   DO_IF_FORCE_MALLOCFREE(return realloc(Node, NumBytes));
-  pthread_mutex_lock(&Pool->pool_lock);
+  if (Pool) pthread_mutex_lock(&Pool->pool_lock);
   void* to_return = poolrealloc_internal(Pool, Node, NumBytes);
-  pthread_mutex_unlock(&Pool->pool_lock);
+  if (Pool) pthread_mutex_unlock(&Pool->pool_lock);
   return to_return;
 }
 
@@ -1026,23 +1026,23 @@ void pooldestroy_pc(PoolTy<CompressedPoolTraits> *Pool) {
 
 unsigned long long poolalloc_pc(PoolTy<CompressedPoolTraits> *Pool,
                                 unsigned NumBytes) {
-  pthread_mutex_lock(&Pool->pool_lock);
+  if (Pool) pthread_mutex_lock(&Pool->pool_lock);
   void *Result = poolalloc_internal(Pool, NumBytes);
-  pthread_mutex_unlock(&Pool->pool_lock);
+  if (Pool) pthread_mutex_unlock(&Pool->pool_lock);
   return (char*)Result-(char*)Pool->Slabs;
 }
 
 void poolfree_pc(PoolTy<CompressedPoolTraits> *Pool, unsigned long long Node) {
-  pthread_mutex_lock(&Pool->pool_lock);
+  if (Pool) pthread_mutex_lock(&Pool->pool_lock);
   poolfree_internal(Pool, (char*)Pool->Slabs+Node);
-  pthread_mutex_unlock(&Pool->pool_lock);
+  if (Pool) pthread_mutex_unlock(&Pool->pool_lock);
 }
 
 unsigned long long poolrealloc_pc(PoolTy<CompressedPoolTraits> *Pool,
                                   unsigned long long Node, unsigned NumBytes) {
-  pthread_mutex_lock(&Pool->pool_lock);
+  if (Pool) pthread_mutex_lock(&Pool->pool_lock);
   void *Result = poolrealloc_internal(Pool, (char*)Pool->Slabs+Node, NumBytes);
-  pthread_mutex_unlock(&Pool->pool_lock);
+  if (Pool) pthread_mutex_unlock(&Pool->pool_lock);
   return (char*)Result-(char*)Pool->Slabs;
 }
 
@@ -1060,25 +1060,25 @@ void pooldestroy_pca(PoolTy<CompressedPoolTraits> *Pool)
 
 void* poolalloc_pca(PoolTy<CompressedPoolTraits> *Pool, unsigned NumBytes)
 {
-  pthread_mutex_lock(&Pool->pool_lock);
+  if (Pool) pthread_mutex_lock(&Pool->pool_lock);
   void* to_return = poolalloc_internal(Pool, NumBytes);
-  pthread_mutex_unlock(&Pool->pool_lock);
+  if (Pool) pthread_mutex_unlock(&Pool->pool_lock);
   return to_return;
 }
 
 void poolfree_pca(PoolTy<CompressedPoolTraits> *Pool, void* Node)
 {
-  pthread_mutex_lock(&Pool->pool_lock);
+  if (Pool) pthread_mutex_lock(&Pool->pool_lock);
   poolfree_internal(Pool, Node);
-  pthread_mutex_unlock(&Pool->pool_lock);
+  if (Pool) pthread_mutex_unlock(&Pool->pool_lock);
 }
 
 void* poolrealloc_pca(PoolTy<CompressedPoolTraits> *Pool, void* Node, 
 		      unsigned NumBytes)
 {
-  pthread_mutex_lock(&Pool->pool_lock);
+  if (Pool) pthread_mutex_lock(&Pool->pool_lock);
   void* to_return = poolrealloc_internal(Pool, Node, NumBytes);
-  pthread_mutex_unlock(&Pool->pool_lock);
+  if (Pool) pthread_mutex_unlock(&Pool->pool_lock);
   return to_return;
 }
 
