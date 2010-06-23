@@ -887,11 +887,11 @@ void GraphBuilder::visitCallSite(CallSite CS) {
 
   //Get the FunctionType for the called function
   const FunctionType *CalleeFuncType = DSCallSite::FunctionTypeOfCallSite(CS);
-  unsigned NumFixedArgs = CalleeFuncType->getNumParams();
+  int NumFixedArgs = CalleeFuncType->getNumParams();
 
   // Sanity check--this really, really shouldn't happen
   if (!CalleeFuncType->isVarArg())
-    assert(CS.arg_size() == NumFixedArgs &&
+    assert(CS.arg_size() == static_cast<unsigned>(NumFixedArgs) &&
         "Too many arguments/incorrect function signature!");
 
   std::vector<DSNodeHandle> Args;

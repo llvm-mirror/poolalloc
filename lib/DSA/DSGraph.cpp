@@ -524,7 +524,7 @@ DSCallSite DSGraph::getDSCallSiteForCallSite(CallSite CS) const {
   //are var-arg and which are fixed.  Apparently we can't assume this, but I'm not sure
   //of a better way.  For now, this assumption is known limitation.
   const FunctionType *CalleeFuncType = DSCallSite::FunctionTypeOfCallSite(CS);
-  unsigned NumFixedArgs = CalleeFuncType->getNumParams();
+  int NumFixedArgs = CalleeFuncType->getNumParams();
 
   std::vector<DSNodeHandle> Args;
   Args.reserve(CS.arg_end()-CS.arg_begin());
