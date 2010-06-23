@@ -9,6 +9,11 @@
 //
 // This implements the various pool allocation heuristics.
 //
+// FIXME: It seems that the old alignment heuristics contained in this file
+//        were designed for 32-bit x86 processors (which makes sense as
+//        poolalloc was developed before x86-64).  We need to revisit this
+//        code and decide what the heuristics should do today.
+//
 //===----------------------------------------------------------------------===//
 
 #include "Heuristic.h"
@@ -55,17 +60,60 @@ namespace {
 
 Heuristic::~Heuristic() {}
 
+//
+// Function: getRecommendedSize()
+//
+// Description:
+//  Determine the recommended allocation size for objects represented by this
+//  DSNode.  This is used to determine the size of objects allocated by
+//  poolalloc().
+//
+// Inputs:
+//  N - The DSNode representing the objects whose recommended size the caller
+//      wants.
+//
+// Return value:
+//  The size, in bytes, that should be used in allocating most objects
+//  represented by this DSNode.
+//
 unsigned Heuristic::getRecommendedSize(const DSNode *N) {
   unsigned PoolSize = 0;
-  //FIXME: types
-//  if (!N->isArray() && N->getType()->isSized()) {
-//    PoolSize = N->getParentGraph()->getTargetData().getTypeAllocSize(N->getType());
-//  }
+
+  //
+  // If the DSNode only represents singleton objects (i.e., not arrays), then
+  // find the size of the singleton object.
+  //
+  if (!N->isArrayNode()) {
+    PoolSize = N->getSize();
+  }
+
+  //
+  // If the object size is 1, just say that it's zero.  The run-time will
+  // figure out how to deal with it.
+  //
   if (PoolSize == 1) PoolSize = 0;
   return PoolSize;
 }
 
-/// Wants8ByteAlignment - FIXME: this is a complete hack for X86 right now.
+//
+// Function: Wants8ByteAlignment ()
+//
+// Description:
+//  Determine if an object of the specified type should be allocated on an
+//  8-byte boundary.  This may either be required by the target platform or may
+//  merely improved performance by aligning data the way the processor wants
+//  it.
+//
+// Return value:
+//  true - This type should be allocated on an 8-byte boundary.
+//  false - This type does not need to be allocated on an 8-byte boundary.
+//
+// Notes:
+//  FIXME: This is a complete hack for X86 right now.
+//  FIXME: This code needs to be updated for x86-64.
+//  FIXME: This code needs to handle LLVM first-class structures and vectors.
+//  FIXME: What does Offs do?
+//
 static bool Wants8ByteAlignment(const Type *Ty, unsigned Offs,
                                 const TargetData &TD) {
   if (DisableAlignOpt) return true;
