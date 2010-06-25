@@ -92,7 +92,7 @@ namespace PA {
 
     // Reverse mapping for PoolDescriptors, needed by TPPA
     // FIXME: There can be multiple DSNodes mapped to a single pool descriptor
-    std::map<Value*, const DSNode*> ReversePoolDescriptors;
+    std::multimap<Value*, const DSNode*> ReversePoolDescriptors;
 
     // This is a hack -- a function should be added which maintains these in parallel
     // and all of PoolAlloc and SafeCode should be updated to use it instead of adding
@@ -105,7 +105,7 @@ namespace PA {
     	rev_pool_desc_map_computed = true;
 
     	for(std::map<const DSNode*, Value*>::iterator i = PoolDescriptors.begin(); i!=PoolDescriptors.end(); i++)
-    		ReversePoolDescriptors[i->second] = i->first;
+    		ReversePoolDescriptors.insert(std::pair<Value*,const DSNode*>(i->second,i->first));
     }
 
     /// This is a map from Old to New Values (the reverse of NewToOldValueMap).
