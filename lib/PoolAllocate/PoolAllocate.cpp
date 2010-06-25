@@ -402,6 +402,10 @@ MarkNodesWhichMustBePassedIn (DenseSet<const DSNode*> &MarkedNodes,
   //
   // Scan through all of the function's arguments.  If they have an associated
   // DSNode, then we need to pass the argument's pool handle into the function.
+  // The only exception is for byval arguments.  These may have a DSNode, but
+  // they are allocated magically by the code generator; the caller has no
+  // pool for them.
+  //
   // We also need to pass in pools for any value that is reachable via a
   // function argument.
   //
@@ -411,13 +415,33 @@ MarkNodesWhichMustBePassedIn (DenseSet<const DSNode*> &MarkedNodes,
   // FIXME: This needs to handle varargs properly.
   //
   if (F.getName() != "main") {
-    // All DSNodes reachable from arguments must be passed in.
+    //
+    // Scan through all of the argument of this function.
+    //
     for (Function::arg_iterator I = F.arg_begin(), E = F.arg_end();
          I != E; ++I) {
+      //
+      // All DSNodes reachable from arguments must be passed in.
+      //
       DSGraph::ScalarMapTy::iterator AI = G->getScalarMap().find(I);
-      if (AI != G->getScalarMap().end())
-        if (DSNode *N = AI->second.getNode())
+      if (AI != G->getScalarMap().end()) {
+        if (DSNode *N = AI->second.getNode()) {
+          //
+          // Add all nodes reachable from this parameter into our set of nodes
+          // needing pools.
+          //
           N->markReachableNodes(MarkedNodes);
+
+          //
+          // If this is a byval argument, then we don't want to add it to the
+          // list of nodes that need an outside pool. However, anything
+          // reachable from the byval argument should have its pool passed in.
+          // So, we'll just remove the DSNode of the argument if it is marked
+          // byval.
+          //
+          if (I->hasByValAttr()) MarkedNodes.erase (N);
+        }
+      }
     }
   }
 
