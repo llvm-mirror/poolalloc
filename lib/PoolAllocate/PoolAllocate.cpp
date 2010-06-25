@@ -114,6 +114,8 @@ bool PoolAllocate::runOnModule(Module &M) {
   // DSA.  For Automatic Pool Allocation only, we need Bottom-Up DSA.  In all
   // cases, we need to use the Equivalence-Class version of DSA.
   //
+  // FIXME: Is the PASS_DEFAULT value used?
+  //
   if (dsa_pass_to_use == PASS_EQTD)
     Graphs = &getAnalysis<EQTDDataStructures>();    
   else
@@ -145,6 +147,7 @@ bool PoolAllocate::runOnModule(Module &M) {
   // arguments, make its clone.
   //
   // FIXME: Can the code below invalidate the function iterator?
+  // FIXME: Should use a isClone() method.
   //
   std::set<Function*> ClonedFunctions;
   for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I)
@@ -156,7 +159,9 @@ bool PoolAllocate::runOnModule(Module &M) {
       }
   
   // Now that all call targets are available, rewrite the function bodies of the
-  // clones.
+  // clones or the original function (if the original has no clone).
+  //
+  // FIXME: Use utility methods to make this code more readable!
   for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I)
     if (!I->isDeclaration() && !ClonedFunctions.count(I) &&
         Graphs->hasDSGraph(*I)) {
@@ -400,8 +405,10 @@ MarkNodesWhichMustBePassedIn (DenseSet<const DSNode*> &MarkedNodes,
   // We also need to pass in pools for any value that is reachable via a
   // function argument.
   //
-  // Of course, skip this is this function is the main() function.  We can't
+  // Of course, skip this if this function is the main() function.  We can't
   // really add pools to main().  :)
+  //
+  // FIXME: This needs to handle varargs properly.
   //
   if (F.getName() != "main") {
     // All DSNodes reachable from arguments must be passed in.
@@ -437,6 +444,8 @@ MarkNodesWhichMustBePassedIn (DenseSet<const DSNode*> &MarkedNodes,
   // FIXME:
   //  1) PassAllArguments seems to be ignored here.  Why is that?
   //  2) Why is the heap node check part of the PassAllArguments check?
+  //  3) SAFECode probably needs to pass the pool even if it's not a heap node.
+  //     We should probably just do what the heuristic tells us to do.
   //
   for (DenseSet<const DSNode*>::iterator I = MarkedNodes.begin(),
          E = MarkedNodes.end(); I != E; ) {
@@ -575,10 +584,16 @@ Function *PoolAllocate::MakeFunctionClone(Function &F) {
   return FI.Clone = New;
 }
 
+//
+// FIXME: Update comment
+//
+// FIXME: Global pools should probably be initialized by a global ctor instead of by
+//        main().
+//
 // SetupGlobalPools - Create global pools for all DSNodes in the globals graph
 // which contain heap objects.  If a global variable points to a piece of memory
 // allocated from the heap, this pool gets a global lifetime.  This is
-// implemented by making the pool descriptor be a global variable of it's own,
+// implemented by making the pool descriptor be a global variable of its own,
 // and initializing the pool on entrance to main.  Note that we never destroy
 // the pool, because it has global lifetime.
 //
@@ -599,6 +614,10 @@ bool PoolAllocate::SetupGlobalPools(Module &M) {
          E = GlobalHeapNodes.end(); I != E; ) {
     DenseSet<const DSNode*>::iterator Last = I; ++I;
 
+    //
+    // FIXME: If the PoolAllocateAllGlobalNodes option is selected for the heuristic,
+    //        then we should make global pools for heap and non-heap DSNodes.
+    //
 #if 0
     //
     // FIXME:
@@ -632,7 +651,7 @@ bool PoolAllocate::SetupGlobalPools(Module &M) {
 
   //std::vector<const DSNode*> NodesToPA(GlobalHeapNodes.begin(),
   //                                     GlobalHeapNodes.end());
-  //DenseSet Doesn't have polite iterators
+  //FIXME: Explain in more detail: DenseSet Doesn't have polite iterators
   std::vector<const DSNode*> NodesToPA;
   for (DenseSet<const DSNode*>::iterator ii = GlobalHeapNodes.begin(),
          ee = GlobalHeapNodes.end(); ii != ee; ++ii)

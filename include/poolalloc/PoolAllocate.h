@@ -53,11 +53,18 @@ namespace PA {
   /// case, the Clone and NewToOldValueMap information identify how the clone
   /// maps to the original function...
   ///
+  /// FIXME: This structure should implement information hiding.  There should
+  ///        be some information hiding.  The design may depend on how we change
+  ///        the way in which clients interface with pool allocation analysis
+  ///        results.
+  ///
   struct FuncInfo {
     FuncInfo(Function &f) : F(f), Clone(0), rev_pool_desc_map_computed(false) {}
 
     /// MarkedNodes - The set of nodes which are not locally pool allocatable in
     /// the current function.
+    ///
+    /// FIXME: This field has a non-descriptive name.
     ///
     DenseSet<const DSNode*> MarkedNodes;
 
@@ -83,12 +90,13 @@ namespace PA {
     /// function.
     std::map<const DSNode*, Value*> PoolDescriptors;
 
-    //Reverse mapping for PoolDescriptors, needed by TPPA
+    // Reverse mapping for PoolDescriptors, needed by TPPA
+    // FIXME: There can be multiple DSNodes mapped to a single pool descriptor
     std::map<Value*, const DSNode*> ReversePoolDescriptors;
 
-    //This is a hack -- a function should be added which maintains these in parallel
-    //and all of PoolAlloc and SafeCode should be updated to use it instead of adding
-    //to either map directly.
+    // This is a hack -- a function should be added which maintains these in parallel
+    // and all of PoolAlloc and SafeCode should be updated to use it instead of adding
+    // to either map directly.
     bool rev_pool_desc_map_computed;
     void calculate_reverse_pool_descriptors()
     {
@@ -102,6 +110,8 @@ namespace PA {
 
     /// This is a map from Old to New Values (the reverse of NewToOldValueMap).
     /// SAFECode uses this for check insertion.
+    /// FIXME: Does SAFECode still use this?  Should a single class handle this map and the
+    /// NewToOldValue Map?
     std::map<const Value*, Value*> ValueMap;
 
     /// NewToOldValueMap - When and if a function needs to be cloned, this map
@@ -133,12 +143,17 @@ protected:
 
 public:
   static char ID;
+  // FIXME: Some of these things should not be public.
   Constant *PoolRegister;
+
+  // FIXME: We want to remove SAFECode specified flags.
   bool SAFECodeEnabled;
   bool BoundsChecksEnabled;
 
   enum LIE_TYPE {LIE_NONE, LIE_PRESERVE_DSA, LIE_PRESERVE_ALL, LIE_PRESERVE_DEFAULT};
+  // FIXME: Try to minimize lying
   LIE_TYPE lie_preserve_passes;
+  // FIXME: Let clients choose which DSA pass is used by scheduling it ahead of time.
   enum PASS_TYPE {PASS_EQTD, PASS_BUEQ, PASS_DEFAULT};
   PASS_TYPE dsa_pass_to_use;
 
@@ -150,6 +165,7 @@ public:
   virtual PA::FuncInfo *getFuncInfoOrClone(const Function &F) {return 0;}
   virtual Function *getOrigFunctionFromClone(const Function *F) const {return 0;}
 
+  // FIXME: Clients should be able to specialize pool descriptor type
   virtual const Type * getPoolType(LLVMContext*) {return 0;}
 
   virtual bool hasDSGraph (const Function & F) const {
@@ -164,7 +180,11 @@ public:
     return Graphs->getGlobalsGraph ();
   }
 
-  /* Return value is of type PoolDescPtrTy */
+  // Return value is of type PoolDescPtrTy
+  // FIXME: Do we need to have a getGlobalPool() for clients?
+  // FIXME: Can we infer the function?  Possibly not since we want to distinguish between
+  //        pools in clones and pools in original function.
+  // FIXME: We want something like getPool (Value *) if possible.
   virtual Value * getPool (const DSNode * N, Function & F) {return 0;}
 
   virtual Value * getGlobalPool (const DSNode * Node) {return 0;}
@@ -181,8 +201,11 @@ class PoolAllocate : public PoolAllocateGroup {
   bool PassAllArguments;
 
   Module *CurModule;
+
+  // FIXME: Where is this used?  Why isn't DSCallGraph used directly?
   CallTargetFinder* CTF;
   
+  // Map a cloned function to its original function
   std::map<const Function*, Function*> CloneToOrigMap;
 public:
 
@@ -243,6 +266,7 @@ protected:
   
   virtual void getAnalysisUsage(AnalysisUsage &AU) const;
   
+  // FIXME: This method is misnamed.
   DataStructures &getGraphs() const { return *Graphs; }
 
   /// getOrigFunctionFromClone - Given a pointer to a function that was cloned
@@ -252,6 +276,8 @@ protected:
     std::map<const Function*, Function*>::const_iterator I = CloneToOrigMap.find(F);
     return I != CloneToOrigMap.end() ? I->second : 0;
   }
+
+  // FIXME: add isClone()
 
   /// getFuncInfo - Return the FuncInfo object for the specified function.
   ///
@@ -291,6 +317,7 @@ protected:
                                    Instruction *IPHint = 0);
 
   /// getPoolType - Return the type of a pool descriptor
+  /// FIXME: These constants should be chosen by the client
   const Type * getPoolType(LLVMContext* C) {
     const IntegerType * IT = IntegerType::getInt8Ty(*C);
     Type * VoidPtrType = PointerType::getUnqual(IT);
@@ -326,7 +353,7 @@ protected:
   //
   virtual Value * getPool (const DSNode * N, Function & F) {
     //
-    // Grab the structure containg information about the function and its
+    // Grab the structure containing information about the function and its
     // clones.
     //
     PA::FuncInfo * FI = getFuncInfoOrClone (F);
@@ -519,6 +546,7 @@ public:
 /// It requires some work on code clean up to make these two pass integrate
 /// nicely.
 
+// FIXME: Is this used?  Should it be removed?
 class PoolAllocateMultipleGlobalPool : public PoolAllocate {
   TargetData * TD;
   void ProcessFunctionBodySimple(Function& F, TargetData & TD);
