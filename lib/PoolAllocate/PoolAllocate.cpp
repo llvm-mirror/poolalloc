@@ -573,29 +573,46 @@ Function *PoolAllocate::MakeFunctionClone(Function &F) {
   CloneFunctionInto(New, &F, ValueMap, Returns);
 
   //
-  // The CloneFunctionInto() function will copy the parameter attributes
-  // almost correctly.  However, it will set attributes incorrectly on the new
-  // pool descriptor arguments.  Go through and strip away the attributes on
-  // the pool descriptor arguments.
-  //
-  Function::ArgumentListType & ArgList = New->getArgumentList ();
-  Function::ArgumentListType::iterator arg = ArgList.begin();
-  for (; arg != ArgList.end(); ++arg) {
-    if (arg->getType() == PoolDescPtrTy) {
-      arg->removeAttr (Attribute::ByVal     |
-                       Attribute::Nest      |
-                       Attribute::StructRet |
-                       Attribute::NoCapture);
-    }
-  }
-
-  //
   // Invert the ValueMap into the NewToOldValueMap.
   //
   std::map<Value*, const Value*> &NewToOldValueMap = FI.NewToOldValueMap;
   for (DenseMap<const Value*, Value*>::iterator I = ValueMap.begin(),
          E = ValueMap.end(); I != E; ++I)
     NewToOldValueMap.insert(std::make_pair(I->second, I->first));
+
+  //
+  // The cloned function will have its function attributes set more or less
+  // correctly at this point.  However, it will not have its parameter
+  // attributes set correctly.  We need to go through each argument in the
+  // old function and copy the parameter attributes over correctly.
+  //
+
+  //
+  // Begin by clearing out all function parameter attributes.
+  //
+  Function::ArgumentListType & ArgList = New->getArgumentList ();
+  Function::ArgumentListType::iterator arg = ArgList.begin();
+  for (; arg != ArgList.end(); ++arg) {
+    arg->removeAttr (Attribute::ParameterOnly);
+    arg->removeAttr (Attribute::NoAlias);
+  }
+
+  //
+  // Copy over the attributes from the old parameters to the new parameters.
+  //
+  Function::ArgumentListType & OldArgList = F.getArgumentList ();
+  arg = OldArgList.begin();
+  for (; arg != OldArgList.end(); ++arg) {
+    Argument * newArg = dyn_cast<Argument>(ValueMap[arg]);
+    assert (newArg && "Value Map for arguments incorrect!\n");
+
+    if (arg->hasByValAttr ())     newArg->addAttr (Attribute::ByVal);
+    if (arg->hasNestAttr ())      newArg->addAttr (Attribute::Nest);
+    if (arg->hasNoAliasAttr ())   newArg->addAttr (Attribute::NoAlias); 
+    if (arg->hasNoCaptureAttr ()) newArg->addAttr (Attribute::NoCapture); 
+    if (arg->hasStructRetAttr ()) newArg->addAttr (Attribute::StructRet); 
+  }
+
   return FI.Clone = New;
 }
 
