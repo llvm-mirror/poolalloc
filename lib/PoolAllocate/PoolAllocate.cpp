@@ -12,6 +12,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <iostream>
+
 #define DEBUG_TYPE "poolalloc"
 
 #include "dsa/DataStructure.h"
@@ -572,30 +574,19 @@ Function *PoolAllocate::MakeFunctionClone(Function &F) {
 
   //
   // The CloneFunctionInto() function will copy the parameter attributes
-  // verbatim.  This is incorrect; each attribute should be shifted one so
-  // that the pool descriptor has no attributes.
+  // almost correctly.  However, it will set attributes incorrectly on the new
+  // pool descriptor arguments.  Go through and strip away the attributes on
+  // the pool descriptor arguments.
   //
-  // FIXME: I believe the code below assumes that we've only added one pool
-  //        handle.  We actually add one pool handle per incoming argument
-  //        that needs a pool handle.
-  //
-  const AttrListPtr OldAttrs = New->getAttributes();
-  if (!OldAttrs.isEmpty()) {
-    AttrListPtr NewAttrsVector;
-    for (unsigned index = 0; index < OldAttrs.getNumSlots(); ++index) {
-      const AttributeWithIndex & PAWI = OldAttrs.getSlot(index);
-      unsigned argIndex = PAWI.Index;
-
-      // If it's not the return value, move the attribute to the next
-      // parameter.
-      if (argIndex) ++argIndex;
-
-      // Add the parameter to the new list.
-      NewAttrsVector.addAttr(argIndex, PAWI.Attrs);
+  Function::ArgumentListType & ArgList = New->getArgumentList ();
+  Function::ArgumentListType::iterator arg = ArgList.begin();
+  for (; arg != ArgList.end(); ++arg) {
+    if (arg->getType() == PoolDescPtrTy) {
+      arg->removeAttr (Attribute::ByVal     |
+                       Attribute::Nest      |
+                       Attribute::StructRet |
+                       Attribute::NoCapture);
     }
-
-    // Assign the new attributes to the function clone
-    New->setAttributes (NewAttrsVector);
   }
 
   //
