@@ -101,8 +101,15 @@ unsigned Heuristic::getRecommendedSize(const DSNode *N) {
 // Description:
 //  Determine if an object of the specified type should be allocated on an
 //  8-byte boundary.  This may either be required by the target platform or may
-//  merely improved performance by aligning data the way the processor wants
+//  merely improve performance by aligning data the way the processor wants
 //  it.
+//
+// Inputs:
+//  Ty   - The type of the object for which alignment should be tested.
+//  Offs - The offset of the type within a derived type (e.g., a structure).
+//         We will try to align a structure on an 8 byte boundary if one of its
+//         elements can/needs to be.
+//  TD   - A reference to the TargetData pass.
 //
 // Return value:
 //  true - This type should be allocated on an 8-byte boundary.
@@ -112,36 +119,47 @@ unsigned Heuristic::getRecommendedSize(const DSNode *N) {
 //  FIXME: This is a complete hack for X86 right now.
 //  FIXME: This code needs to be updated for x86-64.
 //  FIXME: This code needs to handle LLVM first-class structures and vectors.
-//  FIXME: What does Offs do?
 //
-static bool Wants8ByteAlignment(const Type *Ty, unsigned Offs,
-                                const TargetData &TD) {
+static bool
+Wants8ByteAlignment(const Type *Ty, unsigned Offs, const TargetData &TD) {
+  //
+  // If the user has requested this optimization to be turned off, don't bother
+  // doing it.
+  //
   if (DisableAlignOpt) return true;
 
+  //
+  // If this type is at an align-able offset within its larger data structure,
+  // see if we should 8 byte align it.
+  //
   if ((Offs & 7) == 0) {
     //
-    // Note:
-    //  The LLVM API has changed, and I do not know how to tell if a type is
-    //  is a double integer.  Furthermore, the alignment of a double to 8 bits
-    //  appears to be a hack, and it is not clear as to why.  Therefore, we
-    //  will simply align all floating point types on an 8 bit boundary.
+    // Doubles always want to be 8-byte aligned regardless of what TargetData
+    // claims.
     //
-#if 0
-    // Doubles always want to be 8-byte aligned.
-    if (Ty == Type::DoubleTy) return true;
-#else
-    if (Ty->isFloatingPointTy()) return true;
-#endif
-    
+    if (Ty->isDoubleTy()) return true;
+
+    //
     // If we are on a 64-bit system, we want to align 8-byte integers and
     // pointers.
+    //
     if (TD.getPrefTypeAlignment(Ty) == 8)
       return true;
   }
 
+  //
+  // If this is a first-class data type, but it is located at an offset within
+  // a structure that cannot be 8-byte aligned, then we cannot ever guarantee
+  // to 8-byte align it.  Therefore, do not try to force it to 8-byte
+  // alignment.
   if (Ty->isFirstClassType())
     return false;
 
+  //
+  // If this is a structure or array type, check if any of its elements at
+  // 8-byte alignment desire to have 8-byte alignment.  If so, then the entire
+  // object wants 8-byte alignment.
+  //
   if (const StructType *STy = dyn_cast<StructType>(Ty)) {
     const StructLayout *SL = TD.getStructLayout(STy);
     for (unsigned i = 0, e = STy->getNumElements(); i != e; ++i) {
@@ -155,6 +173,7 @@ static bool Wants8ByteAlignment(const Type *Ty, unsigned Offs,
     errs() << *Ty << "\n";
     assert(0 && "Unknown type!");
   }
+
   return false;
 }
 
@@ -166,35 +185,49 @@ unsigned Heuristic::getRecommendedAlignment(const Type *Ty,
   return Wants8ByteAlignment(Ty, 0, TD) ? 8 : 4;
 }
 
+///
 /// getRecommendedAlignment - Return the recommended object alignment for this
 /// DSNode.
 ///
-unsigned Heuristic::getRecommendedAlignment(const DSNode *N) {
-#if 0
-  const Type * VoidType = Type::getVoidTy(getGlobalContext());
+/// @Node - The DSNode for which allocation alignment information is requested.
+///
+/// FIXME: This method assumes an object wants 4-byte or 8-byte alignment.  The
+///        new types in LLVM may want larger alignments such as 16-byte
+///        alignment.  Need to update this code to handle that.
+///
+unsigned
+Heuristic::getRecommendedAlignment(const DSNode *Node) {
+  //
+  // Get the TargetData information from the DSNode's DSGraph.
+  //
+  const TargetData &TD = Node->getParentGraph()->getTargetData();
 
   //
-  // If this node has a void type (which can be signified by getType()
-  // returning NULL) or the node is collapsed, then there is no known
-  // alignment.  We will return 0 to let the runtime decide.
+  // Iterate through all the types that the DSA type-inference algorithm
+  // found and determine if any of them should be 8-byte aligned.  If so, then
+  // we'll 8-byte align the entire structure.
   //
-  if ((!(N->getType())) || (N->getType() == VoidType))
-    return 0;
+  DSNode::const_type_iterator tyi;
+  for (tyi = Node->type_begin(); tyi != Node->type_end(); ++tyi) {
+    for (svset<const Type*>::const_iterator tyii = tyi->second->begin(),
+         tyee = tyi->second->end(); tyii != tyee; ++tyii) {
+      //
+      // Get the type of object allocated.  If there is no type, then it is
+      // implicitly of void type.
+      //
+      const Type * TypeCreated = *tyii;
+      if (TypeCreated) {
+        //
+        // If the type contains a pointer, it must be changed.
+        //
+        if (Wants8ByteAlignment(TypeCreated, tyi->first, TD)) {
+          return 8;
+        }
+      }
+    }
+  }
 
-  const TargetData &TD = N->getParentGraph()->getTargetData();
-
-  // If there are no doubles on an 8-byte boundary in this structure, there is
-  // no reason to 8-byte align objects in the pool.
-  return Wants8ByteAlignment(N->getType(), 0, TD) ? 8 : 4;
-#else
-  //
-  // I believe there was a FIXME in the previous version of this code, but it
-  // was too vague for me to understand what, exactly, needed to be fixed.
-  //
-  // In any event, it seems that this code should be deactivated for now.
-  //
-  return 0;
-#endif
+  return 4;
 }
  
 
