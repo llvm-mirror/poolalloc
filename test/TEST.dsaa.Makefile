@@ -15,6 +15,9 @@ RELDIR  := $(subst $(PROGDIR),,$(CURDIR))
 #PADIR   := /home/andrewl/Research/llvm/projects/poolalloc
 PADIR   := $(LLVM_OBJ_ROOT)/projects/poolalloc
 
+# Watchdog utility
+WATCHDOG := $(LLVM_OBJ_ROOT)/projects/poolalloc/$(CONFIGURATION)/bin/watchdog
+
 # Bits of runtime to improve analysis
 PA_PRE_RT := $(PADIR)/$(CONFIGURATION)/lib/libpa_pre_rt.bca
 
@@ -22,14 +25,17 @@ PA_PRE_RT := $(PADIR)/$(CONFIGURATION)/lib/libpa_pre_rt.bca
 DSA_SO   := $(PADIR)/$(CONFIGURATION)/lib/libLLVMDataStructure$(SHLIBEXT)
 
 # Command to run opt with the ds-aa pass loaded
-OPT_PA := $(LOPT) -load $(DSA_SO)
+OPT_PA := $(WATCHDOG) $(LOPT) -load $(DSA_SO)
 
 # OPT_PA_STATS - Run opt with the -stats and -time-passes options, capturing the
 # output to a file.
 OPT_PA_STATS = $(OPT_PA) -info-output-file=$(CURDIR)/$@.info -stats -time-passes
 
 #All llvm 2.7 -O3 passes
-OPTZN_PASSES := -preverify -domtree -verify -lowersetjmp -globalopt -ipsccp -deadargelim -instcombine -simplifycfg -basiccg -prune-eh -inline -functionattrs -argpromotion -domtree -domfrontier -scalarrepl -simplify-libcalls -instcombine -jump-threading -simplifycfg -instcombine -tailcallelim -simplifycfg -reassociate -domtree -loops -loopsimplify -domfrontier -loopsimplify -lcssa -loop-rotate -licm -lcssa -loop-unswitch -instcombine -scalar-evolution -loopsimplify -lcssa -iv-users -indvars -loop-deletion -loopsimplify -lcssa -loop-unroll -instcombine -memdep -gvn -memdep -memcpyopt -sccp -instcombine -jump-threading -domtree -memdep -dse -adce -simplifycfg -strip-dead-prototypes -print-used-types -deadtypeelim -globaldce -constmerge -preverify -domtree -verify
+#OPTZN_PASSES := -preverify -domtree -verify -lowersetjmp -globalopt -ipsccp -deadargelim -instcombine -simplifycfg -basiccg -prune-eh -inline -functionattrs -argpromotion -domtree -domfrontier -scalarrepl -simplify-libcalls -instcombine -jump-threading -simplifycfg -instcombine -tailcallelim -simplifycfg -reassociate -domtree -loops -loopsimplify -domfrontier -loopsimplify -lcssa -loop-rotate -licm -lcssa -loop-unswitch -instcombine -scalar-evolution -loopsimplify -lcssa -iv-users -indvars -loop-deletion -loopsimplify -lcssa -loop-unroll -instcombine -memdep -gvn -memdep -memcpyopt -sccp -instcombine -jump-threading -domtree -memdep -dse -adce -simplifycfg -strip-dead-prototypes -print-used-types -deadtypeelim -globaldce -constmerge -preverify -domtree -verify
+
+#Subset of -O3 passes to work around bugs
+OPTZN_PASSES := -preverify -domtree -verify -lowersetjmp -globalopt -ipsccp -deadargelim -instcombine -simplifycfg -basiccg -prune-eh -inline -functionattrs -argpromotion -domtree -domfrontier -scalarrepl -simplify-libcalls -instcombine -jump-threading -simplifycfg -instcombine -tailcallelim -simplifycfg -reassociate -domtree -loops -loopsimplify -domfrontier -loopsimplify -lcssa -loop-rotate -lcssa -loop-unswitch -instcombine -scalar-evolution -loopsimplify -lcssa -iv-users -indvars -loop-deletion -loopsimplify -lcssa -loop-unroll -instcombine -memdep -gvn -memdep -memcpyopt -sccp -instcombine -jump-threading -domtree -adce -simplifycfg -strip-dead-prototypes -print-used-types -deadtypeelim -globaldce -constmerge -preverify -domtree -verify
 
 #-ds-aa -opt1 -ds-aa -opt2, etc
 #this forces each pass to use -ds-aa as it's AA if it would use one
@@ -57,7 +63,7 @@ Output/%.llvmopt.bc: Output/%.base.bc $(PA_SO) $(LOPT)
 $(PROGRAMS_TO_TEST:%=Output/%.dsaopt.bc): \
 Output/%.dsaopt.bc: Output/%.base.bc $(LOPT)
 	-@rm -f $(CURDIR)/$@.info
-	-$(OPT_PA_STATS) $(AA_OPT) $< -o $@ -f 2>&1 > $@.out
+	-$(OPT_PA_STATS) $(AA_OPT) -debug-pass=Executions $< -o $@ -f 2>&1 > $@.out
 
 # This rule compiles the new .bc file into a .s file
 Output/%.s: Output/%.bc $(LLC)
