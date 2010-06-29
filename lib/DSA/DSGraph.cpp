@@ -1160,9 +1160,28 @@ void DSGraph::AssertGraphOK() const {
 /// graph may have multiple nodes representing one node in the second graph),
 /// but it will not work if there is a one-to-many or many-to-many mapping.
 ///
+/// Inputs:
+///   @NH1            - The first root value for which a node mapping is
+///                     desired.  This value can have a NULL DSNode.
+///   @NH2            - The second root value for which a node mapping is
+///                     desired.  This value can have a NULL DSNode.
+///   @StrictChecking - Flags whether strict sanity checks should be enforced.
+///
+/// Outputs:
+///   @NodeMap - A mapping of DSNodes to DSNode handles providing the node
+///              mapping desired by the caller.
+///
+/// Notes:
+///   FIXME: Why was StrictChecking not passed in the recursive calls?
+///   FIXME: Why isn't StrictChecking always desired?
+///
 void DSGraph::computeNodeMapping(const DSNodeHandle &NH1,
                                  const DSNodeHandle &NH2, NodeMapTy &NodeMap,
                                  bool StrictChecking) {
+  //
+  // Get the DSNodes associated with the root values.  If either one of them is
+  // NULL, then we are done.
+  //
   DSNode *N1 = NH1.getNode(), *N2 = NH2.getNode();
   if (N1 == 0 || N2 == 0) return;
 
@@ -1192,10 +1211,10 @@ void DSGraph::computeNodeMapping(const DSNodeHandle &NH1,
     // aligned right).
     if (!N1NH.isNull()) {
       if (unsigned(N2Idx)+i < N2Size)
-        computeNodeMapping(N1NH, N2->getLink(N2Idx+i), NodeMap);
+        computeNodeMapping(N1NH, N2->getLink(N2Idx+i), NodeMap, StrictChecking);
       else
         computeNodeMapping(N1NH,
-                           N2->getLink(unsigned(N2Idx+i) % N2Size), NodeMap);
+                           N2->getLink(unsigned(N2Idx+i) % N2Size), NodeMap, StrictChecking);
     }
   }
 }
