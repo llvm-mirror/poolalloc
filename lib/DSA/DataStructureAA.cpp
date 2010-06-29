@@ -35,10 +35,12 @@ namespace {
     // information is also freed.
     CallSite MapCS;
     std::multimap<DSNode*, const DSNode*> CallerCalleeMap;
+    bool valid;
   public:
     static char ID;
-    DSAA() : ModulePass((intptr_t)&ID), TD(0) {}
+    DSAA() : ModulePass((intptr_t)&ID), TD(NULL), BU(NULL), valid(false) {}
     ~DSAA() {
+      valid = false;
       InvalidateCache();
     }
 
@@ -58,7 +60,18 @@ namespace {
       InitializeAliasAnalysis(this);
       TD = &getAnalysis<TDDataStructures>();
       BU = &getAnalysis<BUDataStructures>();
+      //FIXME: Is this not a safe assumption?
+      //assert(!valid && "DSAA executed twice without being invalidated?");
+      valid = true;
       return false;
+    }
+
+
+    void releaseMemory() {
+      valid = false;
+      TD = NULL;
+      BU = NULL;
+      InvalidateCache();
     }
 
     virtual void getAnalysisUsage(AnalysisUsage &AU) const {
@@ -91,12 +104,14 @@ namespace {
     }
 
     virtual void deleteValue(Value *V) {
+      assert(valid && "DSAA invalidated but then queried?!");
       InvalidateCache();
       BU->deleteValue(V);
       TD->deleteValue(V);
     }
 
     virtual void copyValue(Value *From, Value *To) {
+      assert(valid && "DSAA invalidated but then queried?!");
       if (From == To) return;
       InvalidateCache();
       BU->copyValue(From, To);
@@ -133,6 +148,7 @@ DSGraph *DSAA::getGraphForValue(const Value *V) {
 
 AliasAnalysis::AliasResult DSAA::alias(const Value *V1, unsigned V1Size,
                                        const Value *V2, unsigned V2Size) {
+  assert(valid && "DSAA invalidated but then queried?!");
   if (V1 == V2) return MustAlias;
 
   DSGraph *G1 = getGraphForValue(V1);
@@ -183,6 +199,7 @@ AliasAnalysis::AliasResult DSAA::alias(const Value *V1, unsigned V1Size,
 ///
 AliasAnalysis::ModRefResult
 DSAA::getModRefInfo(CallSite CS, Value *P, unsigned Size) {
+  assert(valid && "DSAA invalidated but then queried?!");
   DSNode *N = 0;
   // First step, check our cache.
   if (CS.getInstruction() == MapCS.getInstruction()) {
