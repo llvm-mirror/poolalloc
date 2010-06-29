@@ -801,12 +801,18 @@ void FuncTransform::visitCallSite(CallSite& CS) {
     NewCallee = CastInst::CreatePointerCast(CS.getCalledValue(), PFTy, "tmp", TheCall);
   }
 
+  //
+  // FIXME: Why do we disable strict checking when calling the
+  //        DSGraph::computeNodeMapping() method?
+  //
   Function::const_arg_iterator FAI = CF->arg_begin(), E = CF->arg_end();
-  CallSite::arg_iterator AI = CS.arg_begin() + (thread_creation_point ? 3 : 0), AE = CS.arg_end();
+  CallSite::arg_iterator AI = CS.arg_begin() + (thread_creation_point ? 3 : 0);
+  CallSite::arg_iterator AE = CS.arg_end();
   for ( ; FAI != E && AI != AE; ++FAI, ++AI)
-    if (!isa<Constant>(*AI))
+    if (!isa<Constant>(*AI)) {
       DSGraph::computeNodeMapping(CalleeGraph->getNodeForValue(FAI),
                                   getDSNodeHFor(*AI), NodeMapping, false);
+    }
 
   //assert(AI == AE && "Varargs calls not handled yet!");
 
