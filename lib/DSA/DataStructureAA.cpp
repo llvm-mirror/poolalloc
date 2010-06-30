@@ -108,6 +108,7 @@ namespace {
       InvalidateCache();
       BU->deleteValue(V);
       TD->deleteValue(V);
+      AliasAnalysis::deleteValue(V);
     }
 
     virtual void copyValue(Value *From, Value *To) {
@@ -116,6 +117,7 @@ namespace {
       InvalidateCache();
       BU->copyValue(From, To);
       TD->copyValue(From, To);
+      AliasAnalysis::copyValue(From, To);
     }
 
   private:
