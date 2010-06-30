@@ -88,6 +88,8 @@ namespace PA {
     /// DSNode.  Note: This does not necessarily include pool arguments that are
     /// passed in because of indirect function calls that are not used in the
     /// function.
+    /// FIXME: This comment should clearly describe which pools are and are not
+    ///        in this data structure.
     std::map<const DSNode*, Value*> PoolDescriptors;
 
     // Reverse mapping for PoolDescriptors, needed by TPPA

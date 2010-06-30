@@ -216,6 +216,11 @@ bool PoolAllocate::runOnModule(Module &M) {
     }
   }
 
+  //
+  // FIXME: Make name more descriptive and explain, in a comment here, what this
+  //        code is trying to do (namely, avoid optimizations for performance
+  //        overhead measurements?).
+  //
   if (CurHeuristic->IsRealHeuristic())
     MicroOptimizePoolCalls();
 
@@ -350,6 +355,8 @@ OptimizePointerNotNull(Value *V, LLVMContext * Context) {
   }
 }
 
+/// FIXME: Should these be in the pooloptimize pass?
+///
 /// MicroOptimizePoolCalls - Apply any microoptimizations to calls to pool
 /// allocation function calls that we can.  This runs after the whole program
 /// has been transformed.
@@ -449,6 +456,7 @@ MarkNodesWhichMustBePassedIn (DenseSet<const DSNode*> &MarkedNodes,
 
   //
   // Mark the returned node as needing to be passed in.
+  // FIXME: We should not do this for main().
   //
   if (DSNode *RetNode = G->getReturnNodeFor(F).getNode())
     RetNode->markReachableNodes(MarkedNodes);
@@ -469,7 +477,7 @@ MarkNodesWhichMustBePassedIn (DenseSet<const DSNode*> &MarkedNodes,
   //
   // FIXME:
   //  1) PassAllArguments seems to be ignored here.  Why is that?
-  //  2) Why is the heap node check part of the PassAllArguments check?
+  //  2) Should the heap node check be part of the PassAllArguments check?
   //  3) SAFECode probably needs to pass the pool even if it's not a heap node.
   //     We should probably just do what the heuristic tells us to do.
   //
@@ -518,12 +526,15 @@ Function *PoolAllocate::MakeFunctionClone(Function &F) {
   if (G->node_begin() == G->node_end()) return 0;
     
   FuncInfo &FI = *getFuncInfo(F);
+
+  // No need to clone if no pools need to be passed in!
   if (FI.ArgNodes.empty())
-    return 0;           // No need to clone if no pools need to be passed in!
+    return 0;
 
   // Update statistics..
   NumArgsAdded += FI.ArgNodes.size();
-  if (MaxArgsAdded < FI.ArgNodes.size()) MaxArgsAdded = FI.ArgNodes.size();
+  if (MaxArgsAdded < FI.ArgNodes.size())
+    MaxArgsAdded = FI.ArgNodes.size();
   ++NumCloned;
  
   //
@@ -539,7 +550,12 @@ Function *PoolAllocate::MakeFunctionClone(Function &F) {
   // Create the new function prototype
   FunctionType *FuncTy = FunctionType::get(OldFuncTy->getReturnType(), ArgTys,
                                            OldFuncTy->isVarArg());
+
+  //
+  // FIXME: Can probably add new function to module during creation
+  //
   // Create the new function...
+  //
   Function *New = Function::Create(FuncTy, Function::InternalLinkage, F.getName());
   New->copyAttributesFrom(&F);
   F.getParent()->getFunctionList().insert(&F, New);
@@ -554,9 +570,15 @@ Function *PoolAllocate::MakeFunctionClone(Function &F) {
     PoolDescriptors[FI.ArgNodes[i]] = NI;
   }
 
+  //
   // Map the existing arguments of the old function to the corresponding
   // arguments of the new function, and copy over the names.
+  //
+  //
   DenseMap<const Value*, Value*> ValueMap;
+  // FIXME: Remove use of SAFECodeEnabled flag
+  // FIXME: Is FI.ValueMap empty?  We should put an assert to verify that it
+  //        is.
   if (SAFECodeEnabled)
     for (std::map<const Value*, Value*>::iterator I = FI.ValueMap.begin(),
            E = FI.ValueMap.end(); I != E; ++I)
@@ -580,6 +602,9 @@ Function *PoolAllocate::MakeFunctionClone(Function &F) {
          E = ValueMap.end(); I != E; ++I)
     NewToOldValueMap.insert(std::make_pair(I->second, I->first));
 
+  //
+  // FIXME: File a bug report for CloneFunctionInto; it should take care of
+  //        this mess for us.  Also check whether it does it correctly.
   //
   // The cloned function will have its function attributes set more or less
   // correctly at this point.  However, it will not have its parameter
@@ -619,8 +644,8 @@ Function *PoolAllocate::MakeFunctionClone(Function &F) {
 //
 // FIXME: Update comment
 //
-// FIXME: Global pools should probably be initialized by a global ctor instead of by
-//        main().
+// FIXME: Global pools should probably be initialized by a global ctor instead
+//        of by main().
 //
 // SetupGlobalPools - Create global pools for all DSNodes in the globals graph
 // which contain heap objects.  If a global variable points to a piece of memory
@@ -867,6 +892,10 @@ void PoolAllocate::ProcessFunctionBody(Function &F, Function &NewF) {
        I != E;
        ++I){
     //
+    // FIXME: Don't do SAFECode specific behavior here; follow the heuristic.
+    // FIXME: Are there nodes which don't have the heap flag localally but have
+    //        it set in the globals graph?
+    //
     // Only the following nodes are pool allocated:
     //  1) Heap nodes
     //  2) Array nodes when bounds checking is enabled.
@@ -874,7 +903,8 @@ void PoolAllocate::ProcessFunctionBody(Function &F, Function &NewF) {
     //
     DSNode *N = I;
     if ((N->isHeapNode()) || (BoundsChecksEnabled && (N->isArrayNode())) ||
-    	(GlobalsGraphNodeMapping.count(N) && GlobalsGraphNodeMapping[N].getNode()->isHeapNode())) {
+    	(GlobalsGraphNodeMapping.count(N) &&
+       GlobalsGraphNodeMapping[N].getNode()->isHeapNode())) {
       if (GlobalsGraphNodeMapping.count(N)) {
         // If it is a global pool, set up the pool descriptor appropriately.
         DSNode *GGN = GlobalsGraphNodeMapping[N].getNode();
