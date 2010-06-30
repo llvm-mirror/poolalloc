@@ -143,23 +143,49 @@ bool PoolAllocate::runOnModule(Module &M) {
   std::map<Function*, Function*> FuncMap;
 
   //
+  // Functions that require pool handles to be passed in as parameters will
+  // need to be cloned.  Scan through the set of all functions and record which
+  // ones need to be cloned.
+  //
+  // We record the list of functions to clone and then clone them to avoid
+  // iterator invalidation errors (creating a function clone adds a function to
+  // the set of functions in a Module).  This may be a little slower, but
+  // random memory errors are a pain to debug.
+  //
+  std::vector<Function *> FunctionsToClone;
+  for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I) {
+    if (!I->isDeclaration() && Graphs->hasDSGraph(*I)) {
+      FunctionsToClone.push_back (I);
+    }
+  }
+
+  //
   // Now clone a function using the pool arg list obtained in the previous
   // pass over the modules.  Loop over only the function initially in the
-  // program, don't traverse newly added ones.  If the function needs new
+  // program; don't traverse newly added ones.  If the function needs new
   // arguments, make its clone.
   //
-  // FIXME: Can the code below invalidate the function iterator?
   // FIXME: Should use a isClone() method.
   //
   std::set<Function*> ClonedFunctions;
-  for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I)
-    if (!I->isDeclaration() && !ClonedFunctions.count(I) &&
-        Graphs->hasDSGraph(*I))
-      if (Function *Clone = MakeFunctionClone(*I)) {
-        FuncMap[I] = Clone;
-        ClonedFunctions.insert(Clone);
-      }
+  while (FunctionsToClone.size()) {
+    //
+    // Remove a function from the list of functions to clone.
+    //
+    Function * Original = FunctionsToClone.back();
+    FunctionsToClone.pop_back ();
+
+    //
+    // Clone the function.  Record a pointer to the new clone if one was
+    // created.
+    //
+    if (Function *Clone = MakeFunctionClone(*Original)) {
+      FuncMap[Original] = Clone;
+      ClonedFunctions.insert(Clone);
+    }
+  }
   
+  //
   // Now that all call targets are available, rewrite the function bodies of the
   // clones or the original function (if the original has no clone).
   //
@@ -452,14 +478,13 @@ MarkNodesWhichMustBePassedIn (DenseSet<const DSNode*> &MarkedNodes,
         }
       }
     }
-  }
 
-  //
-  // Mark the returned node as needing to be passed in.
-  // FIXME: We should not do this for main().
-  //
-  if (DSNode *RetNode = G->getReturnNodeFor(F).getNode())
-    RetNode->markReachableNodes(MarkedNodes);
+    //
+    // Mark the returned node as needing to be passed in.
+    //
+    if (DSNode *RetNode = G->getReturnNodeFor(F).getNode())
+      RetNode->markReachableNodes(MarkedNodes);
+  }
 
   //
   // Calculate which DSNodes are reachable from globals.  If a node is reachable
