@@ -1122,7 +1122,7 @@ void DataStructures::copyValue(Value *From, Value *To) {
     // Change the Function* in the vanodes map to the ToF
     DSNodeHandle VA = NG->vanodes_begin()->second;
     NG->getVANodes().clear();
-    NG->getOrCreateVANodeFor(ToF) = VA;
+    NG->getVANodes()[ToF] = VA;
     return;
   }
   

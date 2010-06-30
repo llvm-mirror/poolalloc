@@ -409,6 +409,12 @@ public:
     return I->second;
   }
 
+  /// getVANodes - Return the mapping of functions to their var-arg nodes for
+  /// this graph.
+  ///
+  const VANodesTy &getVANodes() const { return VANodes; }
+        VANodesTy &getVANodes()       { return VANodes; }
+
   /// getVANodeFor - Return the var-arg node for the specified function.
   ///
   DSNodeHandle &getVANodeFor(const Function &F) {
