@@ -63,7 +63,7 @@ Output/%.llvmopt.bc: Output/%.base.bc $(PA_SO) $(LOPT)
 $(PROGRAMS_TO_TEST:%=Output/%.dsaopt.bc): \
 Output/%.dsaopt.bc: Output/%.base.bc $(LOPT)
 	-@rm -f $(CURDIR)/$@.info
-	-$(OPT_PA_STATS) $(AA_OPT) -debug-pass=Executions $< -o $@ -f 2>&1 > $@.out
+	-$(OPT_PA_STATS) $(AA_OPT) $< -o $@ -f 2>&1 > $@.out
 
 # This rule compiles the new .bc file into a .s file
 Output/%.s: Output/%.bc $(LLC)
@@ -146,7 +146,7 @@ Output/%.$(TEST).report.txt: Output/%.out-nat                \
 	fi
 	-printf "LOC: " >> $@
 	-cat Output/$*.LOC.txt >> $@
-	@-cat Output/$*.$(TEST).bc.info >> $@
+	@#-cat Output/$*.$(TEST).bc.info >> $@
 	@#cat Output/$*.$(TEST).basepa.bc.out  >> $@
 
 

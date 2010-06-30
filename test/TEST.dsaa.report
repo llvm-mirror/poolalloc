@@ -83,7 +83,7 @@ my $PTRDIST   = 'MultiSource/Benchmarks/Ptrdist';
  ["LLVMOptTime",      'RUN-TIME-LLVMOPT: program\s*([.0-9m:]+)', \&FormatTime],
  ["LLVMOpt run%",        \&RuntimePercent],
  [],
- ["DSA Time",        'RUN-TIME-DSAA: program\s*([.0-9m:]+)', \&FormatTime],
+ ["DSA Time",        'RUN-TIME-DSAAOPT: program\s*([.0-9m:]+)', \&FormatTime],
  ["DSA run%",        \&RuntimePercent],
 # [],
 # ["NoAlias",        'no alias responses[^0-9]*([0-9]*\.[0-9]*)'],
