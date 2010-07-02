@@ -108,7 +108,11 @@ namespace {
       InvalidateCache();
       BU->deleteValue(V);
       TD->deleteValue(V);
-      AliasAnalysis::deleteValue(V);
+      // FIXME: In the case that we chain to another ds-aa
+      // (and since we share the same TD/BU with that instance)
+      // we end up trying to delete the value twice.
+      // We *should* chain, but we also need to handle that case well.
+      //AliasAnalysis::deleteValue(V);
     }
 
     virtual void copyValue(Value *From, Value *To) {
@@ -117,7 +121,11 @@ namespace {
       InvalidateCache();
       BU->copyValue(From, To);
       TD->copyValue(From, To);
-      AliasAnalysis::copyValue(From, To);
+      // FIXME: In the case that we chain to another ds-aa
+      // (and since we share the same TD/BU with that instance)
+      // we end up trying to copy the value twice.
+      // We *should* chain, but we also need to handle that case well.
+      //AliasAnalysis::copyValue(From, To);
     }
 
   private:
