@@ -1082,6 +1082,8 @@ static const Function *getFnForValue(const Value *V) {
 
 /// deleteValue/copyValue - Interfaces to update the DSGraphs in the program.
 /// These correspond to the interfaces defined in the AliasAnalysis class.
+/// FIXME: Do these update all the datastructures needed?
+/// FIXME: What exactly does it mean to tell DSA to 'copy' a value? or delete it? (particularly a function)
 void DataStructures::deleteValue(Value *V) {
   if (const Function *F = getFnForValue(V)) {  // Function local value?
     // If this is a function local value, just delete it from the scalar map!
@@ -1090,14 +1092,33 @@ void DataStructures::deleteValue(Value *V) {
   }
   
   if (Function *F = dyn_cast<Function>(V)) {
-    assert(getDSGraph(*F)->getReturnNodes().size() == 1 &&
-           "cannot handle scc's");
-    delete DSInfo[F];
-    DSInfo.erase(F);
+    DSGraph *G = getDSGraph(*F);
+    if (G->getReturnNodes().size() == 1) {
+      // If this is function is part of its own SCC, just delete the graph for it
+      delete G;
+      DSInfo.erase(F);
+    } else {
+      // SCC case
+
+      // Remove some of the graph's information about this function since it's no longer needed
+      G->getReturnNodes().erase(F);
+      G->getVANodes().erase(F);
+
+      // Remove entry for the function, but don't delete the graph since others need it
+      DSInfo.erase(F);
+
+      // FIXME: Can more be done here? Is there a good way to remove from the SCC's graph more
+      // of the information this function contributed?
+
+    }
+
     return;
   }
   
   assert(!isa<GlobalVariable>(V) && "Do not know how to delete GV's yet!");
+
+  assert(0 && "Unrecognized value!");
+  abort();
 }
 
 void DataStructures::copyValue(Value *From, Value *To) {
@@ -1111,18 +1132,33 @@ void DataStructures::copyValue(Value *From, Value *To) {
   if (Function *FromF = dyn_cast<Function>(From)) {
     Function *ToF = cast<Function>(To);
     assert(!DSInfo.count(ToF) && "New Function already exists!");
-    DSGraph *NG = new DSGraph(getDSGraph(*FromF), GlobalECs, *TypeSS);
-    DSInfo[ToF] = NG;
-    assert(NG->getReturnNodes().size() == 1 && "Cannot copy SCC's yet!");
-    
-    // Change the Function* is the returnnodes map to the ToF.
-    DSNodeHandle Ret = NG->retnodes_begin()->second;
-    NG->getReturnNodes().clear();
-    NG->getReturnNodes()[ToF] = Ret;
-    // Change the Function* in the vanodes map to the ToF
-    DSNodeHandle VA = NG->vanodes_begin()->second;
-    NG->getVANodes().clear();
-    NG->getVANodes()[ToF] = VA;
+    DSGraph *G = getDSGraph(*FromF);
+    if (G->getReturnNodes().size() == 1) {
+      // Copy a single function by duplicating its dsgraph
+
+      DSGraph *NG = new DSGraph(getDSGraph(*FromF), GlobalECs, *TypeSS);
+      DSInfo[ToF] = NG;
+
+      // Change the Function* is the returnnodes map to the ToF.
+      DSNodeHandle Ret = NG->retnodes_begin()->second;
+      NG->getReturnNodes().clear();
+      NG->getReturnNodes()[ToF] = Ret;
+
+      // Change the Function* in the vanodes map to the ToF
+      DSNodeHandle VA = NG->vanodes_begin()->second;
+      NG->getVANodes().clear();
+      NG->getVANodes()[ToF] = VA;
+    } else {
+      // A copy request on a function that's part of an SCC, we just map the new function to the same information
+
+      // G is the graph for ToF as well (add it to the SCC)
+      setDSGraph(*ToF,G);
+
+      // Map ToF to the same return/va nodes as FromF
+      G->getReturnNodes()[ToF] = G->getReturnNodes()[FromF];
+      G->getVANodes()[ToF] = G->getVANodes()[FromF];
+    }
+
     return;
   }
   
