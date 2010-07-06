@@ -654,7 +654,6 @@ void FuncTransform::visitCallSite(CallSite& CS) {
 
   const Type* Int32Type = Type::getInt32Ty(CS.getInstruction()->getContext());
 
-
   // If the called function is casted from one function type to another, peer
   // into the cast instruction and pull out the actual function being called.
   if (ConstantExpr *CE = dyn_cast<ConstantExpr>(CS.getCalledValue()))
@@ -667,8 +666,11 @@ void FuncTransform::visitCallSite(CallSite& CS) {
     return;
   }
 
-  // Ignore calls to NULL pointers.
-  if (isa<ConstantPointerNull>(CS.getCalledValue())) {
+  //
+  // Ignore calls to NULL pointers or undefined values.
+  //
+  if ((isa<ConstantPointerNull>(CS.getCalledValue())) ||
+      (isa<UndefValue>(CS.getCalledValue()))) {
     errs() << "WARNING: Ignoring call using NULL function pointer.\n";
     return;
   }
