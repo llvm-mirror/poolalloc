@@ -276,7 +276,6 @@ static void printFlags(llvm::raw_ostream &O, DSNode *N) {
 /// printNodes -- print the node specified by NV
 ///
 /// Format:
-/// (can a type include '{}'s, etc?)
 /// "flags:{value(s)}:{type(s)}"
 ///
 /// Additionally, the user can specify to print just one piece
