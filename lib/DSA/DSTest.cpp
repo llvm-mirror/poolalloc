@@ -27,11 +27,14 @@
 using namespace llvm;
 
 namespace {
-  //FIXME: being able to separate -print-node-for-value options with commas would be nice...
-  cl::list<std::string> PrintNodesForValues("print-node-for-value", cl::ReallyHidden);
+  cl::list<std::string> PrintNodesForValues("print-node-for-value",
+      cl::CommaSeparated, cl::ReallyHidden);
   cl::opt<bool> OnlyPrintFlags("print-only-flags", cl::ReallyHidden);
   cl::opt<bool> OnlyPrintValues("print-only-values", cl::ReallyHidden);
   cl::opt<bool> OnlyPrintTypes("print-only-types", cl::ReallyHidden);
+  //Test if all mentioned values are in the same node
+  cl::list<std::string> CheckNodesSame("check-same-node",
+      cl::CommaSeparated, cl::ReallyHidden);
 }
 
 /// NodeValue -- represents a particular node in a DSGraph
@@ -315,6 +318,21 @@ void DataStructures::printTestInfo(llvm::raw_ostream &O, const Module *M) const 
     NodeValue NV(*I, M, this);
     // Print corresponding node
     printNode(O, NV);
+  }
+
+  // Verify all nodes listed in "CheckNodesSame" belong to the same node.
+  cl::list<std::string>::iterator CI = CheckNodesSame.begin(),
+                                  CE = CheckNodesSame.end();
+  // If the user specified that a set of values should be in the same node...
+  if (CI != CE) {
+    // Take the first such value as the reference to compare to the others
+    NodeValue NVReference(*CI++,M,this);
+
+    // Iterate through the remaining to verify they're the same node.
+    for(; CI != CE; ++CI) {
+      NodeValue NV(*CI, M, this);
+      assert(NVReference.getNodeH()==NV.getNodeH() && "Nodes don't match!");
+    }
   }
 }
 
