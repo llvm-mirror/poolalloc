@@ -54,7 +54,7 @@ namespace {
     // alloca instruction because it is allocated within the current function.
     std::multimap<AllocaInst*, Instruction*> &PoolUses;
 
-    // PoolDestroys - For each pool, keep track of the actual poolfree calls
+    // PoolFrees - For each pool, keep track of the actual poolfree calls
     // inserted into the code.  This is seperated out from PoolUses.
     std::multimap<AllocaInst*, CallInst*> &PoolFrees;
 
@@ -67,10 +67,12 @@ namespace {
 
     template <typename InstType, typename SetType>
     void AddPoolUse(InstType &I, Value *PoolHandle, SetType &Set) {
+      // FIXME: Strip away pointer casts
       if (AllocaInst *AI = dyn_cast<AllocaInst>(PoolHandle))
         Set.insert(std::make_pair(AI, &I));
     }
 
+    // FIXME: Factor out assumptions about c stdlib function names
     void visitInstruction(Instruction &I);
     //void visitMallocInst(MallocInst &MI);
     void visitAllocaInst(AllocaInst &MI);
@@ -129,6 +131,7 @@ namespace {
       return G->getScalarMap()[getOldValueIfAvailable(V)];
     }
 
+    // FIXME: Does this get global (or just local) pools?
     Value *getPoolHandle(Value *V) {
       DSNode *Node = getDSNodeHFor(V).getNode();
       // Get the pool handle for this DSNode...
@@ -136,7 +139,7 @@ namespace {
         FI.PoolDescriptors.find(Node);
       return I != FI.PoolDescriptors.end() ? I->second : 0;
     }
-    
+
     Function* retCloneIfFunc(Value *V);
   };
 }
@@ -152,6 +155,9 @@ PoolAllocate::TransformBody (DSGraph* g, PA::FuncInfo &fi,
 
 // Returns the clone if  V is a static function (not a pointer) and belongs 
 // to an equivalence class i.e. is pool allocated
+// FIXME: Rename this to 'getCloneIfFunc' (or similar)?
+// FIXME: Strip pointer casts
+// FIXME: Comment this?
 Function* FuncTransform::retCloneIfFunc(Value *V) {
   if (Function *F = dyn_cast<Function>(V))
     if (FuncInfo *FI = PAInfo.getFuncInfo(*F))
@@ -174,28 +180,32 @@ void FuncTransform::visitStoreInst(StoreInst &SI) {
 
 Instruction *FuncTransform::TransformAllocationInstr(Instruction *I,
                                                      Value *Size) {
+  // Ensure that the new instruction has the same name as the old one
+  // and the that the old one has no name.
   std::string Name = I->getName(); I->setName("");
 
+  // FIXME: Don't assume allocation sizes are 32bit--this differs per architecture!
   if (!Size->getType()->isIntegerTy(32))
     Size = CastInst::CreateIntegerCast(Size, Type::getInt32Ty(Size->getType()->getContext()), false, Size->getName(), I);
 
-  // Insert a call to poolalloc
-  Value *PH = getPoolHandle(I);
 
+  // Get the pool handle--
   // Do not change the instruction into a poolalloc() call unless we have a
   // real pool descriptor
+  Value *PH = getPoolHandle(I);
   if (PH == 0 || isa<ConstantPointerNull>(PH)) return I;
-  
+
+  // Create call to poolalloc, and record the use of the pool
   Value* Opts[2] = {PH, Size};
   Instruction *V = CallInst::Create(PAInfo.PoolAlloc, Opts, Opts + 2, Name, I);
-
   AddPoolUse(*V, PH, PoolUses);
 
   // Cast to the appropriate type if necessary
+  // FIXME: Make use of "castTo" utility function
   Instruction *Casted = V;
   if (V->getType() != I->getType())
     Casted = CastInst::CreatePointerCast(V, I->getType(), V->getName(), I);
-    
+
   // Update def-use info
   I->replaceAllUsesWith(Casted);
 
@@ -211,6 +221,7 @@ Instruction *FuncTransform::TransformAllocationInstr(Instruction *I,
 
   // If this was an invoke, fix up the CFG.
   if (InvokeInst *II = dyn_cast<InvokeInst>(I)) {
+    // FIXME: Assert out since we potentially don't handle "invoke" correctly
     BranchInst::Create (II->getNormalDest(), I);
     II->getUnwindDest()->removePredecessor(II->getParent(), true);
   }
@@ -278,7 +289,7 @@ void FuncTransform::visitMallocInst(MallocInst &MI) {
 #endif
 
 void FuncTransform::visitAllocaInst(AllocaInst &MI) {
-  //
+  // FIXME: We should remove SAFECode-specific functionality (and comments)
   // SAFECode will register alloca instructions with the run-time, so do not
   // do that here.
   //
@@ -303,6 +314,7 @@ void FuncTransform::visitAllocaInst(AllocaInst &MI) {
 //
 // Return value:
 //  NULL - No call to poolfree() was inserted.
+//      This may be possible if PoolAlloc has decided not to pool-allocate this.
 //  Otherwise, a pointer to the call instruction that calls poolfree() will be
 //  returned.
 //
@@ -318,6 +330,7 @@ FuncTransform::InsertPoolFreeInstr (Value *Arg, Instruction *Where){
   //
   // Cast the pointer to be freed to a void pointer type if necessary.
   //
+  // FIXME: Change this to make use of "castTo" utility.
   Value *Casted = Arg;
   if (Arg->getType() != PointerType::getUnqual(Type::getInt8Ty(Arg->getContext()))) {
     Casted = CastInst::CreatePointerCast(Arg, PointerType::getUnqual(Type::getInt8Ty(Arg->getContext())),
@@ -326,7 +339,7 @@ FuncTransform::InsertPoolFreeInstr (Value *Arg, Instruction *Where){
   }
 
   //
-  // Insert a call to poolfree()
+  // Insert a call to poolfree(), and mark that memory was deallocated from the pool.
   //
   Value* Opts[2] = {PH, Casted};
   CallInst *FreeI = CallInst::Create(PAInfo.PoolFree, Opts, Opts + 2, "", Where);
@@ -339,7 +352,7 @@ void FuncTransform::visitFreeInst(FreeInst &FrI) {
   if (Instruction *I = InsertPoolFreeInstr(FrI.getOperand(0), &FrI)) {
     // Delete the now obsolete free instruction...
     FrI.getParent()->getInstList().erase(&FrI);
- 
+
     // Update the NewToOldValueMap if this is a clone
     if (!FI.NewToOldValueMap.empty()) {
       std::map<Value*,const Value*>::iterator II =
@@ -361,9 +374,11 @@ FuncTransform::visitFreeCall (CallSite & CS) {
   Instruction * InsertPt = CS.getInstruction();
   if (Instruction *I = InsertPoolFreeInstr (CS.getArgument(0), InsertPt)) {
     // Delete the now obsolete free instruction...
+    // FIXME: use "eraseFromParent"? (Note this might require a refactoring)
     InsertPt->getParent()->getInstList().erase(InsertPt);
  
     // Update the NewToOldValueMap if this is a clone
+    // FIXME: Use of utility function UpdateNewToOldValueMap
     if (!FI.NewToOldValueMap.empty()) {
       std::map<Value*,const Value*>::iterator II =
         FI.NewToOldValueMap.find(InsertPt);
@@ -385,6 +400,7 @@ FuncTransform::visitMallocCall(CallSite &CS) {
   //
   // Get the pool handle for the node that this contributes to...
   //
+  // FIXME: This check may be redundant
   Value *PH = getPoolHandle(MI);
   if (PH == 0 || isa<ConstantPointerNull>(PH)) return;
 
@@ -396,7 +412,7 @@ FuncTransform::visitMallocCall(CallSite &CS) {
   //
   // Transform the allocation site to use poolalloc().
   //
-  TransformAllocationInstr(MI, AllocSize);  
+  TransformAllocationInstr(MI, AllocSize);
 }
 
 
@@ -406,8 +422,13 @@ void FuncTransform::visitCallocCall(CallSite CS) {
   const Type* Int32Type = Type::getInt32Ty(CS.getInstruction()->getContext());
   const Type* Int64Type = Type::getInt64Ty(CS.getInstruction()->getContext());
 
+  // FIXME: Ensure that we use 32/64-bit object length sizes consistently
+  // FIXME: Rename 'useLong' to something more descriptive?
+  // FIXME: Introduce 'ObjectAllocationSize' variable
+  //        or similar instead of repeatedly using same expression
+  // XXX: Start new review session here ***
   bool useLong = TD.getTypeAllocSize(PointerType::getUnqual(Int8Type)) != 4;
-  
+
   Module *M = CS.getInstruction()->getParent()->getParent()->getParent();
   assert(CS.arg_end()-CS.arg_begin() == 2 && "calloc takes two arguments!");
   Value *V1 = CS.getArgument(0);
@@ -955,6 +976,8 @@ void FuncTransform::visitCallSite(CallSite& CS) {
 // transformed calls.  Many instructions can "take the address of" a function,
 // and we must make sure to catch each of these uses, and transform it into a
 // reference to the new, transformed, function.
+// FIXME: Don't rename uses of function names that escape
+// FIXME: Special-case when external user is pthread_create (or similar)?
 void FuncTransform::visitInstruction(Instruction &I) {
   for (unsigned i = 0, e = I.getNumOperands(); i != e; ++i)
     if (Function *clonedFunc = retCloneIfFunc(I.getOperand(i))) {
