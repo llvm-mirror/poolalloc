@@ -34,6 +34,7 @@ namespace {
   cl::list<std::string> OnlyPrint("dsa-only-print", cl::ReallyHidden);
   cl::opt<bool> DontPrintAnything("dont-print-ds", cl::ReallyHidden);
   cl::opt<bool> LimitPrint("dsa-limit-print", cl::Hidden);
+  cl::opt<bool> PrintDSATest("dstest", cl::ReallyHidden);
   STATISTIC (MaxGraphSize   , "Maximum graph size");
   STATISTIC (NumFoldedNodes , "Number of folded nodes (in final graph)");
 }
@@ -401,6 +402,10 @@ void DataStructures::dumpCallGraph() const {
 // print - Print out the analysis results...
 void DataStructures::print(llvm::raw_ostream &O, const Module *M) const {
   if (DontPrintAnything) return;
+  if (PrintDSATest) {
+    printTestInfo(O, M);
+    return;
+  }
   printCollection(*this, O, M, printname);
   //dumpCallGraph();
 }

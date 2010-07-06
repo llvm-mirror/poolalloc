@@ -98,6 +98,10 @@ public:
   void print(llvm::raw_ostream &O, const Module *M) const;
   void dumpCallGraph() const;
 
+  /// printTestInfo - Print answers to queries made by tests
+  ///
+  void printTestInfo(llvm::raw_ostream &O, const Module *M) const;
+
   virtual void releaseMemory();
 
   virtual bool hasDSGraph(const Function &F) const {
