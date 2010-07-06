@@ -1,7 +1,9 @@
 ;--check that local detects call to malloc properly (marks them heap)
 ;RUN: dsaopt %s -dsa-local -analyze -dstest -print-node-for-value "main:b:0" -print-only-flags | grep "H"
+
+;RUNX: dsaopt %s -dsa-td -analyze -dstest -print-node-for-value "main:c" -print-only-flags -print-node-for-value "main:d" -print-node-for-value "main:b:0" >& /tmp/test.log
 ;--check that local has b pointing to node containing c and d
-;RUN: dsaopt %s -dsa-local -analyze -dstest -print-node-for-value "main:b:0" -print-only-values | grep "^c,d$"
+;RUN: dsaopt %s -dsa-local -analyze -dstest -print-node-for-value "main:b:0" -print-only-values | grep {^c,d$\\|^d,c$}
 ;--check that td/bu don't mark such nodes as incomplete
 ;RUN: dsaopt %s -dsa-td -analyze -dstest -print-node-for-value "main:c" -print-only-flags | not grep "I"
 ;RUN: dsaopt %s -dsa-bu -analyze -dstest -print-node-for-value "main:c" -print-only-flags | not grep "I"
