@@ -184,7 +184,11 @@ Instruction *FuncTransform::TransformAllocationInstr(Instruction *I,
   // and the that the old one has no name.
   std::string Name = I->getName(); I->setName("");
 
-  // FIXME: Don't assume allocation sizes are 32bit--this differs per architecture!
+  //
+  // FIXME: Don't assume allocation sizes are 32-bit; different architectures
+  // have different limits on the size of memory objects that they can
+  // allocate.
+  //
   if (!Size->getType()->isIntegerTy(32))
     Size = CastInst::CreateIntegerCast(Size, Type::getInt32Ty(Size->getType()->getContext()), false, Size->getName(), I);
 
