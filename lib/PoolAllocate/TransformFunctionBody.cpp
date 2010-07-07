@@ -654,13 +654,24 @@ void FuncTransform::visitCallSite(CallSite& CS) {
 
   const Type* Int32Type = Type::getInt32Ty(CS.getInstruction()->getContext());
 
-  // If the called function is casted from one function type to another, peer
-  // into the cast instruction and pull out the actual function being called.
-  if (ConstantExpr *CE = dyn_cast<ConstantExpr>(CS.getCalledValue()))
-    if (CE->getOpcode() == Instruction::BitCast &&
-        isa<Function>(CE->getOperand(0)))
-      CF = cast<Function>(CE->getOperand(0));
+  //
+  // Get the value that is called at this call site.  Strip away any pointer
+  // casts that do not change the representation of the data (i.e., are
+  // lossless casts).
+  //
+  Value * CalledValue = CS.getCalledValue()->stripPointerCasts();
 
+  //
+  // The CallSite::getCalledFunction() method is not guaranteed to strip off
+  // pointer casts.  If no called function was found, manually strip pointer
+  // casts off of the called value and see if we get a function.  If so, this
+  // is a direct call, and we want to update CF accordingly.
+  //
+  if (!CF) CF = dyn_cast<Function>(CalledValue);
+
+  //
+  // Do not change any inline assembly code.
+  //
   if (isa<InlineAsm>(TheCall->getOperand(0))) {
     errs() << "INLINE ASM: ignoring.  Hoping that's safe.\n";
     return;
@@ -669,9 +680,9 @@ void FuncTransform::visitCallSite(CallSite& CS) {
   //
   // Ignore calls to NULL pointers or undefined values.
   //
-  if ((isa<ConstantPointerNull>(CS.getCalledValue())) ||
-      (isa<UndefValue>(CS.getCalledValue()))) {
-    errs() << "WARNING: Ignoring call using NULL function pointer.\n";
+  if ((isa<ConstantPointerNull>(CalledValue)) ||
+      (isa<UndefValue>(CalledValue))) {
+    errs() << "WARNING: Ignoring call using NULL/Undef function pointer.\n";
     return;
   }
 
@@ -783,10 +794,15 @@ void FuncTransform::visitCallSite(CallSite& CS) {
     }
 
     //
-    // Do an assert unless we're bugpointing something.
+    // If we still haven't been able to find a target function of the call site
+    // to transform, do nothing.
     //
-    if ((UsingBugpoint) && (!CF)) return;
-    assert (CF && "No call graph info");
+    // One may be tempted to think that we should always have at least one
+    // target, but this is not true.  There are perfectly acceptable (but
+    // strange) programs for which no function targets exist.  Function
+    // pointers loaded from undef values, for example, will have no targets.
+    //
+    if (!CF) return;
 
     // Get the common graph for the set of functions this call may invoke.
     if (UsingBugpoint && (!(Graphs.hasDSGraph(*CF)))) return;
