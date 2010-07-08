@@ -1,4 +1,4 @@
-;RUN: dsaopt %s -ds-aa -gvn
+;RUN: dsaopt %s -ds-aa -gvn -disable-output
 ; FIXME: Make this test more directly test the underlying issue.
 ; (the -ds-aa and -gvn are just ways of forcing the right query to be made)
 
