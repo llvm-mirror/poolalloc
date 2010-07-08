@@ -31,6 +31,7 @@
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Support/Timer.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/GlobalAlias.h"
 
 #include <iostream>
 #include <algorithm>
@@ -52,6 +53,26 @@ namespace {
   static cl::opt<bool> noDSACallFP("dsa-no-filter-intfp",
          cl::desc("Don't filter call sites based on implicit integer to fp conversion"),
          cl::Hidden);
+}
+
+// Determines if the DSGraph 'should' have a node for a given value.
+static bool shouldHaveNodeForValue(const Value *V) {
+  // Peer through casts
+  V = V->stripPointerCasts();
+  
+  // Only pointers get nodes
+  if (!isa<PointerType>(V->getType())) return false;
+
+  // Undef values, even ones of pointer type, don't get nodes.
+  if (isa<UndefValue>(V)) return false;
+
+  // Use the Aliasee of GlobalAliases
+  // FIXME: This check might not be required, it's here because
+  // something similar is done in the Local pass.
+  if (const GlobalAlias *GA = dyn_cast<GlobalAlias>(V))
+    return shouldHaveNodeForValue(GA->getAliasee());
+
+  return true;
 }
 
 /// getFunctionNames - Return a space separated list of the name of the
@@ -517,7 +538,7 @@ DSCallSite DSGraph::getCallSiteForArguments(const Function &F) const {
 DSCallSite DSGraph::getDSCallSiteForCallSite(CallSite CS) const {
   DSNodeHandle RetVal, VarArg;
   Instruction *I = CS.getInstruction();
-  if (isa<PointerType>(I->getType()))
+  if (shouldHaveNodeForValue(I))
     RetVal = getNodeForValue(I);
 
   //FIXME: Here we trust the signature of the callsite to determine which arguments
@@ -532,7 +553,8 @@ DSCallSite DSGraph::getDSCallSiteForCallSite(CallSite CS) const {
   // Calculate the arguments vector...
   for (CallSite::arg_iterator I = CS.arg_begin(), E = CS.arg_end(); I != E; ++I)
     if (isa<PointerType>((*I)->getType())) {
-      const DSNodeHandle ArgNode = getNodeForValue(*I);
+      DSNodeHandle ArgNode; // Initially empty
+      if (shouldHaveNodeForValue(*I)) ArgNode = getNodeForValue(*I);
       if (I - CS.arg_begin() < NumFixedArgs) {
         Args.push_back(ArgNode);
       } else {
