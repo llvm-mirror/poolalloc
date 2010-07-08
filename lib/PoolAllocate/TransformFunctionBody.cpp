@@ -167,8 +167,21 @@ Function* FuncTransform::retCloneIfFunc(Value *V) {
 }
 
 void FuncTransform::visitLoadInst(LoadInst &LI) {
+  //
+  // Record the use of the pool handle for the pointer being dereferenced.
+  //
   if (Value *PH = getPoolHandle(LI.getOperand(0)))
     AddPoolUse(LI, PH, PoolUses);
+
+  //
+  // If this is a volatile load, then record a use of the pool handle for the
+  // loaded value, even if it is never used.
+  //
+  if (LI.isVolatile()) {
+    if (Value *PH = getPoolHandle(&LI))
+      AddPoolUse (LI, PH, PoolUses);
+  }
+
   visitInstruction(LI);
 }
 
@@ -650,13 +663,20 @@ void FuncTransform::visitStrdupCall(CallSite CS) {
   I->eraseFromParent();
 }
 
-
+//
+// Method: visitCallSite()
+//
+// Description:
+//  This method transforms a call site.  A call site may either be a call
+//  instruction or an invoke instruction.
+//
+// Inputs:
+//  CS - The call site representing the instruction that should be transformed.
+//
 void FuncTransform::visitCallSite(CallSite& CS) {
   const Function *CF = CS.getCalledFunction();
   Instruction *TheCall = CS.getInstruction();
   bool thread_creation_point = false;
-
-  const Type* Int32Type = Type::getInt32Ty(CS.getInstruction()->getContext());
 
   //
   // Get the value that is called at this call site.  Strip away any pointer
@@ -877,36 +897,30 @@ void FuncTransform::visitCallSite(CallSite& CS) {
 //                                    getDSNodeHFor(*GI),
 //                                    NodeMapping, false);
 
+  //
   // Okay, now that we have established our mapping, we can figure out which
   // pool descriptors to pass in...
+  //
+  // Note:
+  // There used to be code here that would create a new pool before the
+  // function call and destroy it after the function call.  This could would
+  // get triggered if bounds checking was disbled or the DSNode for the
+  // argument was an array value.
+  //
+  // I believe that code was incorrect; an argument may have a NULL pool handle
+  // (i.e., no pool handle) because the pool allocation heuristic used simply
+  // decided not to assign that value a pool.  The argument may alias data
+  // that should not be freed after the function call is complete, so calling
+  // pooldestroy() after the call would free data, causing dangling pointer
+  // dereference errors.
+  //
   std::vector<Value*> Args;
   for (unsigned i = 0, e = ArgNodes.size(); i != e; ++i) {
     Value *ArgVal = Constant::getNullValue(PoolAllocate::PoolDescPtrTy);
-    if (NodeMapping.count(ArgNodes[i]))
+    if (NodeMapping.count(ArgNodes[i])) {
       if (DSNode *LocalNode = NodeMapping[ArgNodes[i]].getNode())
         if (FI.PoolDescriptors.count(LocalNode))
           ArgVal = FI.PoolDescriptors.find(LocalNode)->second;
-    if (isa<Constant>(ArgVal) && cast<Constant>(ArgVal)->isNullValue()) {
-      if ((!(PAInfo.BoundsChecksEnabled)) || (ArgNodes[i]->isArrayNode())) {
-        if (!isa<InvokeInst>(TheCall)) {
-          // Dinakar: We need pooldescriptors for allocas in the callee if it
-          //          escapes
-          BasicBlock::iterator InsertPt = TheCall->getParent()->getParent()->front().begin();
-          ArgVal =  new AllocaInst(PAInfo.getPoolType(&TheCall->getContext()),
-                                   0,
-                                   "PD",
-                                   InsertPt);
-          Value *ElSize = ConstantInt::get(Int32Type,0);
-          Value *Align  = ConstantInt::get(Int32Type,0);
-          Value* Opts[3] = {ArgVal, ElSize, Align};
-          CallInst::Create(PAInfo.PoolInit, Opts, Opts + 3,"", TheCall);
-          BasicBlock::iterator BBI = TheCall;
-          CallInst::Create(PAInfo.PoolDestroy, ArgVal, "", ++BBI);
-        }
-
-        //probably need to update DSG
-        //      errs() << "WARNING: NULL POOL ARGUMENTS ARE PASSED IN!\n";
-      }
     }
     Args.push_back(ArgVal);
   }
