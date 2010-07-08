@@ -416,9 +416,11 @@ lit.site.cfg: $(PROJ_SRC_ROOT)/test/lit.site.cfg.in
 SETPATH = \
 	PATH=$(LLVMToolDir):$(LLVM_SRC_ROOT)/test/Scripts:$(LLVMGCCDIR)/bin:$(PATH):$(PROJ_OBJ_ROOT)/test/tools
 
+TESTSUITE=$(PROJ_OBJ_ROOT)/test
+
 #Run the lit tests for this project
 lit: lit.site.cfg $(TOOLS)
-	$(SETPATH) $(MAKE) -C $(LLVM_OBJ_ROOT)/test check-local-lit TESTSUITE=$(PROJ_OBJ_ROOT)/test
+	$(SETPATH) $(MAKE) -C $(LLVM_OBJ_ROOT)/test check-local-lit TESTSUITE=$(TESTSUITE)
 
 clean::
 	-$(RM) -rf  `find $(PROJ_OBJ_DIR) -name Output -type d -print`
