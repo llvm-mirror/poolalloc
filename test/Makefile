@@ -391,16 +391,27 @@ endif
 PADIR   := $(LLVM_OBJ_ROOT)/projects/poolalloc
 # Pathame to the DSA pass dynamic library
 DSA_SO   := $(PADIR)/$(CONFIGURATION)/lib/libLLVMDataStructure$(SHLIBEXT)
+# Pathname to the PA pass dynamic library
+PA_SO   := $(PADIR)/$(CONFIGURATION)/lib/libpoolalloc$(SHLIBEXT)
 
 DSAOPT := $(PROJ_OBJ_ROOT)/test/tools/dsaopt
+PAOPT := $(PROJ_OBJ_ROOT)/test/tools/paopt
 
-TOOLS= $(DSAOPT)
+TOOLS= $(DSAOPT) $(PAOPT)
 
 #wrapper script for 'opt' so we can avoid manually loading the dsa lib
 $(DSAOPT):
 	@mkdir -p `dirname $@`
 	@echo "#!/bin/sh" >> $@.tmp
 	@echo 'opt -load $(DSA_SO) $$@' >> $@.tmp
+	@chmod +x $@.tmp
+	@mv $@.tmp $@
+
+#wrapper script for 'opt' that loads dsa and poolalloc
+$(PAOPT):
+	@mkdir -p `dirname $@`
+	@echo "#!/bin/sh" >> $@.tmp
+	@echo 'opt -load $(DSA_SO) -load $(PA_SO) $$@' >> $@.tmp
 	@chmod +x $@.tmp
 	@mv $@.tmp $@
 
