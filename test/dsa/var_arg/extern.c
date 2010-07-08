@@ -14,7 +14,7 @@
 
 //Unknown external function
 //Everything going into this should be assumed to be mod/ref'd
-extern "C" void unknown_extern(int, ...);
+extern void unknown_extern(int, ...);
 
 int main()
 {
