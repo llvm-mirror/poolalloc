@@ -462,10 +462,26 @@ MarkNodesWhichMustBePassedIn (DenseSet<const DSNode*> &MarkedNodes,
       if (AI != G->getScalarMap().end()) {
         if (DSNode *N = AI->second.getNode()) {
           //
-          // Add all nodes reachable from this parameter into our set of nodes
-          // needing pools.
+          // If this is a byval argument, then simply add all DSNodes which are
+          // reachable from it, but don't add the byval argument's node.  For
+          // all other parameters, add the DSNode for the parameter and all
+          // DSNodes reachable from it.
           //
-          N->markReachableNodes(MarkedNodes);
+          if (I->hasByValAttr()) {
+            DSNode::edge_iterator link = N->edge_begin();
+            while (link != N->edge_end()) {
+              DSNodeHandle Child = link->second;
+              if (Child.getNode())
+                Child.getNode()->markReachableNodes(MarkedNodes);
+              ++link;
+            }
+          } else {
+            //
+            // Add all nodes reachable from this parameter into our set of
+            // nodes needing pools.
+            //
+            N->markReachableNodes(MarkedNodes);
+          }
 
           //
           // If this is a byval argument, then we don't want to add it to the
