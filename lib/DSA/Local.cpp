@@ -620,23 +620,10 @@ void GraphBuilder::visitVAStartInst(CallSite CS) {
 
   if (DSNode *N = RetNH.getNode())
     visitVAStartNode(N);
-  else
-  {
-    //
-    // Sometimes the argument to the vastart is casted and has no DSNode.
-    // Peer past the cast.
-    //
-    Value * Operand = CS.getInstruction()->getOperand(1);
-    if (CastInst * CI = dyn_cast<CastInst>(Operand))
-      Operand = CI->getOperand (0);
-    const DSNodeHandle & CastNH = getValueDest(Operand);
-    visitVAStartNode(CastNH.getNode());
-    //We assert out here because it's not clear when this happens
-    assert(0 && "When does this happen?");
-  }
 }
 
 void GraphBuilder::visitVAStartNode(DSNode* N) {
+  assert(N && "Null node as argument");
   assert(FB && "No function for this graph?");
   Module *M = FB->getParent();
   assert(M && "No module for function");
