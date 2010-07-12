@@ -30,15 +30,6 @@
 using namespace llvm;
 using namespace PA;
 
-//
-// Flag: UsingBugpoint
-//
-// Description:
-//  There are certain assertions that interfere with bugpoint's ability to
-//  reduce test cases.  When using bugpoint, set this variable to true.
-//
-static bool UsingBugpoint = false;
-
 namespace {
   /// FuncTransform - This class implements transformation required of pool
   /// allocated functions.
@@ -828,11 +819,18 @@ void FuncTransform::visitCallSite(CallSite& CS) {
     //
     if (!CF) return;
 
+    //
+    // It's possible that this program has indirect call targets that are
+    // not defined in this module.  Do not transformation for such functions.
+    //
+    if (!(Graphs.hasDSGraph(*CF))) return;
+
+    //
     // Get the common graph for the set of functions this call may invoke.
-    if (UsingBugpoint && (!(Graphs.hasDSGraph(*CF)))) return;
+    //
     assert ((Graphs.hasDSGraph(*CF)) && "Function has no DSGraph!\n");
     CalleeGraph = Graphs.getDSGraph(*CF);
-    
+
 #ifndef NDEBUG
     // Verify that all potential callees at call site have the same DS graph.
     DSCallGraph::callee_iterator E = Graphs.getCallGraph().callee_end(OrigInst);
