@@ -693,7 +693,7 @@ Function *PoolAllocate::MakeFunctionClone(Function &F) {
 // allocated from the heap, this pool gets a global lifetime.  This is
 // implemented by making the pool descriptor be a global variable of its own,
 // and initializing the pool on entrance to main.  Note that we never destroy
-// the pool, because it has global lifetime.
+// the pool because it has global lifetime.
 //
 // This method returns true if correct pool allocation of the module cannot be
 // performed because there is no main function for the module and there are
@@ -707,14 +707,20 @@ bool PoolAllocate::SetupGlobalPools(Module &M) {
   DenseSet<const DSNode*> GlobalHeapNodes;
   GetNodesReachableFromGlobals(GG, GlobalHeapNodes);
 
-  // Filter out all nodes which have no heap allocations merged into them.
+  //
+  // We do not want to create pools for all memory objects reachable from
+  // globals.  We only want those that are heap objects, could be heap objects,
+  // or are array objects.
+  //
+  std::vector<const DSNode *> toRemove;
   for (DenseSet<const DSNode*>::iterator I = GlobalHeapNodes.begin(),
          E = GlobalHeapNodes.end(); I != E; ) {
     DenseSet<const DSNode*>::iterator Last = I; ++I;
 
     //
-    // FIXME: If the PoolAllocateAllGlobalNodes option is selected for the heuristic,
-    //        then we should make global pools for heap and non-heap DSNodes.
+    // FIXME: If the PoolAllocateAllGlobalNodes option is selected for the
+    //        heuristic, then we should make global pools for heap and
+    //        non-heap DSNodes.
     //
 #if 0
     //
@@ -728,13 +734,47 @@ bool PoolAllocate::SetupGlobalPools(Module &M) {
     }
 #endif
 
-    //FIXME: erase on a densemap invalidates all iterators
+    //
+    // Nodes that escape to external code could be reachable from globals.
+    // Nodes that are incomplete could be heap nodes.
+    // Unknown nodes could be anything.
+    //
     const DSNode *tmp = *Last;
-    //    errs() << "test \n";
-    if (!(tmp->isHeapNode() || tmp->isArrayNode()))
-      GlobalHeapNodes.erase(tmp);
+    if (!(tmp->isHeapNode() || tmp->isArrayNode() ||
+          tmp->isExternalNode() || tmp->isIncompleteNode() ||
+          tmp->isUnknownNode()))
+      toRemove.push_back (tmp);
   }
   
+  //
+  // Remove all the DSNodes for which we do not want to create a global pool.
+  //
+  while (toRemove.size()) {
+    const DSNode * Node = toRemove.back();
+    toRemove.pop_back();
+    GlobalHeapNodes.erase(Node);
+  }
+
+  //
+  // Scan through all the local graphs looking for DSNodes which may be
+  // reachable by a global.  These nodes may not end up in the globals graph 
+  // because of the fact that DSA doesn't actually know what is happening to
+  // them.
+  //
+  for (Module::iterator F = M.begin(); F != M.end(); ++F) {
+    if (F->isDeclaration()) continue;
+    DSGraph* G = Graphs->getDSGraph(*F);
+    for (DSGraph::node_iterator I = G->node_begin(), E = G->node_end();
+         I != E;
+         ++I){
+      DSNode * Node = I;
+      if (Node->isExternalNode() || Node->isIncompleteNode() ||
+          Node->isUnknownNode()) {
+        GlobalHeapNodes.insert (Node);
+      }
+    }
+  }
+
   // Otherwise get the main function to insert the poolinit calls.
   Function *MainFunc = M.getFunction("main");
   if (MainFunc == 0 || MainFunc->isDeclaration()) {
