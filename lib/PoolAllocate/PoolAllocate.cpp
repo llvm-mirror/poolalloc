@@ -213,6 +213,7 @@ bool PoolAllocate::runOnModule(Module &M) {
     //     have been transformed already), and
     //  o) the called function is the function that we're replacing
     //
+    std::vector<User *> toReplace;
     for (Function::use_iterator User = F->use_begin();
                                 User != F->use_end();
                                 ++User) {
@@ -228,17 +229,30 @@ bool PoolAllocate::runOnModule(Module &M) {
             continue;
       }
 
+      //
+      // We want to replace this use.  Add it to the worklist.
+      //
+      toReplace.push_back (*User);
+    }
+
+    //
+    // Now do replacement on all items within the worklist.
+    //
+    while (toReplace.size()) {
+      llvm::User * user = toReplace.back();
+      toReplace.pop_back();
+
       Constant* CEnew = ConstantExpr::getPointerCast(I->second, F->getType());
 
       // Must handle Constants specially, we cannot call replaceUsesOfWith on a
       // constant because they are uniqued.
-      if (Constant *C = dyn_cast<Constant>(User)) {
+      if (Constant *C = dyn_cast<Constant>(user)) {
         if (!isa<GlobalValue>(C)) {
-          C->replaceUsesOfWithOnConstant(F, CEnew, User->op_begin());
+          C->replaceUsesOfWithOnConstant(F, CEnew, user->op_begin());
           continue;
         }
       }
-      User->replaceUsesOfWith (F, CEnew);
+      user->replaceUsesOfWith (F, CEnew);
     }
   }
 
