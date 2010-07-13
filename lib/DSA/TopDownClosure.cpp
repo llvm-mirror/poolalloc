@@ -304,7 +304,8 @@ void TDDataStructures::InlineCallersIntoGraph(DSGraph* DSG) {
             IPE = callgraph.callee_end(CI->getCallSite());
 
     // Skip over all calls to this graph (SCC calls).
-    while (IPI != IPE && getDSGraph(**IPI) == DSG)
+    // Note that Functions that are just declarations are their own SCC
+    while (IPI != IPE && !(*IPI)->isDeclaration() && getDSGraph(**IPI) == DSG)
       ++IPI;
 
     // All SCC calls?
@@ -314,7 +315,7 @@ void TDDataStructures::InlineCallersIntoGraph(DSGraph* DSG) {
     ++IPI;
 
     // Skip over more SCC calls.
-    while (IPI != IPE && getDSGraph(**IPI) == DSG)
+    while (IPI != IPE && !(*IPI)->isDeclaration() && getDSGraph(**IPI) == DSG)
       ++IPI;
 
     // If there is exactly one callee from this call site, remember the edge in
