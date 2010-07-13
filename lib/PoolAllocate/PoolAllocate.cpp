@@ -645,6 +645,10 @@ Function *PoolAllocate::MakeFunctionClone(Function &F) {
     NI->setName(I->getName());
   }
 
+  // Perform the cloning.
+  SmallVector<ReturnInst*,100> Returns;
+  CloneFunctionInto(New, &F, ValueMap, Returns);
+
   //
   // Invert the ValueMap into the NewToOldValueMap.
   //
@@ -652,10 +656,6 @@ Function *PoolAllocate::MakeFunctionClone(Function &F) {
   for (DenseMap<const Value*, Value*>::iterator I = ValueMap.begin(),
          E = ValueMap.end(); I != E; ++I)
     NewToOldValueMap.insert(std::make_pair(I->second, I->first));
-
-  // Perform the cloning.
-  SmallVector<ReturnInst*,100> Returns;
-  CloneFunctionInto(New, &F, ValueMap, Returns);
 
   //
   // FIXME: File a bug report for CloneFunctionInto; it should take care of
