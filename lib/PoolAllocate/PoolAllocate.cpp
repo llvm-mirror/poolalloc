@@ -645,10 +645,6 @@ Function *PoolAllocate::MakeFunctionClone(Function &F) {
     NI->setName(I->getName());
   }
 
-  // Perform the cloning.
-  SmallVector<ReturnInst*,100> Returns;
-  CloneFunctionInto(New, &F, ValueMap, Returns);
-
   //
   // Invert the ValueMap into the NewToOldValueMap.
   //
@@ -656,6 +652,10 @@ Function *PoolAllocate::MakeFunctionClone(Function &F) {
   for (DenseMap<const Value*, Value*>::iterator I = ValueMap.begin(),
          E = ValueMap.end(); I != E; ++I)
     NewToOldValueMap.insert(std::make_pair(I->second, I->first));
+
+  // Perform the cloning.
+  SmallVector<ReturnInst*,100> Returns;
+  CloneFunctionInto(New, &F, ValueMap, Returns);
 
   //
   // FIXME: File a bug report for CloneFunctionInto; it should take care of
@@ -673,8 +673,8 @@ Function *PoolAllocate::MakeFunctionClone(Function &F) {
   Function::ArgumentListType & ArgList = New->getArgumentList ();
   Function::ArgumentListType::iterator arg = ArgList.begin();
   for (; arg != ArgList.end(); ++arg) {
-    arg->removeAttr (Attribute::ParameterOnly);
-    arg->removeAttr (Attribute::NoAlias);
+    // Whatever attributes New has for this argument, remove them.
+    arg->removeAttr(New->getAttributes().getParamAttributes(arg->getArgNo()+1));
   }
 
   //
@@ -686,11 +686,7 @@ Function *PoolAllocate::MakeFunctionClone(Function &F) {
     Argument * newArg = dyn_cast<Argument>(ValueMap[arg]);
     assert (newArg && "Value Map for arguments incorrect!\n");
 
-    if (arg->hasByValAttr ())     newArg->addAttr (Attribute::ByVal);
-    if (arg->hasNestAttr ())      newArg->addAttr (Attribute::Nest);
-    if (arg->hasNoAliasAttr ())   newArg->addAttr (Attribute::NoAlias); 
-    if (arg->hasNoCaptureAttr ()) newArg->addAttr (Attribute::NoCapture); 
-    if (arg->hasStructRetAttr ()) newArg->addAttr (Attribute::StructRet); 
+    newArg->addAttr(F.getAttributes().getParamAttributes(arg->getArgNo()+1));
   }
 
   return FI.Clone = New;
