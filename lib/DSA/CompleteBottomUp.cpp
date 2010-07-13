@@ -54,10 +54,13 @@ void CompleteBUDataStructures::buildIndirectFunctionSets(Module &M) {
     DSCallGraph::callee_iterator csi = callgraph.callee_begin(*ii),
             cse = callgraph.callee_end(*ii);
     if (csi != cse && SM.find(*csi) != SM.end()) {
+      assert((SM.find(*csi) != SM.end()) && "Function not in Global graph?");
       DSNodeHandle& SrcNH = SM.find(*csi)->second;
       ++csi;
-      for (; csi != cse; ++csi)
+      for (; csi != cse; ++csi) {
+        assert((SM.find(*csi) != SM.end()) && "Function not in Global graph?");
         SrcNH.mergeWith(SM.find(*csi)->second);
+      }
     }
   }
 }
