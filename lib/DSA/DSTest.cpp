@@ -1,4 +1,4 @@
-//===- DSTest.cpp - Code for quering DSA results for testing --------------===//
+//===- DSTest.cpp - Queries DSA results for testing -----------------------===//
 //
 //                     The LLVM Compiler Infrastructure
 //
@@ -7,10 +7,27 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This file implements a few basic operations that allow tests to query
-// properties of the DSGraph, with an emphasis on making results something
-// that is can be easily verified by 'grep' or similar basic commands.
+// This defines various commandline options to DSA to help in regression tests.
+// These options are:
+// -print-node-for-value=<list>   Print the DSNodes for the given values
+//   -print-only-flags              Only print Flags for the given values
+//   -print-only-values             Only print the values pointed to by the given values
+//   -print-only-types              Only print the types for the given values
+// -check-same-node=<list>        Verify the given values' nodes were merged.
+// -verify-flags=<list>           Verify the given values match the flag specifications.
 //
+// In general a 'value' query on the DSA results looks like this:
+// graph:value[:offset]*
+//  Examples:
+//    "value"  specifies 'value' in the globals graph
+//    "func:value" specifies 'value' in graph for function 'func'
+//    "func:value:0" the node pointed to at offset 0 from the above
+//    "func:value:0:1" the node pointed to at offset 1 from the above
+//    ..etc
+//    We are also robust to "@value" and "@func" notation for convenience
+// The -verify-flags option takes values in this format, but also followed
+// by any number of 'flag specifiers' of the form '+flags' and '-flags',
+// which indicate flags that the node should and shouldn't have.
 //===----------------------------------------------------------------------===//
 
 #define DEBUG_TYPE "dsgraph-test"
@@ -32,8 +49,11 @@ namespace {
   cl::opt<bool> OnlyPrintFlags("print-only-flags", cl::ReallyHidden);
   cl::opt<bool> OnlyPrintValues("print-only-values", cl::ReallyHidden);
   cl::opt<bool> OnlyPrintTypes("print-only-types", cl::ReallyHidden);
-  //Test if all mentioned values are in the same node
+  // Test if all mentioned values are in the same node (merged)
   cl::list<std::string> CheckNodesSame("check-same-node",
+      cl::CommaSeparated, cl::ReallyHidden);
+  // For each value, verify they have (or don't have) the specified flags
+  cl::list<std::string> VerifyFlags("verify-flags",
       cl::CommaSeparated, cl::ReallyHidden);
 }
 
@@ -43,15 +63,6 @@ namespace {
 /// FIXME: Make this integrated into cl parsing, as mentioned:
 ///   http://llvm.org/docs/CommandLine.html#customparser
 ///
-/// Supported formats (so far)
-/// graph:value[:offset]*
-/// Examples:
-/// "value"  specifies 'value' in the globals graph
-/// "func:value" specifies 'value' in graph for function 'func'
-/// "func:value:0" the node pointed to at offset 0 from the above
-/// "func:value:0:1" the node pointed to at offset 1 from the above
-/// ..etc
-/// We are also robust to "@value" and "@func" notation for convenience
 /// FIXME: Support querying special nodes like return nodes, VANodes, etc
 class NodeValue {
   // Containing Function, if applicable.
@@ -179,7 +190,7 @@ public:
   Value    * getValue()     { return V;                           }
   Function * getFunction()  { return F;                           }
 
-  //Helper to fetch the node from the nodehandle
+  /// Helper to fetch the node from the nodehandle
   DSNode * getNode() {
     assert(NH.getNode() && "NULL node?");
     return NH.getNode();
@@ -254,23 +265,31 @@ static void printTypesForNode(llvm::raw_ostream &O, NodeValue &NV) {
     O << " array";
 }
 
-static void printFlags(llvm::raw_ostream &O, DSNode *N) {
+static std::string getFlags(DSNode *N) {
+  std::string flags("");
+
   // FIXME: This code is lifted directly from Printer.cpp
   // Probably would be good to make this code shared...
   // Leaving it separate for now to minimize invasiveness
   if (unsigned NodeType = N->getNodeFlags()) {
-    if (NodeType & DSNode::AllocaNode     ) O << "S";
-    if (NodeType & DSNode::HeapNode       ) O << "H";
-    if (NodeType & DSNode::GlobalNode     ) O << "G";
-    if (NodeType & DSNode::UnknownNode    ) O << "U";
-    if (NodeType & DSNode::IncompleteNode ) O << "I";
-    if (NodeType & DSNode::ModifiedNode   ) O << "M";
-    if (NodeType & DSNode::ReadNode       ) O << "R";
-    if (NodeType & DSNode::ExternalNode   ) O << "E";
-    if (NodeType & DSNode::IntToPtrNode   ) O << "P";
-    if (NodeType & DSNode::PtrToIntNode   ) O << "2";
-    if (NodeType & DSNode::VAStartNode    ) O << "V";
+    if (NodeType & DSNode::AllocaNode     ) flags += "S";
+    if (NodeType & DSNode::HeapNode       ) flags += "H";
+    if (NodeType & DSNode::GlobalNode     ) flags += "G";
+    if (NodeType & DSNode::UnknownNode    ) flags += "U";
+    if (NodeType & DSNode::IncompleteNode ) flags += "I";
+    if (NodeType & DSNode::ModifiedNode   ) flags += "M";
+    if (NodeType & DSNode::ReadNode       ) flags += "R";
+    if (NodeType & DSNode::ExternalNode   ) flags += "E";
+    if (NodeType & DSNode::IntToPtrNode   ) flags += "P";
+    if (NodeType & DSNode::PtrToIntNode   ) flags += "2";
+    if (NodeType & DSNode::VAStartNode    ) flags += "V";
   }
+
+  return flags;
+}
+
+static void printFlags(llvm::raw_ostream &O, DSNode *N) {
+  O << getFlags(N);
 }
 
 /// printNodes -- print the node specified by NV
@@ -291,47 +310,139 @@ static void printNode(llvm::raw_ostream &O, NodeValue &NV) {
   } else if (OnlyPrintValues) {
     printAllValuesForNode(O, NV);
   } else if (OnlyPrintTypes) {
-    printTypesForNode(O,NV);
+    printTypesForNode(O, NV);
   } else {
     //Print all of them
     printFlags(O,NV.getNode());
     O << ":{";
     printAllValuesForNode(O, NV);
     O << "}:{";
-    printTypesForNode(O,NV);
+    printTypesForNode(O, NV);
     O << "}";
   }
 
   O << "\n";
 }
 
-/// printTestInfo -- runs through the user-specified testing arguments (if any)
-/// and prints the requested information.
-void DataStructures::printTestInfo(llvm::raw_ostream &O, const Module *M) const {
 
-  // For each node the user indicated, print the node.
-  // See 'printNode' for more details.
-  for (cl::list<std::string>::iterator I = PrintNodesForValues.begin(),
-      E = PrintNodesForValues.end(); I != E; ++I ) {
-    // Make sense of what the user gave us
-    NodeValue NV(*I, M, this);
-    // Print corresponding node
-    printNode(O, NV);
+/// printNodes -- For each node the user indicated, print the node.
+/// See 'printNode' for more details.
+/// Returns true iff the user specified nodes to print.
+///
+static bool printNodes(llvm::raw_ostream &O, const Module *M, const DataStructures *DS) {
+  cl::list<std::string>::iterator I = PrintNodesForValues.begin(),
+                                  E = PrintNodesForValues.end();
+  if (I != E) {
+    for ( ; I != E; ++I ) {
+      // Make sense of what the user gave us
+      NodeValue NV(*I, M, DS);
+      // Print corresponding node
+      printNode(O, NV);
+    }
+    return true;
   }
+  return false;
+}
+
+/// checkIfNodesAreSame -- Verify each node that the user indicated
+/// should be merged, is in fact merged.
+/// Returns true iff the user specified any nodes for this option.
+///
+static bool checkIfNodesAreSame(llvm::raw_ostream &O, const Module *M, const DataStructures *DS) {
 
   // Verify all nodes listed in "CheckNodesSame" belong to the same node.
-  cl::list<std::string>::iterator CI = CheckNodesSame.begin(),
-                                  CE = CheckNodesSame.end();
+  cl::list<std::string>::iterator I = CheckNodesSame.begin(),
+                                  E = CheckNodesSame.end();
   // If the user specified that a set of values should be in the same node...
-  if (CI != CE) {
+  if (I != E) {
     // Take the first such value as the reference to compare to the others
-    NodeValue NVReference(*CI++,M,this);
+    NodeValue NVReference(*I++, M, DS);
 
     // Iterate through the remaining to verify they're the same node.
-    for(; CI != CE; ++CI) {
-      NodeValue NV(*CI, M, this);
+    for(; I != E; ++I) {
+      NodeValue NV(*I, M, DS);
       assert(NVReference.getNodeH()==NV.getNodeH() && "Nodes don't match!");
     }
+    return true;
   }
+
+  return false;
+}
+
+/// VerifyFlags -- Verify flag properties for the given nodes.
+/// This is a common enough testing process that this was added to make it simpler.
+/// Returns true iff the user specified anything for this option.
+///
+/// This builds upon the node notation used elsewhere, and tacks on
+/// node+flags, node-flags, node+flags-flags
+/// Where +flags means 'this node should have these flags'
+/// And -flags means 'this node should NOT have these flags'
+///
+static bool verifyFlags(llvm::raw_ostream &O, const Module *M, const DataStructures *DS) {
+  cl::list<std::string>::iterator I = VerifyFlags.begin(),
+                                  E = VerifyFlags.end();
+  if (I != E) {
+    for(; I != E; ++I) {
+      std::string NodeFlagOption = *I;
+      std::string::size_type FlagPos = NodeFlagOption.find_first_of("+-");
+      if (FlagPos == std::string::npos) {
+        errs() << "No flags given for option \"" << NodeFlagOption << "\"!\n";
+        assert(0 && "Invalid input!");
+      }
+      
+      // Grab the part before the flag specifiers and parse that as a node
+      std::string NodeString = std::string(I->begin(),I->begin()+FlagPos);
+      NodeValue NV(NodeString, M, DS);
+
+      // Process each of the flag specifiers (+flag, or -flag)
+      do {
+        bool shouldHaveFlag = (NodeFlagOption[FlagPos] == '+');
+
+        // Find the next specifier...
+        std::string::size_type NextPos = NodeFlagOption.find_first_of("+-",FlagPos+1);
+
+        // Parse out the flags for this option
+        std::string FlagsListed;
+        if (NextPos != std::string::npos)
+          FlagsListed = std::string(I->begin()+FlagPos+1,I->begin()+NextPos);
+        else
+          FlagsListed = std::string(I->begin()+FlagPos+1,I->end());
+
+        // Do the checking!
+        std::string ActualFlags = getFlags(NV.getNode());
+        for (std::string::iterator I = FlagsListed.begin(), E = FlagsListed.end();
+            I != E; ++I ) {
+          if (shouldHaveFlag)
+            assert((ActualFlags.find(*I) != std::string::npos)
+                && "Node doesn't have flag it should!");
+          else
+            assert((ActualFlags.find(*I) == std::string::npos)
+                && "Node has flag it shouldn't!");
+        }
+
+
+        // Update FlagPos
+        FlagPos = NextPos;
+      } while(FlagPos != std::string::npos);
+    }
+    return true;
+  }
+
+  return false;
+
+}
+
+/// handleTest -- handles any user-specified testing options.
+/// returns true iff the user specified something to test.
+///
+bool DataStructures::handleTest(llvm::raw_ostream &O, const Module *M) const {
+
+  bool tested = false;
+
+  tested |= printNodes(O,M,this);
+  tested |= checkIfNodesAreSame(O,M,this);
+  tested |= verifyFlags(O,M,this);
+
+  return tested;
 }
 

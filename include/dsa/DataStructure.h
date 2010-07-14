@@ -98,9 +98,10 @@ public:
   void print(llvm::raw_ostream &O, const Module *M) const;
   void dumpCallGraph() const;
 
-  /// printTestInfo - Print answers to queries made by tests
+  /// handleTest - Handles various user-specified testing options.
+  /// Returns true iff the user specified for us to test something.
   ///
-  void printTestInfo(llvm::raw_ostream &O, const Module *M) const;
+  bool handleTest(llvm::raw_ostream &O, const Module *M) const;
 
   virtual void releaseMemory();
 
