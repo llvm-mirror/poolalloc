@@ -1,10 +1,10 @@
 ;--check that local detects call to malloc properly (marks them heap)
-;RUN: dsaopt %s -dsa-local -analyze -dstest -print-node-for-value "main:b:0" -print-only-flags | grep "H"
+;RUN: dsaopt %s -dsa-local -analyze -verify-flags "main:b:0+H"
 ;--check that local has b pointing to node containing c and d
-;RUN: dsaopt %s -dsa-local -analyze -dstest -check-same-node=main:b:0,main:c,main:d
+;RUN: dsaopt %s -dsa-local -analyze -check-same-node=main:b:0,main:c,main:d
 ;--check that td/bu don't mark such nodes as incomplete
-;RUN: dsaopt %s -dsa-td -analyze -dstest -print-node-for-value "main:c" -print-only-flags | not grep "I"
-;RUN: dsaopt %s -dsa-bu -analyze -dstest -print-node-for-value "main:c" -print-only-flags | not grep "I"
+;RUN: dsaopt %s -dsa-td -analyze -verify-flags "main:c-I"
+;RUN: dsaopt %s -dsa-bu -analyze -verify-flags "main:c-I"
 
 ; ModuleID = 'malloc_free.ll'
 target datalayout = "e-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:64:64-f32:32:32-f64:64:64-v64:64:64-v128:128:128-a0:0:64-s0:64:64-f80:128:128-n8:16:32:64"
