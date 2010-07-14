@@ -34,12 +34,32 @@ char StdLibDataStructures::ID;
 
 #define numOps 10
 
+//
+// Structure: libAction
+//
+// Description:
+//  Describe how the DSGraph of a function should be built.  Note that for the
+//  boolean arrays of arity numOps, the first element is a flag describing the
+//  return value, and the remaining elements are flags describing the
+//  function's arguments.
+//
 struct libAction {
+  // The return value/arguments that should be marked read.
   bool read[numOps];
+
+  // The return value/arguments that should be marked modified.
   bool write[numOps];
+
+  // The return value/arguments that should be marked as heap.
   bool heap[numOps];
+
+  // Flags whether all arguments should be merged together.
   bool mergeAllArgs;
+
+  // Flags whether the return value should be merged with all arguments.
   bool mergeWithRet;
+
+  // Flags whether the return value and arguments should be folded.
   bool collapse;
 };
 
