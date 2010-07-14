@@ -6,34 +6,22 @@ target triple = "x86_64-unknown-linux-gnu"
 ;a's are none, b's are mod, c'd as ref, d's are mod/ref.
 
 ;--Stack:
-;RUN: dsaopt %s -dsa-local -analyze -dstest -print-only-flags -print-node-for-value \
-;RUN:  "func:stack_a" | grep "S" | grep -v "M" | grep -v "R"
-;RUN: dsaopt %s -dsa-local -analyze -dstest -print-only-flags -print-node-for-value \
-;RUN:  "func:stack_b" | grep "S" | grep "M" | grep -v "R"
-;RUN: dsaopt %s -dsa-local -analyze -dstest -print-only-flags -print-node-for-value \
-;RUN:  "func:stack_c" | grep "S" | grep -v "M" | grep -v "M"
-;RUN: dsaopt %s -dsa-local -analyze -dstest -print-only-flags -print-node-for-value \
-;RUN:  "func:stack_d" | grep "S" | grep "M" | grep "R"
+;RUN: dsaopt %s -dsa-local -analyze -verify-flags "func:stack_a+S-MR"
+;RUN: dsaopt %s -dsa-local -analyze -verify-flags "func:stack_b+SM-R"
+;RUN: dsaopt %s -dsa-local -analyze -verify-flags "func:stack_c+S-M+R"
+;RUN: dsaopt %s -dsa-local -analyze -verify-flags "func:stack_d+SMR"
 
 ;--Heap:
-;RUN: dsaopt %s -dsa-local -analyze -dstest -print-only-flags -print-node-for-value \
-;RUN:  "func:heap_a:0" | grep "H" | grep -v "M" | grep -v "R"
-;RUN: dsaopt %s -dsa-local -analyze -dstest -print-only-flags -print-node-for-value \
-;RUN:  "func:heap_b:0" | grep "H" | grep "M" | grep -v "R"
-;RUN: dsaopt %s -dsa-local -analyze -dstest -print-only-flags -print-node-for-value \
-;RUN:  "func:heap_c:0" | grep "H" | grep -v "M" | grep "R"
-;RUN: dsaopt %s -dsa-local -analyze -dstest -print-only-flags -print-node-for-value \
-;RUN:  "func:heap_d:0" | grep "H" | grep "M" | grep "R"
+;RUN: dsaopt %s -dsa-local -analyze -verify-flags "func:heap_a:0+H-MR"
+;RUN: dsaopt %s -dsa-local -analyze -verify-flags "func:heap_b:0+HM-R"
+;RUN: dsaopt %s -dsa-local -analyze -verify-flags "func:heap_c:0+H-M+R"
+;RUN: dsaopt %s -dsa-local -analyze -verify-flags "func:heap_d:0+HMR"
 
 ;--Globals:
-;RUN: dsaopt %s -dsa-local -analyze -dstest -print-only-flags -print-node-for-value \
-;RUN:  "global_a" | grep "G" | grep -v "M" | grep -v "R"
-;RUN: dsaopt %s -dsa-local -analyze -dstest -print-only-flags -print-node-for-value \
-;RUN:  "global_b" | grep "G" | grep "M" | grep -v "R"
-;RUN: dsaopt %s -dsa-local -analyze -dstest -print-only-flags -print-node-for-value \
-;RUN:  "global_c" | grep "G" | grep -v "M" | grep "R"
-;RUN: dsaopt %s -dsa-local -analyze -dstest -print-only-flags -print-node-for-value \
-;RUN:  "global_d" | grep "G" | grep "M" | grep "R"
+;RUN: dsaopt %s -dsa-local -analyze -verify-flags "global_a+G-MR"
+;RUN: dsaopt %s -dsa-local -analyze -verify-flags "global_b+GM-R"
+;RUN: dsaopt %s -dsa-local -analyze -verify-flags "global_c+G-M+R"
+;RUN: dsaopt %s -dsa-local -analyze -verify-flags "global_d+GMR"
 
 
 @global_c = common global i32 0                   ; <i32*> [#uses=1]
