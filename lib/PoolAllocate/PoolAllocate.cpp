@@ -612,7 +612,6 @@ Function *PoolAllocate::MakeFunctionClone(Function &F) {
   // Create the new function...
   //
   Function *New = Function::Create(FuncTy, Function::InternalLinkage, F.getName());
-  New->copyAttributesFrom(&F);
   F.getParent()->getFunctionList().insert(&F, New);
   CloneToOrigMap[New] = &F;   // Remember original function.
 
@@ -658,36 +657,27 @@ Function *PoolAllocate::MakeFunctionClone(Function &F) {
     NewToOldValueMap.insert(std::make_pair(I->second, I->first));
 
   //
-  // FIXME: File a bug report for CloneFunctionInto; it should take care of
-  //        this mess for us.  Also check whether it does it correctly.
-  //
-  // The cloned function will have its function attributes set more or less
-  // correctly at this point.  However, it will not have its parameter
-  // attributes set correctly.  We need to go through each argument in the
-  // old function and copy the parameter attributes over correctly.
-  //
-
-  //
-  // Begin by clearing out all function parameter attributes.
+  // The CloneFunctionInto() copies over all the parameter attributes from the
+  // old function to the new function.  However, it may place the sret
+  // attribute on a parameter that is no longer the first parameter.  Since
+  // sret is required to be on the first parameter, go find any use of it and
+  // strip it off.  This is safe since it is only used for calling conventions
+  // and optimization hints.
   //
   Function::ArgumentListType & ArgList = New->getArgumentList ();
   Function::ArgumentListType::iterator arg = ArgList.begin();
   for (; arg != ArgList.end(); ++arg) {
-    // Whatever attributes New has for this argument, remove them.
-    arg->removeAttr(New->getAttributes().getParamAttributes(arg->getArgNo()+1));
+    arg->removeAttr (Attribute::StructRet);
   }
 
   //
-  // Copy over the attributes from the old parameters to the new parameters.
+  // The CloneFunctionInto() function does not ensure that the clone has the
+  // same calling convention as the original function.  Since pool allocation
+  // merely replaces uses of the old function with the clone, both must have
+  // the same calling convention.  Make sure the new function has the same
+  // calling convention as the original function.
   //
-  Function::ArgumentListType & OldArgList = F.getArgumentList ();
-  arg = OldArgList.begin();
-  for (; arg != OldArgList.end(); ++arg) {
-    Argument * newArg = dyn_cast<Argument>(ValueMap[arg]);
-    assert (newArg && "Value Map for arguments incorrect!\n");
-
-    newArg->addAttr(F.getAttributes().getParamAttributes(arg->getArgNo()+1));
-  }
+  New->setCallingConv (F.getCallingConv());
 
   return FI.Clone = New;
 }
