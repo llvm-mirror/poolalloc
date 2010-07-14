@@ -75,7 +75,7 @@ class NodeValue {
   DSNodeHandle NH;
 
   // String version (that we were given)
-  StringRef serialized;
+  std::string serialized;
 
   // Parsed list of offsets
   typedef SmallVector<unsigned,3> OffsetVectorTy;
@@ -109,44 +109,69 @@ class NodeValue {
     }
   }
 
+  /// stripOffsets -- strips the offsets
+  /// Walks backwards, stripping offsets.
+  /// Returns serialized without the offsets
+  ///
+  std::string stripOffsets() {
+    std::vector<unsigned> offsets_reversed;
+    SmallVector<StringRef,5> colonSeparated;
+    StringRef serializedRef = serialized;
+    serializedRef.split(colonSeparated,":");
+    SmallVector<StringRef,5>::reverse_iterator I = colonSeparated.rbegin(),
+      E = colonSeparated.rend();
+    for(; I != E; ++I ) {
+      unsigned offset;
+      // If this isn't an integer (offset), then bail
+      if (I->getAsInteger(0,offset))
+        break;
+      offsets_reversed.push_back(offset);
+    }
+    // Okay so we built reversed list of offsets, now put things back together
+
+    // If we have more than 2 values left, then we have something like:
+    // name1:name2:name3[:offset]*, which is no good.
+    // Also, if we have *nothing* left, something is similarly wrong.
+    int stringsLeft = E - I;
+    assert((stringsLeft > 0) && "Node was entirely made of offsets?");
+    assert((stringsLeft <= 2) && "Too many colons! (Invalid node/offset given)");
+
+    // Now rebuild the string, without the offsets.
+    std::string rebuilt = I++->str();
+    for(; I != E; ++I) {
+      rebuilt = I->str() + ":" + rebuilt;
+    }
+
+    // Reverse the offsets (since we parsed backwards) and put the result
+    // into the 'offsets' vector for use elsewhere.
+    offsets.insert(offsets.begin(),
+        offsets_reversed.rbegin(),offsets_reversed.rend());
+
+    return rebuilt;
+  }
+
+
   /// parseValue -- sets value for the string we were constructed on,
   /// using the provided module as the context to find the value
   void parseValue(const Module *M) {
-    unsigned count = serialized.count(':');
+    // Parse the offsets, and remove from the string
+    StringRef stripped = stripOffsets();
+
+    unsigned count = stripped.count(':');
     if (count == 0) {
       // Global case
       // format: "[@]value"
-      StringRef globalName = stripAtIfRequired(serialized);
+      StringRef globalName = stripAtIfRequired(stripped);
 
       V = M->getNamedValue(globalName);
       assert(V && "Unable to find specified global!");
-    } else { // count >= 1
+    } else if (count == 1) {
       // Function-specific case
       // format: "[@]func:value"
-      // format: "[@]func:value:offset0:offset1:offset2"
 
-      std::pair<StringRef,StringRef> split = serialized.split(':');
+      std::pair<StringRef,StringRef> split = stripped.split(':');
       StringRef func = stripAtIfRequired(split.first);
       StringRef value = split.second;
-
-      if (count > 1) {
-        //If we have more semicolons, split them off to get the value and offsets
-        std::pair<StringRef,StringRef> tmp = value.split(':');
-        value = tmp.first;
-        StringRef offStrings = tmp.second;
-
-        //Small detour--parse offsets into vector
-        unsigned offset;
-        while(offStrings.count(':') > 0) {
-          tmp = offStrings.split(':');
-          assert(!tmp.first.getAsInteger(0,offset) && "failed to parse offset!");
-          offsets.push_back(offset);
-          offStrings = tmp.second;
-        }
-        assert(!offStrings.getAsInteger(0,offset) && "failed to parse offset!");
-        offsets.push_back(offset);
-      }
-      // Now back to your regularly scheduled programming...
 
       // First, find the function
       F = M->getFunction(func);
@@ -159,6 +184,8 @@ class NodeValue {
 
       assert(V && "Unable to find value in specified function!");
 
+    } else {
+      assert(0 && "Too many colons, offsets not stripped?");
     }
 
     assert(V && "Parsing value failed!");
@@ -241,9 +268,12 @@ static void printTypesForNode(llvm::raw_ostream &O, NodeValue &NV) {
 
   // Go through all the types, and just dump them.
   // FIXME: Lifted from Printer.cpp, probably should be shared
+  bool firstType = true;
   if (N->type_begin() != N->type_end())
     for (DSNode::TyMapTy::const_iterator ii = N->type_begin(),
         ee = N->type_end(); ii != ee; ++ii) {
+      if (!firstType) O << " ";
+      firstType = false;
       O << ii->first << ": ";
       if (ii->second) {
         bool first = true;
@@ -256,7 +286,6 @@ static void printTypesForNode(llvm::raw_ostream &O, NodeValue &NV) {
       }
       else
         O << "VOID";
-      O << " ";
     }
   else
     O << "VOID";
