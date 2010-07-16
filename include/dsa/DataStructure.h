@@ -369,7 +369,7 @@ class EQTDDataStructures : public TDDataStructures {
 public:
   static char ID;
   EQTDDataStructures()
-    :TDDataStructures((intptr_t)&ID, "eqtd.", false)
+    :TDDataStructures((intptr_t)&ID, "eqtd.", true)
   {}
   ~EQTDDataStructures();
 };
