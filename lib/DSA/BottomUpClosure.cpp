@@ -63,11 +63,11 @@ bool BUDataStructures::runOnModuleInternal(Module& M) {
           << "It is probably broken right now\n";
 #endif
 
-  //Find SCCs and make SCC call graph
+  //
+  // Put the callgraph into canonical form by finding SCCs.
+  //
   callgraph.buildSCCs();
   callgraph.buildRoots();
-
-  //  callgraph.dump();
 
   //
   // Merge the DSGraphs of functions belonging to an SCC.
@@ -189,18 +189,25 @@ void BUDataStructures::mergeSCCs() {
 // Method: postOrder()
 //
 // Description:
-//  I have no idea.
+//  Process the SCCs of the callgraph in post order.  When we process a
+//  function, we inline the DSGraphs of its callees into the function's own
+//  DSGraph, thereby doing the "bottom-up" pass that makes BU so famous.
 //
 // Inputs:
-//  F - The function on which to do whatever.
+//  F      - The function in the SCC to process.  Note that its children in the 
+//           callgraph will be processed first through a recursive call.
 //  marked - A reference to a set containing all values processed by
 //           previous invocations (this method is recursive).
 //
 // Outputs:
-//  marked - Updated to contain function F.
+//  marked - A set containing pointers to functions that have already been
+//           processed.
 //
-DSGraph* BUDataStructures::postOrder(const Function* F,
-                                     svset<const Function*>& marked) {
+// Return value:
+//  The DSGraph of the function after it has been processed is returned.
+//
+DSGraph*
+BUDataStructures::postOrder(const Function* F, svset<const Function*>& marked) {
   //
   // If we have already processed this function before, do not process it
   // again.
@@ -209,6 +216,15 @@ DSGraph* BUDataStructures::postOrder(const Function* F,
   DSGraph* G = getDSGraph(*F);
   if (marked.count(F)) return G;
 
+  //
+  // Find the set of callees to process.
+  //
+  // For this operation, we do not want to use the call graph.  Instead, we
+  // want to consult the DSGraph and see which call sites have not yet been
+  // resolved.  This is because we may learn about more call sites after doing
+  // one pass of bottom-up inlining, and so we don't want to reprocess the
+  // callees that were previously processed in an earlier BU phase.
+  //
   for (DSCallGraph::flat_iterator ii = callgraph.flat_callee_begin(F),
           ee = callgraph.flat_callee_end(F); ii != ee; ++ii) {
     callgraph.assertSCCRoot(*ii);
@@ -232,6 +248,10 @@ DSGraph* BUDataStructures::postOrder(const Function* F,
   // update the call graph using this new information.
   //
   G->buildCallGraph(callgraph);
+
+  //
+  // Return the DSGraph associated with this function.
+  //
   return G;
 }
 
@@ -416,6 +436,9 @@ void BUDataStructures::calculateGraph(DSGraph* Graph) {
       //
       // TODO:
       //  Why are the strip alloca bit and don't clone call nodes bit set?
+      //
+      //  I believe the answer is on page 6 of the PLDI paper on DSA.  The
+      //  idea is that stack objects are invalid if they escape.
       //
       Graph->mergeInGraph(CS, *Callee, *GI,
                           DSGraph::StripAllocaBit|DSGraph::DontCloneCallNodes);
