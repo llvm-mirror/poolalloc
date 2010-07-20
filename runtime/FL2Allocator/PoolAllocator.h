@@ -178,6 +178,9 @@ struct PoolTy {
 
   // Lock for the pool
   pthread_mutex_t pool_lock;
+
+  // Thread reference count for the pool
+  int thread_refcount;
 };
 
 extern "C" {

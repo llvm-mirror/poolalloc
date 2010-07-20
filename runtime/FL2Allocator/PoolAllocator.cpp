@@ -483,6 +483,7 @@ static void poolinit_internal(PoolTy<PoolTraits> *Pool,
                               unsigned DeclaredSize, unsigned ObjAlignment) {
   assert(Pool && "Null pool pointer passed into poolinit!\n");
   memset(Pool, 0, sizeof(PoolTy<PoolTraits>));
+  Pool->thread_refcount = 1;
   pthread_mutex_init(&Pool->pool_lock,NULL);
   Pool->AllocSize = INITIAL_SLAB_SIZE;
 
@@ -524,6 +525,15 @@ void poolinit(PoolTy<NormalPoolTraits> *Pool,
 //
 void pooldestroy(PoolTy<NormalPoolTraits> *Pool) {
   assert(Pool && "Null pool pointer passed in to pooldestroy!\n");
+
+#ifdef USE_DYNCALL
+  __sync_fetch_and_add(&Pool->thread_refcount,-1);
+#else
+  Pool->thread_refcount--;
+#endif
+  if(Pool->thread_refcount)
+	  return;
+
   pthread_mutex_destroy(&Pool->pool_lock);
 
 #ifdef ENABLE_POOL_IDS
@@ -908,31 +918,58 @@ void* poolalloc_thread_start(void* arg_)
 {
 	void** arg = (void**)arg_;
 	DCCallVM* callVM = dcNewCallVM((size_t)arg[1]*sizeof(size_t)+108);
+	arg[2+(size_t)arg[1]+2] = callVM;
 	int i;
 	for(i=0; i<(size_t)arg[1]; i++)
 		dcArgPointer(callVM,arg[2+i]);
 	dcArgPointer(callVM,arg[2+i]);
 	void* to_return = dcCallPointer(callVM,arg[0]);
-	dcFree(callVM);
-	free(arg_);
 	return to_return;
+}
+
+void* poolalloc_thread_manager(void* args_)
+{
+	void** args = (void**)args_;
+	size_t num_pools = (size_t)args[1];
+
+        void* to_return;
+	pthread_join((pthread_t)(args[2+num_pools+1]),&to_return);
+
+	for(int i=0; i<num_pools; i++)
+		if(args[2+i])
+			pooldestroy((PoolTy<NormalPoolTraits>*)args[2+i]);
+
+	dcFree((DCCallVM*)args[2+num_pools+2]);
+	free(args);
+        return to_return;
 }
 
 int poolalloc_pthread_create(pthread_t* thread,
 							 const pthread_attr_t* attr,
 							 void *(*start_routine)(void*), int num_pools, ...)
 {
-	void** arg_array = (void**)malloc(sizeof(void*)*(3+num_pools));
+	void** arg_array = (void**)malloc(sizeof(void*)*(5+num_pools));
 	arg_array[0] = (void*)start_routine;
 	arg_array[1] = (void*)num_pools;
 	va_list argpools;
 	va_start(argpools,num_pools);
 	int i;
 	for(i=0; i<num_pools; i++)
+	{
 		arg_array[2+i]=va_arg(argpools,void*);
+		PoolTy<NormalPoolTraits>* pool_ptr = reinterpret_cast<PoolTy<NormalPoolTraits>*>(arg_array[2+i]);
+		if(pool_ptr)
+			__sync_fetch_and_add(&pool_ptr->thread_refcount,1);
+	}
 	arg_array[2+i]=va_arg(argpools,void*);
 	va_end(argpools);
-	return pthread_create(thread,attr,poolalloc_thread_start,arg_array);
+
+	pthread_t dummy;
+	int to_return = pthread_create(&dummy,attr,poolalloc_thread_start,arg_array);
+	arg_array[2+i+1] = (void*)(dummy);
+	to_return |= pthread_create(thread,NULL,poolalloc_thread_manager,arg_array);
+
+	return to_return;
 }
 
 #endif
