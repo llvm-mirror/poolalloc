@@ -248,7 +248,13 @@ bool PoolAllocate::runOnModule(Module &M) {
       // constant because they are uniqued.
       if (Constant *C = dyn_cast<Constant>(user)) {
         if (!isa<GlobalValue>(C)) {
-          C->replaceUsesOfWithOnConstant(F, CEnew, user->op_begin());
+          for (User::op_iterator use = user->op_begin();
+               use != user->op_end();
+               ++use) {
+            if (use->get() == F) {
+              C->replaceUsesOfWithOnConstant(F, CEnew, use);
+            }
+          }
           continue;
         }
       }
