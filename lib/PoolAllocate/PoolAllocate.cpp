@@ -248,13 +248,26 @@ bool PoolAllocate::runOnModule(Module &M) {
       // constant because they are uniqued.
       if (Constant *C = dyn_cast<Constant>(user)) {
         if (!isa<GlobalValue>(C)) {
+
+          //
+          // Scan through all operands in the constant.  If they are the
+          // function that we want to replace, then add them to a worklist (we
+          // use a worklist to avoid iterator invalidation errors).
+          //
+          std::vector<Use *> ReplaceWorklist;
           for (User::op_iterator use = user->op_begin();
                use != user->op_end();
                ++use) {
             if (use->get() == F) {
-              C->replaceUsesOfWithOnConstant(F, CEnew, use);
+              ReplaceWorklist.push_back (use);
             }
           }
+
+          //
+          // Do replacements in the worklist.
+          //
+          for (unsigned index = 0; index < ReplaceWorklist.size(); ++index)
+            C->replaceUsesOfWithOnConstant(F, CEnew, ReplaceWorklist[index]);
           continue;
         }
       }
