@@ -30,6 +30,7 @@
 #include "llvm/Support/CommandLine.h"
 
 #include "dsa/DataStructure.h"
+#include "dsa/DSGraph.h"
 #include "poolalloc/Config/config.h"
 
 #include <utility>
@@ -526,7 +527,7 @@ public:
   }
 
   virtual DSGraph* getGlobalsGraph () const {
-    return CombinedDSGraph;
+    return CombinedDSGraph->getGlobalsGraph();
   }
 
   virtual Value * getGlobalPool (const DSNode * Node) {

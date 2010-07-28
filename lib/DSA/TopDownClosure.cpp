@@ -276,8 +276,24 @@ void TDDataStructures::InlineCallersIntoGraph(DSGraph* DSG) {
   Flags |= DSGraph::IgnoreGlobals | DSGraph::MarkVAStart;
   DSG->markIncompleteNodes(Flags);
 
+  //
   // Delete dead nodes.  Treat globals that are unreachable as dead also.
+  //
+  // FIXME:
+  //  Do not delete unreachable globals as the comment describes.  For its
+  //  alignment checks on the results of load instructions, SAFECode must be
+  //  able to find the DSNode of both the result of the load as well as the
+  //  pointer dereferenced by the load.  If we remove unreachable globals, then
+  //  if the dereferenced pointer is a global, its DSNode will not reachable
+  //  from the local graph's scalar map, and chaos ensues.
+  //
+  //  So, for now, just remove dead nodes but leave the globals alone.
+  //
+#if 0
   DSG->removeDeadNodes(DSGraph::RemoveUnreachableGlobals);
+#else
+  DSG->removeDeadNodes(0);
+#endif
 
   // We are done with computing the current TD Graph!  Finally, before we can
   // finish processing this function, we figure out which functions it calls and
