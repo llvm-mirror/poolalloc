@@ -948,42 +948,82 @@ void GraphBuilder::visitInstruction(Instruction &Inst) {
 // LocalDataStructures Implementation
 //===----------------------------------------------------------------------===//
 
-// MergeConstantInitIntoNode - Merge the specified constant into the node
-// pointed to by NH.
-void GraphBuilder::MergeConstantInitIntoNode(DSNodeHandle &NH, const Type* Ty, Constant *C) {
+//
+// Function: MergeConstantInitIntoNode()
+//
+// Description:
+//  Merge the specified constant into the specified DSNode.
+//
+void
+GraphBuilder::MergeConstantInitIntoNode(DSNodeHandle &NH,
+                                        const Type* Ty,
+                                        Constant *C) {
+  //
   // Ensure a type-record exists...
+  //
   DSNode *NHN = NH.getNode();
   NHN->mergeTypeInfo(Ty, NH.getOffset());
 
+  //
+  // If we've found something of pointer type, create or find its DSNode and
+  // make a link from the specified DSNode to the new DSNode describing the
+  // pointer we've just found.
+  //
   if (isa<PointerType>(Ty)) {
-    // Avoid adding edges from null, or processing non-"pointer" stores
     NH.addEdgeTo(getValueDest(C));
     return;
   }
 
+  //
+  // If the type of the object (array element, structure field, etc.) is an
+  // integer or floating point type, then just ignore it.  It has no DSNode.
+  //
   if (Ty->isIntOrIntVectorTy() || Ty->isFPOrFPVectorTy()) return;
 
+  //
+  // Handle aggregate constants.
+  //
   if (ConstantArray *CA = dyn_cast<ConstantArray>(C)) {
-    for (unsigned i = 0, e = CA->getNumOperands(); i != e; ++i)
-      // We don't currently do any indexing for arrays...
-      MergeConstantInitIntoNode(NH, cast<ArrayType>(Ty)->getElementType(), cast<Constant>(CA->getOperand(i)));
+    //
+    // For an array, we don't worry about different elements pointing to
+    // different objects; we essentially pretend that all array elements alias.
+    //
+    const Type * ElementType = cast<ArrayType>(Ty)->getElementType();
+    for (unsigned i = 0, e = CA->getNumOperands(); i != e; ++i) {
+      Constant * ConstElement = cast<Constant>(CA->getOperand(i));
+      MergeConstantInitIntoNode(NH, ElementType, ConstElement);
+    }
   } else if (ConstantStruct *CS = dyn_cast<ConstantStruct>(C)) {
+    //
+    // For a structure, we need to merge each element of the constant structure
+    // into the specified DSNode.  However, we must also handle structures that
+    // end with a zero-length array ([0 x sbyte]); this is a common C idiom
+    // that continues to plague the world.
+    //
     const StructLayout *SL = TD.getStructLayout(cast<StructType>(Ty));
     for (unsigned i = 0, e = CS->getNumOperands(); i != e; ++i) {
       DSNode *NHN = NH.getNode();
-      //Some programmers think ending a structure with a [0 x sbyte] is cute
       if (SL->getElementOffset(i) < SL->getSizeInBytes()) {
-        DSNodeHandle NewNH(NHN, NH.getOffset()+(unsigned)SL->getElementOffset(i));
-        MergeConstantInitIntoNode(NewNH, cast<StructType>(Ty)->getElementType(i), cast<Constant>(CS->getOperand(i)));
+        const Type * ElementType = cast<StructType>(Ty)->getElementType(i);
+        Constant * ConstElement = cast<Constant>(CS->getOperand(i));
+        DSNodeHandle NewNH (NHN,
+                            NH.getOffset()+(unsigned)SL->getElementOffset(i));
+        MergeConstantInitIntoNode(NewNH, ElementType, ConstElement);
       } else if (SL->getElementOffset(i) == SL->getSizeInBytes()) {
+        //
+        // If this is one of those cute structures that ends with a zero-length
+        // array, just fold the DSNode now and get it over with.
+        //
         DEBUG(errs() << "Zero size element at end of struct\n" );
         NHN->foldNodeCompletely();
       } else {
-        assert(0 && "type was smaller than offsets of of struct layout indicate");
+        assert(0 && "type was smaller than offsets of struct layout indicate");
       }
     }
   } else if (isa<ConstantAggregateZero>(C) || isa<UndefValue>(C)) {
-    // Noop
+    //
+    // Undefined values and NULL pointers have no DSNodes, so they do nothing.
+    //
   } else {
     assert(0 && "Unknown constant type!");
   }
