@@ -470,12 +470,19 @@ void GraphBuilder::visitExtractValueInst(ExtractValueInst& I) {
 }
 
 void GraphBuilder::visitGetElementPtrInst(User &GEP) {
+  //
+  // Ensure that the indexed pointer has a DSNode.
+  //
   DSNodeHandle Value = getValueDest(GEP.getOperand(0));
   if (Value.isNull())
     Value = createNode();
 
-  // As a special case, if all of the index operands of GEP are constant zeros,
-  // handle this just like we handle casts (ie, don't do much).
+  //
+  // There are a few quick and easy cases to handle.  If the index operands of
+  // the GEP are all zero, or if the DSNode of the indexed pointer is already
+  // folded, then we know that the result of the GEP will have the same offset
+  // into the same DSNode as the indexed pointer.
+  //
   bool AllZeros = true;
   for (unsigned i = 1, e = GEP.getNumOperands(); i != e; ++i) {
     if (ConstantInt * CI = dyn_cast<ConstantInt>(GEP.getOperand(i)))
@@ -486,15 +493,25 @@ void GraphBuilder::visitGetElementPtrInst(User &GEP) {
     break;
   }
 
-  // If all of the indices are zero, the result points to the operand without
-  // applying the type.
   if (AllZeros || (!Value.isNull() &&
                    Value.getNode()->isNodeCompletelyFolded())) {
     setDestTo(GEP, Value);
     return;
   }
 
-  //Make sure the uncollapsed node has a large enough size for the struct type
+  //
+  // Okay, no easy way out.  Calculate the offset into the object being
+  // indexed.
+  //
+
+  //
+  // Ensure the uncollapsed node has a large enough size for the struct type
+  //
+  // FIXME: I am not sure if the code below is completely correct (especially
+  //        if we start doing fancy analysis on non-constant array indices).
+  //        What if the array is indexed using a larger index than its declared
+  //        size?  Does the LLVM verifier catch such issues?
+  //
   const PointerType *PTy = cast<PointerType > (GEP.getOperand(0)->getType());
   const Type *CurTy = PTy->getElementType();
   if (TD.getTypeAllocSize(CurTy) + Value.getOffset() > Value.getNode()->getSize())
@@ -528,7 +545,18 @@ void GraphBuilder::visitGetElementPtrInst(User &GEP) {
   }
 #endif
 
-  // All of these subscripts are indexing INTO the elements we have...
+  //
+  // Determine the offset (in bytes) between the result of the GEP and the
+  // GEP's pointer operand.
+  //
+  // Note: All of these subscripts are indexing INTO the elements we have...
+  //
+  // FIXME: We can do better for array indexing.  First, if the array index is
+  //        constant, we can determine how much farther we're moving the
+  //        pointer.  Second, we can try to use the results of other analysis
+  //        passes (e.g., ScalarEvolution) to find min/max values to do less
+  //        conservative type-folding.
+  //
   unsigned Offset = 0;
   for (gep_type_iterator I = gep_type_begin(GEP), E = gep_type_end(GEP);
        I != E; ++I)
@@ -537,6 +565,14 @@ void GraphBuilder::visitGetElementPtrInst(User &GEP) {
       int FieldNo = CUI->getSExtValue();
       Offset += (unsigned)TD.getStructLayout(STy)->getElementOffset(FieldNo);
     } else if (isa<PointerType>(*I)) {
+      //
+      // Unless we're advancing the pointer by zero bytes via array indexing,
+      // fold the node (i.e., mark it type-unknown) and indicate that we're
+      // indexing zero bytes into the object.
+      //
+      // Note that we break out of the loop if we fold the node.  Once
+      // something is folded, all values within it are considered to alias.
+      //
       if (!isa<Constant>(I.getOperand()) ||
           !cast<Constant>(I.getOperand())->isNullValue()) {
         Value.getNode()->setArrayMarker();
