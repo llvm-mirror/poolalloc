@@ -1040,10 +1040,30 @@ GraphBuilder::MergeConstantInitIntoNode(DSNodeHandle &NH,
     for (unsigned i = 0, e = CS->getNumOperands(); i != e; ++i) {
       DSNode *NHN = NH.getNode();
       if (SL->getElementOffset(i) < SL->getSizeInBytes()) {
+        //
+        // Get the type and constant value of this particular element of the
+        // constant structure.
+        //
         const Type * ElementType = cast<StructType>(Ty)->getElementType(i);
         Constant * ConstElement = cast<Constant>(CS->getOperand(i));
-        DSNodeHandle NewNH (NHN,
-                            NH.getOffset()+(unsigned)SL->getElementOffset(i));
+
+        //
+        // Get the offset (in bytes) into the memory object that we're
+        // analyzing.
+        //
+        unsigned offset = NH.getOffset()+(unsigned)SL->getElementOffset(i);
+
+        //
+        // Create a new DSNodeHandle.  This DSNodeHandle will point to the same
+        // DSNode as the one we're constructing for our caller; however, it
+        // will point into a different offset into that DSNode.
+        //
+        DSNodeHandle NewNH (NHN, offset);
+
+        //
+        // Recursively merge in this element of the constant struture into the
+        // DSNode.
+        //
         MergeConstantInitIntoNode(NewNH, ElementType, ConstElement);
       } else if (SL->getElementOffset(i) == SL->getSizeInBytes()) {
         //
@@ -1066,10 +1086,27 @@ GraphBuilder::MergeConstantInitIntoNode(DSNodeHandle &NH,
 }
 
 void GraphBuilder::mergeInGlobalInitializer(GlobalVariable *GV) {
+  // Ensure that the global variable is not external
   assert(!GV->isDeclaration() && "Cannot merge in external global!");
+
+  //
   // Get a node handle to the global node and merge the initializer into it.
+  //
   DSNodeHandle NH = getValueDest(GV);
-  MergeConstantInitIntoNode(NH, GV->getType()->getElementType(), GV->getInitializer());
+
+  //
+  // Ensure that the DSNode is large enough to hold the new constant that we'll
+  // be adding to it.
+  //
+  const Type * ElementType = GV->getType()->getElementType();
+  unsigned requiredSize = TD.getTypeAllocSize(ElementType) + NH.getOffset();
+  if (NH.getNode()->getSize() < requiredSize)
+    NH.getNode()->growSize (requiredSize);
+
+  //
+  // Do the actual merging in of the constant initializer.
+  //
+  MergeConstantInitIntoNode(NH, ElementType, GV->getInitializer());
 }
 
 void GraphBuilder::mergeExternalGlobal(GlobalVariable *GV) {
