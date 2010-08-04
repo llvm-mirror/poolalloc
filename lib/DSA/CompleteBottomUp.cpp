@@ -37,7 +37,22 @@ bool CompleteBUDataStructures::runOnModule(Module &M) {
   buildIndirectFunctionSets(M);
   formGlobalECs();
 
-  return runOnModuleInternal(M);
+  //
+  // Propagate information from the local graphs to the globals graphs.
+  //
+  for (Module::iterator F = M.begin(); F != M.end(); ++F) {
+    if (!(F->isDeclaration())) {
+      if (DSGraph * Graph = getOrCreateGraph(F)) {
+        cloneIntoGlobals (Graph);
+      }
+    }
+  }
+
+  //
+  // Do bottom-up propagation.
+  //
+  bool modified = runOnModuleInternal(M);
+  return modified;
 }
 
 void CompleteBUDataStructures::buildIndirectFunctionSets(Module &M) {
@@ -48,7 +63,7 @@ void CompleteBUDataStructures::buildIndirectFunctionSets(Module &M) {
   DSGraph* G = getGlobalsGraph();
   DSGraph::ScalarMapTy& SM = G->getScalarMap();
 
-  //mege nodes in the global graph for these functions
+  // Merge nodes in the global graph for these functions
   for (DSCallGraph::callee_key_iterator ii = callgraph.key_begin(),
        ee = callgraph.key_end(); ii != ee; ++ii) {
 
@@ -62,9 +77,15 @@ void CompleteBUDataStructures::buildIndirectFunctionSets(Module &M) {
                                    csee = callgraph.callee_end(*ii);
 
       for (; csii != csee; ++csii) {
-        // Declarations don't have to have entries
-        if(!(*csii)->isDeclaration())
-          assert(SM.count(*csii) && "Indirect function callee not in globals?");
+        //
+        // Declarations don't have to have entries.  Functions may be
+        // equivalence classed already, so we have to check their equivalence
+        // class leader instead of the global itself.
+        //
+        const Function * F = *csii;
+        if (!(F->isDeclaration()))
+          assert (SM.count (SM.getLeaderForGlobal(F)) &&
+                  "Indirect function callee not in globals?");
       }
 
     }
@@ -91,8 +112,9 @@ void CompleteBUDataStructures::buildIndirectFunctionSets(Module &M) {
     // Merge the rest of the callees (that we have entries for) together
     // with the first one.
     for (; csi != cse; ++csi) {
-      if (SM.count(*csi))
+      if (SM.count(*csi)) {
         SrcNH.mergeWith(SM.find(*csi)->second);
+      }
     }
   }
 }

@@ -207,12 +207,28 @@ void DSCallGraph::dump() {
 
 //Filter all call edges.  We only want pointer edges.
 void DSCallGraph::insert(llvm::CallSite CS, const llvm::Function* F) {
-  //Create an empty set for the callee, hence all called functions get to be
-  // in the call graph also.  This simplifies SCC formation
-  SimpleCallees[CS.getInstruction()->getParent()->getParent()];
+  //
+  // Find the function to which the call site belongs.
+  //
+  const llvm::Function * Parent = CS.getInstruction()->getParent()->getParent();
+
+  //
+  // Determine the SCC leaders for both the calling function and the called
+  // function.  If they don't belong to an SCC, add them as leaders.
+  //
+  SCCs.insert (Parent);
+  SCCs.insert (F);
+  const llvm::Function * ParentLeader = SCCs.getLeaderValue (Parent);
+  const llvm::Function * FLeader      = SCCs.getLeaderValue (F);
+
+  //
+  // Create an empty set for the callee; hence, all called functions get to be
+  // in the call graph also.  This simplifies SCC formation.
+  //
+  SimpleCallees[ParentLeader];
   if (F) {
-    ActualCallees[CS].insert(F);
-    SimpleCallees[CS.getInstruction()->getParent()->getParent()].insert(F);
+    ActualCallees[CS].insert(FLeader);
+    SimpleCallees[ParentLeader].insert(FLeader);
   }
 }
 

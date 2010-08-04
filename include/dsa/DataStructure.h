@@ -211,6 +211,7 @@ protected:
 
   EntryPointAnalysis* EP;
 
+  void cloneIntoGlobals(DSGraph* G);
 public:
   static char ID;
   //Child constructor (CBU)
@@ -235,7 +236,6 @@ protected:
 
 private:
   void mergeSCCs();
-  
   DSGraph* postOrder(const Function*,
                      svset<const Function*>& marked);
   
@@ -243,7 +243,6 @@ private:
 
   void CloneAuxIntoGlobal(DSGraph* G);
   void cloneGlobalsInto(DSGraph* G);
-  void cloneIntoGlobals(DSGraph* G);
   void finalizeGlobals(void);
 };
 

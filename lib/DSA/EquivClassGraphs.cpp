@@ -50,10 +50,17 @@ bool EquivBUDataStructures::runOnModule(Module &M) {
 }
 
 
-// Merge all graphs that are in the same equivalence class
-// the ensures things like poolalloc only deal with one graph for a 
-// call site
-void EquivBUDataStructures::mergeGraphsByGlobalECs() {
+//
+// Method: mergeGraphsByGlobalECs()
+//
+// Description:
+//  Merge all graphs that are in the same equivalence class.  This ensures
+//  that transforms like Automatic Pool Allocation only see one graph for a 
+//  call site.
+//
+void
+EquivBUDataStructures::mergeGraphsByGlobalECs() {
+  //
   // Merge the graphs for each equivalence class.
   //
   for (EquivalenceClasses<const GlobalValue*>::iterator EQSI = GlobalECs.begin(), 
@@ -86,6 +93,13 @@ void EquivBUDataStructures::mergeGraphsByGlobalECs() {
         }       
       }
     }
+
+    //
+    // Update the globals graph with any information that has changed due to
+    // graph merging.
+    //
+    if (BaseGraph)
+      cloneIntoGlobals(BaseGraph);
   }
 }
 
