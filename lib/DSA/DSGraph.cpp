@@ -1260,8 +1260,7 @@ void DSGraph::computeNodeMapping(const DSNodeHandle &NH1,
       //
       // Compute the node mapping for the link.
       //
-      //if (N2->hasLink (offset))
-        computeNodeMapping (N1NH, N2->getLink(offset), NodeMap, StrictChecking);
+      computeNodeMapping (N1NH, N2->getLink(offset), NodeMap, StrictChecking);
     }
   }
 }
