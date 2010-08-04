@@ -1219,24 +1219,49 @@ void DSGraph::computeNodeMapping(const DSNodeHandle &NH1,
     return;
   }
 
+  //
+  // Modify the entry in the node map so that the DSNode from the first
+  // DSNodeHandle is mapped to the second DSNodeHandle.
+  //
   Entry.setTo(N2, NH2.getOffset()-NH1.getOffset());
 
-  // Loop over all of the fields that N1 and N2 have in common, recursively
-  // mapping the edges together now.
-  int N2Idx = NH2.getOffset()-NH1.getOffset();
+  //
+  // The two DSNodes that we have could be strucures with outgoing links to
+  // other DSNodes.  Recursively map such outgoing edges together, too.
+  //
+
+  //
+  // If the second DSNode has no outgoing edges, then stop processing.  There
+  // is nothing more to do.
+  //
   unsigned N2Size = N2->getSize();
   if (N2Size == 0) return;   // No edges to map to.
 
+  //
+  // Recursively link outgoing edges together.
+  //
+  int N2Idx = NH2.getOffset()-NH1.getOffset();
   for (unsigned i = 0, e = N1->getSize(); i < e; ++i) {
     const DSNodeHandle &N1NH = N1->getLink(i);
+    //
     // Don't call N2->getLink if not needed (avoiding crash if N2Idx is not
-    // aligned right).
+    // aligned correctly).
+    //
     if (!N1NH.isNull()) {
+      //
+      // Compute the offset into the second DSNode.
+      //
+      unsigned offset = 0;
       if (unsigned(N2Idx)+i < N2Size)
-        computeNodeMapping(N1NH, N2->getLink(N2Idx+i), NodeMap, StrictChecking);
+        offset = N2Idx+i;
       else
-        computeNodeMapping(N1NH,
-                           N2->getLink(unsigned(N2Idx+i) % N2Size), NodeMap, StrictChecking);
+        offset = (unsigned(N2Idx+i) % N2Size);
+
+      //
+      // Compute the node mapping for the link.
+      //
+      //if (N2->hasLink (offset))
+        computeNodeMapping (N1NH, N2->getLink(offset), NodeMap, StrictChecking);
     }
   }
 }
@@ -1248,9 +1273,33 @@ void DSGraph::computeGToGGMapping(NodeMapTy &NodeMap) {
   DSGraph &GG = *getGlobalsGraph();
 
   DSScalarMap &SM = getScalarMap();
+
+  //
+  // Iterate through all values used by this function (i.e., those values in
+  // the local graph in the function's DSGraph).  For each one, compute the
+  // mapping between its DSNode in the local graph and its DSNode in the
+  // globals graph.
+  //
+  // Note that we use variables to hold intermediate values.  This allows us
+  // to query these values more easily in the debugger.
+  //
   for (DSScalarMap::global_iterator I = SM.global_begin(),
-         E = SM.global_end(); I != E; ++I)
-    DSGraph::computeNodeMapping(SM[*I], GG.getNodeForValue(*I), NodeMap);
+         E = SM.global_end(); I != E; ++I) {
+    // Local value in the scalar map
+    const Value * LocalValue = *I;
+
+    // DSNode Handle for the value in the local graph
+    DSNodeHandle LocalNodeHandle = SM[LocalValue];
+
+    // DSNode Handle for the value in the globals graph
+    DSNodeHandle GlobalNodeHandle = GG.getNodeForValue(LocalValue);
+
+    //
+    // Add to the node mapping the mapping between the DSNode in the local
+    // graph and the DSNode in the globals graph.
+    //
+    DSGraph::computeNodeMapping(LocalNodeHandle, GlobalNodeHandle, NodeMap);
+  }
 }
 
 /// computeGGToGMapping - Compute the mapping of nodes in the global graph to
