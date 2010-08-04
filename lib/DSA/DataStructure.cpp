@@ -308,6 +308,15 @@ void DSNode::addFullFunctionList(std::vector<const Function*> &List) const {
   }
 }
 
+void DSNode::dumpFuncs() {
+  std::vector<const Function *> List;
+  addFullFunctionList (List);
+  for (unsigned index = 0; index < List.size(); ++index) {
+    std::cerr << List[index]->getNameStr() << std::endl;
+  }
+  return;
+}
+
 /// mergeTypeInfo - This method merges the specified type into the current node
 /// at the specified offset.  This may update the current node's type record if
 /// this gives more information to the node, it may do nothing to the node if
@@ -1177,6 +1186,7 @@ DSGraph* DataStructures::getOrCreateGraph(const Function* F) {
   assert(F && "No function");
   DSGraph *&G = DSInfo[F];
   if (!G) {
+    assert (F->isDeclaration() || GraphSource->hasDSGraph(*F));
     //Clone or Steal the Source Graph
     DSGraph* BaseGraph = GraphSource->getDSGraph(*F);
     if (Clone) {
