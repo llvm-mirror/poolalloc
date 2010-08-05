@@ -615,7 +615,7 @@ void GraphBuilder::visitGetElementPtrInst(User &GEP) {
 #endif
 
   // Add in the offset calculated...
- Value.setOffset(Value.getOffset()+Offset);
+  Value.setOffset(Value.getOffset()+Offset);
 
   // Check the offset
   DSNode *N = Value.getNode();
@@ -1059,6 +1059,7 @@ GraphBuilder::MergeConstantInitIntoNode(DSNodeHandle &NH,
         // will point into a different offset into that DSNode.
         //
         DSNodeHandle NewNH (NHN, offset);
+        assert ((NewNH.getOffset() == offset) && "Need to resize DSNode!\n");
 
         //
         // Recursively merge in this element of the constant struture into the
