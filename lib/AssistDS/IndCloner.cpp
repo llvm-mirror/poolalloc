@@ -63,6 +63,9 @@ IndClone::runOnModule(Module& M) {
   // clone.
   //
   for (Module::iterator I = M.begin(); I != M.end(); ++I) {
+    // Flag whether the function should be cloned
+    bool pleaseCloneTheFunction = false;
+
     //
     // Only clone functions which are defined and cannot be replaced by another
     // function by the linker.
@@ -70,11 +73,32 @@ IndClone::runOnModule(Module& M) {
     if (!I->isDeclaration() && !I->mayBeOverridden()) {
       for (Value::use_iterator ui = I->use_begin(), ue = I->use_end();
           ui != ue; ++ui) {
-        //
-        // If this function is used for anything other than a direct function
-        // call, then we want to clone it.
-        //
         if (!isa<CallInst>(ui) && !isa<InvokeInst>(ui)) {
+          //
+          // If this function is used for anything other than a direct function
+          // call, then we want to clone it.
+          //
+          pleaseCloneTheFunction = true;
+        } else {
+          //
+          // This is a call instruction, but hold up ranger!  We need to make
+          // sure that the function isn't passed as an argument to *another*
+          // function.  That would make the function usable in an indirect
+          // function call.
+          //
+          for (unsigned index = 1; index < ui->getNumOperands(); ++index) {
+            if (ui->getOperand(index)->stripPointerCasts() == I) {
+              pleaseCloneTheFunction = true;
+              break;
+            }
+          }
+        }
+
+        //
+        // If we've discovered that the function could be used by an indirect
+        // call site, schedule it for cloning.
+        //
+        if (pleaseCloneTheFunction) {
           toClone.push_back(I);
           break;
         }
@@ -84,8 +108,12 @@ IndClone::runOnModule(Module& M) {
 
   //
   // Update the statistics on the number of functions we'll be cloning.
+  // We only update the statistic if we want to clone one or more functions;
+  // due to the magic of how statistics work, avoiding assignment prevents it
+  // from needlessly showing up.
   //
-  numCloned += toClone.size();
+  if (toClone.size())
+    numCloned += toClone.size();
 
   //
   // Go through the worklist and clone each function.  After cloning a
