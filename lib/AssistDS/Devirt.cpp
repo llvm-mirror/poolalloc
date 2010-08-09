@@ -32,6 +32,21 @@ RegisterPass<Devirtualize>
 X ("devirt", "Devirtualize indirect function calls");
 
 //
+// Function: getVoidPtrType()
+//
+// Description:
+//  Return a pointer to the LLVM type for a void pointer.
+//
+// Return value:
+//  A pointer to an LLVM type for the void pointer.
+//
+static inline
+PointerType * getVoidPtrType (LLVMContext & C) {
+  const Type * Int8Type  = IntegerType::getInt8Ty(C);
+  return PointerType::getUnqual(Int8Type);
+}
+
+//
 // Function: castTo()
 //
 // Description:
@@ -111,6 +126,12 @@ Devirtualize::buildBounce (CallSite CS, std::vector<const Function*>& Targets) {
     }
 
   //
+  // Create an entry basic block for the function.  All it should do is perform
+  // some cast instructions and branch to the first comparison basic block.
+  //
+  BasicBlock* entryBB = BasicBlock::Create (M->getContext(), "entry", F);
+
+  //
   // For each function target, create a basic block that will call that
   // function directly.
   //
@@ -137,48 +158,70 @@ Devirtualize::buildBounce (CallSite CS, std::vector<const Function*>& Targets) {
   }
 
   //
-  // Create a set of tests that search for the correct function target
-  // and call it directly.  If none of the target functions match,
-  // abort (or make the result unreachable).
-  //
-
-  //
-  // Create the failure basic block.  This basic block should simply be an
+  // Create a failure basic block.  This basic block should simply be an
   // unreachable instruction.
   //
-  BasicBlock* tail = BasicBlock::Create (M->getContext(),
-                                         "fail",
-                                         F,
-                                         &F->getEntryBlock());
-  Instruction * InsertPt;
-  InsertPt = new UnreachableInst (M->getContext(), tail);
+  BasicBlock * failBB = BasicBlock::Create (M->getContext(),
+                                            "fail",
+                                            F);
+  new UnreachableInst (M->getContext(), failBB);
 
   //
-  // Create basic blocks for valid target functions.
+  // Setup the entry basic block.  For now, just have it call the failure
+  // basic block.  We'll change the basic block to which it branches later.
   //
-  const Type * Int8Type  = IntegerType::getInt8Ty(M->getContext());
-  const Type * VoidPtrTy = PointerType::getUnqual(Int8Type);
-  Value * FArg = CastInst::CreateZExtOrBitCast (F->arg_begin(),
-                                                VoidPtrTy,
-                                                "",
-                                                F->getEntryBlock().getTerminator());
+  BranchInst * InsertPt = BranchInst::Create (failBB, entryBB);
+
+  //
+  // Create basic blocks which will test the value of the incoming function
+  // pointer and branch to the appropriate basic block to call the function.
+  //
+  const Type * VoidPtrType = getVoidPtrType (M->getContext());
+  Value * FArg = castTo (F->arg_begin(), VoidPtrType, "", InsertPt);
+  BasicBlock * tailBB = failBB;
   for (unsigned index = 0; index < Targets.size(); ++index) {
+    //
+    // Cast the function pointer to an integer.  This can go in the entry
+    // block.
+    //
+    Value * TargetInt = castTo ((Value *)(Targets[index]),
+                                VoidPtrType,
+                                "",
+                                InsertPt);
+
+    //
+    // Create a new basic block that compares the function pointer to the
+    // function target.  If the function pointer matches, we'll branch to the
+    // basic block performing the direct call for that function; otherwise,
+    // we'll branch to the next function call target.
+    //
     BasicBlock* TB = targets[Targets[index]];
     BasicBlock* newB = BasicBlock::Create (M->getContext(),
                                            "test." + Targets[index]->getName(),
-                                           F,
-                                           &F->getEntryBlock());
-    Value * Target = (Value *) Targets[index];
-    Target = castTo (Target, VoidPtrTy, "", F->getEntryBlock().getTerminator());
+                                           F);
     CmpInst * setcc = CmpInst::Create (Instruction::ICmp,
                                        CmpInst::ICMP_EQ,
-                                       Target,
+                                       TargetInt,
                                        FArg,
                                        "sc",
                                        newB);
-    BranchInst::Create (TB, tail, setcc, newB);
-    tail = newB;
+    BranchInst::Create (TB, tailBB, setcc, newB);
+
+    //
+    // Make this newly created basic block the next block that will be reached
+    // when the next comparison will need to be done.
+    //
+    tailBB = newB;
   }
+
+  //
+  // Make the entry basic block branch to the first comparison basic block.
+  //
+  InsertPt->setUnconditionalDest (tailBB);
+
+  //
+  // Return the newly created bounce function.
+  //
   return F;
 }
 
@@ -296,6 +339,11 @@ Devirtualize::runOnModule (Module & M) {
   CTF = &getAnalysis<CallTargetFinder>();
 
   //
+  // Get information on the target system.
+  //
+  //
+  TD = &getAnalysis<TargetData>();
+
   // Visit all of the call instructions in this function and record those that
   // are indirect function calls.
   //
