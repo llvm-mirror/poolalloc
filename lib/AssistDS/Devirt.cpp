@@ -83,12 +83,15 @@ Devirtualize::buildBounce (CallSite CS, std::vector<const Function*>& Targets) {
   // will be the function to call.
   //
   Value* ptr = CS.getCalledValue();
-  const FunctionType* OrigType = 
-    cast<FunctionType>(cast<PointerType>(ptr->getType())->getElementType());
-
-  std::vector<const Type *> TP (OrigType->param_begin(), OrigType->param_end());
+  std::vector<const Type *> TP;
   TP.insert (TP.begin(), ptr->getType());
-  const FunctionType* NewTy = FunctionType::get(OrigType->getReturnType(), TP, false);
+  for (CallSite::arg_iterator i = CS.arg_begin();
+       i != CS.arg_end();
+       ++i) {
+    TP.push_back ((*i)->getType());
+  }
+
+  const FunctionType* NewTy = FunctionType::get(CS.getType(), TP, false);
   Module * M = CS.getInstruction()->getParent()->getParent()->getParent();
   Function* F = Function::Create (NewTy,
                                   GlobalValue::InternalLinkage,
@@ -127,7 +130,7 @@ Devirtualize::buildBounce (CallSite CS, std::vector<const Function*>& Targets) {
                                           BL);
 
     // Add the return instruction for the basic block
-    if (OrigType->getReturnType()->isVoidTy())
+    if (CS.getType()->isVoidTy())
       ReturnInst::Create (M->getContext(), BL);
     else
       ReturnInst::Create (M->getContext(), directCall, BL);
@@ -153,17 +156,24 @@ Devirtualize::buildBounce (CallSite CS, std::vector<const Function*>& Targets) {
   //
   // Create basic blocks for valid target functions.
   //
+  const Type * Int8Type  = IntegerType::getInt8Ty(M->getContext());
+  const Type * VoidPtrTy = PointerType::getUnqual(Int8Type);
+  Value * FArg = CastInst::CreateZExtOrBitCast (F->arg_begin(),
+                                                VoidPtrTy,
+                                                "",
+                                                F->getEntryBlock().getTerminator());
   for (unsigned index = 0; index < Targets.size(); ++index) {
-    const Function * Target = Targets[index];
-    BasicBlock* TB = targets[Target];
+    BasicBlock* TB = targets[Targets[index]];
     BasicBlock* newB = BasicBlock::Create (M->getContext(),
-                                           "test." + Target->getName(),
+                                           "test." + Targets[index]->getName(),
                                            F,
                                            &F->getEntryBlock());
+    Value * Target = (Value *) Targets[index];
+    Target = castTo (Target, VoidPtrTy, "", F->getEntryBlock().getTerminator());
     CmpInst * setcc = CmpInst::Create (Instruction::ICmp,
                                        CmpInst::ICMP_EQ,
-                                       (Value *) Target,
-                                       &(*(F->arg_begin())),
+                                       Target,
+                                       FArg,
                                        "sc",
                                        newB);
     BranchInst::Create (TB, tail, setcc, newB);
@@ -209,21 +219,23 @@ Devirtualize::makeDirectCall (CallSite & CS) {
     //
     if (CallInst* CI = dyn_cast<CallInst>(CS.getInstruction())) {
       std::vector<Value*> Params (CI->op_begin(), CI->op_end());
+      std::string name = CI->hasName() ? CI->getNameStr() + ".dv" : "";
       CallInst* CN = CallInst::Create (NF,
                                        Params.begin(),
                                        Params.end(),
-                                       CI->getName() + ".dv",
+                                       name,
                                        CI);
       CI->replaceAllUsesWith(CN);
       CI->eraseFromParent();
     } else if (InvokeInst* CI = dyn_cast<InvokeInst>(CS.getInstruction())) {
       std::vector<Value*> Params (CI->op_begin(), CI->op_end());
+      std::string name = CI->hasName() ? CI->getNameStr() + ".dv" : "";
       InvokeInst* CN = InvokeInst::Create(NF,
                                           CI->getNormalDest(),
                                           CI->getUnwindDest(),
                                           Params.begin(),
                                           Params.end(),
-                                          CI->getName()+".dv",
+                                          name,
                                           CI);
       CI->replaceAllUsesWith(CN);
       CI->eraseFromParent();
