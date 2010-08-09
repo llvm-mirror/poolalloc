@@ -20,6 +20,9 @@
 
 using namespace llvm;
 
+// Pass ID variable
+char Devirtualize::ID = 0;
+
 // Pass statistics
 STATISTIC(FuncAdded, "Number of bounce functions added");
 STATISTIC(CSConvert, "Number of call sites converted");
