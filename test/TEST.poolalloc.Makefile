@@ -54,8 +54,8 @@ Output/%.temp.bc: Output/%.llvm.bc
 	-$(LLVMLD) -link-as-library $< $(PA_PRE_RT) -o $@
 
 $(PROGRAMS_TO_TEST:%=Output/%.base.bc): \
-Output/%.base.bc: Output/%.temp.bc $(LOPT) $(ASSIST_SO)
-	-$(LOPT) -load $(ASSIST_SO) -instnamer -internalize -indclone -funcspec -ipsccp -deadargelim -instcombine -globaldce -stats $< -f -o $@ 
+Output/%.base.bc: Output/%.temp.bc $(LOPT) $(ASSIST_SO) $(DSA_SO)
+	-$(LOPT) -load $(DSA_SO) -load $(ASSIST_SO) -instnamer -internalize -indclone -funcspec -ipsccp -deadargelim -instcombine -globaldce -stats $< -f -o $@ 
 
 # This rule runs the pool allocator on the .base.bc file to produce a new .bc
 # file
