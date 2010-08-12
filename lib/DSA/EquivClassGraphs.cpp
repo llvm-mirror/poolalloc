@@ -58,29 +58,68 @@ bool EquivBUDataStructures::runOnModule(Module &M) {
 //  that transforms like Automatic Pool Allocation only see one graph for a 
 //  call site.
 //
+//  After this method is executed, all functions in an equivalence class will
+//  have the *same* DSGraph.
+//
 void
 EquivBUDataStructures::mergeGraphsByGlobalECs() {
   //
-  // Merge the graphs for each equivalence class.
+  // Merge the graphs for each equivalence class.  We first scan all elements
+  // in the equivalence classes and look for those elements which are leaders.
+  // For each leader, we scan through all of its members and merge the DSGraphs
+  // for members which are functions.
   //
-  for (EquivalenceClasses<const GlobalValue*>::iterator EQSI = GlobalECs.begin(), 
-         EQSE = GlobalECs.end(); EQSI != EQSE; ++EQSI) {
+  EquivalenceClasses<const GlobalValue*>::iterator EQSI = GlobalECs.begin();
+  EquivalenceClasses<const GlobalValue*>::iterator EQSE = GlobalECs.end();
+  for (;EQSI != EQSE; ++EQSI) {
+    //
+    // If this element is not a leader, then skip it.
+    //
     if (!EQSI->isLeader()) continue;
     DSGraph* BaseGraph = 0;
     std::vector<DSNodeHandle> Args;
-    for (EquivalenceClasses<const GlobalValue*>::member_iterator MI = GlobalECs.member_begin(EQSI);
-         MI != GlobalECs.member_end(); ++MI) {
+
+    //
+    // Iterate through all members of this equivalence class, looking for
+    // functions.
+    //
+    EquivalenceClasses<const GlobalValue*>::member_iterator MI;
+    for (MI = GlobalECs.member_begin(EQSI); MI != GlobalECs.member_end(); ++MI){
       if (const Function* F = dyn_cast<Function>(*MI)) {
-        if(F->isDeclaration()) //ignore functions with no body
-    	  continue;
+        //
+        // If the function has no body, then it has no DSGraph.
+        //
+        // FIXME: I don't believe this is correct; the stdlib pass can assign
+        //        DSGraphs to C standard library functions.
+        //
+        if (F->isDeclaration())
+          continue;
+
+        //
+        // We have one of three possibilities:
+        //  1) This is the first function we've seen.  If so, grab its DSGraph
+        //     and the DSNodes for its arguments.
+        //
+        //  2) We have already seen this function before.  Do nothing.
+        //
+        //  3) We haven't seen this function before, and it's not the first one
+        //     we've seen.  Merge its DSGraph into the DSGraph we're creating.
+        //
         if (!BaseGraph) {
           BaseGraph = getOrCreateGraph(F);
           BaseGraph->getFunctionArgumentsForCall(F, Args);
         } else if (BaseGraph->containsFunction(F)) {
-          //already merged
+          // The DSGraph for this function has already been merged.
         } else {
-          std::vector<DSNodeHandle> NextArgs;
+          //
+          // Merge in the DSGraph.
+          //
           BaseGraph->cloneInto(getOrCreateGraph(F));
+
+          //
+          // Merge the arguments together.
+          //
+          std::vector<DSNodeHandle> NextArgs;
           BaseGraph->getFunctionArgumentsForCall(F, NextArgs);
           unsigned i = 0, e = Args.size();
           for (; i != e; ++i) {
@@ -89,6 +128,11 @@ EquivBUDataStructures::mergeGraphsByGlobalECs() {
           }
           for (e = NextArgs.size(); i != e; ++i)
             Args.push_back(NextArgs[i]);
+
+          //
+          // Make this function use the DSGraph that we're creating for all of
+          // the functions in this equivalence class.
+          //
           setDSGraph(*F, BaseGraph);
         }       
       }
