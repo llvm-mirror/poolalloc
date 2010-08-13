@@ -38,7 +38,7 @@ namespace {
   RegisterPass<CallTargetFinder> X("calltarget","Find Call Targets (uses DSA)");
 }
 
-char CallTargetFinder::ID;
+char CallTargetFinder::ID = 0;
 
 void CallTargetFinder::findIndTargets(Module &M)
 {
