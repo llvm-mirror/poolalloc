@@ -850,7 +850,10 @@ bool GraphBuilder::visitIntrinsic(CallSite CS, Function *F) {
 }
 
 void GraphBuilder::visitCallSite(CallSite CS) {
-  Value *Callee = CS.getCalledValue();
+  //
+  // Get the called value.  Strip off any casts which are lossless.
+  //
+  Value *Callee = CS.getCalledValue()->stripPointerCasts();
 
   // Special case handling of certain libc allocation functions here.
   if (Function *F = dyn_cast<Function>(Callee))
@@ -861,7 +864,7 @@ void GraphBuilder::visitCallSite(CallSite CS) {
     return;
 
   //Can't do much about inline asm (yet!)
-  if (isa<InlineAsm>(CS.getCalledValue())) {
+  if (isa<InlineAsm> (Callee)) {
     ++NumAsmCall;
     DSNodeHandle RetVal;
     Instruction *I = CS.getInstruction();
@@ -878,7 +881,7 @@ void GraphBuilder::visitCallSite(CallSite CS) {
   }
 
   //uninteresting direct call
-  if (CS.getCalledFunction() && !DSCallGraph::hasPointers(CS)) {
+  if (isa<Function>(Callee) && !DSCallGraph::hasPointers(CS)) {
     ++NumBoringCall;
     return;
   }
@@ -888,11 +891,6 @@ void GraphBuilder::visitCallSite(CallSite CS) {
   Instruction *I = CS.getInstruction();
   if (isa<PointerType>(I->getType()))
     RetVal = getValueDest(I);
-
-  if (!isa<Function>(Callee))
-    if (ConstantExpr* EX = dyn_cast<ConstantExpr>(Callee))
-      if (EX->isCast() && isa<Function>(EX->getOperand(0)))
-        Callee = cast<Function>(EX->getOperand(0));
 
   DSNode *CalleeNode = 0;
   if (!isa<Function>(Callee)) {
