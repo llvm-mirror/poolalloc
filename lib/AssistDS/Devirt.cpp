@@ -75,6 +75,56 @@ castTo (Value * V, const Type * Ty, std::string Name, Instruction * InsertPt) {
 }
 
 //
+// Method: findInCache()
+//
+// Description:
+//  This method looks through the cache of bounce functions to see if there
+//  exists a bounce function for the specified call site.
+//
+// Return value:
+//  0 - No usable bounce function has been created.
+//  Otherwise, a pointer to a bounce that can replace the call site is
+//  returned.
+//
+const Function *
+Devirtualize::findInCache (const CallSite & CS,
+                           std::set<const Function*>& Targets) {
+  //
+  // Iterate through all of the existing bounce functions to see if one of them
+  // can be resued.
+  //
+  std::map<const Function *, std::set<const Function *> >::iterator I;
+  for (I = bounceCache.begin(); I != bounceCache.end(); ++I) {
+    //
+    // If the bounce function and the function pointer have different types,
+    // then skip this bounce function because it is incompatible.
+    //
+    const Function * bounceFunc = I->first;
+
+    // Check the return type
+    if (CS.getType() != bounceFunc->getReturnType())
+      continue;
+
+    // Check the type of the function pointer and the arguments
+    if (CS.getCalledValue()->stripPointerCasts()->getType() !=
+        bounceFunc->arg_begin()->getType())
+      continue;
+
+    //
+    // Determine whether the targets are identical.  If so, then this function
+    // can be used as a bounce function for this call site.
+    //
+    if (Targets == I->second)
+      return I->first;
+  }
+
+  //
+  // No suiteable bounce function was found.
+  //
+  return 0;
+}
+
+//
 // Method: buildBounce()
 //
 // Description:
@@ -252,10 +302,21 @@ Devirtualize::makeDirectCall (CallSite & CS) {
   //
   if (Targets.size() > 0) {
     //
-    // Build a function which will implement a switch statement.  The switch
-    // statement will determine which function target to call and call it.
+    // Determine if an existing bounce function can be used for this call site.
     //
-    Function* NF = buildBounce (CS, Targets);
+    std::set<const Function *> targetSet (Targets.begin(), Targets.end());
+    const Function * NF = findInCache (CS, targetSet);
+
+    //
+    // If no cached bounce function was found, build a function which will
+    // implement a switch statement.  The switch statement will determine which
+    // function target to call and call it.
+    //
+    if (!NF) {
+      // Build the bounce function and add it to the cache
+      NF = buildBounce (CS, Targets);
+      bounceCache[NF] = targetSet;
+    }
 
     //
     // Replace the original call with a call to the bounce function.
@@ -263,7 +324,7 @@ Devirtualize::makeDirectCall (CallSite & CS) {
     if (CallInst* CI = dyn_cast<CallInst>(CS.getInstruction())) {
       std::vector<Value*> Params (CI->op_begin(), CI->op_end());
       std::string name = CI->hasName() ? CI->getNameStr() + ".dv" : "";
-      CallInst* CN = CallInst::Create (NF,
+      CallInst* CN = CallInst::Create ((Value *) NF,
                                        Params.begin(),
                                        Params.end(),
                                        name,
@@ -273,7 +334,7 @@ Devirtualize::makeDirectCall (CallSite & CS) {
     } else if (InvokeInst* CI = dyn_cast<InvokeInst>(CS.getInstruction())) {
       std::vector<Value*> Params (CI->op_begin(), CI->op_end());
       std::string name = CI->hasName() ? CI->getNameStr() + ".dv" : "";
-      InvokeInst* CN = InvokeInst::Create(NF,
+      InvokeInst* CN = InvokeInst::Create((Value *) NF,
                                           CI->getNormalDest(),
                                           CI->getUnwindDest(),
                                           Params.begin(),

@@ -46,9 +46,14 @@ namespace llvm {
       // Worklist of call sites to transform
       std::vector<Instruction *> Worklist;
 
+      // A cache of indirect call targets that have been converted already
+      std::map<const Function *, std::set<const Function *> > bounceCache;
+
     protected:
       void makeDirectCall (CallSite & CS);
       Function* buildBounce (CallSite cs,std::vector<const Function*>& Targets);
+      const Function* findInCache (const CallSite & CS,
+                                   std::set<const Function*>& Targets);
 
     public:
       static char ID;
