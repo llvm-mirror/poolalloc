@@ -235,7 +235,16 @@ protected:
   bool runOnModuleInternal(Module &M);
 
 private:
+  // Private typedefs
+  typedef std::map<const Function*, unsigned> TarjanMap;
+  typedef std::vector<const Function*>        TarjanStack;
+
   void mergeSCCs();
+  void postOrderInline (Module & M);
+  unsigned calculateGraphs (const Function *F,
+                            TarjanStack & Stack,
+                            unsigned & NextID,
+                            TarjanMap & ValMap);
   DSGraph* postOrder(const Function*,
                      svset<const Function*>& marked);
   

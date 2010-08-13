@@ -69,14 +69,27 @@ bool BUDataStructures::runOnModuleInternal(Module& M) {
   callgraph.buildSCCs();
   callgraph.buildRoots();
 
+#if 0
   //
   // Merge the DSGraphs of functions belonging to an SCC.
   //
   mergeSCCs();
+#endif
+
+  //
+  // Make sure we have a DSGraph for all declared functions in the Module.
+  // While we may not need them in this DSA pass, a later DSA pass may ask us
+  // for their DSGraphs, and we want to have them if asked.
+  //
+  for (Module::iterator F = M.begin(); F != M.end(); ++F) {
+    if (!(F->isDeclaration()))
+      getOrCreateGraph(F);
+  }
 
   //
   // Do a post-order traversal of the SCC callgraph and do bottom-up inlining.
   //
+#if 0
   {
     //errs() << *DSG.knownRoots.begin() << " -> " << *DSG.knownRoots.rbegin() << "\n";
     svset<const Function*> marked;
@@ -97,6 +110,9 @@ bool BUDataStructures::runOnModuleInternal(Module& M) {
       CloneAuxIntoGlobal(G);
     }
   }
+#else
+  postOrderInline (M);
+#endif
 
 
   std::vector<const Function*> EntryPoints;
@@ -138,6 +154,13 @@ bool BUDataStructures::runOnModuleInternal(Module& M) {
   }
 
   NumCallEdges += callgraph.size();
+
+  //
+  // Put the callgraph into canonical form by finding SCCs.  It has been
+  // updated since we did this last.
+  //
+  callgraph.buildSCCs();
+  callgraph.buildRoots();
 
   return false;
 }
@@ -183,6 +206,271 @@ void BUDataStructures::mergeSCCs() {
     }
     if (MaxSCC < SCCSize) MaxSCC = SCCSize;
   }
+}
+
+//
+// Function: GetAllCallees()
+//
+// Description:
+//  Given a DSCallSite, add to the list the functions that can be called by
+//  the call site *if* it is resolvable.
+//
+static void
+GetAllCallees(const DSCallSite &CS, std::vector<const Function*> &Callees) {
+  //
+  // FIXME: Should we check for the Unknown flag on indirect call sites?
+  //
+  // Direct calls to functions that have bodies are always resolvable.
+  // Indirect function calls that are for a complete call site (the analysis
+  // knows everything about the call site) and do not target external functions
+  // are also resolvable.
+  //
+  if (CS.isDirectCall()) {
+    if (!CS.getCalleeFunc()->isDeclaration())
+      Callees.push_back(CS.getCalleeFunc());
+  } else if (!CS.getCalleeNode()->isIncompleteNode()) {
+    // Get all callees.
+    if (!CS.getCalleeNode()->isExternFuncNode())
+      CS.getCalleeNode()->addFullFunctionList(Callees);
+  }
+}
+
+//
+// Function: GetAllAuxCallees()
+//
+// Description:
+//  Return a list containing all of the resolvable callees in the auxiliary
+//  list for the specified graph in the Callees vector.
+//
+// Inputs:
+//  G - The DSGraph for which the callers wants a list of resolvable call
+//      sites.
+//
+// Outputs:
+//  Callees - A list of all functions that can be called from resolvable call
+//            sites.  This list is always cleared by this function before any
+//            functions are added to it.
+//
+static void
+GetAllAuxCallees (DSGraph* G, std::vector<const Function*> & Callees) {
+  //
+  // Clear out the list of callees.
+  //
+  Callees.clear();
+  for (DSGraph::afc_iterator I = G->afc_begin(), E = G->afc_end(); I != E; ++I)
+    GetAllCallees(*I, Callees);
+}
+
+//
+// Method: postOrderInline()
+//
+// Description:
+//  This methods does a post order traversal of the call graph and performs
+//  bottom-up inlining of the DSGraphs.
+//
+void
+BUDataStructures::postOrderInline (Module & M) {
+  // Variables used for Tarjan SCC-finding algorithm.  These are passed into
+  // the recursive function used to find SCCs.
+  std::vector<const Function*> Stack;
+  std::map<const Function*, unsigned> ValMap;
+  unsigned NextID = 1;
+
+  //
+  // Start the post order traversal with the main() function.  If there is no
+  // main() function, don't worry; we'll have a separate traversal for inlining
+  // graphs for functions not reachable from main().
+  //
+  Function *MainFunc = M.getFunction ("main");
+  if (MainFunc && !MainFunc->isDeclaration()) {
+    calculateGraphs(MainFunc, Stack, NextID, ValMap);
+    CloneAuxIntoGlobal(getDSGraph(*MainFunc));
+  }
+
+  //
+  // Calculate the graphs for any functions that are unreachable from main...
+  //
+  for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I)
+    if (!I->isDeclaration() && !hasDSGraph(*I)) {
+      if (MainFunc)
+        DEBUG(errs() << debugname << ": Function unreachable from main: "
+        << I->getName() << "\n");
+      calculateGraphs(I, Stack, NextID, ValMap);     // Calculate all graphs.
+      CloneAuxIntoGlobal(getDSGraph(*I));
+    }
+
+  return;
+}
+
+//
+// Method: calculateGraphs()
+//
+// Description:
+//  Perform recursive bottom-up inlining of DSGraphs from callee to caller.
+//
+// Inputs:
+//  F - The function which should have its callees' DSGraphs merged into its
+//      own DSGraph.
+//  Stack - The stack used for Tarjan's SCC-finding algorithm.
+//  NextID - The nextID value used for Tarjan's SCC-finding algorithm.
+//  ValMap - The map used for Tarjan's SCC-finding algorithm.
+//
+// Return value:
+//
+unsigned
+BUDataStructures::calculateGraphs (const Function *F,
+                                   TarjanStack & Stack,
+                                   unsigned & NextID,
+                                   TarjanMap & ValMap) {
+  assert(!ValMap.count(F) && "Shouldn't revisit functions!");
+  unsigned Min = NextID++, MyID = Min;
+  ValMap[F] = Min;
+  Stack.push_back(F);
+
+  //
+  // FIXME: This test should be generalized to be any function that we have
+  // already processed in the case when there isn't a main() or there are
+  // unreachable functions!
+  //
+  if (F->isDeclaration()) {   // sprintf, fprintf, sscanf, etc...
+    // No callees!
+    Stack.pop_back();
+    ValMap[F] = ~0;
+    return Min;
+  }
+
+  //
+  // Get the DSGraph of the current function.  Make one if one doesn't exist.
+  //
+  DSGraph* Graph = getOrCreateGraph(F);
+
+  //
+  // Find all callee functions.  Use the DSGraph for this (do not use the call
+  // graph (DSCallgraph) as we're still in the process of constructing it).
+  //
+  std::vector<const Function*> CalleeFunctions;
+  GetAllAuxCallees(Graph, CalleeFunctions);
+
+  //
+  // Iterate through each call target (these are the edges out of the current
+  // node (i.e., the current function) in Tarjan graph parlance).  Find the
+  // minimum assigned ID.
+  //
+  for (unsigned i = 0, e = CalleeFunctions.size(); i != e; ++i) {
+    const Function *Callee = CalleeFunctions[i];
+    unsigned M;
+    //
+    // If we have not visited this callee before, visit it now (this is the
+    // post-order component of the Bottom-Up algorithm).  Otherwise, look up
+    // the assigned ID value from the Tarjan Value Map.
+    //
+    TarjanMap::iterator It = ValMap.find(Callee);
+    if (It == ValMap.end())  // No, visit it now.
+      M = calculateGraphs(Callee, Stack, NextID, ValMap);
+    else                    // Yes, get it's number.
+      M = It->second;
+
+    //
+    // If we've found a function with a smaller ID than this funtion, record
+    // that ID as the minimum ID.
+    //
+    if (M < Min) Min = M;
+  }
+
+  assert(ValMap[F] == MyID && "SCC construction assumption wrong!");
+
+  //
+  // If the minimum ID found is not this function's ID, then this function is
+  // part of a larger SCC.
+  //
+  if (Min != MyID)
+    return Min;
+
+  //
+  // If this is a new SCC, process it now.
+  //
+  if (Stack.back() == F) {           // Special case the single "SCC" case here.
+    DEBUG(errs() << "Visiting single node SCC #: " << MyID << " fn: "
+	  << F->getName() << "\n");
+    Stack.pop_back();
+    DEBUG(errs() << "  [BU] Calculating graph for: " << F->getName()<< "\n");
+    calculateGraph (Graph);
+    DEBUG(errs() << "  [BU] Done inlining: " << F->getName() << " ["
+	  << Graph->getGraphSize() << "+" << Graph->getAuxFunctionCalls().size()
+	  << "]\n");
+
+    if (MaxSCC < 1) MaxSCC = 1;
+
+    //
+    // Should we revisit the graph?  Only do it if there are now new resolvable
+    // callees.
+    GetAllAuxCallees (Graph, CalleeFunctions);
+    if (!CalleeFunctions.empty()) {
+      DEBUG(errs() << "Recalculating " << F->getName() << " due to new knowledge\n");
+      ValMap.erase(F);
+      return calculateGraphs(F, Stack, NextID, ValMap);
+    } else {
+      ValMap[F] = ~0U;
+    }
+    return MyID;
+  } else {
+    //
+    // SCCFunctions - Keep track of the functions in the current SCC
+    //
+    std::vector<DSGraph*> SCCGraphs;
+
+    unsigned SCCSize = 1;
+    const Function *NF = Stack.back();
+    ValMap[NF] = ~0U;
+    DSGraph* SCCGraph = getDSGraph(*NF);
+
+    //
+    // First thing first: collapse all of the DSGraphs into a single graph for
+    // the entire SCC.  Splice all of the graphs into one and discard all of
+    // the old graphs.
+    //
+    while (NF != F) {
+      Stack.pop_back();
+      NF = Stack.back();
+      ValMap[NF] = ~0U;
+
+      DSGraph* NFG = getDSGraph(*NF);
+
+      if (NFG != SCCGraph) {
+        // Update the Function -> DSG map.
+        for (DSGraph::retnodes_iterator I = NFG->retnodes_begin(),
+               E = NFG->retnodes_end(); I != E; ++I)
+          setDSGraph(*I->first, SCCGraph);
+        
+        SCCGraph->spliceFrom(NFG);
+        delete NFG;
+        ++SCCSize;
+      }
+    }
+    Stack.pop_back();
+
+    DEBUG(errs() << "Calculating graph for SCC #: " << MyID << " of size: "
+	  << SCCSize << "\n");
+
+    // Compute the Max SCC Size.
+    if (MaxSCC < SCCSize)
+      MaxSCC = SCCSize;
+
+    // Clean up the graph before we start inlining a bunch again...
+    SCCGraph->removeDeadNodes(DSGraph::KeepUnreachableGlobals);
+
+    // Now that we have one big happy family, resolve all of the call sites in
+    // the graph...
+    calculateGraph(SCCGraph);
+    DEBUG(errs() << "  [BU] Done inlining SCC  [" << SCCGraph->getGraphSize()
+	  << "+" << SCCGraph->getAuxFunctionCalls().size() << "]\n"
+	  << "DONE with SCC #: " << MyID << "\n");
+
+    // We never have to revisit "SCC" processed functions...
+    return MyID;
+  }
+
+  return MyID;  // == Min
 }
 
 //
@@ -461,6 +749,11 @@ void BUDataStructures::calculateGraph(DSGraph* Graph) {
 
   cloneIntoGlobals(Graph);
   //Graph.writeGraphToFile(cerr, "bu_" + F.getName());
+
+  //
+  // Update the callgraph with the new information that we have gleaned.
+  //
+  Graph->buildCallGraph(callgraph);
 }
 
 //For Entry Points
