@@ -434,14 +434,73 @@ void PoolAllocate::MicroOptimizePoolCalls() {
   // 'if (P) poolfree(P)'
 }
 
+//
+// Function: GetNodesReachableFromGlobals()
+//
+// Description:
+//  This function finds all DSNodes which are reachable from globals.  It finds
+//  DSNodes both within the local DSGraph as well as in the Globals graph that
+//  are reachable from globals.
+//
+// Inputs:
+//  G - The DSGraph for which to find DSNodes which are reachable by globals.
+//      This DSGraph can either by a DSGraph associated with a function *or*
+//      it can be the globals graph itself.
+//
+// Outputs:
+//  NodesFromGlobals - A reference to a container object in which to record
+//                     DSNodes reachable from globals.  DSNodes are *added* to
+//                     this container; it is not cleared by this function.
+//                     DSNodes from both the local and globals graph are added.
+static void
+GetNodesReachableFromGlobals (DSGraph* G,
+                              DenseSet<const DSNode*> &NodesFromGlobals) {
+  //
+  // Get the globals graph associated with this DSGraph.  If the globals graph
+  // is NULL, then the graph that was passed in *is* the globals graph.
+  //
+  DSGraph * GlobalsGraph = G->getGlobalsGraph();
+  if (!GlobalsGraph)
+    GlobalsGraph = G;
 
+  //
+  // Find all DSNodes which are reachable in the globals graph.
+  //
+  for (DSGraph::node_iterator NI = GlobalsGraph->node_begin();
+       NI != GlobalsGraph->node_end();
+       ++NI) {
+    NI->markReachableNodes(NodesFromGlobals);
+  }
 
+  //
+  // Now the fun part.  Find DSNodes in the local graph that correspond to
+  // those nodes reachable in the globals graph.  Add them to the set of
+  // reachable nodes, too.
+  //
+  if (G->getGlobalsGraph()) {
+    //
+    // Compute a mapping between local DSNodes and DSNodes in the globals
+    // graph.
+    //
+    DSGraph::NodeMapTy NodeMap;
+    G->computeGToGGMapping (NodeMap);
 
-static void GetNodesReachableFromGlobals(DSGraph* G,
-                                  DenseSet<const DSNode*> &NodesFromGlobals) {
-  for (DSScalarMap::global_iterator I = G->getScalarMap().global_begin(), 
-         E = G->getScalarMap().global_end(); I != E; ++I)
-    G->getNodeForValue(*I).getNode()->markReachableNodes(NodesFromGlobals);
+    //
+    // Scan through all DSNodes in the local graph.  If a local DSNode has a
+    // corresponding DSNode in the globals graph that is reachable from a 
+    // global, then add the local DSNode to the set of DSNodes reachable from a
+    // global.
+    //
+    // FIXME: A node's existance within the global DSGraph is probably
+    //        sufficient evidence that it is reachable from a global.
+    //
+    DSGraph::node_iterator ni = G->node_begin();
+    for (; ni != G->node_end(); ++ni) {
+      DSNode * N = ni;
+      if (NodesFromGlobals.count (NodeMap[N].getNode()))
+        NodesFromGlobals.insert (N);
+    }
+  }
 }
 
 //
