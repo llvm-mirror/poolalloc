@@ -692,9 +692,10 @@ void GraphBuilder::visitVAStartNode(DSNode* N) {
       break;
     case Triple::x86_64:
       // On x86_64, we have va_list as a struct {i32, i32, i8*, i8* }
-      // The first i8* is where arguments generally go, but the second i8* can be used
-      // also to pass arguments by register.
-      // We model this by having both the i8*'s point to an array of pointers to the arguments.
+      // The first i8* is where arguments generally go, but the second i8* can
+      // be used also to pass arguments by register.
+      // We model this by having both the i8*'s point to an array of pointers
+      // to the arguments.
       if (N->getSize() < 1)
         N->growSize(24); //sizeof the va_list struct mentioned above
       N->setLink(8,VAArray); //first i8*
@@ -711,8 +712,9 @@ void GraphBuilder::visitVAStartNode(DSNode* N) {
       N->setIncompleteMarker()->setUnknownMarker()->foldNodeCompletely();
   }
 
-  //XXX: We used to set the alloca marker for the DSNode passed to va_start.
-  //Seems to me that you could allocate the va_list on the heap, so ignoring for now.
+  // XXX: We used to set the alloca marker for the DSNode passed to va_start.
+  // Seems to me that you could allocate the va_list on the heap, so ignoring
+  // for now.
   N->setModifiedMarker()->setVAStartMarker();
 }
 
