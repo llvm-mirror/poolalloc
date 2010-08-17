@@ -14,6 +14,7 @@
 //   -print-only-values             Only print the values pointed to by the given values
 //   -print-only-types              Only print the types for the given values
 // -check-same-node=<list>        Verify the given values' nodes were merged.
+// -check-not-same-node=<list>    Verify the given values' nodes weren't merged.
 // -verify-flags=<list>           Verify the given values match the flag specifications.
 //
 // In general a 'value' query on the DSA results looks like this:
@@ -51,6 +52,9 @@ namespace {
   cl::opt<bool> OnlyPrintTypes("print-only-types", cl::ReallyHidden);
   // Test if all mentioned values are in the same node (merged)
   cl::list<std::string> CheckNodesSame("check-same-node",
+      cl::CommaSeparated, cl::ReallyHidden);
+  // Test if all mentioned values are in distinct nodes
+  cl::list<std::string> CheckNodesNotSame("check-not-same-node",
       cl::CommaSeparated, cl::ReallyHidden);
   // For each value, verify they have (or don't have) the specified flags
   cl::list<std::string> VerifyFlags("verify-flags",
@@ -398,6 +402,40 @@ static bool checkIfNodesAreSame(llvm::raw_ostream &O, const Module *M, const Dat
   return false;
 }
 
+/// checkIfNodesAreNotSame -- Verify each node that the user indicated
+/// shouldn't be merged, wasn't merged
+/// Returns true iff the user specified any nodes for this option.
+///
+static bool checkIfNodesAreNotSame(llvm::raw_ostream &O, const Module *M, const DataStructures *DS) {
+
+  // Verify all nodes listed in "CheckNodesNotSame" belong to distinct nodes.
+  cl::list<std::string>::iterator I = CheckNodesNotSame.begin(),
+                                  E = CheckNodesNotSame.end();
+
+  // If the user specified that a set of values should be in separate nodes...
+  if (I != E) {
+    // Lookup all the values
+    unsigned count = E - I;
+    NodeValue ** NV = new NodeValue*[count];
+    for(unsigned i = 0; I != E; ++I, ++i)
+      NV[i] = new NodeValue(*I, M, DS);
+
+    //Compare all pairs to make sure they're distinct
+    for(unsigned i = 0; i < count; ++i)
+      for(unsigned j = i+1; j < count; ++j) {
+        assert(NV[i]->getNodeH() != NV[j]->getNodeH() && "Nodes not distinct!");
+      }
+
+    for(unsigned i = 0; i < count; ++i)
+      delete NV[i];
+    delete [] NV;
+
+    return true;
+  }
+
+  return false;
+}
+
 /// VerifyFlags -- Verify flag properties for the given nodes.
 /// This is a common enough testing process that this was added to make it simpler.
 /// Returns true iff the user specified anything for this option.
@@ -470,6 +508,7 @@ bool DataStructures::handleTest(llvm::raw_ostream &O, const Module *M) const {
 
   tested |= printNodes(O,M,this);
   tested |= checkIfNodesAreSame(O,M,this);
+  tested |= checkIfNodesAreNotSame(O,M,this);
   tested |= verifyFlags(O,M,this);
 
   return tested;
