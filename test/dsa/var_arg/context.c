@@ -10,15 +10,6 @@
 //RUN: dsaopt %t.bc -ds-aa -gvn -o - | lli > %t.out2
 //RUN: diff %t.refout %t.out
 //RUN: diff %t.refout %t.out2
-//--check properties of this particular test
-//RUN: dsaopt %t.bc -ds-aa -aa-eval -o /dev/null \
-//  RUN: -print-all-alias-modref-info >& %t.aa
-
-//FIXME: Find a better way to get at this information...
-//--get the registers loaded from ret1 and ret2
-//RUN: llvm-dis %t.bc -f -o %t.ll
-//RUN: cat %t.ll | grep load | grep "ret1" | sed -e {s/ =.*$//} -e {s/^\[ \]*//} > %t.ret1
-//RUN: cat %t.ll | grep load | grep "ret2" | sed -e {s/ =.*$//} -e {s/^\[ \]*//} > %t.ret2
 
 
 static int * get( int unused, ... )
@@ -39,8 +30,6 @@ int main()
   int *p1 = &val1, *p2 = &val2;
   int *ret1, *ret2;
 
-  //ret1 and ret2 should explicitly /not/ alias
-  //RUN: cat %t.aa | grep -f %t.ret1 | grep -f %t.ret2 | grep NoAlias
   ret1 = get( 0, p1 );
   ret2 = get( 0, p2 );
 
