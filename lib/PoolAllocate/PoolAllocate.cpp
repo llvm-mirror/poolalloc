@@ -554,35 +554,24 @@ MarkNodesWhichMustBePassedIn (DenseSet<const DSNode*> &MarkedNodes,
       if (AI != G->getScalarMap().end()) {
         if (DSNode *N = AI->second.getNode()) {
           //
-          // If this is a byval argument, then simply add all DSNodes which are
-          // reachable from it, but don't add the byval argument's node.  For
-          // all other parameters, add the DSNode for the parameter and all
-          // DSNodes reachable from it.
+          // Find all nodes reachable from this node.  Include this node, even
+          // if it is a byval argument.
           //
-          if (I->hasByValAttr()) {
-            DSNode::edge_iterator link = N->edge_begin();
-            while (link != N->edge_end()) {
-              DSNodeHandle Child = link->second;
-              if (Child.getNode())
-                Child.getNode()->markReachableNodes(MarkedNodes);
-              ++link;
-            }
-          } else {
-            //
-            // Add all nodes reachable from this parameter into our set of
-            // nodes needing pools.
-            //
-            N->markReachableNodes(MarkedNodes);
-          }
+          // Now, I hear what you're thinking: "Why pass pools for byval
+          // arguments?"  Well, we want to pass pools for byval arguments
+          // because the function may be the target of an indirect function
+          // call, and the byval parameter could therefore alias with a
+          // non-byval argument from another function that is a target of the
+          // indirect function call.  Passing pools for byval arguments helps
+          // ensure that all targets of an indirect function call get
+          // transformed identically.
+          //
 
           //
-          // If this is a byval argument, then we don't want to add it to the
-          // list of nodes that need an outside pool. However, anything
-          // reachable from the byval argument should have its pool passed in.
-          // So, we'll just remove the DSNode of the argument if it is marked
-          // byval.
+          // Add all nodes reachable from this parameter into our set of
+          // nodes needing pools.
           //
-          if (I->hasByValAttr()) MarkedNodes.erase (N);
+          N->markReachableNodes(MarkedNodes);
         }
       }
     }
