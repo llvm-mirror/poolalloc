@@ -690,12 +690,23 @@ void BUDataStructures::calculateGraph(DSGraph* Graph) {
     if (CS.isIndirectCall()) {
       eraseCS = false;
       if (CS.getCalleeNode()->isCompleteNode()) {
+        //
+        // Get the list of callees associated with the DSNode and remove those
+        // that are external functions (i.e., have no function body).
+        //
         std::vector<const Function*> NodeCallees;
         CS.getCalleeNode()->addFullFunctionList(NodeCallees);
         std::vector<const Function*>::iterator ErasePoint =
                 std::remove_if(NodeCallees.begin(), NodeCallees.end(),
                                std::mem_fun(&Function::isDeclaration));
         NodeCallees.erase(ErasePoint, NodeCallees.end());
+
+        //
+        // Only erase this call site if there's nothing left to do for it.
+        // This means that all of the function targets recorded in the DSNode
+        // have already been incorporated into the call graph that we've been
+        // constructing.
+        //
         std::sort(CalledFuncs.begin(), CalledFuncs.end());
         std::sort(NodeCallees.begin(), NodeCallees.end());
         eraseCS = std::includes(CalledFuncs.begin(), CalledFuncs.end(),
