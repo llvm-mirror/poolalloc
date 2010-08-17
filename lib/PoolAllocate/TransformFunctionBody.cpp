@@ -132,6 +132,8 @@ namespace {
     }
 
     Function* retCloneIfFunc(Value *V);
+
+    void verifyCallees (const std::vector<const Function *> & Functions);
   };
 }
 
@@ -143,6 +145,58 @@ PoolAllocate::TransformBody (DSGraph* g, PA::FuncInfo &fi,
   FuncTransform(*this, g, fi, poolUses, poolFrees).visit(F);
 }
 
+//
+// Method: verifyCallees()
+//
+// Description:
+//  This method performs various sanity checks on targets of indirect function
+//  calls.
+//
+void
+FuncTransform::verifyCallees (const std::vector<const Function *> & Functions) {
+  //
+  // There's nothing to do if there's no function call targets at all.
+  //
+  if (Functions.size() == 0)
+    return;
+
+  //
+  // Get the number of pool arguments for the first function.
+  //
+  unsigned numPoolArgs = PAInfo.getFuncInfo(*Functions[0])->ArgNodes.size();
+
+  //
+  // Get the DSGraph of the first function.
+  //
+  DataStructures& Graphs = PAInfo.getGraphs();
+  DSGraph * firstGraph = Graphs.getDSGraph (*Functions[0]);
+
+  //
+  // Scan through all other indirect function call targets.  Ensure that these
+  // functions have the same number of pool arguments and the same DSGraph as
+  // the first function.
+  //
+  for (unsigned index = 1; index < Functions.size(); ++index) {
+    //
+    // Get the function information for the function.
+    //
+    const Function * F = Functions[index];
+    FuncInfo *FI = PAInfo.getFuncInfo(*F);
+
+    //
+    // Get the DSGraph.
+    //
+    DSGraph * G = Graphs.getDSGraph (*Functions[index]);
+
+    //
+    // Assert that the graph and number of pool arguments are consistent.
+    //
+    assert (G == firstGraph);
+    assert (FI->ArgNodes.size() == numPoolArgs);
+  }
+
+  return;
+}
 
 // Returns the clone if  V is a static function (not a pointer) and belongs 
 // to an equivalence class i.e. is pool allocated
@@ -743,6 +797,7 @@ void FuncTransform::visitCallSite(CallSite& CS) {
     }
   }
 
+  //
   // We need to figure out which local pool descriptors correspond to the pool
   // descriptor arguments passed into the function call.  Calculate a mapping
   // from callee DSNodes to caller DSNodes.  We construct a partial isomophism
@@ -760,11 +815,24 @@ void FuncTransform::visitCallSite(CallSite& CS) {
   // merged.
   if (CF) {   // Direct calls are nice and simple.
     DEBUG(errs() << "  Handling direct call: " << *TheCall);
+
+    //
+    // Do not try to add pool handles to the function if it:
+    //  a) Already calls a cloned function; or
+    //  b) Calls a function which was never cloned.
+    //
+    // For such a call, just replace any arguments that take original functions
+    // with their cloned function poiner values.
+    //
     FuncInfo *CFI = PAInfo.getFuncInfo(*CF);
     if (CFI == 0 || CFI->Clone == 0) {   // Nothing to transform...
       visitInstruction(*TheCall);
       return;
     }
+
+    //
+    // Oh, dear.  We must add pool descriptors to this direct call.
+    //
     NewCallee = CFI->Clone;
     ArgNodes = CFI->ArgNodes;
     
@@ -781,29 +849,45 @@ void FuncTransform::visitCallSite(CallSite& CS) {
     Instruction *OrigInst =
       cast<Instruction>(getOldValueIfAvailable(CS.getInstruction()));
 
-    DSCallGraph::callee_iterator I = Graphs.getCallGraph().callee_begin(CS);
-    if (I != Graphs.getCallGraph().callee_end(CS))
+    //
+    // Attempt to get one of the function targets of this indirect call site by
+    // looking at the call graph constructed by the points-to analysis.  Be
+    // sure to use the original call site from the original function; the
+    // points-to analysis has no information on the clones we've created.
+    //
+    const DSCallGraph & callGraph = Graphs.getCallGraph();
+    DSCallGraph::callee_iterator I = callGraph.callee_begin(OrigInst);
+    if (I != callGraph.callee_end(OrigInst))
       CF = *I;
-    
+
+    //
     // If we didn't find the callee in the constructed call graph, try
     // checking in the DSNode itself.
     // This isn't ideal as it means that this call site didn't have inlining
     // happen.
+    //
     if (!CF) {
       DSGraph* dg = Graphs.getDSGraph(*OrigInst->getParent()->getParent());
       DSNode* d = dg->getNodeForValue(OrigInst->getOperand(0)).getNode();
       assert (d && "No DSNode!\n");
       std::vector<const Function*> g;
       d->addFullFunctionList(g);
-      if (g.size()) {
-        EquivalenceClasses< const GlobalValue *> & EC = dg->getGlobalECs();
-        for(std::vector<const Function*>::const_iterator ii = g.begin(), ee = g.end();
-            !CF && ii != ee; ++ii) {
-          for (EquivalenceClasses<const GlobalValue *>::member_iterator MI = EC.findLeader(*ii);
-               MI != EC.member_end(); ++MI)   // Loop over members in this set.
-            if ((CF = dyn_cast<Function>(*MI))) {
-              break;
-            }
+
+      //
+      // Perform some consistency checks on the callees.
+      //
+      verifyCallees (g);
+
+      //
+      // If we found any callees, grab the first one with a DSGraph and use it.
+      // Since we're using EQBU/EQTD, all potential targets should have the
+      // same DSGraph, so it doesn't matter which one we use as long as we use
+      // a function that *has* a DSGraph.
+      //
+      for (unsigned index = 0; index < g.size(); ++index) {
+        if (Graphs.hasDSGraph (*(g[index]))) {
+          CF = g[index];
+          break;
         }
       }
     }
@@ -834,10 +918,13 @@ void FuncTransform::visitCallSite(CallSite& CS) {
 #ifndef NDEBUG
     // Verify that all potential callees at call site have the same DS graph.
     DSCallGraph::callee_iterator E = Graphs.getCallGraph().callee_end(OrigInst);
-    for (; I != E; ++I)
-      if (!(*I)->isDeclaration())
+    for (; I != E; ++I) {
+      const Function * F = *I;
+      assert (F);
+      if (!(F)->isDeclaration())
         assert(CalleeGraph == Graphs.getDSGraph(**I) &&
                "Callees at call site do not have a common graph!");
+    }
 #endif    
 
     // Find the DS nodes for the arguments that need to be added, if any.
@@ -998,13 +1085,17 @@ void FuncTransform::visitCallSite(CallSite& CS) {
     UpdateNewToOldValueMap(TheCall, NewCall);
   }
 
+  //
+  // Copy over the calling convention and attributes of the original call
+  // instruction to the new call instruction.
+  //
   CallSite(NewCall).setCallingConv(CallSite(TheCall).getCallingConv());
 
   TheCall->eraseFromParent();
   visitInstruction(*NewCall);
 }
 
-
+//
 // visitInstruction - For all instructions in the transformed function bodies,
 // replace any references to the original calls with references to the
 // transformed calls.  Many instructions can "take the address of" a function,
@@ -1012,6 +1103,7 @@ void FuncTransform::visitCallSite(CallSite& CS) {
 // reference to the new, transformed, function.
 // FIXME: Don't rename uses of function names that escape
 // FIXME: Special-case when external user is pthread_create (or similar)?
+//
 void FuncTransform::visitInstruction(Instruction &I) {
   for (unsigned i = 0, e = I.getNumOperands(); i != e; ++i)
     if (Function *clonedFunc = retCloneIfFunc(I.getOperand(i))) {

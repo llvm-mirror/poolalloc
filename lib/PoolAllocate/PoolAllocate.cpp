@@ -184,18 +184,20 @@ bool PoolAllocate::runOnModule(Module &M) {
       ClonedFunctions.insert(Clone);
     }
   }
-  
+
   //
-  // Now that all call targets are available, rewrite the function bodies of the
-  // clones or the original function (if the original has no clone).
+  // Now that all call targets are available, rewrite the function bodies of
+  // the clones or the original function (if the original has no clone).
   //
   // FIXME: Use utility methods to make this code more readable!
-  for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I)
+  //
+  for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I) {
     if (!I->isDeclaration() && !ClonedFunctions.count(I) &&
         Graphs->hasDSGraph(*I)) {
       std::map<Function*, Function*>::iterator FI = FuncMap.find(I);
       ProcessFunctionBody(*I, FI != FuncMap.end() ? *FI->second : *I);
     }
+  }
 
   //
   // Replace any remaining uses of original functions with the transformed
@@ -244,11 +246,12 @@ bool PoolAllocate::runOnModule(Module &M) {
 
       Constant* CEnew = ConstantExpr::getPointerCast(I->second, F->getType());
 
-      // Must handle Constants specially, we cannot call replaceUsesOfWith on a
-      // constant because they are uniqued.
+      //
+      // We must handle Constants specially; we cannot call replaceUsesOfWith()
+      // on a constant because they are uniqued.
+      //
       if (Constant *C = dyn_cast<Constant>(user)) {
         if (!isa<GlobalValue>(C)) {
-
           //
           // Scan through all operands in the constant.  If they are the
           // function that we want to replace, then add them to a worklist (we
@@ -551,6 +554,11 @@ MarkNodesWhichMustBePassedIn (DenseSet<const DSNode*> &MarkedNodes,
       // All DSNodes reachable from arguments must be passed in.
       //
       DSGraph::ScalarMapTy::iterator AI = G->getScalarMap().find(I);
+
+      //
+      // Assert that we either have a non-pointer parameter or that we have a
+      // an entry in the Scalar Map for this item.
+      //
       if (AI != G->getScalarMap().end()) {
         if (DSNode *N = AI->second.getNode()) {
           //
@@ -678,7 +686,7 @@ Function *PoolAllocate::MakeFunctionClone(Function &F) {
   //
   // Create the new function...
   //
-  Function *New = Function::Create(FuncTy, Function::InternalLinkage, F.getName());
+  Function *New = Function::Create(FuncTy, Function::InternalLinkage, F.getNameStr() + "_clone");
   F.getParent()->getFunctionList().insert(&F, New);
   CloneToOrigMap[New] = &F;   // Remember original function.
 
@@ -839,6 +847,13 @@ bool PoolAllocate::SetupGlobalPools(Module &M) {
           Node->isUnknownNode()) {
         GlobalHeapNodes.insert (Node);
       }
+
+      //
+      // If a DSNode is used as an array and bounds checking is enabled,
+      // then also give it a global node.
+      //
+      if (BoundsChecksEnabled && (Node->isArrayNode()))
+        GlobalHeapNodes.insert (Node);
     }
   }
 
@@ -1050,6 +1065,7 @@ void PoolAllocate::ProcessFunctionBody(Function &F, Function &NewF) {
     //  3) Nodes which are mirrored in the globals graph and are heap nodes.
     //
     DSNode *N = I;
+#if 0
     if ((N->isHeapNode()) || (BoundsChecksEnabled && (N->isArrayNode())) ||
     	(GlobalsGraphNodeMapping.count(N) &&
        GlobalsGraphNodeMapping[N].getNode()->isHeapNode())) {
@@ -1065,6 +1081,23 @@ void PoolAllocate::ProcessFunctionBody(Function &F, Function &NewF) {
         FI.NodesToPA.push_back(N);
       }
     }
+#else
+    if ((N->isHeapNode()) || (BoundsChecksEnabled && (N->isArrayNode())) ||
+    	(GlobalsGraphNodeMapping.count(N) &&
+       GlobalsGraphNodeMapping[N].getNode()->isHeapNode())) {
+      DSNode *GGN = GlobalsGraphNodeMapping[N].getNode();
+      if (GlobalNodes[N]) {
+        FI.PoolDescriptors[N] = GlobalNodes[N];
+      } else if (GlobalNodes[GGN]) {
+        FI.PoolDescriptors[N] = GlobalNodes[GGN];
+      } else if (!MarkedNodes.count(N)) {
+        // Otherwise, if it was not passed in from outside the function, it must
+        // be a local pool!
+        assert(!N->isGlobalNode() && "Should be in global mapping!");
+        FI.NodesToPA.push_back(N);
+      }
+    }
+#endif
   }
 
   //
@@ -1088,6 +1121,11 @@ void PoolAllocate::ProcessFunctionBody(Function &F, Function &NewF) {
   if (!FI.NodesToPA.empty())
     InitializeAndDestroyPools(NewF, FI.NodesToPA, FI.PoolDescriptors,
                               PoolUses, PoolFrees);
+
+  //
+  // Some heuristics want to do special transformation to the function.  Let
+  // them do so here.
+  //
   CurHeuristic->HackFunctionBody(NewF, FI.PoolDescriptors);
 }
 
