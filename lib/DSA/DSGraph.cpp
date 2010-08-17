@@ -1376,7 +1376,16 @@ void DSGraph::updateFromGlobalGraph() {
 //  call site.  We allow the user to configure what we consider to be
 //  uncallable at an indirect function call site.
 //
-static bool functionIsCallable (CallSite CS, const Function* F) {
+// Inputs:
+//  CS - The call site which calls the function.
+//  F  - The function that is potentially called by CS.
+//
+// Return value:
+//  true  - The function F can be called by the call site.
+//  false - The function F cannot be called by the call site.
+//
+static bool
+functionIsCallable (CallSite CS, const Function* F) {
   //Which targets do we choose?
   //Conservative: all of them
   //Pretty Safe: same calling convention, otherwise undefined behavior
@@ -1388,8 +1397,39 @@ static bool functionIsCallable (CallSite CS, const Function* F) {
   const PointerType*  PT = cast<PointerType>(CS.getCalledValue()->getType());
   const FunctionType* FT = cast<FunctionType>(PT->getElementType());
 
-  if (!noDSACallConv && CS.getCallingConv() != F->getCallingConv()) return false;
-  if (!noDSACallVA && FT->isVarArg() != F->isVarArg()) return false;
+  //
+  // If the calling convention doesn't match, then the function cannot be
+  // called by this call site.
+  //
+  if (!noDSACallConv && CS.getCallingConv() != F->getCallingConv())
+    return false;
+
+  //
+  // We will consider the byval parameter attribute to be a part of the calling
+  // convention.  If an actual argument is marked byval while the formal
+  // argument is not (or vice-versa), then the function is not a valid target.
+  //
+  if (!noDSACallConv) {
+    Function::const_arg_iterator farg = F->arg_begin();
+    for (unsigned index = 1; index < (CS.arg_size() + 1); ++farg, ++index) {
+      if (CS.paramHasAttr (index, Attribute::ByVal) != farg->hasByValAttr()) {
+        return false;
+      }
+    }
+  }
+
+  //
+  // If the caller and callee don't agree on whether the target is a vararg
+  // function, then the function is not a valid target.
+  //
+  if (!noDSACallVA && FT->isVarArg() != F->isVarArg())
+    return false;
+
+  //
+  // If calling this function from this call site would require an implicit
+  // integer to floating point cast (or vice-versa), then don't consider the
+  // function callable from this call site.
+  //
   if (!noDSACallFP) {
     FunctionType::param_iterator Pi = FT->param_begin(), Pe = FT->param_end(),
             Ai = F->getFunctionType()->param_begin(),
@@ -1403,7 +1443,11 @@ static bool functionIsCallable (CallSite CS, const Function* F) {
       ++Pi;
     }
   }
-  //F can be called from CS;
+
+  //
+  // We've done all the checks we've cared to do.  The function F can be called
+  // from this call site.
+  //
   return true;
 }
 
