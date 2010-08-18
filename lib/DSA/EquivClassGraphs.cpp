@@ -109,7 +109,40 @@ EquivBUDataStructures::mergeGraphsByGlobalECs() {
           BaseGraph = getOrCreateGraph(F);
           BaseGraph->getFunctionArgumentsForCall(F, Args);
         } else if (BaseGraph->containsFunction(F)) {
-          // The DSGraph for this function has already been merged.
+          //
+          // The DSGraph for this function has already been merged into the
+          // graph that we are creating.  However, that does not mean that
+          // function arguments of this function have been merged with the
+          // function arguments of the other functions in the equivalence graph
+          // (or even with functions belonging to the same SCC in the call
+          // graph).  Furthermore, it doesn't necessarily imply that the
+          // contained function's DSGraph is the same as the one we're
+          // building; it is possible (I think) for only the function's DSNodes
+          // and other information to have been merged in.
+          //
+          // For these reasons, we will merge the function argument DSNodes and
+          // set this function's DSGraph to be the same graph used for all
+          // other function's in this equivalence class.
+          //
+
+          //
+          // Merge the arguments together.
+          //
+          std::vector<DSNodeHandle> NextArgs;
+          BaseGraph->getFunctionArgumentsForCall(F, NextArgs);
+          unsigned i = 0, e = Args.size();
+          for (; i != e; ++i) {
+            if (i == NextArgs.size()) break;
+            Args[i].mergeWith(NextArgs[i]);
+          }
+          for (e = NextArgs.size(); i != e; ++i)
+            Args.push_back(NextArgs[i]);
+
+          //
+          // Make this function use the DSGraph that we're creating for all of
+          // the functions in this equivalence class.
+          //
+          setDSGraph(*F, BaseGraph);
         } else {
           //
           // Merge in the DSGraph.
