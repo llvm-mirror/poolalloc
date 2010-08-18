@@ -1410,8 +1410,9 @@ functionIsCallable (CallSite CS, const Function* F) {
   // argument is not (or vice-versa), then the function is not a valid target.
   //
   if (!noDSACallConv) {
-    Function::const_arg_iterator farg = F->arg_begin();
-    for (unsigned index = 1; index < (CS.arg_size() + 1); ++farg, ++index) {
+    Function::const_arg_iterator farg = F->arg_begin(), fend = F->arg_end();
+    for (unsigned index = 1; index < (CS.arg_size() + 1) && farg != fend;
+        ++farg, ++index) {
       if (CS.paramHasAttr (index, Attribute::ByVal) != farg->hasByValAttr()) {
         return false;
       }
