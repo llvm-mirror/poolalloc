@@ -712,8 +712,14 @@ void BUDataStructures::calculateGraph(DSGraph* Graph) {
         eraseCS = std::includes(CalledFuncs.begin(), CalledFuncs.end(),
                                 NodeCallees.begin(), NodeCallees.end());
       }
-      if (eraseCS) ++NumIndResolved;
-      else ++NumIndUnresolved;
+
+      //
+      // Update the statistics on resolved indirect function calls.
+      //
+      if (eraseCS)
+        ++NumIndResolved;
+      else
+        ++NumIndUnresolved;
     }
 
     DSGraph *GI;
