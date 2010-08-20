@@ -1385,7 +1385,7 @@ void DSGraph::updateFromGlobalGraph() {
 //  false - The function F cannot be called by the call site.
 //
 bool
-functionIsCallable (CallSite CS, const Function* F) {
+llvm::functionIsCallable (CallSite CS, const Function* F) {
   //Which targets do we choose?
   //Conservative: all of them
   //Pretty Safe: same calling convention, otherwise undefined behavior
