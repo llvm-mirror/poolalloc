@@ -46,13 +46,16 @@ namespace {
   STATISTIC (NumFiltered        , "Number of calls filtered");
   static cl::opt<bool> noDSACallConv("dsa-no-filter-callcc",
          cl::desc("Don't filter call sites based on calling convention."),
-         cl::Hidden);
+         cl::Hidden,
+         cl::init(false));
   static cl::opt<bool> noDSACallVA("dsa-no-filter-vararg",
          cl::desc("Don't filter call sites based on vararg presense"),
-         cl::Hidden);
+         cl::Hidden,
+         cl::init(false));
   static cl::opt<bool> noDSACallFP("dsa-no-filter-intfp",
-         cl::desc("Don't filter call sites based on implicit integer to fp conversion"),
-         cl::Hidden);
+         cl::desc("Don't filter call sites based on implicit integer to FP conversion"),
+         cl::Hidden,
+         cl::init(false));
 }
 
 // Determines if the DSGraph 'should' have a node for a given value.
