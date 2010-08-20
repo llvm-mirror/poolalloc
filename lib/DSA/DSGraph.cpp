@@ -1384,7 +1384,7 @@ void DSGraph::updateFromGlobalGraph() {
 //  true  - The function F can be called by the call site.
 //  false - The function F cannot be called by the call site.
 //
-static bool
+bool
 functionIsCallable (CallSite CS, const Function* F) {
   //Which targets do we choose?
   //Conservative: all of them

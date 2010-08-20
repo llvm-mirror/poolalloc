@@ -669,6 +669,25 @@ public:
   void destroy() { NodeMap.clear(); }
 };
 
+//
+// Function: functionIsCallable()
+//
+// Description:
+//  Determine whether the specified function can be a target of the specified
+//  call site.  We allow the user to configure what we consider to be
+//  uncallable at an indirect function call site.
+//
+// Inputs:
+//  CS - The call site which calls the function.
+//  F  - The function that is potentially called by CS.
+//
+// Return value:
+//  true  - The function F can be called by the call site.
+//  false - The function F cannot be called by the call site.
+//
+bool
+functionIsCallable (CallSite CS, const Function* F);
+
 } // End llvm namespace
 
 #endif
