@@ -262,7 +262,7 @@ private:
 ///
 class CompleteBUDataStructures : public  BUDataStructures {
 protected:
-  void buildIndirectFunctionSets(Module &M);
+  void buildIndirectFunctionSets (void);
 public:
   static char ID;
   CompleteBUDataStructures(intptr_t CID = (intptr_t)&ID, 

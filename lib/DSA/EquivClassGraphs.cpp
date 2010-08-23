@@ -42,7 +42,7 @@ bool EquivBUDataStructures::runOnModule(Module &M) {
   init(&getAnalysis<CompleteBUDataStructures>(), false, true, false, true);
 
   //update the EQ class from indirect calls
-  buildIndirectFunctionSets(M);
+  buildIndirectFunctionSets();
 
   mergeGraphsByGlobalECs();
 

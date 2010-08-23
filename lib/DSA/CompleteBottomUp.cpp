@@ -28,13 +28,22 @@ namespace {
 
 char CompleteBUDataStructures::ID;
 
-// run - Calculate the bottom up data structure graphs for each function in the
-// program.
 //
-bool CompleteBUDataStructures::runOnModule(Module &M) {
+// Method: runOnModule()
+//
+// Description:
+//  Entry point for this pass.  Calculate the bottom up data structure graphs
+//  for each function in the program.
+//
+// Return value:
+//  true  - The module was modified.
+//  false - The module was not modified.
+//
+bool
+CompleteBUDataStructures::runOnModule (Module &M) {
   init(&getAnalysis<BUDataStructures>(), false, true, false, true);
 
-  buildIndirectFunctionSets(M);
+  buildIndirectFunctionSets();
   formGlobalECs();
 
   //
@@ -55,11 +64,20 @@ bool CompleteBUDataStructures::runOnModule(Module &M) {
   return modified;
 }
 
-void CompleteBUDataStructures::buildIndirectFunctionSets(Module &M) {
+//
+// Method: buildIndirectFunctionSets()
+//
+// Description:
+//  For every indirect call site, ensure that every function target is
+//  associated with a single DSNode.
+//
+void
+CompleteBUDataStructures::buildIndirectFunctionSets (void) {
+  //
   // Loop over all of the indirect calls in the program.  If a call site can
   // call multiple different functions, we need to unify all of the callees into
   // the same equivalence class.
-
+  //
   DSGraph* G = getGlobalsGraph();
   DSGraph::ScalarMapTy& SM = G->getScalarMap();
 
@@ -90,8 +108,21 @@ void CompleteBUDataStructures::buildIndirectFunctionSets(Module &M) {
 
     }
 #endif
+    //
+    // Note: The code above and below is dealing with the fact that the targets
+    // of *direct* function calls do not show up in the Scalar Map of the
+    // globals graph.  The above assertion simply verifies that all targets of
+    // indirect function calls show up in the Scalar Map of the globals graph,
+    // and then the code below can just check the scalar map to see if the
+    // call needs to be processed because it is an indirect function call.
+    //
+    // I suspect that this code is designed this way more for historical
+    // reasons than for simplicity.  We should simplify the code is possible at
+    // a future date.
+    //
     // FIXME: Given the above is a valid assertion, we could probably replace
-    // this code with something that *assumes* we have entries.  However because
+    // this code with something that *assumes* we have entries in the Scalar
+    // Map.  However, because
     // I'm not convinced that we can just *skip* direct calls in this function
     // this code is careful to handle callees not existing in the globals graph
     // In other words what we have here should be correct, but might be overkill
@@ -104,8 +135,10 @@ void CompleteBUDataStructures::buildIndirectFunctionSets(Module &M) {
     while (csi != cse && !SM.count(*csi))
       ++csi;
 
-    // If we have no entries, we're done.
-    if (csi == cse) break;
+    //
+    // If we have no entries, we're done.  Move on to the next call site.
+    //
+    if (csi == cse) continue;
 
     DSNodeHandle& SrcNH = SM.find(*csi)->second;
 
