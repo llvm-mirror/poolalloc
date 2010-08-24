@@ -737,6 +737,13 @@ void BUDataStructures::calculateGraph(DSGraph* Graph) {
                                std::mem_fun(&Function::isDeclaration));
         NodeCallees.erase(ErasePoint, NodeCallees.end());
 
+        // Remove callees that aren't legally called from this callsite.
+        // We're done with the callsite if all /legal/ callees have been
+        // taken care of already.  We remove them because they won't
+        // be part of the callgraph (not because of this callsite anyway)
+        // and so we shouldn't expect them to be.
+        applyCallsiteFilter(CS,NodeCallees);
+
         //
         // Only erase this call site if there's nothing left to do for it.
         // This means that all of the function targets recorded in the DSNode
