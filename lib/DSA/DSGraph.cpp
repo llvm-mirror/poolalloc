@@ -1463,7 +1463,10 @@ llvm::functionIsCallable (CallSite CS, const Function* F) {
 //  of function calls that can be inferred from the unresolved call sites
 //  within the DSGraph.
 //
-void DSGraph::buildCallGraph(DSCallGraph& DCG) const {
+//  The parameter 'filter' determines if we should attempt to prune callees
+//  that are illegal to be called from the callsite.
+//
+void DSGraph::buildCallGraph(DSCallGraph& DCG, bool filter) const {
   //
   // Get the list of unresolved call sites.
   //
@@ -1497,7 +1500,7 @@ void DSGraph::buildCallGraph(DSCallGraph& DCG) const {
       //
       for (std::vector<const Function*>::iterator Fi = MaybeTargets.begin(),
            Fe = MaybeTargets.end(); Fi != Fe; ++Fi)
-        if (functionIsCallable(CS, *Fi))
+        if (!filter || functionIsCallable(CS, *Fi))
           DCG.insert(CS, *Fi);
         else
           ++NumFiltered;

@@ -1203,7 +1203,7 @@ bool LocalDataStructures::runOnModule(Module &M) {
       setDSGraph(*I, G);
       propagateUnknownFlag(G);
       callgraph.insureEntry(I);
-      G->buildCallGraph(callgraph);
+      G->buildCallGraph(callgraph, true);
     }
 
   GlobalsGraph->removeTriviallyDeadNodes();

@@ -337,7 +337,7 @@ public:
   // addAuxFunctionCall - Add a call site to the AuxFunctionCallList
   void addAuxFunctionCall(DSCallSite D) { AuxFunctionCalls.push_front(D); }
 
-  void buildCallGraph(DSCallGraph& DCG) const;
+  void buildCallGraph(DSCallGraph& DCG, bool filter) const;
 
   /// removeFunction - Specify that all call sites to the function have been
   /// fully specified by a pass such as StdLibPass.

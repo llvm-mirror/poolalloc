@@ -209,14 +209,41 @@ void BUDataStructures::mergeSCCs() {
 }
 
 //
-// Function: GetAllCallees()
+// Function: applyCallsiteFilter
+//
+// Description:
+//  Given a DSCallSite, and a list of functions, filter out the ones
+//  that aren't callable from the given Callsite.
+//
+//  Does no filtering if 'filterCallees' is set to false.
+//
+void BUDataStructures::
+applyCallsiteFilter(const DSCallSite &DCS, std::vector<const Function*> &Callees) {
+
+  if (!filterCallees) return;
+
+  std::vector<const Function*>::iterator I = Callees.begin();
+  CallSite CS = DCS.getCallSite();
+  while(I != Callees.end()) {
+    if (functionIsCallable(CS, *I)) {
+      ++I;
+    }
+    else {
+      I = Callees.erase(I);
+    }
+  }
+}
+
+//
+// Function: getAllCallees()
 //
 // Description:
 //  Given a DSCallSite, add to the list the functions that can be called by
-//  the call site *if* it is resolvable.
+//  the call site *if* it is resolvable.  Uses 'applyCallsiteFilter' to
+//  only add the functions that are valid targets of this callsite.
 //
-static void
-GetAllCallees(const DSCallSite &CS, std::vector<const Function*> &Callees) {
+void BUDataStructures::
+getAllCallees(const DSCallSite &CS, std::vector<const Function*> &Callees) {
   //
   // FIXME: Should we check for the Unknown flag on indirect call sites?
   //
@@ -230,13 +257,22 @@ GetAllCallees(const DSCallSite &CS, std::vector<const Function*> &Callees) {
       Callees.push_back(CS.getCalleeFunc());
   } else if (!CS.getCalleeNode()->isIncompleteNode()) {
     // Get all callees.
-    if (!CS.getCalleeNode()->isExternFuncNode())
-      CS.getCalleeNode()->addFullFunctionList(Callees);
+    if (!CS.getCalleeNode()->isExternFuncNode()) {
+      // Get all the callees for this callsite
+      std::vector<const Function *> tempCallees;
+      CS.getCalleeNode()->addFullFunctionList(tempCallees);
+      // Filter out the ones that are invalid targets with respect
+      // to this particular callsite.
+      applyCallsiteFilter(CS, tempCallees);
+      // Insert the remaining callees (legal ones, if we're filtering)
+      // into the master 'Callees' list
+      Callees.insert(Callees.end(),tempCallees.begin(),tempCallees.end());
+    }
   }
 }
 
 //
-// Function: GetAllAuxCallees()
+// Function: getAllAuxCallees()
 //
 // Description:
 //  Return a list containing all of the resolvable callees in the auxiliary
@@ -251,14 +287,14 @@ GetAllCallees(const DSCallSite &CS, std::vector<const Function*> &Callees) {
 //            sites.  This list is always cleared by this function before any
 //            functions are added to it.
 //
-static void
-GetAllAuxCallees (DSGraph* G, std::vector<const Function*> & Callees) {
+void BUDataStructures::
+getAllAuxCallees (DSGraph* G, std::vector<const Function*> & Callees) {
   //
   // Clear out the list of callees.
   //
   Callees.clear();
   for (DSGraph::afc_iterator I = G->afc_begin(), E = G->afc_end(); I != E; ++I)
-    GetAllCallees(*I, Callees);
+    getAllCallees(*I, Callees);
 }
 
 //
@@ -349,7 +385,7 @@ BUDataStructures::calculateGraphs (const Function *F,
   // graph (DSCallgraph) as we're still in the process of constructing it).
   //
   std::vector<const Function*> CalleeFunctions;
-  GetAllAuxCallees(Graph, CalleeFunctions);
+  getAllAuxCallees(Graph, CalleeFunctions);
 
   //
   // Iterate through each call target (these are the edges out of the current
@@ -404,7 +440,7 @@ BUDataStructures::calculateGraphs (const Function *F,
     //
     // Should we revisit the graph?  Only do it if there are now new resolvable
     // callees.
-    GetAllAuxCallees (Graph, CalleeFunctions);
+    getAllAuxCallees (Graph, CalleeFunctions);
     if (!CalleeFunctions.empty()) {
       DEBUG(errs() << "Recalculating " << F->getName() << " due to new knowledge\n");
       ValMap.erase(F);
@@ -535,7 +571,7 @@ BUDataStructures::postOrder(const Function* F, svset<const Function*>& marked) {
   // Now that we have new information merged into the function's DSGraph,
   // update the call graph using this new information.
   //
-  G->buildCallGraph(callgraph);
+  G->buildCallGraph(callgraph,filterCallees);
 
   //
   // Return the DSGraph associated with this function.
@@ -770,7 +806,7 @@ void BUDataStructures::calculateGraph(DSGraph* Graph) {
   //
   // Update the callgraph with the new information that we have gleaned.
   //
-  Graph->buildCallGraph(callgraph);
+  Graph->buildCallGraph(callgraph,filterCallees);
 }
 
 //For Entry Points

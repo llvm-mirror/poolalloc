@@ -212,14 +212,21 @@ protected:
   EntryPointAnalysis* EP;
 
   void cloneIntoGlobals(DSGraph* G);
+
+  // filterCallees -- Whether or not we filter out illegal callees
+  // from the CallGraph.  This is useful while doing original BU,
+  // but might be undesirable in other passes such as CBU/EQBU.
+  bool filterCallees;
 public:
   static char ID;
   //Child constructor (CBU)
-  BUDataStructures(intptr_t CID, const char* name, const char* printname)
-    : DataStructures(CID, printname), debugname(name) {}
+  BUDataStructures(intptr_t CID, const char* name, const char* printname,
+      bool filter)
+    : DataStructures(CID, printname), debugname(name), filterCallees(filter) {}
   //main constructor
-  BUDataStructures() 
-    : DataStructures((intptr_t)&ID, "bu."), debugname("dsa-bu") {}
+  BUDataStructures()
+    : DataStructures((intptr_t)&ID, "bu."), debugname("dsa-bu"),
+    filterCallees(true) {}
   ~BUDataStructures() { releaseMemory(); }
 
   virtual bool runOnModule(Module &M);
@@ -253,6 +260,12 @@ private:
   void CloneAuxIntoGlobal(DSGraph* G);
   void cloneGlobalsInto(DSGraph* G);
   void finalizeGlobals(void);
+
+  void getAllCallees(const DSCallSite &CS,
+                     std::vector<const Function*> &Callees);
+  void getAllAuxCallees (DSGraph* G, std::vector<const Function*> & Callees);
+  void applyCallsiteFilter(const DSCallSite &DCS,
+                           std::vector<const Function*> &Callees);
 };
 
 /// CompleteBUDataStructures - This is the exact same as the bottom-up graphs,
@@ -268,7 +281,7 @@ public:
   CompleteBUDataStructures(intptr_t CID = (intptr_t)&ID, 
                            const char* name = "dsa-cbu", 
                            const char* printname = "cbu.")
-    : BUDataStructures(CID, name, printname) {}
+    : BUDataStructures(CID, name, printname, false) {}
   ~CompleteBUDataStructures() { releaseMemory(); }
 
   virtual bool runOnModule(Module &M);
