@@ -691,23 +691,11 @@ void BUDataStructures::calculateGraph(DSGraph* Graph) {
       continue;
     }
 
-    //
-    // Find all called functions called by this call site.  Remove from the
-    // list all calls to external functions (functions with no bodies).
-    //
+    // Find all callees for this callsite, according to the DSGraph!
+    // Do *not* use the callgraph, because we're updating that as we go!
     std::vector<const Function*> CalledFuncs;
-    {
-      // Get the callees from the callgraph
-      std::copy(callgraph.callee_begin(CS.getCallSite()),
-                callgraph.callee_end(CS.getCallSite()),
-                std::back_inserter(CalledFuncs));
+    getAllCallees(CS,CalledFuncs);
 
-      // Remove calls to external functions
-      std::vector<const Function*>::iterator ErasePoint =
-              std::remove_if(CalledFuncs.begin(), CalledFuncs.end(),
-                             std::mem_fun(&Function::isDeclaration));
-      CalledFuncs.erase(ErasePoint, CalledFuncs.end());
-    }
 
     if (CalledFuncs.empty()) {
       ++NumEmptyCalls;
