@@ -17,7 +17,7 @@ PADIR   := $(LLVM_OBJ_ROOT)/projects/poolalloc
 DSA_SO   := $(PADIR)/$(CONFIGURATION)/lib/libLLVMDataStructure$(SHLIBEXT)
 
 # Command for running the opt program
-RUNOPT := $(LLVM_OBJ_ROOT)/projects/poolalloc/$(CONFIGURATION)/bin/watchdog $(LOPT) -load $(DSA_SO)
+RUNOPT := $(RUNTOOLSAFELY) $(LLVM_OBJ_ROOT)/projects/poolalloc/$(CONFIGURATION)/bin/watchdog $(LOPT) -load $(DSA_SO)
 
 # PASS - The dsgraph pass to run: ds, bu, td
 PASS := td
