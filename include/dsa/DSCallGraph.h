@@ -31,24 +31,25 @@ public:
   typedef std::map<const llvm::Function*, FuncSet> SimpleCalleesTy;
 
 private:
-  //ActualCallees contains CallSite -> Function mappings
+  // ActualCallees contains CallSite -> set of Function mappings
   ActualCalleesTy ActualCallees;
-  //SimpleCallees contains Function -> Function mappings
+
+  // SimpleCallees contains Function -> set of Functions mappings
   SimpleCalleesTy SimpleCallees;
 
-  //These are used for returning empty sets when the caller has no callees
+  // These are used for returning empty sets when the caller has no callees
   FuncSet EmptyActual;
   FuncSet EmptySimple;
 
-  //An equivalence class is exactly an SCC
+  // An equivalence class is exactly an SCC
   llvm::EquivalenceClasses<const llvm::Function*> SCCs;
 
-  //Functions we know about that aren't called
+  // Functions we know about that aren't called
   svset<const llvm::Function*> knownRoots;
 
   svset<llvm::CallSite> completeCS;
 
-  //Types for SCC construction
+  // Types for SCC construction
   typedef std::map<const llvm::Function*, unsigned> TFMap;
   typedef std::vector<const llvm::Function*> TFStack;
 
@@ -179,7 +180,7 @@ public:
     assert(F == SCCs.getLeaderValue(F) && "Not Leader?");
   }
 
-  //common helper, no good reason for it to be here rather than elsewhere
+  // common helper; no good reason for it to be here rather than elsewhere
   static bool hasPointers(const llvm::Function* F);
   static bool hasPointers(llvm::CallSite& CS);
 
