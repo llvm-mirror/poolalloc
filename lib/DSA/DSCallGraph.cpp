@@ -205,8 +205,22 @@ void DSCallGraph::dump() {
   llvm::errs() << "\n";
 }
 
-//Filter all call edges.  We only want pointer edges.
-void DSCallGraph::insert(llvm::CallSite CS, const llvm::Function* F) {
+//
+// Method: insert()
+//
+// Description:
+//  Insert a new entry into the call graph.  This entry says that the specified
+//  call site calls the specified function.
+//
+// Inputs:
+//  CS - The call site which calls the specified function.
+//  F  - The function which is called.  This is permitted to be NULL.  It is
+//       possible to have call sites that don't have any targets, and sometimes
+//       users just want to ensure that a call site has an entry within the
+//       call graph.
+//
+void
+DSCallGraph::insert(llvm::CallSite CS, const llvm::Function* F) {
   //
   // Find the function to which the call site belongs.
   //
