@@ -353,6 +353,10 @@ void TDDataStructures::InlineCallersIntoGraph(DSGraph* DSG) {
          E = callgraph.callee_end(CI->getCallSite()); I != E; ++I)
       if (!(*I)->isDeclaration())
         Callees.push_back(*I);
+    
+    // If all of the callees are declarations, there is no need to merge the calls.
+    if(Callees.empty())
+      continue;
     std::sort(Callees.begin(), Callees.end());
 
     std::map<std::vector<const Function*>, DSGraph*>::iterator IndCallRecI =
