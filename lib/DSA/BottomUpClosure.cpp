@@ -327,7 +327,7 @@ BUDataStructures::postOrderInline (Module & M) {
   // Calculate the graphs for any functions that are unreachable from main...
   //
   for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I)
-    if (!I->isDeclaration() && !hasDSGraph(*I)) {
+    if (!I->isDeclaration() && !ValMap.count(I)) {
       if (MainFunc)
         DEBUG(errs() << debugname << ": Function unreachable from main: "
         << I->getName() << "\n");
