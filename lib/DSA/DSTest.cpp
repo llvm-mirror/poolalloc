@@ -59,6 +59,9 @@ namespace {
   // For each value, verify they have (or don't have) the specified flags
   cl::list<std::string> VerifyFlags("verify-flags",
       cl::CommaSeparated, cl::ReallyHidden);
+  // For each value, verify that type is as given
+  cl::list<std::string> CheckType("check-type",
+      cl::CommaSeparated, cl::ReallyHidden);
 }
 
 /// NodeValue -- represents a particular node in a DSGraph
@@ -278,7 +281,7 @@ static void printTypesForNode(llvm::raw_ostream &O, NodeValue &NV) {
         ee = N->type_end(); ii != ee; ++ii) {
       if (!firstType) O << " ";
       firstType = false;
-      O << ii->first << ": ";
+      O << ii->first << ":";
       if (ii->second) {
         bool first = true;
         for (svset<const Type*>::const_iterator ni = ii->second->begin(),
@@ -295,7 +298,7 @@ static void printTypesForNode(llvm::raw_ostream &O, NodeValue &NV) {
     O << "VOID";
 
   if (N->isArrayNode())
-    O << " array";
+    O << "Array";
 }
 
 static std::string getFlags(DSNode *N) {
@@ -436,6 +439,35 @@ static bool checkIfNodesAreNotSame(llvm::raw_ostream &O, const Module *M, const 
   return false;
 }
 
+/// checkTypes -- Verify type for the given nodes.
+/// Returns true iff the user specified anything for this option
+///
+
+static bool checkTypes(llvm::raw_ostream &O, const Module *M, const DataStructures *DS) {
+  
+  // Verify all nodes listed in "CheckType" have the same Type
+  cl::list<std::string>::iterator I = CheckType.begin(),
+                                  E = CheckType.end();
+  // If the user specified that a set of values should be in the same node...
+  if (I != E) {
+    // last value is type string
+    std::string typeRef = *(--E);
+    //typeRef = typeRef.substr(1, typeRef.length()-2);
+    // Iterate through the remaining to verify they're the same node.
+    for(; I != E; ++I) {
+      NodeValue NV(*I, M, DS);
+      std::string *type = new std::string();
+      llvm::raw_string_ostream *test= new llvm::raw_string_ostream(*type);
+      
+      printTypesForNode(*test, NV);
+      
+      assert(test->str()==typeRef && "Types don't match!");
+    }
+    return true;
+  }
+  return false;
+}
+
 /// VerifyFlags -- Verify flag properties for the given nodes.
 /// This is a common enough testing process that this was added to make it simpler.
 /// Returns true iff the user specified anything for this option.
@@ -510,6 +542,7 @@ bool DataStructures::handleTest(llvm::raw_ostream &O, const Module *M) const {
   tested |= checkIfNodesAreSame(O,M,this);
   tested |= checkIfNodesAreNotSame(O,M,this);
   tested |= verifyFlags(O,M,this);
+  tested |= checkTypes(O,M,this);
 
   return tested;
 }
