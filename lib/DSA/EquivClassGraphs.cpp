@@ -167,7 +167,7 @@ EquivBUDataStructures::mergeGraphsByGlobalECs() {
           // the functions in this equivalence class.
           //
           setDSGraph(*F, BaseGraph);
-        }       
+        }
       }
     }
 
