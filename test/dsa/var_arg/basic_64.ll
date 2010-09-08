@@ -13,13 +13,13 @@ target triple = "x86_64-unknown-linux-gnu"
 ;RUN: dsaopt %s -dsa-local -analyze -verify-flags "get:ap:8-V"
 ;RUN: dsaopt %s -dsa-local -analyze -verify-flags "get:ap:16-V"
 ; On 64-bit, VAStart node should be a struct pointing to an array of the arguments
-;RUN: dsaopt %s -dsa-local -analyze -check-type "get:ap:8,FoldedVOIDArray"
+;RUN: dsaopt %s -dsa-local -analyze -check-type=get:ap:8,FoldedVOIDArray
 ; Both offsets 8 and 16 point to the array as a simplification.
 ; Verify that these are indeed the same node.
 ;RUN: dsaopt %s -dsa-local -analyze -check-same-node \
 ;RUN: "get:ap:8,get:ap:16"
 ; And the argument node should be of the proper type (in this case an i32)
-;RUN: dsaopt %s -dsa-local -analyze -check-type "get:ap:8:0,0:i32"
+;RUN: dsaopt %s -dsa-local -analyze -check-type=get:ap:8:0,0:i32
 ; The argument should be ref'd, but not mod'd
 ;RUN: dsaopt %s -dsa-local -analyze --verify-flags "get:ap:8:0+R-M"
 

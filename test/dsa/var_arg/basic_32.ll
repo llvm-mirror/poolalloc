@@ -12,9 +12,9 @@ target triple = "i386-unknown-linux-gnu"
 ; Don't propagate the VAStart flag to children...
 ;RUN: dsaopt %s -dsa-local -analyze -verify-flags "get:ap:0-V"
 ; On 32-bit, VAStart node should point to an array of the arguments
-;RUN: dsaopt %s -dsa-local -analyze -check-type "get:ap:0,FoldedVOIDArray"
+;RUN: dsaopt %s -dsa-local -analyze -check-type=get:ap:0,FoldedVOIDArray
 ; And the argument node should be of the proper type (in this case an i32)
-;RUN: dsaopt %s -dsa-local -analyze -check-type "get:ap:0:0,0:i32"
+;RUN: dsaopt %s -dsa-local -analyze -check-type=get:ap:0:0,0:i32
 ; The argument should be ref'd, but not mod'd
 ;RUN: dsaopt %s -dsa-local -analyze --verify-flags "get:ap:0:0+R-M"
 
