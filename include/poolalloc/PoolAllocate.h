@@ -451,7 +451,7 @@ protected:
   /// FindFunctionPoolArgs - In the first pass over the program, we decide which
   /// arguments will have to be added for each function, build the FunctionInfo
   /// map and recording this info in the ArgNodes set.
-  void FindFunctionPoolArgs (Function &F);   
+  void FindFunctionPoolArgs (const std::vector<const Function *> & Funcs);   
   
   /// MakeFunctionClone - If the specified function needs to be modified for
   /// pool allocation support, make a clone of it, adding additional arguments

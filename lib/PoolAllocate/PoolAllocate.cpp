@@ -620,7 +620,7 @@ MarkNodesWhichMustBePassedIn (DenseSet<const DSNode*> &MarkedNodes,
 }
 
 //
-// Function: MarkNodesWhichMustBePassedIn()
+// Function: RemoveGlobalNodes()
 //
 // Description:
 //  Given a function and its DSGraph, determine which values will need to have
@@ -695,50 +695,164 @@ MarkNodesWhichMustBePassedIn (DenseSet<const DSNode*> &MarkedNodes,
 //
 void
 PoolAllocate::FindPoolArgs (Module & M) {
-  for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I)
-    if (!I->isDeclaration() && Graphs->hasDSGraph(*I))
-      FindFunctionPoolArgs(*I);
+  //
+  // Scan through each equivalence class.  The Equivalence Class Bottom-Up
+  // pass guarantees that each function that is the target of an indirect
+  // function call will have the same DSGraph and will have identical DSNodes
+  // for corresponding arguments.  Therefore, we want to process all the
+  // functions in the same equivalence class once to avoid doing extra work.
+  //
+  EquivalenceClasses<const GlobalValue*> & GlobalECs = Graphs->getGlobalECs();
+  EquivalenceClasses<const GlobalValue*>::iterator EQSI = GlobalECs.begin();
+  EquivalenceClasses<const GlobalValue*>::iterator EQSE = GlobalECs.end();
+  for (;EQSI != EQSE; ++EQSI) {
+    //
+    // If this element is not a leader, then skip it.
+    //
+    if (!EQSI->isLeader()) continue;
+
+    //
+    // Iterate through all members of this equivalence class, looking for
+    // functions.  Record all of those functions which need to be processed.
+    //
+    std::vector<const Function *> Functions;
+    EquivalenceClasses<const GlobalValue*>::member_iterator MI;
+    for (MI=GlobalECs.member_begin(EQSI); MI != GlobalECs.member_end(); ++MI) {
+      if (const Function* F = dyn_cast<Function>(*MI)) {
+        //
+        // If the function has no body, then it has no DSGraph.
+        //
+        // FIXME: I don't believe this is correct; the stdlib pass can assign
+        //        DSGraphs to C standard library functions.
+        //
+        if (!(F->isDeclaration()))
+          Functions.push_back (F);
+      }
+    }
+
+    //
+    // Find the pool arguments for all of the functions in the equivalence
+    // class and construct the FuncInfo structure for each one.
+    //
+    FindFunctionPoolArgs (Functions);
+  }
+
+  //
+  // Make sure every function has a FuncInfo structure.
+  //
+  for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I) {
+    if (!I->isDeclaration() && Graphs->hasDSGraph(*I)) {
+      if (FunctionInfo.find (I) == FunctionInfo.end()) {
+        FunctionInfo.insert(std::make_pair(I, FuncInfo(*I)));
+      }
+    }
+  }
+
+  return;
 }
 
 /// FindFunctionPoolArgs - In the first pass over the program, we decide which
 /// arguments will have to be added for each function, build the FunctionInfo
 /// map and recording this info in the ArgNodes set.
 void
-PoolAllocate::FindFunctionPoolArgs (Function & F) {
-  DSGraph* G = Graphs->getDSGraph(F);
-
-  // Create a new entry for F.
-  FuncInfo &FI =
-    FunctionInfo.insert(std::make_pair(&F, FuncInfo(F))).first->second;
-  DenseSet<const DSNode*> &MarkedNodes = FI.MarkedNodes;
-
+PoolAllocate::FindFunctionPoolArgs (const std::vector<const Function *> & Functions) {
   //
-  // If there is no memory activity in this function, then nothing is required.
+  // If there are no functions to process, then do nothing.
   //
-  if (G->node_begin() == G->node_end())
+  if (Functions.size() == 0)
     return;
 
   //
-  // Find all of the DSNodes which could require a pool to be passed into the
-  // function.
+  // Find all of the DSNodes which could possibly require a pool to be passed
+  // in.  Collect these DSNodes into one big container.
   //
-  std::vector<DSNodeHandle> Args;
-  G->getFunctionArgumentsForCall (&F, Args);
+  std::vector<DSNodeHandle> RootNodes;
+  for (unsigned index = 0; index < Functions.size(); ++index) {
+    //
+    // Get the DSGraph of the function.
+    //
+    const Function * F = Functions[index];
+    DSGraph* G = Graphs->getDSGraph (*F);
 
-  // Find DataStructure nodes which are allocated in pools non-local to the
-  // current function.  This set will contain all of the DSNodes which require
-  // pools to be passed in from outside of the function.
-  MarkNodesWhichMustBePassedIn(MarkedNodes, Args, G, PassAllArguments);
-
+    //
+    // Get all of the DSNodes which could possibly require a pool to be
+    // passed into the function.
+    //
+    G->getFunctionArgumentsForCall (F, RootNodes);
+  }
 
   //
-  // DenseSet does not have iterator traits, so we cannot use an insert()
-  // method that takes iterators.  Instead, we must use a loop to insert each
-  // element into ArgNodes one at a time.
+  // If there is no memory activity in any of these functions, then nothing is
+  // required.
   //
-  for (DenseSet<const DSNode*>::iterator ii = MarkedNodes.begin(),
-       ee = MarkedNodes.end(); ii != ee; ++ii)
-    FI.ArgNodes.insert(FI.ArgNodes.end(), *ii);
+  if (RootNodes.size() == 0)
+    return;
+
+  //
+  // Now find all nodes which are reachable from these DSNodes.
+  //
+  DenseSet<const DSNode*> MarkedNodes;
+  for (unsigned index = 0; index < RootNodes.size(); ++index) {
+    if (DSNode * N = RootNodes[index].getNode()) {
+      MarkedNodes.insert (N);
+      N->markReachableNodes(MarkedNodes);
+    }
+  }
+
+  //
+  // Determine which DSNodes are reachable from globals.  If a node is
+  // reachable from a global, we will create a global pool for it, so no
+  // argument passage is required.
+  //
+  DenseSet<const DSNode*> NodesFromGlobals;
+  for (unsigned index = 0; index < Functions.size(); ++index) {
+    //
+    // Get the DSGraph of the function.
+    //
+    const Function * F = Functions[index];
+    DSGraph* G = Graphs->getDSGraph(*F);
+    GetNodesReachableFromGlobals (G, NodesFromGlobals);
+  }
+
+  //
+  // Remove any nodes reachable from a global.  These nodes will be put into
+  // global pools, which do not require arguments to be passed in.  Also, erase
+  // any marked node that is not a heap node.  Since no allocations or frees
+  // will be done with it, it needs no argument.
+  //
+  // FIXME:
+  //  1) PassAllArguments seems to be ignored here.  Why is that?
+  //  2) Should the heap node check be part of the PassAllArguments check?
+  //  3) SAFECode probably needs to pass the pool even if it's not a heap node.
+  //     We should probably just do what the heuristic tells us to do.
+  //
+  for (DenseSet<const DSNode*>::iterator I = MarkedNodes.begin(),
+         E = MarkedNodes.end(); I != E; ) {
+    const DSNode *N = *I; ++I;
+    if ((!(1 || N->isHeapNode()) && !PassAllArguments) ||
+        NodesFromGlobals.count(N))
+      MarkedNodes.erase(N);
+  }
+
+  //
+  // Create new FuncInfo entries for all of the functions.  Each one will have
+  // the same set of DSNodes passed in.
+  //
+  for (unsigned index = 0; index < Functions.size(); ++index) {
+    Function * F = (Function *) Functions[index];
+    FuncInfo & FI =
+            FunctionInfo.insert(std::make_pair(F, FuncInfo(*F))).first->second;
+    //
+    // DenseSet does not have iterator traits, so we cannot use an insert()
+    // method that takes iterators.  Instead, we must use a loop to insert each
+    // element into MarkedNodes and ArgNodes one at a time.
+    //
+    for (DenseSet<const DSNode*>::iterator ii = MarkedNodes.begin(),
+         ee = MarkedNodes.end(); ii != ee; ++ii) {
+      FI.MarkedNodes.insert(*ii);
+      FI.ArgNodes.insert(FI.ArgNodes.end(), *ii);
+    }
+  }
 }
 
 //

@@ -855,10 +855,30 @@ void FuncTransform::visitCallSite(CallSite& CS) {
     // sure to use the original call site from the original function; the
     // points-to analysis has no information on the clones we've created.
     //
+    // Also, look for the target that has the greatest number of arguments that
+    // have associated DSNodes.  This ensures that we pass the maximum number
+    // of pools possible and prevents us from eliding a pool because we're
+    // examining a target that doesn't need it.
+    //
     const DSCallGraph & callGraph = Graphs.getCallGraph();
+    unsigned maxArgsWithNodes = 0;
     DSCallGraph::callee_iterator I = callGraph.callee_begin(OrigInst);
-    if (I != callGraph.callee_end(OrigInst))
-      CF = *I;
+    for (; I != callGraph.callee_end(OrigInst); ++I) {
+      //
+      // Get the information for this function.  Since this is coming from DSA,
+      // it should be an original function.
+      //
+      FuncInfo *CFI = PAInfo.getFuncInfo(**I);
+
+      //
+      // If this target takes more DSNodes than the last one we found, then
+      // make *this* target our canonical target.
+      //
+      if (CFI->ArgNodes.size() > maxArgsWithNodes) {
+        maxArgsWithNodes = CFI->ArgNodes.size();
+        CF = *I;
+      }
+    }
 
     //
     // If we didn't find the callee in the constructed call graph, try
