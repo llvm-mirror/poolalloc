@@ -447,8 +447,7 @@ void GraphBuilder::visitInsertValueInst(InsertValueInst& I) {
   Dest.getNode()->setModifiedMarker();
 
   // Ensure a type-record exists...
-  Dest.getNode()->mergeTypeInfo(StoredTy, 0); //FIXME: calculate offset
-  Dest.getNode()->foldNodeCompletely();
+  Dest.getNode()->mergeTypeInfo(StoredTy, I.getInsertedValueOperandIndex()); 
 
   // Avoid adding edges from null, or processing non-"pointer" stores
   if (isa<PointerType>(StoredTy))
@@ -462,8 +461,7 @@ void GraphBuilder::visitExtractValueInst(ExtractValueInst& I) {
   Ptr.getNode()->setReadMarker();
 
   // Ensure a typerecord exists...
-  // FIXME: calculate offset
-  Ptr.getNode()->mergeTypeInfo(I.getType(), 0);
+  Ptr.getNode()->mergeTypeInfo(I.getType(), I.getAggregateOperandIndex());
 
   if (isa<PointerType>(I.getType()))
     setDestTo(I, getLink(Ptr));
@@ -924,31 +922,17 @@ void GraphBuilder::visitCallSite(CallSite CS) {
   DSNodeHandle VarArgNH;
 
   // Calculate the arguments vector...
-  if (!CalleeFuncType->isVarArg()) {
-    // Add all pointer arguments
-    for (CallSite::arg_iterator I = CS.arg_begin(), E = CS.arg_end();
-        I != E; ++I) {
-      if (isa<PointerType>((*I)->getType()))
-        Args.push_back(getValueDest(*I));
-      if (I - CS.arg_begin() >= NumFixedArgs) {
-        errs() << "WARNING: Call contains too many arguments:\n";
-        CS.getInstruction()->dump();
-        assert(0 && "Failing for now");
+    // Add all fixed pointer arguments, then merge the rest together
+  for (CallSite::arg_iterator I = CS.arg_begin(), E = CS.arg_end();
+      I != E; ++I)
+    if (isa<PointerType>((*I)->getType())) {
+      DSNodeHandle ArgNode = getValueDest(*I);
+      if (I - CS.arg_begin() < NumFixedArgs) {
+        Args.push_back(ArgNode);
+      } else {
+        VarArgNH.mergeWith(ArgNode);
       }
     }
-  } else {
-    // Add all fixed pointer arguments, then merge the rest together
-    for (CallSite::arg_iterator I = CS.arg_begin(), E = CS.arg_end();
-        I != E; ++I)
-      if (isa<PointerType>((*I)->getType())) {
-        DSNodeHandle ArgNode = getValueDest(*I);
-        if (I - CS.arg_begin() < NumFixedArgs) {
-          Args.push_back(ArgNode);
-        } else {
-          VarArgNH.mergeWith(ArgNode);
-        }
-      }
-  }
 
   // Add a new function call entry...
   if (CalleeNode) {

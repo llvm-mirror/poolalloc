@@ -279,14 +279,14 @@ static void printTypesForNode(llvm::raw_ostream &O, NodeValue &NV) {
   if (N->type_begin() != N->type_end())
     for (DSNode::TyMapTy::const_iterator ii = N->type_begin(),
         ee = N->type_end(); ii != ee; ++ii) {
-      if (!firstType) O << " ";
+      if (!firstType) O << "::";
       firstType = false;
       O << ii->first << ":";
       if (ii->second) {
         bool first = true;
         for (svset<const Type*>::const_iterator ni = ii->second->begin(),
             ne = ii->second->end(); ni != ne; ++ni) {
-          if (!first) O << ",";
+          if (!first) O << "|";
           WriteTypeSymbolic(O, *ni, M);
           first = false;
         }

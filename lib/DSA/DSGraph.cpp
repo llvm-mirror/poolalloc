@@ -549,6 +549,11 @@ DSCallSite DSGraph::getDSCallSiteForCallSite(CallSite CS) const {
   //of a better way.  For now, this assumption is known limitation.
   const FunctionType *CalleeFuncType = DSCallSite::FunctionTypeOfCallSite(CS);
   int NumFixedArgs = CalleeFuncType->getNumParams();
+  
+  // Sanity check--this really, really shouldn't happen
+  if (!CalleeFuncType->isVarArg())
+    assert(CS.arg_size() == static_cast<unsigned>(NumFixedArgs) &&
+        "Too many arguments/incorrect function signature!");
 
   std::vector<DSNodeHandle> Args;
   Args.reserve(CS.arg_end()-CS.arg_begin());
