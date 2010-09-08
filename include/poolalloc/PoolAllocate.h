@@ -443,10 +443,15 @@ protected:
   /// are global pools.
   bool SetupGlobalPools(Module &M);
 
+  /// FindPoolArgs - Make a pass over the module and find the arguments of each
+  /// function that need to have their pools passed in.  This will build a
+  /// FunctionInfo for each function.
+  void FindPoolArgs (Module & M);
+
   /// FindFunctionPoolArgs - In the first pass over the program, we decide which
   /// arguments will have to be added for each function, build the FunctionInfo
   /// map and recording this info in the ArgNodes set.
-  void FindFunctionPoolArgs(Function &F);   
+  void FindFunctionPoolArgs (Function &F);   
   
   /// MakeFunctionClone - If the specified function needs to be modified for
   /// pool allocation support, make a clone of it, adding additional arguments

@@ -133,11 +133,11 @@ bool PoolAllocate::runOnModule(Module &M) {
   if (SetupGlobalPools(M))
     return true;
 
-  // Loop over the functions in the original program finding the pool desc.
-  // arguments necessary for each function that is indirectly callable.
-  for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I)
-    if (!I->isDeclaration() && Graphs->hasDSGraph(*I))
-      FindFunctionPoolArgs(*I);
+  //
+  // Find the DSNodes for each function that will require pool descriptor 
+  // arguments to be passed into the function.
+  //
+  FindPoolArgs (M);
 
   // Map that maps an original function to its clone
   std::map<Function*, Function*> FuncMap;
@@ -523,7 +523,7 @@ GetNodesReachableFromGlobals (DSGraph* G,
 //  MarkedNodes      - A set of DSNodes whose associated pools should be
 //                     passed into the function when it is called.
 //
-static void
+static inline void
 MarkNodesWhichMustBePassedIn (DenseSet<const DSNode*> &MarkedNodes,
                               Function &F, DSGraph* G,
                               bool PassAllArguments) {
@@ -619,11 +619,92 @@ MarkNodesWhichMustBePassedIn (DenseSet<const DSNode*> &MarkedNodes,
   }
 }
 
+//
+// Function: MarkNodesWhichMustBePassedIn()
+//
+// Description:
+//  Given a function and its DSGraph, determine which values will need to have
+//  their pools passed in from the caller.
+//
+// Inputs:
+//  RootNodes        - The root DSNodes for which pools may need to be passed
+//                     in.  These include the DSNodes of any arguments, the
+//                     DSNode of the return value, and the VarArgs DSNode.
+//  G                - The DSGraph of the function F.
+//  PassAllArguments - Flags whether all arguments should have their pool
+//                     handles passed into the function.
+//
+// Outputs:
+//  MarkedNodes      - A set of DSNodes whose associated pools should be
+//                     passed into the function when it is called.
+//
+static inline void
+MarkNodesWhichMustBePassedIn (DenseSet<const DSNode*> &MarkedNodes,
+                              const std::vector<DSNodeHandle> & RootNodes,
+                              DSGraph* G,
+                              bool PassAllArguments) {
+  //
+  // Loop through all of the root DSNodes.  Insert them and any DSNode
+  // reachable from them into the set of DSNodes for which a pool descriptor
+  // must be passed.
+  //
+  for (unsigned index = 0; index < RootNodes.size(); ++index) {
+    if (DSNode * N = RootNodes[index].getNode()) {
+      MarkedNodes.insert (N);
+      N->markReachableNodes(MarkedNodes);
+    }
+  }
+
+  //
+  // Determine which DSNodes are reachable from globals.  If a node is
+  // reachable from a global, we will create a global pool for it, so no
+  // argument passage is required.
+  //
+  DenseSet<const DSNode*> NodesFromGlobals;
+  GetNodesReachableFromGlobals (G, NodesFromGlobals);
+
+  //
+  // Remove any nodes reachable from a global.  These nodes will be put into
+  // global pools, which do not require arguments to be passed in.  Also, erase
+  // any marked node that is not a heap node.  Since no allocations or frees
+  // will be done with it, it needs no argument.
+  //
+  // FIXME:
+  //  1) PassAllArguments seems to be ignored here.  Why is that?
+  //  2) Should the heap node check be part of the PassAllArguments check?
+  //  3) SAFECode probably needs to pass the pool even if it's not a heap node.
+  //     We should probably just do what the heuristic tells us to do.
+  //
+  for (DenseSet<const DSNode*>::iterator I = MarkedNodes.begin(),
+         E = MarkedNodes.end(); I != E; ) {
+    const DSNode *N = *I; ++I;
+    if ((!(1 || N->isHeapNode()) && !PassAllArguments) || NodesFromGlobals.count(N))
+      MarkedNodes.erase(N);
+  }
+
+  return;
+}
+
+
+//
+// Method: FindPoolArgs()
+//
+// Description:
+//  Loop over the functions in the original program finding the pool descriptor
+//  arguments necessary for each function.
+//
+void
+PoolAllocate::FindPoolArgs (Module & M) {
+  for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I)
+    if (!I->isDeclaration() && Graphs->hasDSGraph(*I))
+      FindFunctionPoolArgs(*I);
+}
 
 /// FindFunctionPoolArgs - In the first pass over the program, we decide which
 /// arguments will have to be added for each function, build the FunctionInfo
 /// map and recording this info in the ArgNodes set.
-void PoolAllocate::FindFunctionPoolArgs(Function &F) {
+void
+PoolAllocate::FindFunctionPoolArgs (Function & F) {
   DSGraph* G = Graphs->getDSGraph(F);
 
   // Create a new entry for F.
@@ -631,33 +712,60 @@ void PoolAllocate::FindFunctionPoolArgs(Function &F) {
     FunctionInfo.insert(std::make_pair(&F, FuncInfo(F))).first->second;
   DenseSet<const DSNode*> &MarkedNodes = FI.MarkedNodes;
 
+  //
+  // If there is no memory activity in this function, then nothing is required.
+  //
   if (G->node_begin() == G->node_end())
-    return;  // No memory activity, nothing is required
+    return;
+
+  //
+  // Find all of the DSNodes which could require a pool to be passed into the
+  // function.
+  //
+  std::vector<DSNodeHandle> Args;
+  G->getFunctionArgumentsForCall (&F, Args);
 
   // Find DataStructure nodes which are allocated in pools non-local to the
   // current function.  This set will contain all of the DSNodes which require
   // pools to be passed in from outside of the function.
-  MarkNodesWhichMustBePassedIn(MarkedNodes, F, G, PassAllArguments);
+  MarkNodesWhichMustBePassedIn(MarkedNodes, Args, G, PassAllArguments);
 
 
-  //FI.ArgNodes.insert(FI.ArgNodes.end(), MarkedNodes.begin(), MarkedNodes.end());
-  //Work around DenseSet not having iterator traits
+  //
+  // DenseSet does not have iterator traits, so we cannot use an insert()
+  // method that takes iterators.  Instead, we must use a loop to insert each
+  // element into ArgNodes one at a time.
+  //
   for (DenseSet<const DSNode*>::iterator ii = MarkedNodes.begin(),
        ee = MarkedNodes.end(); ii != ee; ++ii)
     FI.ArgNodes.insert(FI.ArgNodes.end(), *ii);
 }
 
-// MakeFunctionClone - If the specified function needs to be modified for pool
-// allocation support, make a clone of it, adding additional arguments as
-// necessary, and return it.  If not, just return null.
 //
-Function *PoolAllocate::MakeFunctionClone(Function &F) {
+// Method: MakeFunctionClone()
+//
+// Description:
+//  If the specified function needs to be modified for pool allocation support,
+//  make a clone of it, adding additional arguments as necessary, and return
+//  it.
+//
+// Return value:
+//  NULL - The function did not need to be cloned.
+//  Otherwise, a pointer to the clone of the function is returned.
+//
+Function *
+PoolAllocate::MakeFunctionClone (Function & F) {
+  //
+  // If the DSGraph for this function has no DSNodes, then we don't need to
+  // make a clone.
+  //
   DSGraph* G = Graphs->getDSGraph(F);
   if (G->node_begin() == G->node_end()) return 0;
-    
-  FuncInfo &FI = *getFuncInfo(F);
 
-  // No need to clone if no pools need to be passed in!
+  //
+  // There is no need to clone a function if no pools need to be passed in!
+  //
+  FuncInfo &FI = *getFuncInfo(F);
   if (FI.ArgNodes.empty())
     return 0;
 
