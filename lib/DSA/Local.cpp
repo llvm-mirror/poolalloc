@@ -904,9 +904,12 @@ void GraphBuilder::visitCallSite(CallSite CS) {
   }
 
   //NOTE: This code is identical to 'DSGraph::getDSCallSiteForCallSite',
-  //the reason it's duplicated apparently is so we can increment the
-  //stats 'NumIndirectCall' and 'NumDirectCall'.
-  //FIXME: refactor so we don't have this duplication
+  //the reason it's duplicated is so because this calls getValueDest, 
+  //instead of getNodeForValue. Possibly because a DS node may not exist
+  //at this time, in which case getNodeForValue, creates the node, unlike
+  // getNodeForValue.
+  
+  //FIXME: refactor so we don't have this duplication. 
 
   //Get the FunctionType for the called function
   const FunctionType *CalleeFuncType = DSCallSite::FunctionTypeOfCallSite(CS);
