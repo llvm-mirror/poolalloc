@@ -903,13 +903,13 @@ void GraphBuilder::visitCallSite(CallSite CS) {
     }
   }
 
-  //NOTE: This code is identical to 'DSGraph::getDSCallSiteForCallSite',
-  //the reason it's duplicated is so because this calls getValueDest, 
-  //instead of getNodeForValue. Possibly because a DS node may not exist
-  //at this time, in which case getNodeForValue, creates the node, unlike
-  // getNodeForValue.
+  // NOTE: This code is identical to 'DSGraph::getDSCallSiteForCallSite',
+  // the reason it's duplicated is because this calls getValueDest instead
+  // of getNodeForValue to get the DSNodes for the arguments.  Since we're in
+  // local it's possible that we need to create a DSNode for the argument, as
+  // opposed to getNodeForValue which simply retrieves the existing node.
   
-  //FIXME: refactor so we don't have this duplication. 
+  // FIXME: refactor so we don't have this duplication. 
 
   //Get the FunctionType for the called function
   const FunctionType *CalleeFuncType = DSCallSite::FunctionTypeOfCallSite(CS);
