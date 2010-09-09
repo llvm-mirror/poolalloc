@@ -40,7 +40,7 @@ PA_RT_O  := $(PADIR)/$(CONFIGURATION)/lib/libpoolalloc_rt.a
 #PA_RT_O  := $(PROJECT_DIR)/lib/$(CONFIGURATION)/poolalloc_fl_rt.o
 
 # Command to run opt with the pool allocator pass loaded
-OPT_PA := $(WATCHDOG) $(LOPT) -load $(DSA_SO) -load $(PA_SO)
+OPT_PA := $(RUNTOOLSAFELY) $(WATCHDOG) $(LOPT) -load $(DSA_SO) -load $(PA_SO)
 
 # OPT_PA_STATS - Run opt with the -stats and -time-passes options, capturing the
 # output to a file.
