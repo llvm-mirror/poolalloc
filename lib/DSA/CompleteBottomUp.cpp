@@ -172,7 +172,7 @@ CompleteBUDataStructures::buildIndirectFunctionSets (void) {
         ++csi;
         continue;
       }
-      DSNodeHandle SrcNH = SM.find(*sccii)->second;
+      SrcNH = SM.find(*sccii)->second;
       ++sccii;
       for(;sccii != sccee; ++sccii) {
         DSGraph::ScalarMapTy::const_iterator I = SM.find(*sccii);
