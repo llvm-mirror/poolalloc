@@ -123,6 +123,7 @@ CompleteBUDataStructures::buildIndirectFunctionSets (void) {
 
     }
 #endif
+
     //
     // Note: The code above and below is dealing with the fact that the targets
     // of *direct* function calls do not show up in the Scalar Map of the
@@ -160,30 +161,9 @@ CompleteBUDataStructures::buildIndirectFunctionSets (void) {
     // bur are not the targets of an indirect function call site, they will not 
     // be merged by CBU.
     
-    DSNodeHandle SrcNH;
-    while(csi != cse) {
-      const Function *F = *csi;
-      DSCallGraph::scc_iterator sccii = callgraph.scc_begin(F),
-                                sccee = callgraph.scc_end(F);
-      while(sccii != sccee && SM.find(*sccii) == SM.end()) {
-        ++sccii; 
-      }
-      if(sccii == sccee) {
-        ++csi;
-        continue;
-      }
-      SrcNH = SM.find(*sccii)->second;
-      ++sccii;
-      for(;sccii != sccee; ++sccii) {
-        DSGraph::ScalarMapTy::const_iterator I = SM.find(*sccii);
-        if (I != SM.end()) {
-          SrcNH.mergeWith(I->second);
-        }
-      }
-      ++csi;
-      break;
-    }
-    
+    // This NH starts off empty, but ends up merging them all together
+    DSNodeHandle calleesNH;
+
     while(csi != cse) {
       const Function *F = *csi;
       DSCallGraph::scc_iterator sccii = callgraph.scc_begin(F),
@@ -191,7 +171,7 @@ CompleteBUDataStructures::buildIndirectFunctionSets (void) {
       for(;sccii != sccee; ++sccii) {
         DSGraph::ScalarMapTy::const_iterator I = SM.find(*sccii);
         if (I != SM.end()) {
-          SrcNH.mergeWith(I->second);
+          calleesNH.mergeWith(I->second);
         }
       }
       ++csi;
