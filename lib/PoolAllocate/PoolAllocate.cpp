@@ -743,7 +743,9 @@ PoolAllocate::FindPoolArgs (Module & M) {
   for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I) {
     if (!I->isDeclaration() && Graphs->hasDSGraph(*I)) {
       if (FunctionInfo.find (I) == FunctionInfo.end()) {
-        FunctionInfo.insert(std::make_pair(I, FuncInfo(*I)));
+        std::vector<const Function *> Functions;
+        Functions.push_back(I);
+        FindFunctionPoolArgs (Functions);
       }
     }
   }
