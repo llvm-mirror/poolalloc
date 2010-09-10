@@ -1,0 +1,10 @@
+#
+# Send mail to no one
+#
+MAILTO=""
+
+#
+# Taken from the Linux man page and modified.
+#
+0 3 * * *       $HOME/cronjobs/llvm27/projects/poolalloc/utils/NightlyTest.sh
+
