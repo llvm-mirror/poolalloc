@@ -43,6 +43,17 @@ bool
 CompleteBUDataStructures::runOnModule (Module &M) {
   init(&getAnalysis<BUDataStructures>(), false, true, false, true);
 
+
+  //
+  // Make sure we have a DSGraph for all declared functions in the Module.
+  // formGlobalECs assumes that DSInfo is populated with a list of 
+  // DSgraphs for all the functions. 
+  
+  for (Module::iterator F = M.begin(); F != M.end(); ++F) {
+    if (!(F->isDeclaration()))
+      getOrCreateGraph(F);
+  }
+
   buildIndirectFunctionSets();
   formGlobalECs();
 
