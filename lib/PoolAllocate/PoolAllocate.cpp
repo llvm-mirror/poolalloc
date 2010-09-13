@@ -283,9 +283,13 @@ bool PoolAllocate::runOnModule(Module &M) {
   //        code is trying to do (namely, avoid optimizations for performance
   //        overhead measurements?).
   //
+  // FIXME: Breaks invalid C code. Remove from poolalloc and move to a separate pass.
+  
+  #if 0
   if (CurHeuristic->IsRealHeuristic())
     MicroOptimizePoolCalls();
-
+  #endif
+ 
   delete CurHeuristic;
   return true;
 }
