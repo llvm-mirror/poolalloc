@@ -814,7 +814,7 @@ void FuncTransform::visitCallSite(CallSite& CS) {
   // For indirect callees, find any callee since all DS graphs have been
   // merged.
   if (CF) {   // Direct calls are nice and simple.
-    DEBUG(errs() << "  Handling direct call: " << *TheCall);
+    DEBUG(errs() << "  Handling direct call: " << *TheCall << "\n");
 
     //
     // Do not try to add pool handles to the function if it:
@@ -839,7 +839,7 @@ void FuncTransform::visitCallSite(CallSite& CS) {
     assert ((Graphs.hasDSGraph (*CF)) && "Function has no ECGraph!\n");
     CalleeGraph = Graphs.getDSGraph(*CF);
   } else {
-    DEBUG(errs() << "  Handling indirect call: " << *TheCall);
+    DEBUG(errs() << "  Handling indirect call: " << *TheCall << "\n");
     
     // Here we fill in CF with one of the possible called functions.  Because we
     // merged together all of the arguments to all of the functions in the
@@ -1087,7 +1087,7 @@ void FuncTransform::visitCallSite(CallSite& CS) {
     AddPoolUse(*NewCall, Args[i], PoolUses);
 
   TheCall->replaceAllUsesWith(NewCall);
-  DEBUG(errs() << "  Result Call: " << *NewCall);
+  DEBUG(errs() << "  Result Call: " << *NewCall << "\n");
 
   if (!TheCall->getType()->isVoidTy()) {
     // If we are modifying the original function, update the DSGraph... 
