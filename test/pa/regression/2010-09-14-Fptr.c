@@ -9,8 +9,8 @@
  * RUN: llvm-gcc -o %t.native %s
  *
  * Execute the program to verify it's correct:
- * RUN: ./%t.pa >& %t.pa.out
- * RUN: /%t.native >& %t.native.out
+ * RUN: %t.pa >& %t.pa.out
+ * RUN: %t.native >& %t.native.out
  *
  * Diff the two executions
  * RUN: diff %t.pa.out %t.native.out
@@ -39,4 +39,5 @@ int main(int argc, char ** argv)
 {
   int val = MAGIC;
   getFP()(&val);
+  return 0;
 }
