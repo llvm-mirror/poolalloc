@@ -694,7 +694,7 @@ void GraphBuilder::visitVAStartNode(DSNode* N) {
       // be used also to pass arguments by register.
       // We model this by having both the i8*'s point to an array of pointers
       // to the arguments.
-      if (N->getSize() < 1)
+      if (N->getSize() < 24)
         N->growSize(24); //sizeof the va_list struct mentioned above
       N->setLink(8,VAArray); //first i8*
       N->setLink(16,VAArray); //second i8*
