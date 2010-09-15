@@ -168,12 +168,18 @@ bool PoolAllocate::runOnModule(Module &M) {
   // FIXME: Should use a isClone() method.
   //
   std::set<Function*> ClonedFunctions;
+  Function *MainFunc = M.getFunction("main");
   while (FunctionsToClone.size()) {
     //
     // Remove a function from the list of functions to clone.
     //
     Function * Original = FunctionsToClone.back();
     FunctionsToClone.pop_back ();
+
+    // Don't clone 'main'!
+    if (Original == MainFunc) {
+      continue;
+    }
 
     //
     // Clone the function.  Record a pointer to the new clone if one was
