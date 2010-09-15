@@ -70,6 +70,35 @@ castTo (Value * V, const Type * Ty, std::string Name, Instruction * InsertPt) {
   return CastInst::CreateZExtOrBitCast (V, Ty, Name, InsertPt);
 }
 
+//
+// Function: replacePoolArgument()
+//
+// Description:
+//  This function determines if the specified function has a pool argument that
+//  should be replaced, and if so, returns the index of the argument to
+//  replace.
+//
+// Inputs:
+//  funcname - A reference to a string containing the name of the function.
+//
+// Return value:
+//  0 - The function does not have any pool arguments to replace.
+//  Otherwise, the index of the single pool argument to replace is returned.
+//
+static unsigned
+replacePoolArgument (const std::string & funcname) {
+  if ((funcname == "sc.lscheck") ||
+      (funcname == "sc.lscheckui") ||
+      (funcname == "sc.lscheckalign") ||
+      (funcname == "sc.lscheckalignui") ||
+      (funcname == "sc.boundscheck") ||
+      (funcname == "sc.boundscheckui")) {
+    return 1;
+  }
+
+  return 0;
+}
+
 void PoolAllocateSimple::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.addRequired<TargetData>();
   // Get the Target Data information and the Graphs
@@ -163,7 +192,7 @@ bool PoolAllocateSimple::runOnModule(Module &M) {
   //
   // Create the global pool.
   //
-  TheGlobalPool = CreateGlobalPool(32, 1, M);
+  TheGlobalPool = CreateGlobalPool(1, 1, M);
 
   //
   // Now that all call targets are available, rewrite the function bodies of
@@ -407,6 +436,19 @@ PoolAllocateSimple::ProcessFunctionBodySimple (Function& F, TargetData & TD) {
           toDelete.push_back(ii);
           Value* args[] = {TheGlobalPool, FreedNode};
           CallInst::Create(PoolFree, &args[0], &args[2], "", ii);
+        }
+
+        //
+        // Transform SAFECode run-time checks.  For these calls, all we need to
+        // do is to replace the pool argument with a pointer to the global
+        // pool.
+        //
+        if (CF) {
+          if (unsigned index = replacePoolArgument (CF->getName())) {
+            Type * VoidPtrTy = PointerType::getUnqual(Int8Type);
+            Value * Pool = castTo (TheGlobalPool, VoidPtrTy, "pool", ii);
+            CI->setOperand (index, Pool);
+          }
         }
       }
     }
