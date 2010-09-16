@@ -94,7 +94,12 @@ replacePoolArgument (const std::string & funcname) {
       (funcname == "sc.boundscheck") ||
       (funcname == "sc.boundscheckui") ||
       (funcname == "sc.pool_register_stack") ||
-      (funcname == "sc.pool_unregister_stack")) {
+      (funcname == "sc.pool_unregister_stack") ||
+      (funcname == "sc.pool_register_global") ||
+      (funcname == "sc.pool_unregister_global") ||
+      (funcname == "sc.pool_register") ||
+      (funcname == "sc.pool_unregister") ||
+      (funcname == "sc.get_actual_val")) {
     return 1;
   }
 
