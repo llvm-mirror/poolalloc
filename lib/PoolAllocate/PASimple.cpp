@@ -92,7 +92,9 @@ replacePoolArgument (const std::string & funcname) {
       (funcname == "sc.lscheckalign") ||
       (funcname == "sc.lscheckalignui") ||
       (funcname == "sc.boundscheck") ||
-      (funcname == "sc.boundscheckui")) {
+      (funcname == "sc.boundscheckui") ||
+      (funcname == "sc.pool_register_stack") ||
+      (funcname == "sc.pool_unregister_stack")) {
     return 1;
   }
 
@@ -468,6 +470,14 @@ GlobalVariable *
 PoolAllocateSimple::CreateGlobalPool (unsigned RecSize,
                                       unsigned Align,
                                       Module& M) {
+  //
+  // See if the global pool has already been created.  If so, then just return
+  // it.
+  //
+  if (GlobalVariable * GV = M.getNamedGlobal ("__poolalloc_GlobalPool")) {
+    return GV;
+  }
+
   //
   // Give poolinit() a dummy body.  A later transform will remove the dummy
   // body.
