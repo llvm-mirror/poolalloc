@@ -511,12 +511,14 @@ static bool verifyFlags(llvm::raw_ostream &O, const Module *M, const DataStructu
         std::string ActualFlags = getFlags(NV.getNode());
         for (std::string::iterator I = FlagsListed.begin(), E = FlagsListed.end();
             I != E; ++I ) {
-          if (shouldHaveFlag)
-            assert((ActualFlags.find(*I) != std::string::npos)
-                && "Node doesn't have flag it should!");
-          else
-            assert((ActualFlags.find(*I) == std::string::npos)
-                && "Node has flag it shouldn't!");
+          if (shouldHaveFlag == (ActualFlags.find(*I) == std::string::npos))
+          {
+              errs() << "ERROR: Verify flags for:     \t" <<
+                NodeFlagOption  << "\n";
+              errs() << "       But found these flags:\t" <<
+                ActualFlags << "\n";
+              assert(0 && "Flag verification failed!");
+          }
         }
 
 
