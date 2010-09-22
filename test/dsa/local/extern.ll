@@ -40,7 +40,7 @@ entry:
 
 declare i32* @getPointerExtern(...)
 
-define noalias i32* @getPointer() nounwind {
+define internal noalias i32* @getPointer() nounwind {
 entry:
   %0 = tail call noalias i8* @malloc(i64 4) nounwind ; <i8*> [#uses=1]
   %1 = bitcast i8* %0 to i32*                     ; <i32*> [#uses=1]

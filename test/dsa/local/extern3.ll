@@ -75,8 +75,8 @@ entry:
   ret void
 }
 
-;RUN: dsaopt %s -dsa-td -analyze -verify-flags "checkExternals:get-I"
-;RUN: dsaopt %s -dsa-td -analyze -verify-flags "checkExternals:take-I"
+;RUN: dsaopt %s -dsa-td -analyze -verify-flags "checkInternals:get-I"
+;RUN: dsaopt %s -dsa-td -analyze -verify-flags "checkInternals:take-I"
 define void @checkInternals() nounwind {
 entry:
   %get = tail call i32* ()* @getPointerInternal() nounwind ; <i32*> [#uses=0]
