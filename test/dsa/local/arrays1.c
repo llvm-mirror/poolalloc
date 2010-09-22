@@ -1,3 +1,6 @@
+// Checks that structure field offsets are calculated correctly
+// Checks that structure is folded
+
 //--Make sure we can run DSA on it! 
 //RUN: llvm-gcc %s -c --emit-llvm -o - |  \
 //RUN: dsaopt -dsa-bu -dsa-td -disable-output
