@@ -6,7 +6,7 @@
 #include <stdlib.h>
 
 
-int* test() {
+static int* test() {
   int* a2 = (int*)malloc(sizeof(int));
   *a2 = 10;
   
