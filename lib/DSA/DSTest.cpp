@@ -462,11 +462,11 @@ static bool checkTypes(llvm::raw_ostream &O, const Module *M, const DataStructur
       printTypesForNode(*test, NV);
       
       if(test->str()!=typeRef) {
-              errs() << "ERROR: Type test for type :     \t" <<
-                typeRef  << " Failed \n";
-              errs() << "       But found this type:\t" <<
-                test->str() << "\n";
-              assert(0 && "Type verification failed!");
+        errs() << "ERROR: Testing for type :   \t" <<
+          typeRef  << "\n";
+        errs() << "       But found this type :\t" <<
+          test->str() << "\n";
+        assert(0 && "Type verification failed!");
       }
     }
     return true;
@@ -519,11 +519,11 @@ static bool verifyFlags(llvm::raw_ostream &O, const Module *M, const DataStructu
             I != E; ++I ) {
           if (shouldHaveFlag == (ActualFlags.find(*I) == std::string::npos))
           {
-              errs() << "ERROR: Verify flags for:     \t" <<
-                NodeFlagOption  << "\n";
-              errs() << "       But found these flags:\t" <<
-                ActualFlags << "\n";
-              assert(0 && "Flag verification failed!");
+            errs() << "ERROR: Verify flags for:      \t" <<
+              NodeFlagOption  << "\n";
+            errs() << "       But found these flags: \t" <<
+              ActualFlags << "\n";
+            assert(0 && "Flag verification failed!");
           }
         }
 
