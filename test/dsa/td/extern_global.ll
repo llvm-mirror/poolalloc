@@ -2,22 +2,23 @@
 ;This tests how DSA handles external globals and their completeness in TD.
 
 ; Externally visible globals should be incomplete
-;RUN: dsaopt %s -dsa-td -analyze -verify-flags globalInt+I
+;RUN: dsaopt %s -dsa-td -analyze -verify-flags globalInt+GIE
 ; Externally visible global and what it points to should be incomplete
-;RUN: dsaopt %s -dsa-td -analyze -verify-flags globalIntPtr+I
-;RUN: dsaopt %s -dsa-td -analyze -verify-flags globalIntPtr:0+I
+;RUN: dsaopt %s -dsa-td -analyze -verify-flags globalIntPtr+GIE
+;RUN: dsaopt %s -dsa-td -analyze -verify-flags globalIntPtr:0+GIE
 ; Externally visible global and what it points to should be incomplete,
 ; this time with a struct and point to some stack memory...
-;RUN: dsaopt %s -dsa-td -analyze -verify-flags globalStructWithPointers+I
-;RUN: dsaopt %s -dsa-td -analyze -verify-flags globalStructWithPointers:8+I
-;RUN: dsaopt %s -dsa-td -analyze -verify-flags globalStructWithPointers:8:8+I
-;RUN: dsaopt %s -dsa-td -analyze -check-same-node=globalStructWithPointers:8,globalStructWithPointers:8:8
-; Globals that aren't marked 'external' shouldn't be incomplete
-;RUN: dsaopt %s -dsa-td -analyze -verify-flags normalGlobal-I
-;RUN: dsaopt %s -dsa-td -analyze -verify-flags internalGlobal-I
+;RUN: dsaopt %s -dsa-td -analyze -verify-flags globalStructWithPointers+GIE
+;RUN: dsaopt %s -dsa-td -analyze -verify-flags globalStructWithPointers:8+IE
+;RUN: dsaopt %s -dsa-td -analyze -verify-flags globalStructWithPointers:8:8+IE
+;RUN: dsaopt %s -dsa-td -analyze -verify-flags main:s+IES
+; Globals that aren't marked 'external' shouldn't be incomplete (or external)
+;RUN: dsaopt %s -dsa-td -analyze -verify-flags normalGlobal+G-IE
+;RUN: dsaopt %s -dsa-td -analyze -verify-flags internalGlobal+G-IE
 ; Check some edges of the graph
 ;RUN: dsaopt %s -dsa-td -analyze -check-same-node=normalGlobal:0,globalIntPtr
 ;RUN: dsaopt %s -dsa-td -analyze -check-same-node=internalGlobal:0,normalGlobal
+;RUN: dsaopt %s -dsa-td -analyze -check-same-node=globalStructWithPointers:8,globalStructWithPointers:8:8
 
 target datalayout = "e-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:64:64-f32:32:32-f64:64:64-v64:64:64-v128:128:128-a0:0:64-s0:64:64-f80:128:128-n8:16:32:64"
 target triple = "x86_64-unknown-linux-gnu"

@@ -12,7 +12,7 @@ declare void @free(i8*) nounwind
 
 ;This should be marked incomplete and external due to the
 ;unification-based nature of DSA.
-;RUN: dsaopt %s -dsa-td -analyze -verify-flags "getPointer:ptr+I"
+;RUN: dsaopt %s -dsa-td -analyze -verify-flags "getPointer:ptr+IE"
 define i32* @getPointer() nounwind {
 entry:
   %0 = tail call noalias i8* @malloc(i64 4) nounwind ; <i8*> [#uses=1]
@@ -22,14 +22,14 @@ entry:
 
 ;This should be marked incomplete and external due to the
 ;unification-based nature of DSA.
-;RUN: dsaopt %s -dsa-td -analyze -verify-flags "takesPointer:ptr+I"
+;RUN: dsaopt %s -dsa-td -analyze -verify-flags "takesPointer:ptr+IE"
 define i32 @takesPointer(i32* %ptr) nounwind {
 entry:
   %0 = load i32* %ptr, align 4                    ; <i32> [#uses=1]
   ret i32 %0
 }
 
-;RUN: dsaopt %s -dsa-td -analyze -verify-flags "getPointerInternal:ptr-I"
+;RUN: dsaopt %s -dsa-td -analyze -verify-flags "getPointerInternal:ptr-IE"
 define internal i32* @getPointerInternal() nounwind {
 entry:
   %0 = tail call noalias i8* @malloc(i64 4) nounwind ; <i8*> [#uses=1]
@@ -37,7 +37,7 @@ entry:
   ret i32* %ptr
 }
 
-;RUN: dsaopt %s -dsa-td -analyze -verify-flags "takesPointerInternal:ptr-I"
+;RUN: dsaopt %s -dsa-td -analyze -verify-flags "takesPointerInternal:ptr-IE"
 define internal i32 @takesPointerInternal(i32* %ptr) nounwind {
 entry:
   %0 = load i32* %ptr, align 4                    ; <i32> [#uses=1]
@@ -52,8 +52,8 @@ entry:
   ret i32 0
 }
 
-;RUN: dsaopt %s -dsa-td -analyze -verify-flags "checkExterns:get+I"
-;RUN: dsaopt %s -dsa-td -analyze -verify-flags "checkExterns:take+I"
+;RUN: dsaopt %s -dsa-td -analyze -verify-flags "checkExterns:get+IE"
+;RUN: dsaopt %s -dsa-td -analyze -verify-flags "checkExterns:take+IE"
 define void @checkExterns() nounwind {
   %get = tail call i32* ()* @getPointerExtern() nounwind ; <i32*> [#uses=0]
   %1 = tail call noalias i8* @malloc(i64 4) nounwind ; <i8*> [#uses=2]
@@ -63,8 +63,8 @@ define void @checkExterns() nounwind {
   ret void
 }
 
-;RUN: dsaopt %s -dsa-td -analyze -verify-flags "checkExternals:get+I"
-;RUN: dsaopt %s -dsa-td -analyze -verify-flags "checkExternals:take+I"
+;RUN: dsaopt %s -dsa-td -analyze -verify-flags "checkExternals:get+IE"
+;RUN: dsaopt %s -dsa-td -analyze -verify-flags "checkExternals:take+IE"
 define void @checkExternals() nounwind {
 entry:
   %get = tail call i32* ()* @getPointer() nounwind ; <i32*> [#uses=0]
@@ -75,8 +75,8 @@ entry:
   ret void
 }
 
-;RUN: dsaopt %s -dsa-td -analyze -verify-flags "checkInternals:get-I"
-;RUN: dsaopt %s -dsa-td -analyze -verify-flags "checkInternals:take-I"
+;RUN: dsaopt %s -dsa-td -analyze -verify-flags "checkInternals:get-IE"
+;RUN: dsaopt %s -dsa-td -analyze -verify-flags "checkInternals:take-IE"
 define void @checkInternals() nounwind {
 entry:
   %get = tail call i32* ()* @getPointerInternal() nounwind ; <i32*> [#uses=0]
