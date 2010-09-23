@@ -648,15 +648,17 @@ void DSGraph::markIncompleteNodes(unsigned Flags) {
            E = AuxFunctionCalls.end(); I != E; ++I)
       markIncomplete(*I);
 
-#if 0
   // Mark stuff passed into external functions as being incomplete.
   // External functions may not appear in Aux during td, so process
   // them specially
+#if 0
   for (std::list<DSCallSite>::iterator I = FunctionCalls.begin(),
          E = FunctionCalls.end(); I != E; ++I)
     if(I->isDirectCall() && I->getCalleeFunc()->isDeclaration())
       markIncomplete(*I);
 #endif
+  // Handle all sources of external
+  markExternalNodes();
 
   // Mark all global nodes as incomplete.
   for (DSScalarMap::global_iterator I = ScalarMap.global_begin(),
@@ -671,6 +673,85 @@ void DSGraph::markIncompleteNodes(unsigned Flags) {
     for (node_iterator i=node_begin(); i != node_end(); ++i) {
       if (i->isVAStartNode())
         markIncompleteNode(i);
+    }
+  }
+}
+
+static void markExternalNode(DSNode *N) {
+  // FIXME: For now, we say that external is the same as incomplete as little to nothing
+  // checks or uses the External flag, and if we're to do the External flag it's as part of something
+  // else and needs more thought.  For now we simply are ensuring things that should be incomplete due to
+  // external influence are, in fact, marked incomplete.
+  markIncompleteNode(N);
+}
+
+static void markExternal(DSCallSite &Call) {
+  markExternalNode(Call.getRetVal().getNode());
+
+  markExternalNode(Call.getVAVal().getNode());
+
+  // All objects pointed to by function arguments are incomplete!
+  for (unsigned i = 0, e = Call.getNumPtrArgs(); i != e; ++i)
+    markExternalNode(Call.getPtrArg(i).getNode());
+}
+
+// markExternalNodes - Traverse the graph, identifying nodes that may be
+// exposed to external code.  The sources of this happening are:
+// --Arguments and return values for external functions
+// --Arguments and return values for externally visible functions
+//
+// FIXME: Unlike 'Incomplete' flag, the 'External' flag is never reset
+// and if done right should propagate throughout the various passes.
+// That is to say we can probably get away by not re-marking everything,
+// but instead placing just the right flag updates in just the right places.
+// However this is simpler and more likely to be correct--that kind of 
+// optimization can wait until everything works correctly.
+void DSGraph::markExternalNodes() {
+  // Process all CallSites that call functions influenced by external code
+  for (std::list<DSCallSite>::iterator I = FunctionCalls.begin(),
+         E = FunctionCalls.end(); I != E; ++I) {
+    bool shouldBeMarkedExternal = false;
+
+    // Figure out what this callsite calls...
+    std::vector<const Function *> Functions;
+    if (I->isDirectCall())
+      Functions.push_back(I->getCalleeFunc());
+    else
+      I->getCalleeNode()->addFullFunctionList(Functions);
+
+    // ...And examine each callee:
+    for (std::vector<const Function *>::iterator II = Functions.begin(),
+                                            EE = Functions.end();
+          (II != EE) && !shouldBeMarkedExternal; ++II) {
+
+      // Calls to external functions should be marked external
+      shouldBeMarkedExternal |= (*II)->isDeclaration();
+      // Calls to code that is externally visible should be marked
+      // external.  This might be overkill due to unification and the
+      // various passes propagating this information,
+      // but for now we /ensure/ the flags are set correctly.
+      shouldBeMarkedExternal |= !(*II)->hasInternalLinkage();
+    }
+
+    if (shouldBeMarkedExternal) {
+      markExternal(*I);
+    }
+  }
+
+  // Additionally, look at each *function* that is external-related
+  // and set the External flag for its arguments and return value.
+  for (ReturnNodesTy::iterator FI = ReturnNodes.begin(), E =ReturnNodes.end();
+      FI != E; ++FI) {
+    const Function &F = *FI->first;
+    // If this function is potentially influenced by external code...
+    if (!F.hasInternalLinkage() || F.isDeclaration()) {
+      // Mark its arguments, return value (and vanode) as external.
+      for (Function::const_arg_iterator I = F.arg_begin(), E = F.arg_end();
+          I != E; ++I)
+        if (isa<PointerType>(I->getType()))
+          markExternalNode(getNodeForValue(I).getNode());
+      markExternalNode(FI->second.getNode());
+      markExternalNode(getVANodeFor(F).getNode());
     }
   }
 }
