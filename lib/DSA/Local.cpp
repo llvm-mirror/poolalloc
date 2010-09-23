@@ -426,6 +426,7 @@ void GraphBuilder::visitPtrToIntInst(PtrToIntInst& I) {
 
 
 void GraphBuilder::visitBitCastInst(BitCastInst &I) {
+  
   if (!isa<PointerType>(I.getType())) return; // Only pointers
   DSNodeHandle Ptr = getValueDest(I.getOperand(0));
   if (Ptr.isNull()) return;
@@ -559,9 +560,25 @@ void GraphBuilder::visitGetElementPtrInst(User &GEP) {
   for (gep_type_iterator I = gep_type_begin(GEP), E = gep_type_end(GEP);
        I != E; ++I)
     if (const StructType *STy = dyn_cast<StructType>(*I)) {
+      // indexing into a structure
+      // next index must be a constant
       const ConstantInt* CUI = cast<ConstantInt>(I.getOperand());
       int FieldNo = CUI->getSExtValue();
+      // increment the offset by the actual byte offset being accessed
       Offset += (unsigned)TD.getStructLayout(STy)->getElementOffset(FieldNo);
+      
+    } else if(isa<ArrayType>(*I)) {
+      // indexing into an array.
+      Value.getNode()->setArrayMarker();
+      
+      // Find if the DSNode belongs to the array
+      // If not fold.
+      if(Value.getOffset() || Offset != 0) {
+        Value.getNode()->foldNodeCompletely();
+        Value.getNode();
+        Offset = 0;
+        break;
+      } 
     } else if (isa<PointerType>(*I)) {
       //
       // Unless we're advancing the pointer by zero bytes via array indexing,
@@ -571,6 +588,7 @@ void GraphBuilder::visitGetElementPtrInst(User &GEP) {
       // Note that we break out of the loop if we fold the node.  Once
       // something is folded, all values within it are considered to alias.
       //
+      
       if (!isa<Constant>(I.getOperand()) ||
           !cast<Constant>(I.getOperand())->isNullValue()) {
         Value.getNode()->setArrayMarker();
