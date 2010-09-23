@@ -461,7 +461,13 @@ static bool checkTypes(llvm::raw_ostream &O, const Module *M, const DataStructur
       
       printTypesForNode(*test, NV);
       
-      assert(test->str()==typeRef && "Types don't match!");
+      if(test->str()!=typeRef) {
+              errs() << "ERROR: Type test for type :     \t" <<
+                typeRef  << " Failed \n";
+              errs() << "       But found this type:\t" <<
+                test->str() << "\n";
+              assert(0 && "Type verification failed!");
+      }
     }
     return true;
   }
