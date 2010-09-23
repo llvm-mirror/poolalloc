@@ -72,6 +72,7 @@ namespace {
     void visitReallocCall(CallSite CS);
     void visitMemAlignCall(CallSite CS);
     void visitStrdupCall(CallSite CS);
+    void visitRuntimeCheck(CallSite CS);
     //void visitFreeInst(FreeInst &FI);
     void visitFreeCall(CallSite &CS);
     void visitCallSite(CallSite &CS);
@@ -135,6 +136,28 @@ namespace {
 
     void verifyCallees (const std::vector<const Function *> & Functions);
   };
+}
+
+static inline Value *
+castTo (Value * V, const Type * Ty, std::string Name, Instruction * InsertPt) {
+  //
+  // Don't bother creating a cast if it's already the correct type.
+  //
+  if (V->getType() == Ty)
+    return V;
+
+  //
+  // If it's a constant, just create a constant expression.
+  //
+  if (Constant * C = dyn_cast<Constant>(V)) {
+    Constant * CE = ConstantExpr::getZExtOrBitCast (C, Ty);
+    return CE;
+  }
+
+  //
+  // Otherwise, insert a cast instruction.
+  //
+  return CastInst::CreateZExtOrBitCast (V, Ty, Name, InsertPt);
 }
 
 void
@@ -709,6 +732,40 @@ void FuncTransform::visitStrdupCall(CallSite CS) {
 }
 
 //
+// Method: visitRuntimeCheck()
+//
+// Description:
+//  Visit a call to a run-time check (or related function) and insert pool
+//  arguments where needed.
+//
+void
+FuncTransform::visitRuntimeCheck (CallSite CS) {
+  // A run-time check should have at least one argument for a pool
+  assert ((CS.arg_size() > 1) && "strdup takes one argument!");
+
+  //
+  // Get the pool handle for the pointer argument.
+  //
+  Value *PH = getPoolHandle(CS.getArgument(1)->stripPointerCasts());
+  //assert (PH && "Pool Handle for run-time checks is null!\n");
+
+  //
+  // Insert the pool handle into the run-time check.
+  //
+  if (PH) {
+    const Type * Int8Type  = Type::getInt8Ty(CS.getInstruction()->getContext());
+    const Type * VoidPtrTy = PointerType::getUnqual(Int8Type);
+    PH = castTo (PH, VoidPtrTy, PH->getName(), CS.getInstruction());
+    CS.setArgument (0, PH);
+
+    //
+    // Record that we've used the pool here.
+    //
+    AddPoolUse (*(CS.getInstruction()), PH, PoolUses);
+  }
+}
+
+//
 // Method: visitCallSite()
 //
 // Description:
@@ -780,6 +837,20 @@ void FuncTransform::visitCallSite(CallSite& CS) {
     } else if (CF->getName() == "valloc") {
       errs() << "VALLOC USED BUT NOT HANDLED!\n";
       abort();
+    } else if ((CF->getName() == "sc.lscheck") ||
+               (CF->getName() == "sc.lscheckui") ||
+               (CF->getName() == "sc.lscheckalign") ||
+               (CF->getName() == "sc.lscheckalignui") ||
+               (CF->getName() == "sc.boundscheck") ||
+               (CF->getName() == "sc.boundscheckui") ||
+               (CF->getName() == "sc.pool_register_stack") ||
+               (CF->getName() == "sc.pool_unregister_stack") ||
+               (CF->getName() == "sc.pool_register_global") ||
+               (CF->getName() == "sc.pool_unregister_global") ||
+               (CF->getName() == "sc.pool_register") ||
+               (CF->getName() == "sc.pool_unregister") ||
+               (CF->getName() == "sc.get_actual_val")) {
+      visitRuntimeCheck (CS);
     } else if (CF->getName() == "pthread_create") {
       thread_creation_point = true;
 

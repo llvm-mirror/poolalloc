@@ -82,6 +82,29 @@ namespace {
 
 }
 
+static void
+createPoolAllocInit (Module & M) {
+  //
+  // Create the __poolalloc_init() function.
+  //
+  const Type * VoidType = Type::getVoidTy(M.getContext());
+  FunctionType * FTy = FunctionType::get(VoidType,
+                                         std::vector<const Type*>(),
+                                         false);
+  Function *InitFunc = Function::Create (FTy,
+                                         GlobalValue::ExternalLinkage,
+                                         "__poolalloc_init",
+                                         &M);
+
+  //
+  // Add an entry basic block that just returns.
+  //
+  BasicBlock * BB = BasicBlock::Create (M.getContext(), "entry", InitFunc);
+  ReturnInst::Create(M.getContext(), BB);
+
+  return;
+}
+
 void PoolAllocate::getAnalysisUsage(AnalysisUsage &AU) const {
   if (dsa_pass_to_use == PASS_EQTD) {
     AU.addRequiredTransitive<EQTDDataStructures>();
@@ -283,6 +306,12 @@ bool PoolAllocate::runOnModule(Module &M) {
       user->replaceUsesOfWith (F, CEnew);
     }
   }
+
+  //
+  // Add an empty __poolalloc_init() function.  SAFECode will call this to
+  // intialize things; we don't make use of it with real pool allocation.
+  //
+  createPoolAllocInit (M);
 
   //
   // FIXME: Make name more descriptive and explain, in a comment here, what this
@@ -1316,6 +1345,10 @@ void PoolAllocate::ProcessFunctionBody(Function &F, Function &NewF) {
       }
     }
 #else
+    //
+    // FIXME: This is not correct for SAFECode; all DSNodes will need to be
+    //        poolallocated.
+    //
     if ((N->isHeapNode()) || (BoundsChecksEnabled && (N->isArrayNode())) ||
     	(GlobalsGraphNodeMapping.count(N) &&
        GlobalsGraphNodeMapping[N].getNode()->isHeapNode())) {
@@ -1392,8 +1425,26 @@ static void DeleteIfIsPoolFree(Instruction *I, AllocaInst *PD,
 void PoolAllocate::CalculateLivePoolFreeBlocks(std::set<BasicBlock*>&LiveBlocks,
                                                Value *PD) {
   for (Value::use_iterator I = PD->use_begin(), E = PD->use_end(); I != E; ++I){
-    // The only users of the pool should be call & invoke instructions.
-    CallSite U = CallSite::get(*I);
+    //
+    // The only users of the pool should be call, invoke, and cast
+    // instructions.  We know that poolfree() and pooldestroy() do not need to
+    // cast pool handles, so if we see a non-call instruction, we know it's not
+    // used in a poolfree() or pooldestroy() call.
+    //
+    if (Instruction * Inst = dyn_cast<Instruction>(I)) {
+      if (!isa<CallInst>(*I)) {
+        // This block and every block that can reach this block must keep pool
+        // frees.
+        for (idf_ext_iterator<BasicBlock*, std::set<BasicBlock*> >
+               DI = idf_ext_begin(Inst->getParent(), LiveBlocks),
+               DE = idf_ext_end(Inst->getParent(), LiveBlocks);
+             DI != DE; ++DI)
+          /* empty */;
+        continue;
+      }
+    }
+
+    CallSite U = CallSite::get(I->stripPointerCasts());
     if (U.getCalledValue() != PoolFree && U.getCalledValue() != PoolDestroy) {
       // This block and every block that can reach this block must keep pool
       // frees.
