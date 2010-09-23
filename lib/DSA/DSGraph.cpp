@@ -658,14 +658,13 @@ void DSGraph::markIncompleteNodes(unsigned Flags) {
       markIncomplete(*I);
 #endif
   // Handle all sources of external
-  markExternalNodes();
+  recalculateExternalNodes();
 
   // Mark all global nodes as incomplete.
   for (DSScalarMap::global_iterator I = ScalarMap.global_begin(),
          E = ScalarMap.global_end(); I != E; ++I)
     if (const GlobalVariable *GV = dyn_cast<GlobalVariable>(*I))
-      if (!GV->hasInitializer() ||    // Always mark external globals incomp.
-          (!GV->isConstant() && (Flags & DSGraph::IgnoreGlobals) == 0))
+      if (!GV->isConstant() && (Flags & DSGraph::IgnoreGlobals) == 0)
         markIncompleteNode(ScalarMap[GV].getNode());
 
   // Mark any node with the VAStart flag as incomplete.
@@ -678,11 +677,21 @@ void DSGraph::markIncompleteNodes(unsigned Flags) {
 }
 
 static void markExternalNode(DSNode *N) {
-  // FIXME: For now, we say that external is the same as incomplete as little to nothing
-  // checks or uses the External flag, and if we're to do the External flag it's as part of something
-  // else and needs more thought.  For now we simply are ensuring things that should be incomplete due to
-  // external influence are, in fact, marked incomplete.
-  markIncompleteNode(N);
+  // Stop recursion if no node, or if node already marked...
+  if (N == 0 || N->isExternalNode()) return;
+
+  // Actually mark the node
+  N->setExternalMarker();
+
+  // External also means incomplete
+  N->setIncompleteMarker();
+  
+  // FIXME: Should we 'collapse' the node as well?
+
+  // Recursively process children...
+  for (DSNode::edge_iterator ii = N->edge_begin(), ee = N->edge_end();
+       ii != ee; ++ii)
+    markExternalNode(ii->second.getNode());
 }
 
 static void markExternal(DSCallSite &Call) {
@@ -695,18 +704,17 @@ static void markExternal(DSCallSite &Call) {
     markExternalNode(Call.getPtrArg(i).getNode());
 }
 
-// markExternalNodes - Traverse the graph, identifying nodes that may be
+// recalculateExternalNodes - Clear the external flag on all nodes,
+// then traverse the graph, identifying nodes that may be
 // exposed to external code.  The sources of this happening are:
 // --Arguments and return values for external functions
 // --Arguments and return values for externally visible functions
-//
-// FIXME: Unlike 'Incomplete' flag, the 'External' flag is never reset
-// and if done right should propagate throughout the various passes.
-// That is to say we can probably get away by not re-marking everything,
-// but instead placing just the right flag updates in just the right places.
-// However this is simpler and more likely to be correct--that kind of 
-// optimization can wait until everything works correctly.
-void DSGraph::markExternalNodes() {
+// --Externally visible globals
+void DSGraph::recalculateExternalNodes() {
+
+  // Clear the external flag (we use it as marker for recursion)
+  maskNodeTypes(~DSNode::ExternalNode);
+
   // Process all CallSites that call functions influenced by external code
   for (std::list<DSCallSite>::iterator I = FunctionCalls.begin(),
          E = FunctionCalls.end(); I != E; ++I) {
@@ -754,6 +762,18 @@ void DSGraph::markExternalNodes() {
       markExternalNode(getVANodeFor(F).getNode());
     }
   }
+
+  // Now handle all external globals...
+  for (DSScalarMap::global_iterator I = ScalarMap.global_begin(),
+         E = ScalarMap.global_end(); I != E; ++I)
+    if (const GlobalVariable *GV = dyn_cast<GlobalVariable>(*I)) {
+      // If the global is external... mark it as such!
+      // FIXME: It's unclear to me that a global we initialize
+      // can't be externally visible.  For now preserving original
+      // behavior (and additionally marking external as well as incomplete).
+      if (!GV->hasInitializer())
+        markExternalNode(ScalarMap[GV].getNode());
+    }
 }
 
 static inline void killIfUselessEdge(DSNodeHandle &Edge) {
