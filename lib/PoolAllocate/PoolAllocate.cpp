@@ -18,8 +18,8 @@
 
 #include "dsa/DataStructure.h"
 #include "dsa/DSGraph.h"
+#include "poolalloc/Heuristic.h"
 #include "poolalloc/PoolAllocate.h"
-#include "Heuristic.h"
 #include "llvm/Constants.h"
 #include "llvm/DerivedTypes.h"
 #include "llvm/Instructions.h"
