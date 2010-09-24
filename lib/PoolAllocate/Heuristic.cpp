@@ -26,38 +26,15 @@
 #include "llvm/Support/FormattedStream.h"
 #include "llvm/Target/TargetData.h"
 #include <iostream>
+
 using namespace llvm;
 using namespace PA;
 
 namespace {
-  enum PoolAllocHeuristic {
-    NoNodes,
-    OnlyOverhead,
-    AllInOneGlobalPool,
-    SmartCoallesceNodes,
-    CyclicNodes,
-    AllButUnreachableFromMemory,
-    AllNodes
-  };
-  cl::opt<PoolAllocHeuristic>
-  TheHeuristic("poolalloc-heuristic",
-    cl::desc("Heuristic to choose which nodes to pool allocate"),
-    cl::values(clEnumVal(AllNodes, "  Pool allocate all nodes"),
-               clEnumVal(AllButUnreachableFromMemory, "  Pool allocate all reachable from memory objects"),
-               clEnumVal(CyclicNodes, "  Pool allocate nodes with cycles"),
-               clEnumVal(SmartCoallesceNodes, "  Use the smart node merging heuristic"),
-               clEnumVal(AllInOneGlobalPool, "  Use pool library as replacement for malloc/free"),
-               clEnumVal(OnlyOverhead, "  Do not pool allocate anything, but induce all overhead from it"),
-               clEnumVal(NoNodes, "  Do not pool allocate anything"),
-               clEnumValEnd),
-    cl::init(AllButUnreachableFromMemory)); 
-
   cl::opt<bool>
   DisableAlignOpt("poolalloc-disable-alignopt",
                   cl::desc("Force all pool alignment to 8 bytes"));
 }
-
-Heuristic::~Heuristic() {}
 
 //
 // Function: getRecommendedSize()
@@ -229,12 +206,35 @@ Heuristic::getRecommendedAlignment(const DSNode *Node) {
   return 4;
 }
  
+//
+// Method: runOnModule()
+//
+// Description:
+//  This is the entry point for this pass.
+//
+bool
+Heuristic::runOnModule (Module & Module) {
+  //
+  // Remember which module we are analyzing.
+  //
+  M = &Module;
+
+  // We never modify anything in this pass
+  return false;
+}
 
 //===-- AllNodes Heuristic ------------------------------------------------===//
 //
 // This heuristic pool allocates everything possible into separate pools.
 //
-struct AllNodesHeuristic : public Heuristic {
+class AllNodesHeuristic : public Heuristic {
+  public:
+  static char ID;
+  virtual void *getAdjustedAnalysisPointer(const PassInfo *PI) {
+    if (PI->isPassID(&Heuristic::ID))
+      return (Heuristic*)this;
+    return this;
+  }
 
   void AssignToPools(const std::vector<const DSNode*> &NodesToPA,
                      Function *F, DSGraph* G,
@@ -252,7 +252,15 @@ struct AllNodesHeuristic : public Heuristic {
 // that are not cyclic and are only pointed to by scalars: these tend to be
 // singular memory allocations that are not worth creating a whole pool for.
 //
-struct AllButUnreachableFromMemoryHeuristic : public Heuristic {
+class AllButUnreachableFromMemoryHeuristic : public Heuristic {
+  public:
+  static char ID;
+  virtual void *getAdjustedAnalysisPointer(const PassInfo *PI) {
+    if (PI->isPassID(&Heuristic::ID))
+      return (Heuristic*)this;
+    return this;
+  }
+
 
   void AssignToPools(const std::vector<const DSNode*> &NodesToPA,
                      Function *F, DSGraph* G,
@@ -304,7 +312,15 @@ struct AllButUnreachableFromMemoryHeuristic : public Heuristic {
 //
 // This heuristic only pool allocates nodes in an SCC in the DSGraph.
 //
-struct CyclicNodesHeuristic : public Heuristic {
+class CyclicNodesHeuristic : public Heuristic {
+  public:
+  static char ID;
+  virtual void *getAdjustedAnalysisPointer(const PassInfo *PI) {
+    if (PI->isPassID(&Heuristic::ID))
+      return (Heuristic*)this;
+    return this;
+  }
+
 
   void AssignToPools(const std::vector<const DSNode*> &NodesToPA,
                      Function *F, DSGraph* G,
@@ -333,7 +349,15 @@ void CyclicNodesHeuristic::AssignToPools(const std::vector<const
 // This heuristic attempts to be smart and coallesce nodes at times.  In
 // practice, it doesn't work very well.
 //
-struct SmartCoallesceNodesHeuristic : public Heuristic {
+class SmartCoallesceNodesHeuristic : public Heuristic {
+  public:
+  static char ID;
+  virtual void *getAdjustedAnalysisPointer(const PassInfo *PI) {
+    if (PI->isPassID(&Heuristic::ID))
+      return (Heuristic*)this;
+    return this;
+  }
+
 
   void AssignToPools(const std::vector<const DSNode*> &NodesToPA,
                     Function *F, DSGraph* G,
@@ -510,7 +534,15 @@ static void POVisit(DSNode *N, std::set<DSNode*> &Visited,
 // pool.  This is not safe, and is not good for performance, but can be used to
 // evaluate how good the pool allocator runtime works as a "malloc replacement".
 //
-struct AllInOneGlobalPoolHeuristic : public Heuristic {
+class AllInOneGlobalPoolHeuristic : public Heuristic {
+  public:
+  static char ID;
+  virtual void *getAdjustedAnalysisPointer(const PassInfo *PI) {
+    if (PI->isPassID(&Heuristic::ID))
+      return (Heuristic*)this;
+    return this;
+  }
+
   // TheGlobalPD - This global pool is the one and only one used when running
   // with Heuristic=AllInOneGlobalPool.
   GlobalVariable *TheGlobalPD;
@@ -541,7 +573,15 @@ struct AllInOneGlobalPoolHeuristic : public Heuristic {
 // the program, but dynamically only passes null into the pool alloc/free
 // functions, causing them to allocate from the heap.
 //
-struct OnlyOverheadHeuristic : public Heuristic {
+class OnlyOverheadHeuristic : public Heuristic {
+  public:
+  static char ID;
+  virtual void *getAdjustedAnalysisPointer(const PassInfo *PI) {
+    if (PI->isPassID(&Heuristic::ID))
+      return (Heuristic*)this;
+    return this;
+  }
+
   virtual bool IsRealHeuristic() { return false; }
 
   void AssignToPools(const std::vector<const DSNode*> &NodesToPA,
@@ -608,7 +648,15 @@ void OnlyOverheadHeuristic::HackFunctionBody(Function &F,
 //
 // This dummy heuristic chooses to not pool allocate anything.
 //
-struct NoNodesHeuristic : public Heuristic {
+class NoNodesHeuristic : public Heuristic {
+  public:
+  static char ID;
+  virtual void *getAdjustedAnalysisPointer(const PassInfo *PI) {
+    if (PI->isPassID(&Heuristic::ID))
+      return (Heuristic*)this;
+    return this;
+  }
+
   virtual bool IsRealHeuristic() { return false; }
 
   void AssignToPools(const std::vector<const DSNode*> &NodesToPA,
@@ -618,20 +666,51 @@ struct NoNodesHeuristic : public Heuristic {
   }
 };
 
-//===----------------------------------------------------------------------===//
-// Heuristic dispatch support
 //
+// Register all of the heuristic passes.
+//
+static RegisterPass<AllNodesHeuristic>
+A ("paheur-AllNodes", "Pool allocate all nodes");
 
-PA::Heuristic *Heuristic::create() {
-  switch (TheHeuristic) {
-  default: assert(0 && "Unknown heuristic!");
-  case AllNodes: return new AllNodesHeuristic();
-  case AllButUnreachableFromMemory:
-    return new AllButUnreachableFromMemoryHeuristic();
-  case CyclicNodes: return new CyclicNodesHeuristic();
-  case SmartCoallesceNodes: return new SmartCoallesceNodesHeuristic();
-  case AllInOneGlobalPool: return new AllInOneGlobalPoolHeuristic();
-  case OnlyOverhead: return new OnlyOverheadHeuristic();
-  case NoNodes: return new NoNodesHeuristic();
-  }
-}
+static RegisterPass<AllButUnreachableFromMemoryHeuristic>
+B ("paheur-AllButUnreachableFromMemory", "Pool allocate all reachable from memory objects");
+
+static RegisterPass<CyclicNodesHeuristic>
+C ("paheur-CyclicNodes", "Pool allocate nodes with cycles");
+
+static RegisterPass<SmartCoallesceNodesHeuristic>
+D ("paheur-SmartCoallesceNodes", "Pool allocate using the smart node merging heuristic ");
+
+static RegisterPass<AllInOneGlobalPoolHeuristic>
+E ("paheur-AllInOneGlobalPool", "Pool allocate using the pool library to replace malloc/free");
+
+static RegisterPass<OnlyOverheadHeuristic>
+F ("paheur-OnlyOverhead", "Do not pool allocate anything, but induce all overhead from it");
+
+static RegisterPass<NoNodesHeuristic>
+G ("paheur-NoNodes", "Pool allocate nothing");
+
+//
+// Create the heuristic analysis group.
+//
+static RegisterAnalysisGroup<Heuristic>
+HeuristicGroup ("Pool Allocation Heuristic");
+
+RegisterAnalysisGroup<Heuristic> Heuristic1(A);
+RegisterAnalysisGroup<Heuristic, true> Heuristic2(B);
+RegisterAnalysisGroup<Heuristic> Heuristic3(C);
+RegisterAnalysisGroup<Heuristic> Heuristic4(D);
+RegisterAnalysisGroup<Heuristic> Heuristic5(E);
+RegisterAnalysisGroup<Heuristic> Heuristic6(F);
+RegisterAnalysisGroup<Heuristic> Heuristic7(G);
+
+char Heuristic::ID = 0;
+char AllNodesHeuristic::ID = 0;
+char AllButUnreachableFromMemoryHeuristic::ID = 0;
+char CyclicNodesHeuristic::ID = 0;
+char SmartCoallesceNodesHeuristic::ID = 0;
+char AllInOneGlobalPoolHeuristic::ID = 0;
+char OnlyOverheadHeuristic::ID = 0;
+char NoNodesHeuristic::ID = 0;
+
+

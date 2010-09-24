@@ -32,6 +32,7 @@
 #include "dsa/DataStructure.h"
 #include "dsa/DSGraph.h"
 #include "poolalloc/Config/config.h"
+#include "poolalloc/Heuristic.h"
 
 #include <utility>
 
@@ -45,8 +46,6 @@ class CallTargetFinder;
 namespace PA {
 
   extern cl::opt<bool>  PA_SAFECODE;
-
-  class Heuristic;
 
   /// FuncInfo - Represent the pool allocation information for one function in
   /// the program.  Note that many functions must actually be cloned in order

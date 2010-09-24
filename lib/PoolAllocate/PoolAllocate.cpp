@@ -106,6 +106,8 @@ createPoolAllocInit (Module & M) {
 }
 
 void PoolAllocate::getAnalysisUsage(AnalysisUsage &AU) const {
+  // We will need the heuristic pass to tell us what to do and how to do it
+  AU.addRequiredTransitive<Heuristic>();
   if (dsa_pass_to_use == PASS_EQTD) {
     AU.addRequiredTransitive<EQTDDataStructures>();
     if(lie_preserve_passes != LIE_NONE)
@@ -146,8 +148,11 @@ bool PoolAllocate::runOnModule(Module &M) {
   else
     Graphs = &getAnalysis<EquivBUDataStructures>();
 
-  CurHeuristic = Heuristic::create();
-  CurHeuristic->Initialize(M, Graphs->getGlobalsGraph(), *this);
+  //
+  // Get the heuristic pass and then tell it who we are.
+  //
+  CurHeuristic = &getAnalysis<Heuristic>();
+  CurHeuristic->Initialize (*this);
 
   // Add the pool* prototypes to the module
   AddPoolPrototypes(&M);
@@ -325,7 +330,6 @@ bool PoolAllocate::runOnModule(Module &M) {
     MicroOptimizePoolCalls();
   #endif
  
-  delete CurHeuristic;
   return true;
 }
 

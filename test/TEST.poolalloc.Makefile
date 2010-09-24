@@ -67,18 +67,18 @@ Output/%.poolalloc.bc: Output/%.base.bc $(PA_SO) $(LOPT)
 $(PROGRAMS_TO_TEST:%=Output/%.basepa.bc): \
 Output/%.basepa.bc: Output/%.base.bc $(PA_SO) $(LOPT)
 	-@rm -f $(CURDIR)/$@.info
-	-$(OPT_PA_STATS) -poolalloc -poolalloc-disable-alignopt -poolalloc-force-all-poolfrees -poolalloc-heuristic=AllNodes $(OPTZN_PASSES) $< -o $@ -f 2>&1 > $@.out
+	-$(OPT_PA_STATS) -paheur-AllNodes -poolalloc -poolalloc-disable-alignopt -poolalloc-force-all-poolfrees $(OPTZN_PASSES) $< -o $@ -f 2>&1 > $@.out
 
 
 $(PROGRAMS_TO_TEST:%=Output/%.mallocrepl.bc): \
 Output/%.mallocrepl.bc: Output/%.base.bc $(PA_SO) $(LOPT)
 	-@rm -f $(CURDIR)/$@.info
-	-$(OPT_PA_STATS) -poolalloc -poolalloc-heuristic=AllInOneGlobalPool $(OPTZN_PASSES) $< -o $@ -f 2>&1 > $@.out
+	-$(OPT_PA_STATS) -paheur-AllInOneGlobalPool -poolalloc $(OPTZN_PASSES) $< -o $@ -f 2>&1 > $@.out
 
 $(PROGRAMS_TO_TEST:%=Output/%.onlyoverhead.bc): \
 Output/%.onlyoverhead.bc: Output/%.base.bc $(PA_SO) $(LOPT)
 	-@rm -f $(CURDIR)/$@.info
-	-$(OPT_PA_STATS) -poolalloc -poolalloc-heuristic=OnlyOverhead $(OPTZN_PASSES) $< -o $@ -f 2>&1 > $@.out
+	-$(OPT_PA_STATS) -paheur-OnlyOverhead -poolalloc $(OPTZN_PASSES) $< -o $@ -f 2>&1 > $@.out
 
 $(PROGRAMS_TO_TEST:%=Output/%.nonpa.bc): \
 Output/%.nonpa.bc: Output/%.base.bc $(LOPT)

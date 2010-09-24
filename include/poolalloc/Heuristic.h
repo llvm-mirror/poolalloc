@@ -12,8 +12,13 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef POOLALLOCATION_HEURISTIC_H
-#define POOLALLOCATION_HEURISTIC_H
+#ifndef POOLALLOC_HEURISTIC_H
+#define POOLALLOC_HEURISTIC_H
+
+#include "dsa/DataStructure.h"
+#include "dsa/DSGraph.h"
+
+#include "llvm/Pass.h"
 
 #include <vector>
 #include <map>
@@ -29,18 +34,34 @@ namespace llvm {
   class Type;
 
 namespace PA {
-  class Heuristic {
+  class Heuristic : public ImmutablePass {
   protected:
     Module *M;
-    DSGraph *GG;
     PoolAllocate *PA;
 
-    Heuristic() {}
   public:
-    void Initialize(Module &m, DSGraph* gg, PoolAllocate &pa) {
-      M = &m; GG = gg; PA = &pa;
+    //
+    // Pass methods and members.
+    //
+    static char ID;
+    Heuristic (intptr_t IDp = (intptr_t) (&ID)) : ImmutablePass (IDp) { }
+    virtual ~Heuristic () {return;}
+    virtual bool runOnModule (Module & M);
+
+    virtual void getAnalysisUsage(AnalysisUsage &AU) const {
+      // We require DSA while this pass is still responding to queries
+      AU.addRequiredTransitive<EQTDDataStructures>();
+
+      // This pass does not modify anything when it runs
+      AU.setPreservesAll();
     }
-    virtual ~Heuristic();
+
+    //
+    // Other methods.
+    //
+    void Initialize (PoolAllocate &pa) {
+      PA = &pa;
+    }
 
     /// IsRealHeuristic - Return true if this is not a real pool allocation
     /// heuristic.
@@ -96,10 +117,6 @@ namespace PA {
     static unsigned getRecommendedAlignment(const DSNode *N);
     static unsigned getRecommendedAlignment(const Type *Ty,
                                             const TargetData &TD);
-    
-    /// create - This static ctor creates the heuristic, based on the command
-    /// line argument to choose the heuristic.
-    static Heuristic *create();
   };
 }
 }
