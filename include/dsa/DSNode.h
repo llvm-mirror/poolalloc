@@ -200,8 +200,8 @@ public:
   }
 
   void growSize(unsigned NSize) {
-    assert(NSize > Size && "Cannot shrink");
-    assert(!isCollapsedNode() && "growing a collapsed node");
+    assert(NSize >= Size && "Cannot shrink");
+    assert(!isCollapsedNode() && "Growing a collapsed node");
     Size = NSize;
   }
 
