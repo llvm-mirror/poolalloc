@@ -206,14 +206,13 @@ Heuristic::getRecommendedAlignment(const DSNode *Node) {
   return 4;
 }
  
+//===-- AllNodes Heuristic ------------------------------------------------===//
 //
-// Method: runOnModule()
+// This heuristic pool allocates everything possible into separate pools.
 //
-// Description:
-//  This is the entry point for this pass.
-//
+
 bool
-Heuristic::runOnModule (Module & Module) {
+AllNodesHeuristic::runOnModule (Module & Module) {
   //
   // Remember which module we are analyzing.
   //
@@ -223,27 +222,13 @@ Heuristic::runOnModule (Module & Module) {
   return false;
 }
 
-//===-- AllNodes Heuristic ------------------------------------------------===//
-//
-// This heuristic pool allocates everything possible into separate pools.
-//
-class AllNodesHeuristic : public Heuristic {
-  public:
-  static char ID;
-  virtual void *getAdjustedAnalysisPointer(const PassInfo *PI) {
-    if (PI->isPassID(&Heuristic::ID))
-      return (Heuristic*)this;
-    return this;
-  }
-
-  void AssignToPools(const std::vector<const DSNode*> &NodesToPA,
-                     Function *F, DSGraph* G,
-                     std::vector<OnePool> &ResultPools) {
+void
+AllNodesHeuristic::AssignToPools (const std::vector<const DSNode*> &NodesToPA,
+                                  Function *F, DSGraph* G,
+                                  std::vector<OnePool> &ResultPools) {
     for (unsigned i = 0, e = NodesToPA.size(); i != e; ++i)
       ResultPools.push_back(OnePool(NodesToPA[i]));
   }
-};
-
 
 //===-- AllButUnreachableFromMemoryHeuristic Heuristic --------------------===//
 //
@@ -252,80 +237,79 @@ class AllNodesHeuristic : public Heuristic {
 // that are not cyclic and are only pointed to by scalars: these tend to be
 // singular memory allocations that are not worth creating a whole pool for.
 //
-class AllButUnreachableFromMemoryHeuristic : public Heuristic {
-  public:
-  static char ID;
-  virtual void *getAdjustedAnalysisPointer(const PassInfo *PI) {
-    if (PI->isPassID(&Heuristic::ID))
-      return (Heuristic*)this;
-    return this;
-  }
+bool
+AllButUnreachableFromMemoryHeuristic::runOnModule (Module & Module) {
+  //
+  // Remember which module we are analyzing.
+  //
+  M = &Module;
 
+  // We never modify anything in this pass
+  return false;
+}
 
-  void AssignToPools(const std::vector<const DSNode*> &NodesToPA,
-                     Function *F, DSGraph* G,
-                     std::vector<OnePool> &ResultPools) {
-    // Build a set of all nodes that are reachable from another node in the
-    // graph.  Here we ignore scalar nodes that are only globals as they are
-    // often global pointers to big arrays.
-    std::set<const DSNode*> ReachableFromMemory;
-    for (DSGraph::node_iterator I = G->node_begin(), E = G->node_end();
-         I != E; ++I) {
-      DSNode *N = I;
+void
+AllButUnreachableFromMemoryHeuristic::AssignToPools (
+                                          const DSNodeList_t &NodesToPA,
+                                          Function *F, DSGraph* G,
+                                          std::vector<OnePool> &ResultPools) {
+  // Build a set of all nodes that are reachable from another node in the
+  // graph.  Here we ignore scalar nodes that are only globals as they are
+  // often global pointers to big arrays.
+  std::set<const DSNode*> ReachableFromMemory;
+  for (DSGraph::node_iterator I = G->node_begin(), E = G->node_end();
+       I != E; ++I) {
+    DSNode *N = I;
 #if 0
-      //
-      // Ignore nodes that are just globals and not arrays.
-      //
-      if (N->isArray() || N->isHeapNode() || N->isAllocaNode() ||
-          N->isUnknownNode())
+    //
+    // Ignore nodes that are just globals and not arrays.
+    //
+    if (N->isArray() || N->isHeapNode() || N->isAllocaNode() ||
+        N->isUnknownNode())
 #endif
-      // If a node is marked, all children are too.
-      if (!ReachableFromMemory.count(N)) {
-        for (DSNode::iterator NI = N->begin(), E = N->end(); NI != E; ++NI) {
-          //
-          // Sometimes this results in a NULL DSNode.  Skip it if that is the
-          // case.
-          //
-          if (!(*NI)) continue;
+    // If a node is marked, all children are too.
+    if (!ReachableFromMemory.count(N)) {
+      for (DSNode::iterator NI = N->begin(), E = N->end(); NI != E; ++NI) {
+        //
+        // Sometimes this results in a NULL DSNode.  Skip it if that is the
+        // case.
+        //
+        if (!(*NI)) continue;
 
-          //
-          // Do a depth-first iteration over the DSGraph starting with this
-          // child node.
-          //
-          for (df_ext_iterator<const DSNode*>
-                 DI = df_ext_begin(*NI, ReachableFromMemory),
-                 E = df_ext_end(*NI, ReachableFromMemory); DI != E; ++DI)
-          /*empty*/;
-        }
+        //
+        // Do a depth-first iteration over the DSGraph starting with this
+        // child node.
+        //
+        for (df_ext_iterator<const DSNode*>
+               DI = df_ext_begin(*NI, ReachableFromMemory),
+               E = df_ext_end(*NI, ReachableFromMemory); DI != E; ++DI)
+        /*empty*/;
       }
     }
-
-    // Only pool allocate a node if it is reachable from a memory object (itself
-    // included).
-    for (unsigned i = 0, e = NodesToPA.size(); i != e; ++i)
-      if (ReachableFromMemory.count(NodesToPA[i]))
-        ResultPools.push_back(OnePool(NodesToPA[i]));
   }
-};
+
+  // Only pool allocate a node if it is reachable from a memory object (itself
+  // included).
+  for (unsigned i = 0, e = NodesToPA.size(); i != e; ++i)
+    if (ReachableFromMemory.count(NodesToPA[i]))
+      ResultPools.push_back(OnePool(NodesToPA[i]));
+}
 
 //===-- CyclicNodes Heuristic ---------------------------------------------===//
 //
 // This heuristic only pool allocates nodes in an SCC in the DSGraph.
 //
-class CyclicNodesHeuristic : public Heuristic {
-  public:
-  static char ID;
-  virtual void *getAdjustedAnalysisPointer(const PassInfo *PI) {
-    if (PI->isPassID(&Heuristic::ID))
-      return (Heuristic*)this;
-    return this;
-  }
 
+bool
+CyclicNodesHeuristic::runOnModule (Module & Module) {
+  //
+  // Remember which module we are analyzing.
+  //
+  M = &Module;
 
-  void AssignToPools(const std::vector<const DSNode*> &NodesToPA,
-                     Function *F, DSGraph* G,
-                     std::vector<OnePool> &ResultPools);
-};
+  // We never modify anything in this pass
+  return false;
+}
 
 static bool NodeExistsInCycle(const DSNode *N) {
   for (DSNode::const_iterator I = N->begin(), E = N->end(); I != E; ++I)
@@ -334,48 +318,48 @@ static bool NodeExistsInCycle(const DSNode *N) {
   return false;
 }
 
-void CyclicNodesHeuristic::AssignToPools(const std::vector<const 
-                                                           DSNode*> &NodesToPA,
-                                         Function *F, DSGraph* G,
-                                         std::vector<OnePool> &ResultPools) {
+void
+CyclicNodesHeuristic::AssignToPools(const DSNodeList_t &NodesToPA,
+                                    Function *F, DSGraph* G,
+                                    std::vector<OnePool> &ResultPools) {
   for (unsigned i = 0, e = NodesToPA.size(); i != e; ++i)
     if (NodeExistsInCycle(NodesToPA[i]))
       ResultPools.push_back(OnePool(NodesToPA[i]));
 }
-
 
 //===-- SmartCoallesceNodes Heuristic -------------------------------------===//
 //
 // This heuristic attempts to be smart and coallesce nodes at times.  In
 // practice, it doesn't work very well.
 //
-class SmartCoallesceNodesHeuristic : public Heuristic {
-  public:
-  static char ID;
-  virtual void *getAdjustedAnalysisPointer(const PassInfo *PI) {
-    if (PI->isPassID(&Heuristic::ID))
-      return (Heuristic*)this;
-    return this;
-  }
+bool
+SmartCoallesceNodesHeuristic::runOnModule (Module & Module) {
+  //
+  // Remember which module we are analyzing.
+  //
+  M = &Module;
 
+  // We never modify anything in this pass
+  return false;
+}
 
-  void AssignToPools(const std::vector<const DSNode*> &NodesToPA,
-                    Function *F, DSGraph* G,
-                    std::vector<OnePool> &ResultPools) {
-    // For globals, do not pool allocate unless the node is cyclic and not an
-    // array (unless it's collapsed).
-    if (F == 0) {
-      for (unsigned i = 0, e = NodesToPA.size(); i != e; ++i) {
-        const DSNode *Node = NodesToPA[i];
-        if ((Node->isNodeCompletelyFolded() || !Node->isArrayNode()) &&
-            NodeExistsInCycle(Node))
-          ResultPools.push_back(OnePool(Node));
-      }
-    } else {
-      // TODO
+void
+SmartCoallesceNodesHeuristic::AssignToPools(const DSNodeList_t &NodesToPA,
+                                            Function *F, DSGraph* G,
+                                            std::vector<OnePool> &ResultPools) {
+  // For globals, do not pool allocate unless the node is cyclic and not an
+  // array (unless it's collapsed).
+  if (F == 0) {
+    for (unsigned i = 0, e = NodesToPA.size(); i != e; ++i) {
+      const DSNode *Node = NodesToPA[i];
+      if ((Node->isNodeCompletelyFolded() || !Node->isArrayNode()) &&
+          NodeExistsInCycle(Node))
+        ResultPools.push_back(OnePool(Node));
     }
+  } else {
+    // TODO
   }
-};
+}
 
 #if 0
 /// NodeIsSelfRecursive - Return true if this node contains a pointer to itself.
@@ -534,37 +518,30 @@ static void POVisit(DSNode *N, std::set<DSNode*> &Visited,
 // pool.  This is not safe, and is not good for performance, but can be used to
 // evaluate how good the pool allocator runtime works as a "malloc replacement".
 //
-class AllInOneGlobalPoolHeuristic : public Heuristic {
-  public:
-  static char ID;
-  virtual void *getAdjustedAnalysisPointer(const PassInfo *PI) {
-    if (PI->isPassID(&Heuristic::ID))
-      return (Heuristic*)this;
-    return this;
-  }
+bool
+AllInOneGlobalPoolHeuristic::runOnModule (Module & Module) {
+  //
+  // Remember which module we are analyzing.
+  //
+  M = &Module;
 
-  // TheGlobalPD - This global pool is the one and only one used when running
-  // with Heuristic=AllInOneGlobalPool.
-  GlobalVariable *TheGlobalPD;
+  // We never modify anything in this pass
+  return false;
+}
 
-  AllInOneGlobalPoolHeuristic() : TheGlobalPD(0) {}
+void
+AllInOneGlobalPoolHeuristic::AssignToPools(const DSNodeList_t &NodesToPA,
+                                           Function *F, DSGraph* G,
+                                           std::vector<OnePool> &ResultPools) {
+  if (TheGlobalPD == 0)
+    TheGlobalPD = PA->CreateGlobalPool(0, 0);
 
-
-  virtual bool IsRealHeuristic() { return false; }
-
-  void AssignToPools(const std::vector<const DSNode*> &NodesToPA,
-                    Function *F, DSGraph* G,
-                    std::vector<OnePool> &ResultPools) {
-    if (TheGlobalPD == 0)
-      TheGlobalPD = PA->CreateGlobalPool(0, 0);
-
-    // All nodes allocate from the same global pool.
-    OnePool Pool;
-    Pool.NodesInPool = NodesToPA;
-    Pool.PoolDesc = TheGlobalPD;
-    ResultPools.push_back(Pool);
-  }
-};
+  // All nodes allocate from the same global pool.
+  OnePool Pool;
+  Pool.NodesInPool = NodesToPA;
+  Pool.PoolDesc = TheGlobalPD;
+  ResultPools.push_back(Pool);
+}
 
 //===-- OnlyOverhead Heuristic --------------------------------------------===//
 //
@@ -573,32 +550,31 @@ class AllInOneGlobalPoolHeuristic : public Heuristic {
 // the program, but dynamically only passes null into the pool alloc/free
 // functions, causing them to allocate from the heap.
 //
-class OnlyOverheadHeuristic : public Heuristic {
-  public:
-  static char ID;
-  virtual void *getAdjustedAnalysisPointer(const PassInfo *PI) {
-    if (PI->isPassID(&Heuristic::ID))
-      return (Heuristic*)this;
-    return this;
-  }
+bool
+OnlyOverheadHeuristic::runOnModule (Module & Module) {
+  //
+  // Remember which module we are analyzing.
+  //
+  M = &Module;
 
-  virtual bool IsRealHeuristic() { return false; }
+  // We never modify anything in this pass
+  return false;
+}
 
-  void AssignToPools(const std::vector<const DSNode*> &NodesToPA,
-                    Function *F, DSGraph* G,
-                    std::vector<OnePool> &ResultPools) {
-    // For this heuristic, we assign everything possible to its own pool.
-    for (unsigned i = 0, e = NodesToPA.size(); i != e; ++i)
-      ResultPools.push_back(OnePool(NodesToPA[i]));
-  }
-
-  void HackFunctionBody(Function &F, std::map<const DSNode*, Value*> &PDs);
-};
+void
+OnlyOverheadHeuristic::AssignToPools(const DSNodeList_t &NodesToPA,
+                                     Function *F, DSGraph* G,
+                                     std::vector<OnePool> &ResultPools) {
+  // For this heuristic, we assign everything possible to its own pool.
+  for (unsigned i = 0, e = NodesToPA.size(); i != e; ++i)
+    ResultPools.push_back(OnePool(NodesToPA[i]));
+}
 
 /// getDynamicallyNullPool - Return a PoolDescriptor* that is always dynamically
 /// null.  Insert the code necessary to produce it before the specified
 /// instruction.
-static Value *getDynamicallyNullPool(BasicBlock::iterator I) {
+static Value *
+getDynamicallyNullPool(BasicBlock::iterator I) {
   // Arrange to dynamically pass null into all of the pool functions if we are
   // only checking for overhead.
   static Value *NullGlobal = 0;
@@ -620,9 +596,9 @@ static Value *getDynamicallyNullPool(BasicBlock::iterator I) {
 // HackFunctionBody - This method is called on every transformed function body.
 // Basically it replaces all uses of real pool descriptors with dynamically null
 // values.  However, it leaves pool init/destroy alone.
-void OnlyOverheadHeuristic::HackFunctionBody(Function &F,
-                                             std::map<const DSNode*,
-                                             Value*> &PDs) {
+void
+OnlyOverheadHeuristic::HackFunctionBody(Function &F,
+                                        std::map<const DSNode*, Value*> &PDs) {
   Constant *PoolInit = PA->PoolInit;
   Constant *PoolDestroy = PA->PoolDestroy;
 
@@ -648,23 +624,16 @@ void OnlyOverheadHeuristic::HackFunctionBody(Function &F,
 //
 // This dummy heuristic chooses to not pool allocate anything.
 //
-class NoNodesHeuristic : public Heuristic {
-  public:
-  static char ID;
-  virtual void *getAdjustedAnalysisPointer(const PassInfo *PI) {
-    if (PI->isPassID(&Heuristic::ID))
-      return (Heuristic*)this;
-    return this;
-  }
+bool
+NoNodesHeuristic::runOnModule (Module & Module) {
+  //
+  // Remember which module we are analyzing.
+  //
+  M = &Module;
 
-  virtual bool IsRealHeuristic() { return false; }
-
-  void AssignToPools(const std::vector<const DSNode*> &NodesToPA,
-                    Function *F, DSGraph* G,
-                    std::vector<OnePool> &ResultPools) {
-    // Nothing to pool allocate here.
-  }
-};
+  // We never modify anything in this pass
+  return false;
+}
 
 //
 // Register all of the heuristic passes.
@@ -693,16 +662,16 @@ G ("paheur-NoNodes", "Pool allocate nothing");
 //
 // Create the heuristic analysis group.
 //
-static RegisterAnalysisGroup<Heuristic>
-HeuristicGroup ("Pool Allocation Heuristic");
+//static RegisterAnalysisGroup<Heuristic>
+//HeuristicGroup ("Pool Allocation Heuristic");
 
 RegisterAnalysisGroup<Heuristic> Heuristic1(A);
-RegisterAnalysisGroup<Heuristic, true> Heuristic2(B);
+RegisterAnalysisGroup<Heuristic> Heuristic2(B);
 RegisterAnalysisGroup<Heuristic> Heuristic3(C);
 RegisterAnalysisGroup<Heuristic> Heuristic4(D);
 RegisterAnalysisGroup<Heuristic> Heuristic5(E);
 RegisterAnalysisGroup<Heuristic> Heuristic6(F);
-RegisterAnalysisGroup<Heuristic> Heuristic7(G);
+RegisterAnalysisGroup<Heuristic, true> Heuristic7(G);
 
 char Heuristic::ID = 0;
 char AllNodesHeuristic::ID = 0;

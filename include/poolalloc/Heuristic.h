@@ -34,31 +34,28 @@ namespace llvm {
   class Type;
 
 namespace PA {
-  class Heuristic : public ImmutablePass {
+  // Type for a container of DSNodes
+  typedef std::vector<const DSNode*> DSNodeList_t;
+
+  //
+  // Class: Heuristic
+  //
+  // Description:
+  //  This class is a base class for passes implementing a policy for automatic
+  //  pool allocation.
+  //
+  class Heuristic {
   protected:
     Module *M;
     PoolAllocate *PA;
 
   public:
-    //
-    // Pass methods and members.
-    //
+    // Virtual Destructor
+    virtual ~Heuristic() {}
+
+    // Need by passes that inherit from this class.  This is needed even though
+    // this class is not an LLVM pass in and of itself.
     static char ID;
-    Heuristic (intptr_t IDp = (intptr_t) (&ID)) : ImmutablePass (IDp) { }
-    virtual ~Heuristic () {return;}
-    virtual bool runOnModule (Module & M);
-
-    virtual void getAnalysisUsage(AnalysisUsage &AU) const {
-      // We require DSA while this pass is still responding to queries
-      AU.addRequiredTransitive<EQTDDataStructures>();
-
-      // This pass does not modify anything when it runs
-      AU.setPreservesAll();
-    }
-
-    //
-    // Other methods.
-    //
     void Initialize (PoolAllocate &pa) {
       PA = &pa;
     }
@@ -99,13 +96,13 @@ namespace PA {
     /// AssignToPools - Partition NodesToPA into a set of disjoint pools,
     /// returning the result in ResultPools.  If this is a function being pool
     /// allocated, F will not be null.
-    virtual void AssignToPools(const std::vector<const DSNode*> &NodesToPA,
+    virtual void AssignToPools(const DSNodeList_t & NodesToPA,
                                Function *F, DSGraph* G,
-                               std::vector<OnePool> &ResultPools) = 0;
+                               std::vector<OnePool> &ResultPools) { }
 
     // Hacks for the OnlyOverhead heuristic.
     virtual void HackFunctionBody(Function &F,
-                                  std::map<const DSNode*, Value*> &PDs) {}
+                                  std::map<const DSNode*, Value*> &PDs) { }
 
     /// getRecommendedSize - Return the recommended pool size for this DSNode.
     ///
@@ -118,7 +115,270 @@ namespace PA {
     static unsigned getRecommendedAlignment(const Type *Ty,
                                             const TargetData &TD);
   };
-}
-}
 
+  ////////////////////////////////////////////////////////////////////////////
+  // Define specific instances of this analysis and make them analysis passes
+  ////////////////////////////////////////////////////////////////////////////
+
+  //
+  // Class: AllNodesHeuristic 
+  //
+  // Description:
+  //  This class provides a pool allocation heuristic that forces all DSNodes
+  //  to be pool allocated.
+  //
+  class AllNodesHeuristic: public Heuristic, public ModulePass {
+    public:
+      // Pass ID
+      static char ID;
+
+      // Method used to implement analysis groups without C++ inheritance
+      virtual void *getAdjustedAnalysisPointer(const PassInfo *PI) {
+        if (PI->isPassID(&Heuristic::ID))
+          return (Heuristic*)this;
+        return this;
+      }
+
+      AllNodesHeuristic (intptr_t IDp = (intptr_t) (&ID)): ModulePass (&IDp) { }
+      virtual ~AllNodesHeuristic () {return;}
+      virtual bool runOnModule (Module & M);
+
+      virtual void getAnalysisUsage(AnalysisUsage &AU) const {
+        // We require DSA while this pass is still responding to queries
+        AU.addRequiredTransitive<EQTDDataStructures>();
+
+        // Make PassManager happy be requiring the default implementation of
+        // this analysis group
+        AU.addRequiredTransitive<Heuristic>();
+
+        // This pass does not modify anything when it runs
+        AU.setPreservesAll();
+      }
+
+      //
+      // Interface methods
+      //
+      virtual void AssignToPools (const DSNodeList_t & NodesToPA,
+                                  Function *F, DSGraph* G,
+                                  std::vector<OnePool> &ResultPools);
+  };
+
+  //===-- AllButUnreachableFromMemoryHeuristic Heuristic ------------------===//
+  //
+  // This heuristic pool allocates everything possible into separate pools,
+  // unless the pool is not reachable by other memory objects.  This filters
+  // out objects that are not cyclic and are only pointed to by scalars: these
+  // tend to be singular memory allocations for which it is not worth creating
+  // a whole pool.
+  //
+  class AllButUnreachableFromMemoryHeuristic : public Heuristic,
+                                               public ModulePass {
+    public:
+      static char ID;
+      virtual void *getAdjustedAnalysisPointer(const PassInfo *PI) {
+        if (PI->isPassID(&Heuristic::ID))
+          return (Heuristic*)this;
+        return this;
+      }
+
+      AllButUnreachableFromMemoryHeuristic (intptr_t IDp = (intptr_t) (&ID)) :
+        ModulePass (IDp) { }
+      virtual ~AllButUnreachableFromMemoryHeuristic () {return;}
+      virtual bool runOnModule (Module & M);
+
+      virtual void getAnalysisUsage(AnalysisUsage &AU) const {
+        // We require DSA while this pass is still responding to queries
+        AU.addRequiredTransitive<EQTDDataStructures>();
+
+        // Make PassManager happy be requiring the default implementation of
+        // this analysis group
+        AU.addRequiredTransitive<Heuristic>();
+
+        // This pass does not modify anything when it runs
+        AU.setPreservesAll();
+      }
+
+      virtual void AssignToPools(const DSNodeList_t &NodesToPA,
+                                 Function *F, DSGraph* G,
+                                 std::vector<OnePool> &ResultPools);
+  };
+
+  //===-- CyclicNodes Heuristic -------------------------------------------===//
+  //
+  // This heuristic only pool allocates nodes in an SCC in the DSGraph.
+  //
+  class CyclicNodesHeuristic : public Heuristic, public ModulePass {
+    public:
+      static char ID;
+      virtual void *getAdjustedAnalysisPointer(const PassInfo *PI) {
+        if (PI->isPassID(&Heuristic::ID))
+          return (Heuristic*)this;
+        return this;
+      }
+
+
+      CyclicNodesHeuristic (intptr_t IDp=(intptr_t) (&ID)): ModulePass (IDp) { }
+      virtual ~CyclicNodesHeuristic () {return;}
+      virtual bool runOnModule (Module & M);
+
+      virtual void getAnalysisUsage(AnalysisUsage &AU) const {
+        // We require DSA while this pass is still responding to queries
+        AU.addRequiredTransitive<EQTDDataStructures>();
+
+        // Make PassManager happy be requiring the default implementation of
+        // this analysis group
+        AU.addRequiredTransitive<Heuristic>();
+
+        // This pass does not modify anything when it runs
+        AU.setPreservesAll();
+      }
+
+      virtual void AssignToPools(const DSNodeList_t &NodesToPA,
+                                 Function *F, DSGraph* G,
+                                 std::vector<OnePool> &ResultPools);
+  };
+
+  //===-- SmartCoallesceNodes Heuristic------------------------------------===//
+  //
+  // This heuristic attempts to be smart and coallesce nodes at times.  In
+  // practice, it doesn't work very well.
+  //
+  class SmartCoallesceNodesHeuristic : public Heuristic, public ModulePass {
+    public:
+      static char ID;
+      virtual void *getAdjustedAnalysisPointer(const PassInfo *PI) {
+        if (PI->isPassID(&Heuristic::ID))
+          return (Heuristic*)this;
+        return this;
+      }
+
+      SmartCoallesceNodesHeuristic (intptr_t IDp = (intptr_t) (&ID)) :
+        ModulePass (IDp) { }
+      virtual ~SmartCoallesceNodesHeuristic () {return;}
+      virtual bool runOnModule (Module & M);
+
+      virtual void getAnalysisUsage(AnalysisUsage &AU) const {
+        // We require DSA while this pass is still responding to queries
+        AU.addRequiredTransitive<EQTDDataStructures>();
+
+        // Make PassManager happy be requiring the default implementation of
+        // this analysis group
+        AU.addRequiredTransitive<Heuristic>();
+
+        // This pass does not modify anything when it runs
+        AU.setPreservesAll();
+      }
+
+      virtual void AssignToPools(const DSNodeList_t & NodesToPA,
+                                 Function *F, DSGraph* G,
+                                 std::vector<OnePool> &ResultPools);
+  };
+
+  //===-- AllInOneGlobalPool Heuristic ------------------------------------===//
+  //
+  // This heuristic puts all memory in the whole program into a single global
+  // pool.  This is not safe, and is not good for performance, but can be used
+  // to evaluate how good the pool allocator runtime works as a "malloc
+  // replacement".
+  //
+  class AllInOneGlobalPoolHeuristic : public Heuristic, public ModulePass {
+    private:
+      // TheGlobalPD - This global pool is the one and only one used when
+      // running with Heuristic=AllInOneGlobalPool.
+      GlobalVariable *TheGlobalPD;
+
+    public:
+      static char ID;
+      virtual void *getAdjustedAnalysisPointer(const PassInfo *PI) {
+        if (PI->isPassID(&Heuristic::ID))
+          return (Heuristic*)this;
+        return this;
+      }
+
+      AllInOneGlobalPoolHeuristic(intptr_t IDp = (intptr_t) (&ID)) :
+        ModulePass (IDp), TheGlobalPD(0) {}
+
+      virtual bool runOnModule (Module & M);
+      virtual void getAnalysisUsage(AnalysisUsage &AU) const {
+        // We require DSA while this pass is still responding to queries
+        AU.addRequiredTransitive<EQTDDataStructures>();
+
+        // Make PassManager happy be requiring the default implementation of
+        // this analysis group
+        AU.addRequiredTransitive<Heuristic>();
+
+        // This pass does not modify anything when it runs
+        AU.setPreservesAll();
+      }
+
+      virtual void AssignToPools(const DSNodeList_t &NodesToPA,
+                                 Function *F, DSGraph* G,
+                                 std::vector<OnePool> &ResultPools);
+  };
+
+  //===-- OnlyOverhead Heuristic ------------------------------------------===//
+  //
+  // This heuristic is a hack to evaluate how much overhead pool allocation adds
+  // to a program.  It adds all of the arguments, poolinits and pool destroys to
+  // the program, but dynamically only passes null into the pool alloc/free
+  // functions, causing them to allocate from the heap.
+  //
+  class OnlyOverheadHeuristic : public Heuristic, public ModulePass {
+    public:
+      static char ID;
+      virtual void *getAdjustedAnalysisPointer(const PassInfo *PI) {
+        if (PI->isPassID(&Heuristic::ID))
+          return (Heuristic*)this;
+        return this;
+      }
+
+      OnlyOverheadHeuristic(intptr_t IDp = (intptr_t) (&ID)) :
+        ModulePass (IDp) {}
+
+      virtual bool runOnModule (Module & M);
+      virtual void getAnalysisUsage(AnalysisUsage &AU) const {
+        // We require DSA while this pass is still responding to queries
+        AU.addRequiredTransitive<EQTDDataStructures>();
+
+        // Make PassManager happy be requiring the default implementation of
+        // this analysis group
+        AU.addRequiredTransitive<Heuristic>();
+
+        // This pass does not modify anything when it runs
+        AU.setPreservesAll();
+      }
+
+      virtual void AssignToPools(const DSNodeList_t &NodesToPA,
+                                 Function *F, DSGraph* G,
+                                 std::vector<OnePool> &ResultPools);
+
+      virtual void HackFunctionBody(Function &F, std::map<const DSNode*, Value*> &PDs);
+  };
+
+  //===-- NoNodes Heuristic -----------------------------------------------===//
+  //
+  // This dummy heuristic chooses to not pool allocate anything.
+  //
+  class NoNodesHeuristic : public Heuristic, public ImmutablePass {
+    public:
+      static char ID;
+      virtual void *getAdjustedAnalysisPointer(const PassInfo *PI) {
+        if (PI->isPassID(&Heuristic::ID))
+          return (Heuristic*)this;
+        return this;
+      }
+
+      NoNodesHeuristic(intptr_t IDp = (intptr_t) (&ID)) : ImmutablePass (IDp) {}
+
+      virtual bool runOnModule (Module & M);
+      virtual void getAnalysisUsage(AnalysisUsage &AU) const {
+        // This pass does not modify anything when it runs
+        AU.setPreservesAll();
+      }
+      virtual void AssignToPools(const DSNodeList_t &NodesToPA,
+                                 Function *F, DSGraph* G,
+                                 std::vector<OnePool> &ResultPools) { }
+  };
+}
+}
 #endif

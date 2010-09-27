@@ -62,7 +62,7 @@ Output/%.base.bc: Output/%.temp.bc $(LOPT) $(ASSIST_SO) $(DSA_SO)
 $(PROGRAMS_TO_TEST:%=Output/%.poolalloc.bc): \
 Output/%.poolalloc.bc: Output/%.base.bc $(PA_SO) $(LOPT)
 	-@rm -f $(CURDIR)/$@.info
-	-$(OPT_PA_STATS) -poolalloc $(EXTRA_PA_FLAGS) $(OPTZN_PASSES) -pooloptimize $< -o $@ -f 2>&1 > $@.out
+	-$(OPT_PA_STATS) -paheur-AllButUnreachableFromMemory -poolalloc $(EXTRA_PA_FLAGS) $(OPTZN_PASSES) -pooloptimize $< -o $@ -f 2>&1 > $@.out
 
 $(PROGRAMS_TO_TEST:%=Output/%.basepa.bc): \
 Output/%.basepa.bc: Output/%.base.bc $(PA_SO) $(LOPT)
