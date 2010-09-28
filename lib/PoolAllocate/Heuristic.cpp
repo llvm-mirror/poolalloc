@@ -380,7 +380,6 @@ AllNodesHeuristic::runOnModule (Module & Module) {
   //
   Graphs = &getAnalysis<EQTDDataStructures>();   
   assert (Graphs && "No DSGraphs!\n");
-  std::cerr << "JTC: Ran on Module: " << this << std::endl;
 
   // We never modify anything in this pass
   return false;
