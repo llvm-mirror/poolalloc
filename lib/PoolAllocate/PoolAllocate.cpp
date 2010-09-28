@@ -108,6 +108,7 @@ createPoolAllocInit (Module & M) {
 void PoolAllocate::getAnalysisUsage(AnalysisUsage &AU) const {
   // We will need the heuristic pass to tell us what to do and how to do it
   AU.addRequired<Heuristic>();
+  AU.addPreserved<Heuristic>();
   if (dsa_pass_to_use == PASS_EQTD) {
     AU.addRequiredTransitive<EQTDDataStructures>();
     if(lie_preserve_passes != LIE_NONE)
@@ -862,87 +863,12 @@ PoolAllocate::MakeFunctionClone (Function & F) {
 // global pools.
 //
 bool PoolAllocate::SetupGlobalPools(Module &M) {
-  // Get the globals graph for the program.
-  DSGraph* GG = Graphs->getGlobalsGraph();
-
-  // Get all of the nodes reachable from globals.
-  DenseSet<const DSNode*> GlobalHeapNodes;
-  GetNodesReachableFromGlobals(GG, GlobalHeapNodes);
-
   //
-  // We do not want to create pools for all memory objects reachable from
-  // globals.  We only want those that are heap objects, could be heap objects,
-  // or are array objects.
+  // Find all of the DSNodes which are reachable from globals and may require
+  // pools.
   //
-  std::vector<const DSNode *> toRemove;
-  for (DenseSet<const DSNode*>::iterator I = GlobalHeapNodes.begin(),
-         E = GlobalHeapNodes.end(); I != E; ) {
-    DenseSet<const DSNode*>::iterator Last = I; ++I;
-
-    //
-    // FIXME: If the PoolAllocateAllGlobalNodes option is selected for the
-    //        heuristic, then we should make global pools for heap and
-    //        non-heap DSNodes.
-    //
-#if 0
-    //
-    // FIXME:
-    //  This code was disabled for regular pool allocation, but I don't know
-    //  why.
-    //
-    if (!SAFECodeEnabled) {
-      if (!(*Last)->isHeapNode());
-      GlobalHeapNodes.erase(Last);
-    }
-#endif
-
-    //
-    // Nodes that escape to external code could be reachable from globals.
-    // Nodes that are incomplete could be heap nodes.
-    // Unknown nodes could be anything.
-    //
-    const DSNode *tmp = *Last;
-    if (!(tmp->isHeapNode() || tmp->isArrayNode() ||
-          tmp->isExternalNode() || tmp->isIncompleteNode() ||
-          tmp->isUnknownNode()))
-      toRemove.push_back (tmp);
-  }
-  
-  //
-  // Remove all the DSNodes for which we do not want to create a global pool.
-  //
-  while (toRemove.size()) {
-    const DSNode * Node = toRemove.back();
-    toRemove.pop_back();
-    GlobalHeapNodes.erase(Node);
-  }
-
-  //
-  // Scan through all the local graphs looking for DSNodes which may be
-  // reachable by a global.  These nodes may not end up in the globals graph 
-  // because of the fact that DSA doesn't actually know what is happening to
-  // them.
-  //
-  for (Module::iterator F = M.begin(); F != M.end(); ++F) {
-    if (F->isDeclaration()) continue;
-    DSGraph* G = Graphs->getDSGraph(*F);
-    for (DSGraph::node_iterator I = G->node_begin(), E = G->node_end();
-         I != E;
-         ++I){
-      DSNode * Node = I;
-      if (Node->isExternalNode() || Node->isIncompleteNode() ||
-          Node->isUnknownNode()) {
-        GlobalHeapNodes.insert (Node);
-      }
-
-      //
-      // If a DSNode is used as an array and bounds checking is enabled,
-      // then also give it a global node.
-      //
-      if (BoundsChecksEnabled && (Node->isArrayNode()))
-        GlobalHeapNodes.insert (Node);
-    }
-  }
+  std::vector<const DSNode*> NodesToPA;
+  CurHeuristic->findGlobalPoolNodes (NodesToPA);
 
   // Otherwise get the main function to insert the poolinit calls.
   Function *MainFunc = M.getFunction("main");
@@ -952,22 +878,20 @@ bool PoolAllocate::SetupGlobalPools(Module &M) {
     return true;
   }
 
-  errs() << "Pool allocating " << GlobalHeapNodes.size()
-            << " global nodes!\n";
+  errs() << "Pool allocating " << NodesToPA.size() << " global nodes!\n";
 
-
-  //std::vector<const DSNode*> NodesToPA(GlobalHeapNodes.begin(),
-  //                                     GlobalHeapNodes.end());
-  //FIXME: Explain in more detail: DenseSet Doesn't have polite iterators
-  std::vector<const DSNode*> NodesToPA;
-  for (DenseSet<const DSNode*>::iterator ii = GlobalHeapNodes.begin(),
-         ee = GlobalHeapNodes.end(); ii != ee; ++ii)
-    NodesToPA.push_back(*ii);
-
+  DSGraph* GG = Graphs->getGlobalsGraph();
   std::vector<Heuristic::OnePool> ResultPools;
   CurHeuristic->AssignToPools(NodesToPA, 0, GG, ResultPools);
 
   BasicBlock::iterator InsertPt = MainFunc->getEntryBlock().begin();
+
+  //
+  // Create a set of the DSNodes globally reachable from memory.  We'll assign
+  // NULL pool handles for those nodes which are globally reachable but for
+  // which the heuristic did not assign a pool.
+  //
+  std::set<const DSNode *> GlobalHeapNodes (NodesToPA.begin(), NodesToPA.end());
 
   // Perform all global assignments as specified.
   for (unsigned i = 0, e = ResultPools.size(); i != e; ++i) {
@@ -987,12 +911,12 @@ bool PoolAllocate::SetupGlobalPools(Module &M) {
   }
 
   // Any unallocated DSNodes get null pool descriptor pointers.
-  for (DenseSet<const DSNode*>::iterator I = GlobalHeapNodes.begin(),
+  for (std::set<const DSNode*>::iterator I = GlobalHeapNodes.begin(),
          E = GlobalHeapNodes.end(); I != E; ++I) {
     GlobalNodes[*I] = ConstantPointerNull::get(PointerType::getUnqual(PoolDescType));
     ++NumNonprofit;
   }
-  
+
   return false;
 }
 

@@ -48,6 +48,7 @@ namespace PA {
   protected:
     Module *M;
     PoolAllocate *PA;
+    DataStructures *Graphs;
 
   public:
     // Virtual Destructor
@@ -92,6 +93,9 @@ namespace PA {
         NodesInPool.push_back(N);
       }
     };
+
+    /// Find globally reachable DSNodes that need a pool
+    virtual void findGlobalPoolNodes (std::vector<const DSNode *> & Nodes);
 
     /// AssignToPools - Partition NodesToPA into a set of disjoint pools,
     /// returning the result in ResultPools.  If this is a function being pool
@@ -139,9 +143,12 @@ namespace PA {
         return this;
       }
 
-      AllNodesHeuristic (intptr_t IDp = (intptr_t) (&ID)): ModulePass (&IDp) { }
+      AllNodesHeuristic (intptr_t IDp = (intptr_t) (&ID)): ModulePass (IDp) { }
       virtual ~AllNodesHeuristic () {return;}
       virtual bool runOnModule (Module & M);
+      virtual const char * getPassName () const {
+        return "All Nodes Pool Allocation Heurisitic";
+      }
 
       virtual void getAnalysisUsage(AnalysisUsage &AU) const {
         // We require DSA while this pass is still responding to queries

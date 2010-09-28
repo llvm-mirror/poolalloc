@@ -205,7 +205,164 @@ Heuristic::getRecommendedAlignment(const DSNode *Node) {
 
   return 4;
 }
- 
+
+//
+// Function: GetNodesReachableFromGlobals()
+//
+// Description:
+//  This function finds all DSNodes which are reachable from globals.  It finds
+//  DSNodes both within the local DSGraph as well as in the Globals graph that
+//  are reachable from globals.
+//
+// Inputs:
+//  G - The DSGraph for which to find DSNodes which are reachable by globals.
+//      This DSGraph can either by a DSGraph associated with a function *or*
+//      it can be the globals graph itself.
+//
+// Outputs:
+//  NodesFromGlobals - A reference to a container object in which to record
+//                     DSNodes reachable from globals.  DSNodes are *added* to
+//                     this container; it is not cleared by this function.
+//                     DSNodes from both the local and globals graph are added.
+static void
+GetNodesReachableFromGlobals (DSGraph* G,
+                              DenseSet<const DSNode*> &NodesFromGlobals) {
+  //
+  // Get the globals graph associated with this DSGraph.  If the globals graph
+  // is NULL, then the graph that was passed in *is* the globals graph.
+  //
+  DSGraph * GlobalsGraph = G->getGlobalsGraph();
+  if (!GlobalsGraph)
+    GlobalsGraph = G;
+
+  //
+  // Find all DSNodes which are reachable in the globals graph.
+  //
+  for (DSGraph::node_iterator NI = GlobalsGraph->node_begin();
+       NI != GlobalsGraph->node_end();
+       ++NI) {
+    NI->markReachableNodes(NodesFromGlobals);
+  }
+
+  //
+  // Now the fun part.  Find DSNodes in the local graph that correspond to
+  // those nodes reachable in the globals graph.  Add them to the set of
+  // reachable nodes, too.
+  //
+  if (G->getGlobalsGraph()) {
+    //
+    // Compute a mapping between local DSNodes and DSNodes in the globals
+    // graph.
+    //
+    DSGraph::NodeMapTy NodeMap;
+    G->computeGToGGMapping (NodeMap);
+
+    //
+    // Scan through all DSNodes in the local graph.  If a local DSNode has a
+    // corresponding DSNode in the globals graph that is reachable from a 
+    // global, then add the local DSNode to the set of DSNodes reachable from a
+    // global.
+    //
+    // FIXME: A node's existance within the global DSGraph is probably
+    //        sufficient evidence that it is reachable from a global.
+    //
+    DSGraph::node_iterator ni = G->node_begin();
+    for (; ni != G->node_end(); ++ni) {
+      DSNode * N = ni;
+      if (NodesFromGlobals.count (NodeMap[N].getNode()))
+        NodesFromGlobals.insert (N);
+    }
+  }
+}
+
+//
+// Method: findGlobalPoolNodes()
+//
+// Description:
+//  This method finds DSNodes that are reachable from globals and that need a
+//  pool.  The Automatic Pool Allocation transform will use the returned
+//  information to build global pools for the DSNodes in question.
+//
+//  Note that this method does not assign DSNodes to pools; it merely decides
+//  which DSNodes are reachable from globals and will need a pool of global
+//  scope.
+//
+// Outputs:
+//  Nodes - The DSNodes that are both reachable from globals and which should
+//          have global pools will be *added* to this container.
+//
+void
+Heuristic::findGlobalPoolNodes (std::vector<const DSNode *> & Nodes) {
+  // Get the globals graph for the program.
+  DSGraph* GG = Graphs->getGlobalsGraph();
+
+  // Get all of the nodes reachable from globals.
+  DenseSet<const DSNode*> GlobalHeapNodes;
+  GetNodesReachableFromGlobals (GG, GlobalHeapNodes);
+
+  //
+  // We do not want to create pools for all memory objects reachable from
+  // globals.  We only want those that are or could be heap objects.
+  //
+  std::vector<const DSNode *> toRemove;
+  for (DenseSet<const DSNode*>::iterator I = GlobalHeapNodes.begin(),
+         E = GlobalHeapNodes.end(); I != E; ) {
+    DenseSet<const DSNode*>::iterator Last = I; ++I;
+
+    //
+    // Nodes that escape to external code could be reachable from globals.
+    // Nodes that are incomplete could be heap nodes.
+    // Unknown nodes could be anything.
+    //
+    const DSNode *tmp = *Last;
+    if (!(tmp->isHeapNode() ||
+          tmp->isExternalNode() ||
+          tmp->isIncompleteNode() ||
+          tmp->isUnknownNode()))
+      toRemove.push_back (tmp);
+  }
+  
+  //
+  // Remove all globally reachable DSNodes which do not require pools.
+  //
+  for (unsigned index = 0; index < toRemove.size(); ++index) {
+    GlobalHeapNodes.erase(toRemove[index]);
+  }
+
+  //
+  // Scan through all the local graphs looking for DSNodes which may be
+  // reachable by a global.  These nodes may not end up in the globals graph 
+  // because of the fact that DSA doesn't actually know what is happening to
+  // them.
+  //
+  for (Module::iterator F = M->begin(); F != M->end(); ++F) {
+    if (F->isDeclaration()) continue;
+    DSGraph* G = Graphs->getDSGraph(*F);
+    for (DSGraph::node_iterator I = G->node_begin(), E = G->node_end();
+         I != E;
+         ++I) {
+      DSNode * Node = I;
+      if (Node->isExternalNode() || Node->isIncompleteNode() ||
+          Node->isUnknownNode()) {
+        GlobalHeapNodes.insert (Node);
+      }
+    }
+  }
+
+  //
+  // Copy the values into the output container.  Note that DenseSet has no
+  // iterator traits (or whatever allows us to treat DenseSet has a generic
+  // container), so we have to use a loop to copy values from the DenseSet into
+  // the output container.
+  //
+  for (DenseSet<const DSNode*>::iterator I = GlobalHeapNodes.begin(),
+         E = GlobalHeapNodes.end(); I != E; ++I) {
+    Nodes.push_back (*I);
+  }
+
+  return;
+}
+
 //===-- AllNodes Heuristic ------------------------------------------------===//
 //
 // This heuristic pool allocates everything possible into separate pools.
@@ -217,6 +374,13 @@ AllNodesHeuristic::runOnModule (Module & Module) {
   // Remember which module we are analyzing.
   //
   M = &Module;
+
+  //
+  // Get the reference to the DSA Graph.
+  //
+  Graphs = &getAnalysis<EQTDDataStructures>();   
+  assert (Graphs && "No DSGraphs!\n");
+  std::cerr << "JTC: Ran on Module: " << this << std::endl;
 
   // We never modify anything in this pass
   return false;
@@ -243,6 +407,11 @@ AllButUnreachableFromMemoryHeuristic::runOnModule (Module & Module) {
   // Remember which module we are analyzing.
   //
   M = &Module;
+
+  //
+  // Get the reference to the DSA Graph.
+  //
+  Graphs = &getAnalysis<EQTDDataStructures>();   
 
   // We never modify anything in this pass
   return false;
@@ -307,6 +476,11 @@ CyclicNodesHeuristic::runOnModule (Module & Module) {
   //
   M = &Module;
 
+  //
+  // Get the reference to the DSA Graph.
+  //
+  Graphs = &getAnalysis<EQTDDataStructures>();   
+
   // We never modify anything in this pass
   return false;
 }
@@ -338,6 +512,11 @@ SmartCoallesceNodesHeuristic::runOnModule (Module & Module) {
   // Remember which module we are analyzing.
   //
   M = &Module;
+
+  //
+  // Get the reference to the DSA Graph.
+  //
+  Graphs = &getAnalysis<EQTDDataStructures>();   
 
   // We never modify anything in this pass
   return false;
@@ -525,6 +704,11 @@ AllInOneGlobalPoolHeuristic::runOnModule (Module & Module) {
   //
   M = &Module;
 
+  //
+  // Get the reference to the DSA Graph.
+  //
+  Graphs = &getAnalysis<EQTDDataStructures>();   
+
   // We never modify anything in this pass
   return false;
 }
@@ -556,6 +740,11 @@ OnlyOverheadHeuristic::runOnModule (Module & Module) {
   // Remember which module we are analyzing.
   //
   M = &Module;
+
+  //
+  // Get the reference to the DSA Graph.
+  //
+  Graphs = &getAnalysis<EQTDDataStructures>();   
 
   // We never modify anything in this pass
   return false;
@@ -657,13 +846,13 @@ static RegisterPass<OnlyOverheadHeuristic>
 F ("paheur-OnlyOverhead", "Do not pool allocate anything, but induce all overhead from it");
 
 static RegisterPass<NoNodesHeuristic>
-G ("paheur-NoNodes", "Pool allocate nothing");
+G ("paheur-NoNodes", "Pool allocate nothing heuristic");
 
 //
 // Create the heuristic analysis group.
 //
-//static RegisterAnalysisGroup<Heuristic>
-//HeuristicGroup ("Pool Allocation Heuristic");
+static RegisterAnalysisGroup<Heuristic>
+HeuristicGroup ("Pool Allocation Heuristic");
 
 RegisterAnalysisGroup<Heuristic> Heuristic1(A);
 RegisterAnalysisGroup<Heuristic> Heuristic2(B);
