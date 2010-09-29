@@ -292,7 +292,7 @@ GetNodesReachableFromGlobals (DSGraph* G,
 //          have global pools will be *added* to this container.
 //
 void
-Heuristic::findGlobalPoolNodes (std::vector<const DSNode *> & Nodes) {
+Heuristic::findGlobalPoolNodes (DSNodeSet_t & Nodes) {
   // Get the globals graph for the program.
   DSGraph* GG = Graphs->getGlobalsGraph();
 
@@ -357,7 +357,95 @@ Heuristic::findGlobalPoolNodes (std::vector<const DSNode *> & Nodes) {
   //
   for (DenseSet<const DSNode*>::iterator I = GlobalHeapNodes.begin(),
          E = GlobalHeapNodes.end(); I != E; ++I) {
-    Nodes.push_back (*I);
+    Nodes.insert (*I);
+  }
+
+  return;
+}
+
+//
+// Method: getGlobalPoolNodes()
+//
+// Description:
+//  This method returns DSNodes that are reachable from globals and that need a
+//  pool.  The Automatic Pool Allocation transform will use the returned
+//  information to build global pools for the DSNodes in question.
+//
+//  Note that this method does not assign DSNodes to pools; it merely decides
+//  which DSNodes are reachable from globals and will need a pool of global
+//  scope.
+//
+// Outputs:
+//  Nodes - The DSNodes that are both reachable from globals and which should
+//          have global pools will be *added* to this container.
+//
+// Preconditions:
+//  This method assumes that the findGlobalPoolNodes() has been called to find
+//  all of the global DSNodes needing a pool.
+//
+void
+Heuristic::getGlobalPoolNodes (std::vector<const DSNode *> & Nodes) {
+  //
+  // Copy the DSNodes which are globally reachable and need a global pool into
+  // the set of DSNodes given to us by the caller.
+  //
+  Nodes.insert (Nodes.end(), GlobalPoolNodes.begin(), GlobalPoolNodes.end());
+  return;
+}
+
+//
+// Method: getLocalPoolNodes()
+//
+// Description:
+//  For a given function, determine which DSNodes for that function should have
+//  local pools created for them.
+//
+void
+Heuristic::getLocalPoolNodes (const Function & F, DSNodeList_t & Nodes) {
+  //
+  // Get the DSGraph of the specified function.  If the DSGraph has no nodes,
+  // then there is nothing we need to do.
+  //
+  DSGraph* G = Graphs->getDSGraph(F);
+  if (G->node_begin() == G->node_end()) return;
+
+  //
+  // Calculate which DSNodes are reachable from globals.  If a node is reachable
+  // from a global, we will create a global pool for it, so no argument passage
+  // is required.
+  Graphs->getGlobalsGraph();
+
+  // Map all node reachable from this global to the corresponding nodes in
+  // the globals graph.
+  DSGraph::NodeMapTy GlobalsGraphNodeMapping;
+  G->computeGToGGMapping(GlobalsGraphNodeMapping);
+
+  //
+  // Loop over all of the nodes which are non-escaping, adding pool-allocatable
+  // ones to the NodesToPA vector.  In other words, scan over the DSGraph and
+  // find nodes for which a new pool must be created within this function.
+  //
+  for (DSGraph::node_iterator I = G->node_begin(), E = G->node_end();
+       I != E;
+       ++I){
+    // Get the DSNode and, if applicable, its mirror in the globals graph
+    DSNode * N   = I;
+    DSNode * GGN = GlobalsGraphNodeMapping[N].getNode();
+
+    //
+    // Only the following nodes are pool allocated:
+    //  1) Local Heap nodes
+    //  2) Nodes which are mirrored in the globals graph and, in the globals
+    //     graph, are heap nodes.
+    //
+    if ((N->isHeapNode()) || (GGN && GGN->isHeapNode())) {
+      if (!(GlobalPoolNodes.count (N) || GlobalPoolNodes.count (GGN))) {
+        // Otherwise, if it was not passed in from outside the function, it must
+        // be a local pool!
+        assert(!N->isGlobalNode() && "Should be in global mapping!");
+        Nodes.push_back (N);
+      }
+    }
   }
 
   return;
@@ -380,6 +468,12 @@ AllNodesHeuristic::runOnModule (Module & Module) {
   //
   Graphs = &getAnalysis<EQTDDataStructures>();   
   assert (Graphs && "No DSGraphs!\n");
+
+  //
+  // Find DSNodes which are reachable from globals and should be pool
+  // allocated.
+  //
+  findGlobalPoolNodes (GlobalPoolNodes);
 
   // We never modify anything in this pass
   return false;
@@ -411,6 +505,12 @@ AllButUnreachableFromMemoryHeuristic::runOnModule (Module & Module) {
   // Get the reference to the DSA Graph.
   //
   Graphs = &getAnalysis<EQTDDataStructures>();   
+
+  //
+  // Find DSNodes which are reachable from globals and should be pool
+  // allocated.
+  //
+  findGlobalPoolNodes (GlobalPoolNodes);
 
   // We never modify anything in this pass
   return false;
@@ -480,6 +580,12 @@ CyclicNodesHeuristic::runOnModule (Module & Module) {
   //
   Graphs = &getAnalysis<EQTDDataStructures>();   
 
+  //
+  // Find DSNodes which are reachable from globals and should be pool
+  // allocated.
+  //
+  findGlobalPoolNodes (GlobalPoolNodes);
+
   // We never modify anything in this pass
   return false;
 }
@@ -516,6 +622,12 @@ SmartCoallesceNodesHeuristic::runOnModule (Module & Module) {
   // Get the reference to the DSA Graph.
   //
   Graphs = &getAnalysis<EQTDDataStructures>();   
+
+  //
+  // Find DSNodes which are reachable from globals and should be pool
+  // allocated.
+  //
+  findGlobalPoolNodes (GlobalPoolNodes);
 
   // We never modify anything in this pass
   return false;
@@ -708,6 +820,12 @@ AllInOneGlobalPoolHeuristic::runOnModule (Module & Module) {
   //
   Graphs = &getAnalysis<EQTDDataStructures>();   
 
+  //
+  // Find DSNodes which are reachable from globals and should be pool
+  // allocated.
+  //
+  findGlobalPoolNodes (GlobalPoolNodes);
+
   // We never modify anything in this pass
   return false;
 }
@@ -744,6 +862,12 @@ OnlyOverheadHeuristic::runOnModule (Module & Module) {
   // Get the reference to the DSA Graph.
   //
   Graphs = &getAnalysis<EQTDDataStructures>();   
+
+  //
+  // Find DSNodes which are reachable from globals and should be pool
+  // allocated.
+  //
+  findGlobalPoolNodes (GlobalPoolNodes);
 
   // We never modify anything in this pass
   return false;

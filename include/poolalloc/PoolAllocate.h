@@ -150,7 +150,6 @@ public:
 
   // FIXME: We want to remove SAFECode specified flags.
   bool SAFECodeEnabled;
-  bool BoundsChecksEnabled;
 
   enum LIE_TYPE {LIE_NONE, LIE_PRESERVE_DSA, LIE_PRESERVE_ALL, LIE_PRESERVE_DEFAULT};
   // FIXME: Try to minimize lying
@@ -237,7 +236,7 @@ protected:
     : PoolAllocateGroup ((intptr_t)IDp),
       PassAllArguments(passAllArguments)
       {
-		  SAFECodeEnabled = BoundsChecksEnabled = SAFECode |  PA::PA_SAFECODE;
+		  SAFECodeEnabled = SAFECode |  PA::PA_SAFECODE;
 		  lie_preserve_passes = SAFECodeEnabled ? LIE_PRESERVE_ALL : LIE_PRESERVE_DSA;
 		  dsa_pass_to_use = SAFECodeEnabled ? PASS_EQTD : PASS_BUEQ;
       }
@@ -251,7 +250,7 @@ protected:
       : PoolAllocateGroup ((intptr_t)IDp),
         PassAllArguments(passAllArguments)
         {
-  		  SAFECodeEnabled = BoundsChecksEnabled = SAFECode |  PA::PA_SAFECODE;
+  		  SAFECodeEnabled = SAFECode |  PA::PA_SAFECODE;
 
   		  if(lie_preserve_passes_ == LIE_PRESERVE_DEFAULT)
   			  lie_preserve_passes = SAFECodeEnabled ? LIE_PRESERVE_ALL : LIE_PRESERVE_DSA;

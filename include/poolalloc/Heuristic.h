@@ -22,6 +22,7 @@
 
 #include <vector>
 #include <map>
+#include <set>
 
 namespace llvm {
   class Value;
@@ -36,6 +37,7 @@ namespace llvm {
 namespace PA {
   // Type for a container of DSNodes
   typedef std::vector<const DSNode*> DSNodeList_t;
+  typedef std::set<const DSNode*>    DSNodeSet_t;
 
   //
   // Class: Heuristic
@@ -49,6 +51,12 @@ namespace PA {
     Module *M;
     PoolAllocate *PA;
     DataStructures *Graphs;
+
+    // DSNodes reachable from a global variable and that require a global pool
+    std::set<const DSNode *> GlobalPoolNodes;
+
+    /// Find globally reachable DSNodes that need a pool
+    virtual void findGlobalPoolNodes (DSNodeSet_t & Nodes);
 
   public:
     // Virtual Destructor
@@ -95,7 +103,10 @@ namespace PA {
     };
 
     /// Find globally reachable DSNodes that need a pool
-    virtual void findGlobalPoolNodes (std::vector<const DSNode *> & Nodes);
+    virtual void getGlobalPoolNodes (std::vector<const DSNode *> & Nodes);
+
+    /// Find DSNodes local to a function that need a pool
+    virtual void getLocalPoolNodes (const Function & F, DSNodeList_t & Nodes);
 
     /// AssignToPools - Partition NodesToPA into a set of disjoint pools,
     /// returning the result in ResultPools.  If this is a function being pool
