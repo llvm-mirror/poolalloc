@@ -1097,7 +1097,7 @@ void PoolAllocate::ProcessFunctionBody(Function &F, Function &NewF) {
     // FIXME: This is not correct for SAFECode; all DSNodes will need to be
     //        poolallocated.
     //
-    if ((N->isHeapNode()) || (BoundsChecksEnabled && (N->isArrayNode())) ||
+    if ((N->isHeapNode()) ||
     	(GlobalsGraphNodeMapping.count(N) &&
        GlobalsGraphNodeMapping[N].getNode()->isHeapNode())) {
       DSNode *GGN = GlobalsGraphNodeMapping[N].getNode();
