@@ -316,63 +316,6 @@ Instruction *FuncTransform::TransformAllocationInstr(Instruction *I,
   return Casted;
 }
 
-#if 0
-void FuncTransform::visitMallocInst(MallocInst &MI) {
-  // Get the pool handle for the node that this contributes to...
-  Value *PH = getPoolHandle(&MI);
-  
-  if (PH == 0 || isa<ConstantPointerNull>(PH)) return;
-
-  TargetData &TD = PAInfo.getAnalysis<TargetData>();
-  Value *AllocSize = ConstantInt::get(Int32Type,
-				      TD.getTypeAllocSize(MI.getAllocatedType()));
-
-  if (MI.isArrayAllocation())
-    AllocSize = BinaryOperator::Create(Instruction::Mul, AllocSize,
-                                       MI.getOperand(0), "sizetmp", &MI);
-  //
-  // NOTE:
-  //  The code below used to be used by SAFECode.  However, it requires
-  //  Pool Allocation to depend upon SAFECode passes, which is messy.
-  //
-  //  I believe the code below is an unneeded optimization.  Basically, when
-  //  SAFECode promotes a stack allocation to the heap, this makes it a stack
-  //  allocation again if the DSNode has no heap allocations.  This seems to be
-  //  a performance optimization and unnecessary for the first prototype.
-  //
-  if (PAInfo.SAFECodeEnabled) {
-#if 0
-    const MallocInst *originalMalloc = &MI;
-    if (FI.NewToOldValueMap.count(&MI)) {
-      originalMalloc = cast<MallocInst>(FI.NewToOldValueMap[&MI]);
-    }
-    //Dinakar to test stack safety & array safety 
-    if (PAInfo.CUAPass->ArrayMallocs.find(originalMalloc) ==
-        PAInfo.CUAPass->ArrayMallocs.end()) {
-      TransformAllocationInstr(&MI, AllocSize);
-    } else {
-      AllocaInst *AI = new AllocaInst(MI.getType()->getElementType(), MI.getArraySize(), MI.getName(), MI.getNext());
-      MI.replaceAllUsesWith(AI);
-      MI.getParent()->getInstList().erase(&MI);
-      Value *Casted = AI;
-      Instruction *aiNext = AI->getNext();
-      if (AI->getType() != PointerType::getUnqual(Int8Type))
-        Casted = CastInst::CreatePointerCast(AI, PointerType::getUnqual(Int8Type),
-              AI->getName()+".casted",aiNext);
-      
-      Instruction *V = CallInst::Create(PAInfo.PoolRegister,
-            make_vector(PH, AllocSize, Casted, 0), "", aiNext);
-      AddPoolUse(*V, PH, PoolUses);
-    }
-#else
-    TransformAllocationInstr(&MI, AllocSize);  
-#endif
-  } else {
-    TransformAllocationInstr(&MI, AllocSize);  
-  }
-}
-#endif
-
 void FuncTransform::visitAllocaInst(AllocaInst &MI) {
   // FIXME: We should remove SAFECode-specific functionality (and comments)
   // SAFECode will register alloca instructions with the run-time, so do not
