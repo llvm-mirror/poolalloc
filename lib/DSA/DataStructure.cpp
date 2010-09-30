@@ -425,9 +425,9 @@ void DSNode::MergeNodes(DSNodeHandle& CurNodeH, DSNodeHandle& NH) {
   if (NSize != CurNodeH.getNode()->getSize()) {
 #if COLLAPSE_ARRAYS_AGGRESSIVELY
     if (NSize < CurNodeH.getNode()->getSize()) {
-      if (NH.getNode()->isArray())
+      if (NH.getNode()->isArrayNode())
         NH.getNode()->foldNodeCompletely();
-    } else if (CurNodeH.getNode()->isArray()) {
+    } else if (CurNodeH.getNode()->isArrayNode()) {
       NH.getNode()->foldNodeCompletely();
     }
 #endif
@@ -698,11 +698,11 @@ void ReachabilityCloner::merge(const DSNodeHandle &NH,
         // array bit set, collapse!
 #if COLLAPSE_ARRAYS_AGGRESSIVELY
         if (SN->getSize() < DN->getSize()) {
-          if (SN->isArray()) {
+          if (SN->isArrayNode()) {
             DN->foldNodeCompletely();
             DN = NH.getNode();
           }
-        } else if (DN->isArray()) {
+        } else if (DN->isArrayNode()) {
           DN->foldNodeCompletely();
           DN = NH.getNode();
         }
