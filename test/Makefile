@@ -425,7 +425,7 @@ lit.site.cfg: $(PROJ_SRC_ROOT)/test/lit.site.cfg.in
 	     $(PROJ_SRC_ROOT)/test/lit.site.cfg.in > $@
 
 SETPATH = \
-	PATH=$(LLVMToolDir):$(LLVM_SRC_ROOT)/test/Scripts:$(LLVMGCCDIR)/bin:$(PATH):$(PROJ_OBJ_ROOT)/test/tools
+	PATH=$(LLVMToolDir):$(LLVM_SRC_ROOT)/test/Scripts:$(LLVMGCCDIR)/bin:$(PROJ_OBJ_ROOT)/test/tools:$(PATH)
 
 TESTSUITE=$(PROJ_OBJ_ROOT)/test
 
