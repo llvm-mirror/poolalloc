@@ -1,7 +1,7 @@
 /* 
  * Build this file into bitcode and run poolalloc on it
  * RUN: llvm-gcc -O0 %s --emit-llvm -c -o %t.bc
- * RUN: paopt %t.bc -poolalloc -o %t.pa.bc 2>&1
+ * RUN: paopt %t.bc -paheur-AllButUnreachableFromMemory -poolalloc -o %t.pa.bc 2>&1
  * RUN: llc %t.pa.bc -o %t.pa.s
  * RUN: llvm-gcc %t.pa.s -o %t.pa
  *

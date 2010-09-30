@@ -1,5 +1,5 @@
 ;This test does some very basic checking on the attribute copying of arguments
-;RUN: paopt %s -poolalloc -o %t.bc |& grep "Pool allocating.*nodes!"
+;RUN: paopt %s -paheur-AllButUnreachableFromMemory -poolalloc -o %t.bc |& grep "Pool allocating.*nodes!"
 ;RUN: llvm-dis %t.bc -o %t.ll
 ;Make sure 'nocapture' attribute isn't copied to new PD argument
 ;RUN: cat %t.ll | grep -v ".*@.*(.*nocapture.*,.*,.*)"
