@@ -1,20 +1,25 @@
 ;RUN: dsaopt %s -dsa-local -analyze -verify-flags "test:b2:0+I"
-;RUN: dsaopt %s -dsa-td -analyze -verify-flags "test:b2:0+IHM"
+;RUN: dsaopt %s -dsa-td -analyze -verify-flags "test:b2:0+HM-I"
 ;RUN: dsaopt %s -dsa-local -analyze -verify-flags "test:a2:0+I"
-;RUN: dsaopt %s -dsa-td -analyze -verify-flags "test:a2:0+IHM"
+;RUN: dsaopt %s -dsa-td -analyze -verify-flags "test:a2:0+HM-I"
 ;RUN: dsaopt %s -dsa-local -analyze -verify-flags "test:a2+IMRE"
-;RUN: dsaopt %s -dsa-td -analyze -verify-flags "test:a2+SIMRE"
+;RUN: dsaopt %s -dsa-td -analyze -verify-flags "test:a2+SMRE-I"
 
 
-;RUN: dsaopt %s -dsa-local -analyze -verify-flags "func:a1+SM"
-;RUN: dsaopt %s -dsa-td -analyze -verify-flags "func:a1+SM"
-;RUN: dsaopt %s -dsa-local -analyze -verify-flags "func:b1+SM"
-;RUN: dsaopt %s -dsa-td -analyze -verify-flags "func:b1+SM"
+;RUN: dsaopt %s -dsa-local -analyze -verify-flags "func:a1+SM-IE"
+;RUN: dsaopt %s -dsa-local -analyze -verify-flags "func:a1:0+IE"
+;RUN: dsaopt %s -dsa-td -analyze -verify-flags "func:a1+SM-IE"
+;RUN: dsaopt %s -dsa-td -analyze -verify-flags "func:a1:0+HME-I"
+
+;RUN: dsaopt %s -dsa-local -analyze -verify-flags "func:b1+SM-IE"
+;RUN: dsaopt %s -dsa-local -analyze -verify-flags "func:b1:0+IE"
+;RUN: dsaopt %s -dsa-td -analyze -verify-flags "func:b1+SM-IE"
+;RUN: dsaopt %s -dsa-td -analyze -verify-flags "func:b1:0+HME-I"
+
 ;RUN: dsaopt %s -dsa-td -analyze -check-same-node=func:mem1,func:mem2
-;RUN: dsaopt %s -dsa-local -analyze -verify-flags "func:mem1:0+HI"
-;RUN: dsaopt %s -dsa-local -analyze -verify-flags "func:mem2:0+HI"
-;RUN: dsaopt %s -dsa-td -analyze -verify-flags "func:mem1:0+HM"
-
+;RUN: dsaopt %s -dsa-local -analyze -verify-flags "func:mem1:0+HIE"
+;RUN: dsaopt %s -dsa-local -analyze -verify-flags "func:mem2:0+HIE"
+;RUN: dsaopt %s -dsa-td -analyze -verify-flags "func:mem1:0+HME-I"
 
 ; ModuleID = 'call1.bc'
 target datalayout = "e-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:64:64-f32:32:32-f64:64:64-v64:64:64-v128:128:128-a0:0:64-s0:64:64-f80:128:128-n8:16:32:64"
