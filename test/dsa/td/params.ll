@@ -17,27 +17,27 @@
 
 ;RUN: dsaopt %s -dsa-td -analyze -check-same-node=func:a1:0,func:b1:0,func:mem2:0,func:mem1:0,func:r1,func:r2
 
-;RUN: dsaopt %s -dsa-local -analyze -verify-flags "test:b2:0+HIR"
-;RUN: dsaopt %s -dsa-local -analyze -verify-flags "test:a2:0+HIR"
+;RUN: dsaopt %s -dsa-local -analyze -verify-flags "test:b2:0+HIRE"
+;RUN: dsaopt %s -dsa-local -analyze -verify-flags "test:a2:0+HIRE"
 ;RUN: dsaopt %s -dsa-local -analyze -verify-flags "test:a2+SIMRE"
-;RUN: dsaopt %s -dsa-local -analyze -verify-flags "test:temp:0+HIR"
-;RUN: dsaopt %s -dsa-local -analyze -verify-flags "test:temp1:0+HIR"
+;RUN: dsaopt %s -dsa-local -analyze -verify-flags "test:temp:0+HIRE"
+;RUN: dsaopt %s -dsa-local -analyze -verify-flags "test:temp1:0+HIRE"
 ;RUN: dsaopt %s -dsa-local -analyze -check-same-node=test:temp2:0,test:a2:0,test:temp1:0,test:temp:0,test:b2:0
 
-;RUN: dsaopt %s -dsa-bu -analyze -verify-flags "test:b2:0+HIMR"
-;RUN: dsaopt %s -dsa-bu -analyze -verify-flags "test:a2:0+HIMR"
+;RUN: dsaopt %s -dsa-bu -analyze -verify-flags "test:b2:0+HIMRE"
+;RUN: dsaopt %s -dsa-bu -analyze -verify-flags "test:a2:0+HIMRE"
 ;RUN: dsaopt %s -dsa-bu -analyze -verify-flags "test:a2+SIMRE"
-;RUN: dsaopt %s -dsa-bu -analyze -verify-flags "test:temp+SMR"
-;RUN: dsaopt %s -dsa-bu -analyze -verify-flags "test:temp1+SMR"
+;RUN: dsaopt %s -dsa-bu -analyze -verify-flags "test:temp+SMR-E,test:temp:0+E"
+;RUN: dsaopt %s -dsa-bu -analyze -verify-flags "test:temp1+SMR-E,test:temp1:0+E"
 ;RUN: dsaopt %s -dsa-bu -analyze -check-same-node=test:temp2:0,test:a2:0,test:temp1:0,test:temp:0,test:b2:0
 ;RUN: dsaopt %s -dsa-bu -analyze -check-same-node=test:a2,test:temp2
 
 
-;RUN: dsaopt %s -dsa-td -analyze -verify-flags "test:b2:0+SHIMR"
-;RUN: dsaopt %s -dsa-td -analyze -verify-flags "test:a2:0+SHIMR"
-;RUN: dsaopt %s -dsa-td -analyze -verify-flags "test:a2+SIMRE"
-;RUN: dsaopt %s -dsa-td -analyze -verify-flags "test:temp+SMR"
-;RUN: dsaopt %s -dsa-td -analyze -verify-flags "test:temp1+SMR"
+;RUN: dsaopt %s -dsa-td -analyze -verify-flags "test:b2:0+SHEMR"
+;RUN: dsaopt %s -dsa-td -analyze -verify-flags "test:a2:0+SHEMR"
+;RUN: dsaopt %s -dsa-td -analyze -verify-flags "test:a2+SMRE"
+;RUN: dsaopt %s -dsa-td -analyze -verify-flags "test:temp+SMR-IE,test:temp:0+E-I"
+;RUN: dsaopt %s -dsa-td -analyze -verify-flags "test:temp1+SMR,test:temp:0+E-I"
 ;RUN: dsaopt %s -dsa-td -analyze -check-same-node=test:temp2:0,test:a2:0,test:temp1:0,test:temp:0,test:b2:0
 ;RUN: dsaopt %s -dsa-td -analyze -check-same-node=test:a2,test:b2,test:temp2
 

@@ -1,14 +1,14 @@
 ;RUN: dsaopt %s -dsa-local -analyze -check-same-node=initialize:temp:0,initialize:arr:0
-;RUN: dsaopt %s -dsa-local -analyze -verify-flags "initialize:temp:0+IR"
+;RUN: dsaopt %s -dsa-local -analyze -verify-flags "initialize:temp:0+IRE"
 ;RUN: dsaopt %s -dsa-local -analyze -verify-flags "initialize:arr+IRE"
 
 ;RUN: dsaopt %s -dsa-bu -analyze -check-same-node=initialize:temp:0,initialize:arr:0
-;RUN: dsaopt %s -dsa-bu -analyze -verify-flags "initialize:temp:0+IR"
+;RUN: dsaopt %s -dsa-bu -analyze -verify-flags "initialize:temp:0+IRE"
 ;RUN: dsaopt %s -dsa-bu -analyze -verify-flags "initialize:arr+IRE"
 
 ;RUN: dsaopt %s -dsa-td -analyze -check-same-node=initialize:temp:0,initialize:arr:0
-;RUN: dsaopt %s -dsa-td -analyze -verify-flags "initialize:temp:0+HIMR"
-;RUN: dsaopt %s -dsa-td -analyze -verify-flags "initialize:arr+SIMRE"
+;RUN: dsaopt %s -dsa-td -analyze -verify-flags "initialize:temp:0+HMRE-I"
+;RUN: dsaopt %s -dsa-td -analyze -verify-flags "initialize:arr+SMRE-I"
 
 ; ModuleID = 'params1.bc'
 target datalayout = "e-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:64:64-f32:32:32-f64:64:64-v64:64:64-v128:128:128-a0:0:64-s0:64:64-f80:128:128-n8:16:32:64"
