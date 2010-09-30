@@ -1,17 +1,17 @@
 ; ModuleID = 'extern_global.c'
 ;This tests how DSA handles external globals and their completeness in TD.
 
-; Externally visible globals should be incomplete
-;RUN: dsaopt %s -dsa-td -analyze -verify-flags globalInt+GIE
-; Externally visible global and what it points to should be incomplete
-;RUN: dsaopt %s -dsa-td -analyze -verify-flags globalIntPtr+GIE
-;RUN: dsaopt %s -dsa-td -analyze -verify-flags globalIntPtr:0+GIE
-; Externally visible global and what it points to should be incomplete,
+; Externally visible globals should be marked external, but complete
+;RUN: dsaopt %s -dsa-td -analyze -verify-flags globalInt+GE-I
+; Externally visible global and what it points to should be complete/external
+;RUN: dsaopt %s -dsa-td -analyze -verify-flags globalIntPtr+GE-I
+;RUN: dsaopt %s -dsa-td -analyze -verify-flags globalIntPtr:0+GE-I
+; Externally visible global and what it points to should be complete/external
 ; this time with a struct and point to some stack memory...
-;RUN: dsaopt %s -dsa-td -analyze -verify-flags globalStructWithPointers+GIE
-;RUN: dsaopt %s -dsa-td -analyze -verify-flags globalStructWithPointers:8+IE
-;RUN: dsaopt %s -dsa-td -analyze -verify-flags globalStructWithPointers:8:8+IE
-;RUN: dsaopt %s -dsa-td -analyze -verify-flags main:s+IES
+;RUN: dsaopt %s -dsa-td -analyze -verify-flags globalStructWithPointers+GE-I
+;RUN: dsaopt %s -dsa-td -analyze -verify-flags globalStructWithPointers:8+E-I
+;RUN: dsaopt %s -dsa-td -analyze -verify-flags globalStructWithPointers:8:8+E-I
+;RUN: dsaopt %s -dsa-td -analyze -verify-flags main:s+ES-I
 ; Globals that aren't marked 'external' shouldn't be incomplete (or external)
 ;RUN: dsaopt %s -dsa-td -analyze -verify-flags normalGlobal+G-IE
 ;RUN: dsaopt %s -dsa-td -analyze -verify-flags internalGlobal+G-IE

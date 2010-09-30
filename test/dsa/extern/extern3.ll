@@ -1,5 +1,5 @@
 ; ModuleID = 'extern.c'
-;This tests the various cases that could involve incompleteness due
+;This tests the various cases that could involve lack of 'knowsAll' due
 ;to external code, and additionally verifies these flags are NOT set
 ;on internal functions.
 target datalayout = "e-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:64:64-f32:32:32-f64:64:64-v64:64:64-v128:128:128-a0:0:64-s0:64:64-f80:128:128-n8:16:32:64"
@@ -10,9 +10,10 @@ declare void @takesPointerExtern(i32*)
 declare noalias i8* @malloc(i64) nounwind
 declare void @free(i8*) nounwind
 
-;This should be marked incomplete and external due to the
+;This should be marked external due to the
 ;unification-based nature of DSA.
-;RUN: dsaopt %s -dsa-td -analyze -verify-flags "getPointer:ptr+IE"
+;(this function does not have internal linkage)
+;RUN: dsaopt %s -dsa-td -analyze -verify-flags "getPointer:ptr+E-I"
 define i32* @getPointer() nounwind {
 entry:
   %0 = tail call noalias i8* @malloc(i64 4) nounwind ; <i8*> [#uses=1]
@@ -22,7 +23,7 @@ entry:
 
 ;This should be marked incomplete and external due to the
 ;unification-based nature of DSA.
-;RUN: dsaopt %s -dsa-td -analyze -verify-flags "takesPointer:ptr+IE"
+;RUN: dsaopt %s -dsa-td -analyze -verify-flags "takesPointer:ptr+E-I"
 define i32 @takesPointer(i32* %ptr) nounwind {
 entry:
   %0 = load i32* %ptr, align 4                    ; <i32> [#uses=1]
@@ -52,8 +53,8 @@ entry:
   ret i32 0
 }
 
-;RUN: dsaopt %s -dsa-td -analyze -verify-flags "checkExterns:get+IE"
-;RUN: dsaopt %s -dsa-td -analyze -verify-flags "checkExterns:take+IE"
+;RUN: dsaopt %s -dsa-td -analyze -verify-flags "checkExterns:get+E-I"
+;RUN: dsaopt %s -dsa-td -analyze -verify-flags "checkExterns:take+E-I"
 define void @checkExterns() nounwind {
   %get = tail call i32* ()* @getPointerExtern() nounwind ; <i32*> [#uses=0]
   %1 = tail call noalias i8* @malloc(i64 4) nounwind ; <i8*> [#uses=2]
@@ -63,8 +64,8 @@ define void @checkExterns() nounwind {
   ret void
 }
 
-;RUN: dsaopt %s -dsa-td -analyze -verify-flags "checkExternals:get+IE"
-;RUN: dsaopt %s -dsa-td -analyze -verify-flags "checkExternals:take+IE"
+;RUN: dsaopt %s -dsa-td -analyze -verify-flags "checkExternals:get+E-I"
+;RUN: dsaopt %s -dsa-td -analyze -verify-flags "checkExternals:take+E-I"
 define void @checkExternals() nounwind {
 entry:
   %get = tail call i32* ()* @getPointer() nounwind ; <i32*> [#uses=0]
