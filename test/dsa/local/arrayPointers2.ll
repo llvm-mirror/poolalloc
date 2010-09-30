@@ -1,6 +1,6 @@
 ; 2D array as array of pointers. Array should not be folded.
 
-;RUN: dsaopt %s -dsa-local -analyze -check-type=main:array:0,FoldedVOIDArray
+;RUN: dsaopt %s -dsa-local -analyze -check-type=main:array:0,FoldedVOID
 ;RUN: dsaopt %s -dsa-local -analyze -check-type=main:array,0:%\struct.structType*Array
 
 

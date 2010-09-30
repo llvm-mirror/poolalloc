@@ -238,7 +238,9 @@ void DSNode::foldNodeCompletely() {
   ++NumFolds;
 
   //Collapsed nodes don't really need a type
+  //Clear the array flag too. Node should be of type VOID
   TyMap.clear();
+  maskNodeTypes(~ArrayNode);
 
   // If this node has a size that is <= 1, we don't need to create a forwarding
   // node.
