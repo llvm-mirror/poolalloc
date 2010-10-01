@@ -1046,10 +1046,45 @@ PoolAllocate::CreatePools (Function &F, DSGraph* DSG,
 void
 PoolAllocate::ProcessFunctionBody(Function &F, Function &NewF) {
   //
-  // Ask the heuristic for the list of DSNodes which should get local pools.
+  // Get the DSGraph of the function and the FuncInfo of the function.  We'll
+  // need th former and be updatting the latter.
   //
   DSGraph* G = Graphs->getDSGraph(F);
   FuncInfo & FI = *getFuncInfo(F);
+
+  //
+  // Get the mapping between local DSNodes and DSNodes in the globals graph
+  //
+  DSGraph::NodeMapTy GlobalsGraphNodeMapping;
+  G->computeGToGGMapping(GlobalsGraphNodeMapping);
+
+  //
+  // Determine which DSNodes have already been assigned global pools.  Record
+  // this information in the function's FuncInfo structure.
+  //
+  for (DSGraph::node_iterator I = G->node_begin(), E = G->node_end();
+       I != E;
+       ++I){
+    // Get the global DSNode matching this DSNode
+    DSNode * N = I;
+
+    // If the local DSNode was assigned a global pool, update the pool
+    // descriptors for the function
+    if (N->isHeapNode() && GlobalNodes[N]) {
+      FI.PoolDescriptors[N] = GlobalNodes[N];
+    }
+
+    // If a corresponding global DSNode was assigned a global pool, update the
+    // pool descriptors for the function
+    DSNode * GGN = GlobalsGraphNodeMapping[N].getNode();
+    if (GGN && GGN->isHeapNode() && GlobalNodes[GGN]) {
+      FI.PoolDescriptors[N] = GlobalNodes[GGN];
+    }
+  }
+
+  //
+  // Ask the heuristic for the list of DSNodes which should get local pools.
+  //
   CurHeuristic->getLocalPoolNodes (F, FI.NodesToPA);
 
   //
