@@ -483,9 +483,9 @@ void
 AllNodesHeuristic::AssignToPools (const std::vector<const DSNode*> &NodesToPA,
                                   Function *F, DSGraph* G,
                                   std::vector<OnePool> &ResultPools) {
-    for (unsigned i = 0, e = NodesToPA.size(); i != e; ++i)
-      ResultPools.push_back(OnePool(NodesToPA[i]));
-  }
+  for (unsigned i = 0, e = NodesToPA.size(); i != e; ++i)
+    ResultPools.push_back(OnePool(NodesToPA[i]));
+}
 
 //===-- AllButUnreachableFromMemoryHeuristic Heuristic --------------------===//
 //
