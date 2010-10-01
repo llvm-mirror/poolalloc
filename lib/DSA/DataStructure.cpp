@@ -332,6 +332,7 @@ void DSNode::mergeTypeInfo(const Type *NewTy, unsigned Offset) {
   if (!NewTy || NewTy->isVoidTy()) return;
 
   if (isCollapsedNode()) return;
+  assert (getSize() && "DSNode size is zero!\n");
   if (isArrayNode()) Offset %= getSize();
 
   if (Offset >= getSize()) growSize(Offset+1);
