@@ -337,6 +337,31 @@ void DSNode::mergeTypeInfo(const Type *NewTy, unsigned Offset) {
   if (Offset >= getSize()) growSize(Offset+1);
 
   TyMap[Offset] = getParentGraph()->getTypeSS().getOrCreate(TyMap[Offset], NewTy);
+
+  // check if the types merged have both int and pointer at the same offset,
+  // If yes, the IntToPtr and PtrToInt flag must be set on the node pointed to at
+  // that offset. If no such node exists, it is created.
+ 
+  bool pointerTy = false;
+  bool integerTy = false;
+  for (svset<const Type*>::const_iterator ni = TyMap[Offset]->begin(),
+       ne = TyMap[Offset]->end(); ni != ne; ++ni) {
+    if((*ni)->isPointerTy()) {
+      pointerTy = true;
+    }
+    if((*ni)->isIntegerTy()) {
+      integerTy = true;
+    }
+  }
+  if(pointerTy && integerTy) {
+    if(!hasLink(Offset)) {
+      const DSNodeHandle &NH  = new DSNode(getParentGraph());
+      addEdgeTo(Offset, NH);
+    }
+    DSNodeHandle &Edge = getLink(Offset);
+    assert(!Edge.isNull());
+    Edge.getNode()->setUnknownMarker()->setIntToPtrMarker()->setPtrToIntMarker();
+  }
   assert(TyMap[Offset]);
 }
 
@@ -354,6 +379,31 @@ void DSNode::mergeTypeInfo(const TyMapTy::mapped_type TyIt, unsigned Offset) {
     S.insert(TyIt->begin(), TyIt->end());
     TyMap[Offset] = getParentGraph()->getTypeSS().getOrCreate(S);
   }
+  
+  // check if the types merged have both int and pointer at the same offset,
+  // If yes, the IntToPtr and PtrToInt flag must be set on the node pointed to at
+  // that offset. If no such node exists, it is created.
+  bool pointerTy = false;
+  bool integerTy = false;
+  for (svset<const Type*>::const_iterator ni = TyMap[Offset]->begin(),
+       ne = TyMap[Offset]->end(); ni != ne; ++ni) {
+    if((*ni)->isPointerTy()) {
+      pointerTy = true;
+    }
+    if((*ni)->isIntegerTy()) {
+      integerTy = true;
+    }
+  }
+  if(pointerTy && integerTy) {
+    if(!hasLink(Offset)) {
+      const DSNodeHandle &NH  = new DSNode(getParentGraph());
+      addEdgeTo(Offset, NH);
+    }
+    DSNodeHandle &Edge = getLink(Offset);
+    assert(!Edge.isNull());
+    Edge.getNode()->setUnknownMarker()->setIntToPtrMarker()->setPtrToIntMarker();
+  }
+
   assert(TyMap[Offset]);
 }
 
