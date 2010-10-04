@@ -684,7 +684,7 @@ void FuncTransform::visitStrdupCall(CallSite CS) {
 void
 FuncTransform::visitRuntimeCheck (CallSite CS) {
   // A run-time check should have at least one argument for a pool
-  assert ((CS.arg_size() > 1) && "strdup takes one argument!");
+  assert ((CS.arg_size() > 1) && "Runtime check takes more than one argument!");
 
   //
   // Get the pool handle for the pointer argument.
