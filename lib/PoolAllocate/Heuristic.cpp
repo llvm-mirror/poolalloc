@@ -301,6 +301,17 @@ Heuristic::findGlobalPoolNodes (DSNodeSet_t & Nodes) {
   GetNodesReachableFromGlobals (GG, GlobalHeapNodes);
 
   //
+  // Now find all DSNodes belonging to function-local DSGraphs which are
+  // mirrored in the globals graph.  These DSNodes require a global pool, too.
+  //
+  for (Module::iterator F = M->begin(); F != M->end(); ++F) {
+    if (Graphs->hasDSGraph(*F)) {
+      DSGraph* G = Graphs->getDSGraph(*F);
+      GetNodesReachableFromGlobals (G, GlobalHeapNodes);
+    }
+  }
+
+  //
   // We do not want to create pools for all memory objects reachable from
   // globals.  We only want those that are or could be heap objects.
   //
