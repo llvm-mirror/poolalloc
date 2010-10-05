@@ -58,15 +58,60 @@ as simply an alias analysis (such DSA-AA).
 
 \section{Artifacts of DSA}
 
-The artifacts of DSA are a collection of directed graphs, with nodes
-representing sets of objects which may alias and edges representing
-the points-to relation between these nodes.
+The artifacts of DSA are a collection of directed graphs, called
+``DSGraphs'', with nodes (``DSNodes'') representing sets of objects
+which may alias and edges representing the points-to relation between
+these nodes.
 
 \subsection{The Function Graphs}
 
+A DSGraph is created for every function in the program.  This graph
+contains nodes and edges representing the information from the local
+function, the callees if bottom-up DSA has been run, and the callees
+and callers if top-down DSA has been run.
 
+When interpreting the results of a function graph, it is important to
+keep in mind the ``perspective'' of the DSA passes that have been run.
+For instance, under bottom-up DSA, a DSNode representing the target of
+a pointer argument to a function may not have the \texttt{global} flag
+but still may represent a global variable in some contexts if a
+particular caller passes the address of a global variable to the
+function.  Roughly, in bottom-up DSA, a function graph contains the
+information on a function which is true no matter what calling the
+calling context is.  In contrast, under top-down DSA, a function graph
+summarizes the information about a function taking into account all
+possible contexts.  Under bottom-up DSA, a node which may be either a
+heap node or a stack node depending on context will have neither the
+heap nor stack flags set.  Under top-down DSA, a node which may be
+either a heap node or a stack node depending on context will have both
+flags set.  Under bottom-up DSA, two arguments which may or may not
+alias depending on context will be represented as two separate
+DSNodes; under top-down DSA, these arguments will be unified into one
+node.
+
+Thus, bottom-up DSA gives more context-sensitivity to clients, but at
+the price of giving its results in a different and, for many clients,
+less useful form.  It is up to the client to evaluate the trade-offs
+between the two passes.
 
 \subsection{The Globals Graph}
+
+The globals graph represents the interactions between global variables
+and nodes reachable from global variables.  The globals graph contains
+exactly those DSNodes which are reachable from some DSNode
+representing a global variable.  The existence and design of this
+graph is partly motivated by internal DSA optimizations unlikely to be
+of concern to clients.
+
+It is important not to confuse the globals graph with the
+\texttt{global} flag described later in this manual.  While all
+DSNodes marked with the \texttt{global} flag will be represented in
+the globals graph since nodes with the \texttt{global} flag are
+exactly those which may represent global variables, the globals graph
+will also contain nodes which do not have the \texttt{global} flag,
+such as the targets of global pointers.  The set of nodes in the
+globals graph is the transitive closure of the set of nodes with the
+\texttt{global} flag under the points-to relation.
 
 \section{Interfaces to DSA Results}
 
