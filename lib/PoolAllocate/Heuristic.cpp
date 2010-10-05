@@ -212,7 +212,8 @@ Heuristic::getRecommendedAlignment(const DSNode *Node) {
 // Description:
 //  This function finds all DSNodes which are reachable from globals.  It finds
 //  DSNodes both within the local DSGraph as well as in the Globals graph that
-//  are reachable from globals.
+//  are reachable from globals.  It does, however, filter out those DSNodes
+//  which are of no interest to automatic pool allocation.
 //
 // Inputs:
 //  G - The DSGraph for which to find DSNodes which are reachable by globals.
@@ -242,6 +243,33 @@ GetNodesReachableFromGlobals (DSGraph* G,
        NI != GlobalsGraph->node_end();
        ++NI) {
     NI->markReachableNodes(NodesFromGlobals);
+  }
+
+  //
+  // Remove those global nodes which we know will never be pool allocated.
+  //
+  std::vector<const DSNode *> toRemove;
+  for (DenseSet<const DSNode*>::iterator I = NodesFromGlobals.begin(),
+         E = NodesFromGlobals.end(); I != E; ) {
+    DenseSet<const DSNode*>::iterator Last = I; ++I;
+    //
+    // Nodes that escape to external code could be reachable from globals.
+    // Nodes that are incomplete could be heap nodes.
+    // Unknown nodes could be anything.
+    //
+    const DSNode *tmp = *Last;
+    if (!(tmp->isHeapNode() ||
+          tmp->isExternalNode() ||
+          tmp->isIncompleteNode() ||
+          tmp->isUnknownNode()))
+      toRemove.push_back (tmp);
+  }
+ 
+  //
+  // Remove all globally reachable DSNodes which do not require pools.
+  //
+  for (unsigned index = 0; index < toRemove.size(); ++index) {
+    NodesFromGlobals.erase(toRemove[index]);
   }
 
   //
@@ -311,6 +339,7 @@ Heuristic::findGlobalPoolNodes (DSNodeSet_t & Nodes) {
     }
   }
 
+#if 0
   //
   // We do not want to create pools for all memory objects reachable from
   // globals.  We only want those that are or could be heap objects.
@@ -339,6 +368,7 @@ Heuristic::findGlobalPoolNodes (DSNodeSet_t & Nodes) {
   for (unsigned index = 0; index < toRemove.size(); ++index) {
     GlobalHeapNodes.erase(toRemove[index]);
   }
+#endif
 
   //
   // Scan through all the local graphs looking for DSNodes which may be
@@ -353,8 +383,7 @@ Heuristic::findGlobalPoolNodes (DSNodeSet_t & Nodes) {
          I != E;
          ++I) {
       DSNode * Node = I;
-      if (Node->isExternalNode() || Node->isIncompleteNode() ||
-          Node->isUnknownNode()) {
+      if (Node->isExternalNode() || Node->isUnknownNode()) {
         GlobalHeapNodes.insert (Node);
       }
     }
