@@ -1085,8 +1085,19 @@ PoolAllocate::ProcessFunctionBody(Function &F, Function &NewF) {
   //
   // Ask the heuristic for the list of DSNodes which should get local pools.
   //
-  CurHeuristic->getLocalPoolNodes (F, FI.NodesToPA);
+  std::vector<const DSNode *> LocalNodes;
+  CurHeuristic->getLocalPoolNodes (F, LocalNodes);
 
+  //
+  // Remove from the set all of the DSNodes which are poolallocated in a caller
+  // function.
+  //
+  for (unsigned index = 0; index < LocalNodes.size(); ++index) {
+    if (!(FI.MarkedNodes.count (LocalNodes[index]))) {
+      FI.NodesToPA.push_back (LocalNodes[index]);
+    }
+  }
+  
   //
   // Add code to create the pools that are local to this function.
   //
