@@ -1,0 +1,114 @@
+\documentclass{article}
+\begin{document}
+
+\title{Data Structure Analysis User's Manual}
+\author{Patrick Simmons}
+
+\maketitle
+
+\section{Introduction}
+
+Data Structure Analysis is a form of field-sensitive,
+context-sensitive, unification-based alias analysis, described fully
+in Chris Lattner's
+thesis.\footnote{http://llvm.org/pubs/2005-05-04-LattnerPHDThesis.html}
+DSA is also the LLVM analysis pass implementing this algorithm.  The
+goal of this user's manual is to document the external API of the LLVM
+DSA pass for the benefit of those who wish to write clients for this
+pass.
+
+\section{Brief Overview of DSA Algorithm}
+
+DSA roughly works in three distinct phases: Local, Bottom-Up, and
+Top-Down.  In order to motivate the artifacts created by the DSA
+algorithm, these phases are briefly discussed below.  Many
+simplifications have been made, and many details have been omitted.
+Those interested in the workings of DSA in any detail should consult
+Chris Lattner's thesis.
+
+\subsection{Local}
+
+The local phase of DSA creates a node (``DSNode'') representing each
+pointer and pointer target within a function.  It then creates a graph
+by creating edges between the nodes representing the ``points-to''
+relationship.  However, because DSA is unification-based, there can be
+only one edge from any single field.  Thus, if the local analysis is
+not able to determine which of multiple objects is the target of a
+pointer, all possible targets must be merged into a single DSNode.
+The local analysis is run on each function in the program, creating
+separate graphs for each.
+
+\subsection{Bottom-Up}
+
+After the local phase has run, DSA iterates over the callgraph,
+callees before callers, and clones the callee's graph into the caller
+by matching the nodes corresponding to callee formal parameters to the
+actual parameters given in the caller.  This cloning is key to the
+context-sensitivity of DSA.  A number of tricks are used which in
+practice prevent this pass from exhibiting its exponential worst-case
+behavior.
+
+\subsection{Top-Down}
+
+The top-down phase of DSA iterates over the callgraph again, this time
+callers before callees, and merges nodes in callees when necessary.
+This has the unfortunate effect of destroying some of DSA's
+context-sensitivity but is necessary for clients that which to use DSA
+as simply an alias analysis (such DSA-AA).
+
+\section{Artifacts of DSA}
+
+The artifacts of DSA are a collection of directed graphs, with nodes
+representing sets of objects which may alias and edges representing
+the points-to relation between these nodes.
+
+\subsection{The Function Graphs}
+
+
+
+\subsection{The Globals Graph}
+
+\section{Interfaces to DSA Results}
+
+%Will mostly use DSGraph.h and DSNode.h for this
+%Make sure to remember to mention the flags.
+%Mention John's rules in this section.
+
+%Final subsection
+\subsection{Potential Pitfalls}
+
+\section{DSA Passes}
+
+Depending on their needs, clients may wish to use the results of any
+one of a number of DSA passes.  It is important to understand the
+differences between them.  The two most common passes are listed
+below.  A client uses a pass by indicating that it requires its
+results in the normal LLVM manner:
+\begin{verbatim}
+EXAMPLE
+\end{verbatim}
+
+\subsection{EQTDDataStructures}
+
+This is the ``final'' form of DSA and is probably the appropriate pass
+for most external clients to use.  By including this pass, a client
+will get the results of the DSA analysis after all phases of DSA have
+been run.  Merging has been performed for aliasing in both callers and
+callees, so fewer nodes will be incomplete than in bottom-up.
+Aliasing information will therefore be most precise.
+
+The primary disadvantage of using EQTDDataStructures is the loss of
+precision caused by the additional merging of nodes relative to
+bottom-up.  Depending on the needs of a client, therefore,
+EquivBuDataStructures may be more appropriate in specific cases.
+
+\subsection{EquivBUDataStructures}
+
+This pass runs all forms of DSA except top-down propagation.  The
+DSGraphs returned by this pass take into account aliasing caused by
+calleees of a function, but not by callers.  Thus, this pass is not
+appropriate for use as a traditional not-shared/may-shared/must-shared
+alias analysis.  However, as this pass is more context-sensitive than
+EQTDDataStructures, it may be a better choice for certain clients.
+
+\end{document}
