@@ -339,37 +339,6 @@ Heuristic::findGlobalPoolNodes (DSNodeSet_t & Nodes) {
     }
   }
 
-#if 0
-  //
-  // We do not want to create pools for all memory objects reachable from
-  // globals.  We only want those that are or could be heap objects.
-  //
-  std::vector<const DSNode *> toRemove;
-  for (DenseSet<const DSNode*>::iterator I = GlobalHeapNodes.begin(),
-         E = GlobalHeapNodes.end(); I != E; ) {
-    DenseSet<const DSNode*>::iterator Last = I; ++I;
-
-    //
-    // Nodes that escape to external code could be reachable from globals.
-    // Nodes that are incomplete could be heap nodes.
-    // Unknown nodes could be anything.
-    //
-    const DSNode *tmp = *Last;
-    if (!(tmp->isHeapNode() ||
-          tmp->isExternalNode() ||
-          tmp->isIncompleteNode() ||
-          tmp->isUnknownNode()))
-      toRemove.push_back (tmp);
-  }
-  
-  //
-  // Remove all globally reachable DSNodes which do not require pools.
-  //
-  for (unsigned index = 0; index < toRemove.size(); ++index) {
-    GlobalHeapNodes.erase(toRemove[index]);
-  }
-#endif
-
   //
   // Scan through all the local graphs looking for DSNodes which may be
   // reachable by a global.  These nodes may not end up in the globals graph 
