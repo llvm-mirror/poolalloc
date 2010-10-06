@@ -26,13 +26,14 @@
 #include "llvm/ADT/Statistic.h"
 #include "llvm/ADT/EquivalenceClasses.h"
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/Support/FormattedStream.h"
+#include <fstream>
 using namespace llvm;
 
 namespace {
   RegisterPass<EquivBUDataStructures> X("dsa-eq",
                     "Equivalence-class Bottom-up Data Structure Analysis");
 }
-
 char EquivBUDataStructures::ID = 0;
 
 // runOnModule - Calculate the bottom up data structure graphs for each function
@@ -42,13 +43,43 @@ bool EquivBUDataStructures::runOnModule(Module &M) {
   init(&getAnalysis<CompleteBUDataStructures>(), false, true, false, true);
 
   //update the EQ class from indirect calls
+  bool result = false;
   buildIndirectFunctionSets();
-
   mergeGraphsByGlobalECs();
-
-  return runOnModuleInternal(M);
+  result = runOnModuleInternal(M);
+  
+  verifyMerging();
+  
+  return result;
 }
 
+void
+EquivBUDataStructures::verifyMerging() {
+  
+  EquivalenceClasses<const GlobalValue*>::iterator EQSI = GlobalECs.begin();
+  EquivalenceClasses<const GlobalValue*>::iterator EQSE = GlobalECs.end();
+  for (;EQSI != EQSE; ++EQSI) {
+    if (!EQSI->isLeader()) continue;
+    EquivalenceClasses<const GlobalValue*>::member_iterator MI;
+    bool first = true;
+    DSGraph *firstG = 0;
+    for (MI = GlobalECs.member_begin(EQSI); MI != GlobalECs.member_end(); ++MI){
+      if (const Function* F = dyn_cast<Function>(*MI)){
+        if (F->isDeclaration())
+          continue;
+          
+          if(first) {
+            firstG = getOrCreateGraph(F);
+            first = false;
+          } 
+          DSGraph *G = getOrCreateGraph(F);
+          if( G != firstG) {
+            assert(G == firstG && "all functions in a Global EC do not have a merged graph"); 
+          }
+      }
+    }
+  }
+}
 
 //
 // Method: mergeGraphsByGlobalECs()
@@ -69,6 +100,7 @@ EquivBUDataStructures::mergeGraphsByGlobalECs() {
   // For each leader, we scan through all of its members and merge the DSGraphs
   // for members which are functions.
   //
+ 
   EquivalenceClasses<const GlobalValue*>::iterator EQSI = GlobalECs.begin();
   EquivalenceClasses<const GlobalValue*>::iterator EQSE = GlobalECs.end();
   for (;EQSI != EQSE; ++EQSI) {

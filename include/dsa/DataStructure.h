@@ -302,6 +302,8 @@ public:
 ///
 class EquivBUDataStructures : public CompleteBUDataStructures {
   void mergeGraphsByGlobalECs();
+  void verifyMerging();
+
 public:
   static char ID;
   EquivBUDataStructures()
