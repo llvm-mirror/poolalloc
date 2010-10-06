@@ -2,7 +2,7 @@
 \begin{document}
 
 \title{Data Structure Analysis User's Manual}
-\author{Patrick Simmons}
+\author{Written by Patrick Simmons}
 
 \maketitle
 
@@ -64,6 +64,7 @@ which may alias and edges representing the points-to relation between
 these nodes.
 
 \subsection{The Function Graphs}
+\label{fungraph}
 
 A DSGraph is created for every function in the program.  This graph
 contains nodes and edges representing the information from the local
@@ -119,8 +120,202 @@ globals graph is the transitive closure of the set of nodes with the
 %Make sure to remember to mention the flags.
 %Mention John's rules in this section.
 
+This section lists selected, generally useful functions from the
+client API of DSA.
+
+\subsection{Special Types}
+
+DSA uses a number of special types in its arguments and return
+values.  These are summarized in this section.
+
+\subsubsection{DSNodeHandle}
+
+DSNodeHandle is a smart pointer designed to contain one thing and one
+thing only: a pointer to a DSNode.  The only interesting function it
+contains is \texttt{getNode()}, which returns the pointer associated
+with a DSNodeHandle.  If a client pass wishes to build a data
+structure containing DSNode references, this class should be used
+instead of storing DSNode references directly.  The reason for this is
+that calling getNode() on a DSNodeHandle has the potential to render
+invalid any raw DSNode pointer held by a client.
+
+While DSNodeHandle implements the <, >, and == comparison functions by
+simply comparing the underlying raw pointers, it is not safe to use
+DSNodeHandles in STL or other data structures that expect to be used
+with immutable objects.  Any accesses to DSNodes may result in the
+pointer associated with a DSNodeHandle changing its value and
+therefore change the result of these comparison operations.  In
+particular, it is not safe to store DSNodeHandles in an STL set or
+map.
+
+\subsubsection{NodeMapTy}
+
+This is a typedef for \texttt{std::map<const DSNode*, DSNodeHandle>}.
+
+\subsubsection{InvNodeMapTy}
+
+This is a typedef for \texttt{std::multimap<DSNodeHandle, const DSNode*>}.
+
+\subsection{DataStructures : public ModulePass}
+
+\begin{itemize}
+\item \texttt{DSGraph* getDSGraph(const Function\& F) const}: return
+  the DSGraph for the specified function, or null if none
+\item \texttt{DSGraph* getGlobalsGraph() const}: return the globals
+  graph
+\end{itemize}
+
+\subsection{DSGraph}
+
+\begin{itemize}
+\item \texttt{DSGraph* getGlobalsGraph() const}: return the globals
+  graph
+\item \texttt{node\_iterator node\_begin()/node\_end()}: iterate over all the nodes
+  in the DSGraph.  Be extremely careful when using these methods.
+\item \texttt{string getFunctionNames() const}: return a
+  space-separated list of the names of functions in this graph
+\item \texttt{const std::list<DSCallSite>\& getFunctionCalls() const}:
+  return a list of call sites in the original local graph
+\item \texttt{fc\_iterator fc\_begin()/fc\_end() const}: iterate over
+  call sites
+\item \texttt{DSNodeHandle\& getNodeForValue(const Value* V) const}:
+  return the DSNode in this graph associated with the specified value
+\item \texttt{bool hasNodeForValue(const Value* V) const}: return true
+  if there is a DSNode in this graph associated with the specified
+  value, false otherwise
+\item \texttt{DSNodeHandle\& getReturnNodeFor(const Function\& F)}: get
+  the return node for the specified function (which must be associated
+  with the current DSGraph)
+\item \texttt{static void computeNodeMapping(const DSNodeHandle\& NH1,
+  const DSNodeHandle\& NH2, NodeMapTy\& NodeMap, bool StrictChecking =
+  true)}: given roots in two different DSGraphs, traverse the nodes
+  reachable from the two graphs and construct the maping of nodes from
+  the first to the second graph.  This function is useful in allowing
+  a client to analyze which nodes in two different DSGraphs represent
+  the ``same'' value in a certain context; however, the most common
+  potential uses of this function are handled by the more specialized
+  functions below.
+\item \texttt{void computeGtoGGMapping(NodeMapTy\& NodeMap)}: compute
+  the mapping of nodes in this DSGraph to nodes in the globals graph
+\item \texttt{void computeGGtoGMapping(InvNodeMapTy\& InvNodeMap)}:
+  compute the mapping of nodes in the globals graph to nodes in this
+  DSGraph
+\item \texttt{void computeCalleeCallerMapping(DSCallSite CS, const
+  Function\& Callee, DSGraph\& CalleeGraph, NodeMapTy\& NodeMap)}: given
+  a call from a function in the current graph to the ``Callee''
+  function, which must be associated with ``CalleeGraph'', construct a
+  mapping of nodes from the callee to nodes in this graph
+\end{itemize}
+
+\subsection{DSNode}
+
+The DSNode class represents a node in a DSA function or globals graph
+and therefore represents a set of objects which may alias.
+Interesting analysis results about the behavior of this alias set are
+stored as flags:
+\begin{verbatim}
+  enum NodeTy {
+    ShadowNode      = 0,        // Nothing is known about this node...
+    AllocaNode      = 1 << 0,   // This node was allocated with alloca
+    HeapNode        = 1 << 1,   // This node was allocated with malloc
+    GlobalNode      = 1 << 2,   // This node was allocated by a global var decl
+    ExternFuncNode  = 1 << 3,   // This node contains external functions
+    ExternGlobalNode = 1 << 4,  // This node contains external globals
+    UnknownNode     = 1 << 5,   // This node points to unknown allocated memory
+    IncompleteNode  = 1 << 6,   // This node may not be complete
+
+    ModifiedNode    = 1 << 7,   // This node is modified in this context
+    ReadNode        = 1 << 8,   // This node is read in this context
+
+    ArrayNode       = 1 << 9,   // This node is treated like an array
+    CollapsedNode   = 1 << 10,  // This node is collapsed
+    ExternalNode    = 1 << 11,  // This node comes from an external source
+    IntToPtrNode    = 1 << 12,   // This node comes from an int cast
+    PtrToIntNode    = 1 << 13,  // This node escapes to an int cast
+    VAStartNode     = 1 << 14,  // This node is from a vastart call
+\end{verbatim}
+
+These flags may be accessed with the following accessors:
+\begin{verbatim}
+  unsigned getNodeFlags() const;
+  bool isAllocaNode()     const { return NodeType & AllocaNode;    }
+  bool isHeapNode()       const { return NodeType & HeapNode;      }
+  bool isGlobalNode()     const { return NodeType & GlobalNode;    }
+  bool isExternFuncNode() const { return NodeType & ExternFuncNode; }
+  bool isUnknownNode()    const { return NodeType & UnknownNode;   }
+  bool isModifiedNode()   const { return NodeType & ModifiedNode;  }
+  bool isReadNode()       const { return NodeType & ReadNode;      }
+  bool isArrayNode()      const { return NodeType & ArrayNode;     }
+  bool isCollapsedNode()  const { return NodeType & CollapsedNode; }
+  bool isIncompleteNode() const { return NodeType & IncompleteNode;}
+  bool isCompleteNode()   const { return !isIncompleteNode();      }
+  bool isExternalNode()   const { return NodeType & ExternalNode;  }
+  bool isIntToPtrNode()   const { return NodeType & IntToPtrNode;  }
+  bool isPtrToIntNode()   const { return NodeType & PtrToIntNode;  }
+  bool isVAStartNode()    const { return NodeType & VAStartNode;   }
+\end{verbatim}
+
+Other useful functions of this class are summarized below:
+\begin{itemize}
+\item \texttt{DSGraph* getParentGraph() const}: get the DSGraph of
+  which this node is a part
+\item \texttt{unsigned getNumReferrers() const}: return the number of
+  edges pointing to this node
+\item \texttt{unsigned getSize() const}: return the size of the
+  largest value represented by this node
+\item \texttt{bool hasLink(unsigned offset) const}: return true if any
+  value represented by this node may have a pointer to another node at
+  the specified offset from the start of the value.
+\item \texttt{DSNodeHandle\& getLilnk(unsigned offset)}: returns the
+  DSNodeHandle associated with the node pointed to by this node at the
+  specified offset
+\item \texttt{void markReachableNodes(llvm::DenseSet<const DSNode*>\&
+  ReachableNodes) const}: populates ReachableNodes with pointers to
+  all DSNodes reachable from this node's edges.
+\end{itemize}
+
+\subsection{DSCallSite}
+
+This class provides an interface to the call graph of the program as
+seen by DSA.  The interesting functions are printed below.
+\begin{verbatim}
+  /// isDirectCall - Return true if this call site is a direct call of the
+  /// function specified by getCalleeFunc.  If not, it is an indirect call to
+  /// the node specified by getCalleeNode.
+  ///
+  bool isDirectCall() const { return CalleeF != 0; }
+  bool isIndirectCall() const { return !isDirectCall(); }
+
+
+  // Accessor functions...
+  const Function     &getCaller()     const;
+  CallSite            getCallSite()   const { return Site; }
+        DSNodeHandle &getRetVal()           { return RetVal; }
+  const DSNodeHandle &getRetVal()     const { return RetVal; }
+        DSNodeHandle &getVAVal()            { return VarArgVal; }
+  const DSNodeHandle &getVAVal()      const { return VarArgVal; }
+
+  DSNode *getCalleeNode() const {
+    assert(!CalleeF && CalleeN.getNode()); return CalleeN.getNode();
+  }
+  const Function *getCalleeFunc() const {
+    assert(!CalleeN.getNode() && CalleeF); return CalleeF;
+  }
+
+  unsigned getNumPtrArgs() const { return CallArgs.size(); }
+\end{verbatim}
+
 %Final subsection
 \subsection{Potential Pitfalls}
+
+The most important pitfall to using DSA successfully is to
+misunderstand the information returned by it.  This is more of a
+problem when using a bottom-up-only analysis than when using a
+top-down analysis.  When designing a client pass, one must take care
+not to infer things from DSA that are not implied by the information
+given.  It may be advisable for a pass author to reread
+\S\ref{fungraph} of this manual, especially if bottom-up
+DSA is to be used.
 
 \section{DSA Passes}
 

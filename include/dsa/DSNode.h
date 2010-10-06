@@ -102,7 +102,7 @@ public:
     CollapsedNode   = 1 << 10,  // This node is collapsed
     ExternalNode    = 1 << 11,  // This node comes from an external source
     IntToPtrNode    = 1 << 12,   // This node comes from an int cast
-    PtrToIntNode    = 1 << 13,  // This node excapes to an int cast
+    PtrToIntNode    = 1 << 13,  // This node escapes to an int cast
     VAStartNode     = 1 << 14,  // This node is from a vastart call
 
     //#ifndef NDEBUG
