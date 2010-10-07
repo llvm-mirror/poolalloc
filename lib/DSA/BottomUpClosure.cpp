@@ -791,6 +791,13 @@ void BUDataStructures::calculateGraph(DSGraph* Graph) {
   Graph->maskIncompleteMarkers();
   Graph->markIncompleteNodes(DSGraph::MarkFormalArgs);
 
+  
+  //
+  // Update the callgraph with the new information that we have gleaned.
+  // NOTE : This must be called before removeDeadNodes, so that no 
+  // information is lost due to deletion of DSCallNodes.
+  Graph->buildCallGraph(callgraph,filterCallees);
+  
   // Delete dead nodes.  Treat globals that are unreachable but that can
   // reach live nodes as live.
   Graph->removeDeadNodes(DSGraph::KeepUnreachableGlobals);
@@ -798,10 +805,6 @@ void BUDataStructures::calculateGraph(DSGraph* Graph) {
   cloneIntoGlobals(Graph);
   //Graph.writeGraphToFile(cerr, "bu_" + F.getName());
 
-  //
-  // Update the callgraph with the new information that we have gleaned.
-  //
-  Graph->buildCallGraph(callgraph,filterCallees);
 }
 
 //For Entry Points
