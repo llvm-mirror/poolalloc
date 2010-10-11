@@ -1070,14 +1070,14 @@ PoolAllocate::ProcessFunctionBody(Function &F, Function &NewF) {
 
     // If the local DSNode was assigned a global pool, update the pool
     // descriptors for the function
-    if (N->isHeapNode() && GlobalNodes[N]) {
+    if (GlobalNodes[N]) {
       FI.PoolDescriptors[N] = GlobalNodes[N];
     }
 
     // If a corresponding global DSNode was assigned a global pool, update the
     // pool descriptors for the function
     DSNode * GGN = GlobalsGraphNodeMapping[N].getNode();
-    if (GGN && GGN->isHeapNode() && GlobalNodes[GGN]) {
+    if (GGN && GlobalNodes[GGN]) {
       FI.PoolDescriptors[N] = GlobalNodes[GGN];
     }
   }
