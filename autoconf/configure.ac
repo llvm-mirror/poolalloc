@@ -77,6 +77,12 @@ dnl * Set the location of various third-party software packages
 dnl **************************************************************************
 
 dnl **************************************************************************
+dnl * Set the location of various programs
+dnl **************************************************************************
+AC_PATH_PROG(LATEX, [latex])
+AC_PATH_PROG(BIBTEX, [bibtex])
+
+dnl **************************************************************************
 dnl * Create the output files
 dnl **************************************************************************
 AC_CONFIG_HEADERS(include/poolalloc/Config/config.h)
