@@ -215,6 +215,9 @@ public:
   Constant *PoolFree;
   Constant *PoolCalloc;
   Constant *PoolStrdup;
+
+  // Function which will initialize global pools
+  Function * GlobalPoolCtor;
   
   static const Type *PoolDescPtrTy;
 

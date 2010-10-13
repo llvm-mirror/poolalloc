@@ -105,6 +105,87 @@ createPoolAllocInit (Module & M) {
   return;
 }
 
+//
+// Function: createGlobalPoolCtor()
+//
+// Description:
+//  This function creates an empty function which will be a global constructor
+//  (i.e., global ctor).  Pool Allocation will eventually add code to it to
+//  initialize all of the global pools.
+//
+static Function *
+createGlobalPoolCtor (Module & M) {
+  //
+  // Create the global pool ctor function.
+  //
+  LLVMContext & Context = M.getContext();
+  const Type * VoidType = Type::getVoidTy (Context);
+  FunctionType * FTy = FunctionType::get(VoidType,
+                                         std::vector<const Type*>(),
+                                         false);
+  Function *InitFunc = Function::Create (FTy,
+                                         GlobalValue::ExternalLinkage,
+                                         "poolalloc_global_ctor",
+                                         &M);
+
+  //
+  // Add an entry basic block that just returns.
+  //
+  BasicBlock * BB = BasicBlock::Create (Context, "entry", InitFunc);
+  ReturnInst::Create(Context, BB);
+
+  //
+  // Insert the run-time ctor into the ctor list.
+  //
+  const Type * Int32Type = IntegerType::getInt32Ty(Context);
+  std::vector<Constant *> CtorInits;
+  CtorInits.push_back (ConstantInt::get (Int32Type, 65535));
+  CtorInits.push_back (InitFunc);
+  Constant * RuntimeCtorInit = ConstantStruct::get(Context, CtorInits, false);
+
+  //
+  // Get the current set of static global constructors and add the new ctor
+  // to the end of the list (the list seems to be initialized in reverse
+  // order).
+  //
+  std::vector<Constant *> CurrentCtors;
+  GlobalVariable * GVCtor = M.getNamedGlobal ("llvm.global_ctors");
+  if (GVCtor) {
+    if (Constant * C = GVCtor->getInitializer()) {
+      for (unsigned index = 0; index < C->getNumOperands(); ++index) {
+        CurrentCtors.push_back (cast<Constant>(C->getOperand (index)));
+      }
+    }
+
+    //
+    // Rename the global variable so that we can name our global
+    // llvm.global_ctors.
+    //
+    GVCtor->setName ("removed");
+  }
+  CurrentCtors.push_back (RuntimeCtorInit);
+
+  //
+  // Create a new initializer.
+  //
+  const ArrayType * AT = ArrayType::get (RuntimeCtorInit-> getType(),
+                                         CurrentCtors.size());
+  Constant * NewInit=ConstantArray::get (AT, CurrentCtors);
+
+  //
+  // Create the new llvm.global_ctors global variable and replace all uses of
+  // the old global variable with the new one.
+  //
+  new GlobalVariable (M,
+                      NewInit->getType(),
+                      false,
+                      GlobalValue::AppendingLinkage,
+                      NewInit,
+                      "llvm.global_ctors");
+
+  return InitFunc;
+}
+
 void PoolAllocate::getAnalysisUsage(AnalysisUsage &AU) const {
   // We will need the heuristic pass to tell us what to do and how to do it
   AU.addRequired<Heuristic>();
@@ -162,6 +243,9 @@ bool PoolAllocate::runOnModule(Module &M) {
 
   // Add the pool* prototypes to the module
   AddPoolPrototypes(&M);
+
+  // Create the global ctor function for initializing the global pools.
+  GlobalPoolCtor = createGlobalPoolCtor (M);
 
   // Create the pools for memory objects reachable by global variables.
   if (SetupGlobalPools(M))
@@ -853,9 +937,6 @@ PoolAllocate::MakeFunctionClone (Function & F) {
 //
 // FIXME: Update comment
 //
-// FIXME: Global pools should probably be initialized by a global ctor instead
-//        of by main().
-//
 // SetupGlobalPools - Create global pools for all DSNodes in the globals graph
 // which contain heap objects.  If a global variable points to a piece of memory
 // allocated from the heap, this pool gets a global lifetime.  This is
@@ -875,21 +956,13 @@ bool PoolAllocate::SetupGlobalPools(Module &M) {
   std::vector<const DSNode*> NodesToPA;
   CurHeuristic->getGlobalPoolNodes (NodesToPA);
 
-  // Otherwise get the main function to insert the poolinit calls.
-  Function *MainFunc = M.getFunction("main");
-  if (MainFunc == 0 || MainFunc->isDeclaration()) {
-    errs() << "Cannot pool allocate this program: it has global "
-              << "pools but no 'main' function yet!\n";
-    return true;
-  }
-
   errs() << "Pool allocating " << NodesToPA.size() << " global nodes!\n";
 
   DSGraph* GG = Graphs->getGlobalsGraph();
   std::vector<Heuristic::OnePool> ResultPools;
   CurHeuristic->AssignToPools(NodesToPA, 0, GG, ResultPools);
 
-  BasicBlock::iterator InsertPt = MainFunc->getEntryBlock().begin();
+  BasicBlock::iterator InsertPt = GlobalPoolCtor->getEntryBlock().begin();
 
   //
   // Create a set of the DSNodes globally reachable from memory.  We'll assign
@@ -939,14 +1012,11 @@ GlobalVariable *PoolAllocate::CreateGlobalPool(unsigned RecSize, unsigned Align,
   DSNode *GNode = Graphs->getGlobalsGraph()->addObjectToGraph(GV);
   GNode->setModifiedMarker()->setReadMarker();
 
-  Function *MainFunc = CurModule->getFunction("main");
-  assert(MainFunc && "No main in program??");
-
   BasicBlock::iterator InsertPt;
   if (IPHint)
     InsertPt = IPHint;
   else {
-    InsertPt = MainFunc->getEntryBlock().begin();
+    InsertPt = GlobalPoolCtor->getEntryBlock().begin();
     while (isa<AllocaInst>(InsertPt)) ++InsertPt;
   }
 
