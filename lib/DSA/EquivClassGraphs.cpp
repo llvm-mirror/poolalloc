@@ -40,17 +40,13 @@ char EquivBUDataStructures::ID = 0;
 // in the program.
 //
 bool EquivBUDataStructures::runOnModule(Module &M) {
-  init(&getAnalysis<CompleteBUDataStructures>(), false, true, false, true);
+  init(&getAnalysis<CompleteBUDataStructures>(), true, true, false, true);
 
   //update the EQ class from indirect calls
-  bool result = false;
   buildIndirectFunctionSets();
   mergeGraphsByGlobalECs();
-  result = runOnModuleInternal(M);
-  
   verifyMerging();
-  
-  return result;
+  return runOnModuleInternal(M);  
 }
 
 void

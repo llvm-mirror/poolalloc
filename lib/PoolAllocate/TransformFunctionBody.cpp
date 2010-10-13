@@ -874,7 +874,7 @@ void FuncTransform::visitCallSite(CallSite& CS) {
     // of pools possible and prevents us from eliding a pool because we're
     // examining a target that doesn't need it.
     //
-    const DSCallGraph & callGraph = Graphs.getCallGraph();
+    const DSCallGraph & callGraph = PAInfo.getCallGraph();
     unsigned maxArgsWithNodes = 0;
     DSCallGraph::callee_iterator I = callGraph.callee_begin(OrigInst);
     for (; I != callGraph.callee_end(OrigInst); ++I) {
@@ -883,12 +883,12 @@ void FuncTransform::visitCallSite(CallSite& CS) {
       // it should be an original function.
       //
       FuncInfo *CFI = PAInfo.getFuncInfo(**I);
-
+      assert(CFI && "Func Info not found");
       //
       // If this target takes more DSNodes than the last one we found, then
       // make *this* target our canonical target.
       //
-      if (CFI->ArgNodes.size() > maxArgsWithNodes) {
+      if (CFI->ArgNodes.size() >= maxArgsWithNodes) {
         maxArgsWithNodes = CFI->ArgNodes.size();
         CF = *I;
       }
@@ -906,7 +906,10 @@ void FuncTransform::visitCallSite(CallSite& CS) {
       assert (d && "No DSNode!\n");
       std::vector<const Function*> g;
       d->addFullFunctionList(g);
-
+      
+      if(!(d->isIncompleteNode()) && !(d->isExternalNode())) {
+      //if(!(d->isIncompleteNode()) && !(d->isExternalNode()) && !(d->isCollapsedNode())) {
+      
       //
       // Perform some consistency checks on the callees.
       //
@@ -918,10 +921,11 @@ void FuncTransform::visitCallSite(CallSite& CS) {
       // same DSGraph, so it doesn't matter which one we use as long as we use
       // a function that *has* a DSGraph.
       //
-      for (unsigned index = 0; index < g.size(); ++index) {
-        if (Graphs.hasDSGraph (*(g[index]))) {
-          CF = g[index];
-          break;
+        for (unsigned index = 0; index < g.size(); ++index) {
+          if (Graphs.hasDSGraph (*(g[index]))) {
+            CF = g[index];
+            break;
+          }
         }
       }
     }
@@ -951,14 +955,14 @@ void FuncTransform::visitCallSite(CallSite& CS) {
 
 #ifndef NDEBUG
     // Verify that all potential callees at call site have the same DS graph.
-    DSCallGraph::callee_iterator E = Graphs.getCallGraph().callee_end(OrigInst);
+    /*DSCallGraph::callee_iterator E = PAInfo.getCallGraph().callee_end(OrigInst);
     for (; I != E; ++I) {
       const Function * F = *I;
       assert (F);
       if (!(F)->isDeclaration())
         assert(CalleeGraph == Graphs.getDSGraph(**I) &&
                "Callees at call site do not have a common graph!");
-    }
+    }*/
 #endif    
 
     // Find the DS nodes for the arguments that need to be added, if any.

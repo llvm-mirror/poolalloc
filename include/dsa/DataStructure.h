@@ -315,6 +315,7 @@ public:
   virtual void getAnalysisUsage(AnalysisUsage &AU) const {
 	AU.addRequired<EntryPointAnalysis>();
     AU.addRequired<CompleteBUDataStructures>();
+    AU.addPreserved<CompleteBUDataStructures>();
     AU.setPreservesCFG();
   }
 
@@ -368,6 +369,7 @@ public:
   virtual void getAnalysisUsage(AnalysisUsage &AU) const {
     if (useEQBU) {
       AU.addRequired<EquivBUDataStructures>();
+      AU.addPreserved<CompleteBUDataStructures>();
     } else {
       AU.addRequired<BUDataStructures>();
       AU.addPreserved<BUDataStructures>();

@@ -39,7 +39,7 @@ using namespace llvm;
 
 #define COLLAPSE_ARRAYS_AGGRESSIVELY 0
 namespace {
-  STATISTIC (NumCallNodesMerged , "Number of call nodes merged");
+  //STATISTIC (NumCallNodesMerged , "Number of call nodes merged");
   STATISTIC (NumDNE             , "Number of nodes removed by reachability");
   STATISTIC (NumTrivialDNE      , "Number of nodes trivially removed");
   STATISTIC (NumTrivialGlobalDNE, "Number of globals trivially removed");
@@ -785,7 +785,12 @@ static inline void killIfUselessEdge(DSNodeHandle &Edge) {
           && !N->isNodeCompletelyFolded())
         Edge.setTo(0, 0);  // Kill the edge!
 }
+// TODO: This function removes DS call sites that are identical and need not
+// be inlined again. But the fact that poolallocation, and possibly other 
+// clients can query call graph, means we need callee information for all the 
+// call sites. And hence, we should not remove them without ever inlining them
 
+#if 0
 static void removeIdenticalCalls(std::list<DSCallSite> &Calls) {
   // Remove trivially identical function calls
   Calls.sort();  // Sort by callee as primary key!
@@ -937,7 +942,7 @@ static void removeIdenticalCalls(std::list<DSCallSite> &Calls) {
   if (NumDeleted)
     DEBUG(errs() << "Merged " << NumDeleted << " call nodes.\n");
 }
-
+#endif
 
 // removeTriviallyDeadNodes - After the graph has been constructed, this method
 // removes all unreachable nodes that are created because they got merged with
@@ -1014,9 +1019,10 @@ void DSGraph::removeTriviallyDeadNodes() {
       ++NI;
     }
   }
-
+#if 0
   removeIdenticalCalls(FunctionCalls);
   removeIdenticalCalls(AuxFunctionCalls);
+#endif
 }
 
 // CanReachAliveNodes - Simple graph walker that recursively traverses the graph

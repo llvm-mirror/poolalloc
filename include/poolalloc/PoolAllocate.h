@@ -139,6 +139,7 @@ namespace PA {
 class PoolAllocateGroup : public ModulePass {
 protected:
   DataStructures *Graphs;
+  DataStructures *CallGraph;
   const Type * VoidType;
   const Type * Int8Type;
   const Type * Int32Type;
@@ -270,6 +271,7 @@ protected:
   // FIXME: This method is misnamed.
   DataStructures &getGraphs() const { return *Graphs; }
 
+  DSCallGraph getCallGraph() const { return CallGraph->getCallGraph();}
   /// getOrigFunctionFromClone - Given a pointer to a function that was cloned
   /// from another function, return the original function.  If the argument
   /// function is not a clone, return null.
