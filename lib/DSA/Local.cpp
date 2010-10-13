@@ -567,13 +567,36 @@ void GraphBuilder::visitGetElementPtrInst(User &GEP) {
       // increment the offset by the actual byte offset being accessed
       Offset += (unsigned)TD.getStructLayout(STy)->getElementOffset(FieldNo);
       
-    } else if(isa<ArrayType>(*I)) {
-      // indexing into an array.
+    } else if(const ArrayType *ATy = dyn_cast<ArrayType>(*I)) {
+       // indexing into an array.
+     const Type *CurTy = ATy->getElementType();
+
+      if(!isa<ArrayType>(CurTy) &&
+         Value.getNode()->getSize() <= 1) {
+          Value.getNode()->growSize(TD.getTypeAllocSize(CurTy));
+      }
+      if(CurTy->isVoidTy()) {
+        Value.getNode()->growSize(1);
+      }
+      if(isa<ArrayType>(CurTy) && Value.getNode()->getSize() <= 1){
+        const Type *ETy = (cast<ArrayType>(CurTy))->getElementType();
+        while(isa<ArrayType>(ETy)) {
+          ETy = (cast<ArrayType>(ETy))->getElementType();
+         }
+        Value.getNode()->growSize(TD.getTypeAllocSize(ETy));
+        if(ETy->isVoidTy()) {
+          Value.getNode()->growSize(1);
+        }
+     }
+// indexing into an array.
       Value.getNode()->setArrayMarker();
       
       // Find if the DSNode belongs to the array
       // If not fold.
-      if(Value.getOffset() || Offset != 0) {
+      if((Value.getOffset() || Offset != 0) 
+	 || (!isa<ArrayType>(CurTy)
+         && (Value.getNode()->getSize() != TD.getTypeAllocSize(CurTy)))) {
+
         Value.getNode()->foldNodeCompletely();
         Value.getNode();
         Offset = 0;

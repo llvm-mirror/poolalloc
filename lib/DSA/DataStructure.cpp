@@ -336,6 +336,10 @@ void DSNode::mergeTypeInfo(const Type *NewTy, unsigned Offset) {
     assert (getSize() && "array node has size of zero!\n");
     Offset %= getSize();
   }
+  const TargetData &TD = getParentGraph()->getTargetData();
+  if (Offset >= getSize()) growSize(Offset+TD.getTypeAllocSize(NewTy));
+  if (Offset >= getSize() && NewTy->isVoidTy()) growSize(Offset + 1);
+
 
   if (Offset >= getSize()) growSize(Offset+1);
 
@@ -355,7 +359,10 @@ void DSNode::mergeTypeInfo(const Type *NewTy, unsigned Offset) {
     if((*ni)->isIntegerTy()) {
       integerTy = true;
     }
+    const TargetData &TD = getParentGraph()->getTargetData();
+    if ((Offset + TD.getTypeAllocSize(*ni))>= getSize()) growSize(Offset+TD.getTypeAllocSize(*ni));
   }
+
   if(pointerTy && integerTy) {
     if(!hasLink(Offset)) {
       const DSNodeHandle &NH  = new DSNode(getParentGraph());
