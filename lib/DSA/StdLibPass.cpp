@@ -196,7 +196,17 @@ const struct {
   {0,            {NRET_NARGS, NRET_NARGS, NRET_NARGS, false, false, false}},
 };
 
-void StdLibDataStructures::eraseCallsTo(Function* F) {
+//
+// Method: eraseCallsTo()
+//
+// Description:
+//  This method removes the specified function from DSCallsites within the
+//  specified function.  We do not do anything with call sites that call this
+//  function indirectly (for which there is not much point as we do not yet
+//  know the targets of indirect function calls).
+//
+void
+StdLibDataStructures::eraseCallsTo(Function* F) {
   for (Value::use_iterator ii = F->use_begin(), ee = F->use_end();
        ii != ee; ++ii)
     if (CallInst* CI = dyn_cast<CallInst>(ii))
@@ -209,24 +219,40 @@ void StdLibDataStructures::eraseCallsTo(Function* F) {
       }
 }
 
-bool StdLibDataStructures::runOnModule(Module &M) {
-  init(&getAnalysis<LocalDataStructures>(), false, true, false, false);
+bool
+StdLibDataStructures::runOnModule (Module &M) {
+  //
+  // Get the results from the local pass.
+  //
+  init (&getAnalysis<LocalDataStructures>(), false, true, false, false);
 
-  //Clone Module
+  //
+  // Fetch the DSGraphs for all defined functions within the module.
+  //
   for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I) 
     if (!I->isDeclaration())
       getOrCreateGraph(&*I);
 
-  //Trust the readnone annotation
+  //
+  // Erase direct calls to functions that don't return a pointer and are marked
+  // with the readnone annotation.
+  //
   for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I) 
-    if (I->isDeclaration() && I->doesNotAccessMemory() && !isa<PointerType>(I->getReturnType()))
+    if (I->isDeclaration() && I->doesNotAccessMemory() &&
+        !isa<PointerType>(I->getReturnType()))
       eraseCallsTo(I);
 
-  //Useless external
+  //
+  // Erase direct calls to external functions that are not varargs, do not
+  // return a pointer, and do not take pointers.
+  //
   for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I) 
-    if (I->isDeclaration() && !I->isVarArg() && !isa<PointerType>(I->getReturnType())) {
+    if (I->isDeclaration() && !I->isVarArg() &&
+        !isa<PointerType>(I->getReturnType())) {
       bool hasPtr = false;
-      for (Function::arg_iterator ii = I->arg_begin(), ee = I->arg_end(); ii != ee; ++ii)
+      for (Function::arg_iterator ii = I->arg_begin(), ee = I->arg_end();
+           ii != ee;
+           ++ii)
         if (isa<PointerType>(ii->getType())) {
           hasPtr = true;
           break;
@@ -235,8 +261,9 @@ bool StdLibDataStructures::runOnModule(Module &M) {
         eraseCallsTo(I);
     }
 
-  //Functions we handle by summary
-
+  //
+  // Scan through the function summaries and process functions by summary.
+  //
   for (int x = 0; recFuncs[x].name; ++x)
     if (Function* F = M.getFunction(recFuncs[x].name))
       if (F->isDeclaration()) {
@@ -245,6 +272,11 @@ bool StdLibDataStructures::runOnModule(Module &M) {
           if (CallInst* CI = dyn_cast<CallInst>(ii))
             if (CI->getOperand(0) == F) {
               DSGraph* Graph = getDSGraph(*CI->getParent()->getParent());
+
+              //
+              // Set the read, write, and heap markers on the return value
+              // as appropriate.
+              //
               if (recFuncs[x].action.read[0])
                 Graph->getNodeForValue(CI).getNode()->setReadMarker();
               if (recFuncs[x].action.write[0])
@@ -252,6 +284,10 @@ bool StdLibDataStructures::runOnModule(Module &M) {
               if (recFuncs[x].action.heap[0])
                 Graph->getNodeForValue(CI).getNode()->setHeapMarker();
 
+              //
+              // Set the read, write, and heap markers on the actual arguments
+              // as appropriate.
+              //
               for (unsigned y = 1; y < CI->getNumOperands(); ++y)
                 if (recFuncs[x].action.read[y])
                   if (isa<PointerType>(CI->getOperand(y)->getType()))
@@ -268,6 +304,10 @@ bool StdLibDataStructures::runOnModule(Module &M) {
                     if (DSNode * Node=Graph->getNodeForValue(CI->getOperand(y)).getNode())
                       Node->setHeapMarker();
 
+              //
+              // Merge the DSNoes for return values and parameters as
+              // appropriate.
+              //
               std::vector<DSNodeHandle> toMerge;
               if (recFuncs[x].action.mergeWithRet)
                 toMerge.push_back(Graph->getNodeForValue(CI));
@@ -278,6 +318,10 @@ bool StdLibDataStructures::runOnModule(Module &M) {
               for (unsigned y = 1; y < toMerge.size(); ++y)
                 toMerge[0].mergeWith(toMerge[y]);
 
+              //
+              // Collapse (fold) the DSNode of the return value and the actual
+              // arguments if directed to do so.
+              //
               if (recFuncs[x].action.collapse) {
                 if (isa<PointerType>(CI->getType()))
                   Graph->getNodeForValue(CI).getNode()->foldNodeCompletely();
@@ -287,6 +331,10 @@ bool StdLibDataStructures::runOnModule(Module &M) {
                       Node->foldNodeCompletely();
               }
             }
+
+        //
+        // Pretend that this call site does not call this function anymore.
+        //
         eraseCallsTo(F);
       }
   
