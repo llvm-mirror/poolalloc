@@ -199,10 +199,6 @@ void PoolAllocate::getAnalysisUsage(AnalysisUsage &AU) const {
     if(lie_preserve_passes != LIE_NONE)
     	AU.addPreserved<EquivBUDataStructures>();
   }
-  AU.addRequiredTransitive<CompleteBUDataStructures>();
-  if(lie_preserve_passes != LIE_NONE)
-    AU.addPreserved<CompleteBUDataStructures>();
-  
 
   // Preserve the pool information across passes
   if (lie_preserve_passes == LIE_PRESERVE_ALL)
@@ -233,7 +229,6 @@ bool PoolAllocate::runOnModule(Module &M) {
     Graphs = &getAnalysis<EQTDDataStructures>();    
   else
     Graphs = &getAnalysis<EquivBUDataStructures>();
-  CallGraph = &getAnalysis<CompleteBUDataStructures>();
 
   //
   // Get the heuristic pass and then tell it who we are.

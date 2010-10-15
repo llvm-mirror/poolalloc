@@ -151,6 +151,9 @@ bool TDDataStructures::runOnModule(Module &M) {
   ArgsRemainIncomplete.clear();
   GlobalsGraph->removeTriviallyDeadNodes();
 
+  // CBU contains the correct call graph.
+  // Restore it, so that subsequent passes and clients can get it.
+  restoreCorrectCallGraph();
   return false;
 }
 

@@ -98,6 +98,7 @@ public:
   // Allow explicit conversion to DSNode...
   DSNode *getNode() const;  // Defined inline in DSNode.h
   unsigned getOffset() const {
+    getNode();
     assert(!isForwarding() && "This is a forwarding NH, call getNode() first!");
     return Offset;
   }

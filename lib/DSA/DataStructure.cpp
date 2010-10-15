@@ -1402,6 +1402,14 @@ void DataStructures::init(TargetData* T) {
   GlobalsGraph = new DSGraph(GlobalECs, *T, *TypeSS);
 }
 
+// CBU has the correct call graph. All the passes that follow it 
+// must resotre the call graph, at the end, so that it it correct.
+// This is simpler than keeping all the CBU data structures around.
+// EQBU and subsequent passes must call this.
+void DataStructures::restoreCorrectCallGraph(){
+  callgraph = GraphSource->callgraph;
+}
+
 void DataStructures::releaseMemory() {
   //
   // If the DSGraphs were stolen by another pass, free nothing.

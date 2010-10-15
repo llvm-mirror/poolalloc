@@ -874,7 +874,7 @@ void FuncTransform::visitCallSite(CallSite& CS) {
     // of pools possible and prevents us from eliding a pool because we're
     // examining a target that doesn't need it.
     //
-    const DSCallGraph & callGraph = PAInfo.getCallGraph();
+    const DSCallGraph & callGraph = Graphs.getCallGraph();
     unsigned maxArgsWithNodes = 0;
     DSCallGraph::callee_iterator I = callGraph.callee_begin(OrigInst);
     for (; I != callGraph.callee_end(OrigInst); ++I) {

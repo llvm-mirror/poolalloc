@@ -86,6 +86,8 @@ protected:
 
   void formGlobalECs();
 
+  void restoreCorrectCallGraph();
+
   DataStructures(intptr_t id, const char* name) 
     : ModulePass(id), TD(0), GraphSource(0), printname(name), GlobalsGraph(0) {  
     // For now, the graphs are owned by this pass
@@ -315,7 +317,6 @@ public:
   virtual void getAnalysisUsage(AnalysisUsage &AU) const {
 	AU.addRequired<EntryPointAnalysis>();
     AU.addRequired<CompleteBUDataStructures>();
-    AU.addPreserved<CompleteBUDataStructures>();
     AU.setPreservesCFG();
   }
 
@@ -369,7 +370,6 @@ public:
   virtual void getAnalysisUsage(AnalysisUsage &AU) const {
     if (useEQBU) {
       AU.addRequired<EquivBUDataStructures>();
-      AU.addPreserved<CompleteBUDataStructures>();
     } else {
       AU.addRequired<BUDataStructures>();
       AU.addPreserved<BUDataStructures>();
