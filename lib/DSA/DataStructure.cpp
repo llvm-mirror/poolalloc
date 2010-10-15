@@ -1384,7 +1384,8 @@ void DataStructures::init(DataStructures* D, bool clone, bool printAuxCalls,
   callgraph = D->callgraph;
   GlobalECs = D->getGlobalECs();
   GlobalsGraph = new DSGraph(D->getGlobalsGraph(), GlobalECs, *TypeSS,
-                             copyGlobalAuxCalls?0:DSGraph::DontCloneAuxCallNodes);
+                             copyGlobalAuxCalls? DSGraph::CloneAuxCallNodes
+					 :DSGraph::DontCloneAuxCallNodes);
   if (printAuxCalls) GlobalsGraph->setPrintAuxCalls();
 
   //
