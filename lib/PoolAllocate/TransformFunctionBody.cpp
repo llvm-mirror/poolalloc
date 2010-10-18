@@ -317,6 +317,13 @@ Instruction *FuncTransform::TransformAllocationInstr(Instruction *I,
 }
 
 void FuncTransform::visitAllocaInst(AllocaInst &MI) {
+#if 0
+  if (MI.getType() != PoolAllocate::PoolDescPtrTy) {
+    Value *PH = getPoolHandle(&MI);
+    assert (PH && "Alloca has no pool handle!\n");
+  }
+#endif
+
   // FIXME: We should remove SAFECode-specific functionality (and comments)
   // SAFECode will register alloca instructions with the run-time, so do not
   // do that here.
@@ -450,6 +457,8 @@ void FuncTransform::visitCallocCall(CallSite CS) {
   const Type* Int32Type = Type::getInt32Ty(CS.getInstruction()->getContext());
   const Type* Int64Type = Type::getInt64Ty(CS.getInstruction()->getContext());
 
+  // FIXME: This transform is not correct; calloc does not zero the memory
+  //        if NULL is returned.
   // FIXME: Ensure that we use 32/64-bit object length sizes consistently
   // FIXME: Rename 'useLong' to something more descriptive?
   // FIXME: Introduce 'ObjectAllocationSize' variable
