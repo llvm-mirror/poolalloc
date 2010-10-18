@@ -318,7 +318,7 @@ protected:
   /// CreateGlobalPool - Create a global pool descriptor, initialize it in main,
   /// and return a pointer to the global for it.
   GlobalVariable *CreateGlobalPool(unsigned RecSize, unsigned Alignment,
-                                   Instruction *IPHint = 0);
+                                   std::string name = "GlobalPool", Instruction *IPHint = 0);
 
   /// getPoolType - Return the type of a pool descriptor
   /// FIXME: These constants should be chosen by the client

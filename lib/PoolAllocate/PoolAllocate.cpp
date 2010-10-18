@@ -971,7 +971,7 @@ bool PoolAllocate::SetupGlobalPools(Module &M) {
     Heuristic::OnePool &Pool = ResultPools[i];
     Value *PoolDesc = Pool.PoolDesc;
     if (PoolDesc == 0) {
-      PoolDesc = CreateGlobalPool(Pool.PoolSize, Pool.PoolAlignment, InsertPt);
+      PoolDesc = CreateGlobalPool(Pool.PoolSize, Pool.PoolAlignment, "GlobalPool", InsertPt);
 
       if (Pool.NodesInPool.size() == 1 &&
           !Pool.NodesInPool[0]->isNodeCompletelyFolded())
@@ -997,11 +997,11 @@ bool PoolAllocate::SetupGlobalPools(Module &M) {
 /// poolinit for it into main.  IPHint is an instruction that we should insert
 /// the poolinit before if not null.
 GlobalVariable *PoolAllocate::CreateGlobalPool(unsigned RecSize, unsigned Align,
-                                               Instruction *IPHint) {
+                                               std::string name, Instruction *IPHint) {
   GlobalVariable *GV =
     new GlobalVariable(*CurModule,
                        PoolDescType, false, GlobalValue::InternalLinkage, 
-                       ConstantAggregateZero::get(PoolDescType), "GlobalPool");
+                       ConstantAggregateZero::get(PoolDescType), name);
 
   // Update the global DSGraph to include this.
   DSNode *GNode = Graphs->getGlobalsGraph()->addObjectToGraph(GV);
@@ -1072,7 +1072,7 @@ PoolAllocate::CreatePools (Function &F, DSGraph* DSG,
         NewNode->setModifiedMarker()->setReadMarker();  // This is M/R
       } else {
         PoolDesc = CreateGlobalPool(Pool.PoolSize, Pool.PoolAlignment,
-                                    InsertPoint);
+                                    "PoolForMain", InsertPoint);
 
         // Add the global node to main's graph.
         DSNode *NewNode = DSG->addObjectToGraph(PoolDesc);
