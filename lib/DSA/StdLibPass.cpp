@@ -149,6 +149,19 @@ const struct {
 
   {"perror",     {NRET_YARGS,  NRET_NARGS, NRET_NARGS, false, false, false}},
 
+  // SAFECode Intrinsics
+  {"sc.lscheck", {NRET_NARGS, NRET_NARGS, NRET_NARGS, false, false, false}},
+  {"sc.lscheckui", {NRET_NARGS, NRET_NARGS, NRET_NARGS, false, false, false}},
+  {"sc.lscheckalign", {NRET_NARGS, NRET_NARGS, NRET_NARGS, false, false, false}},
+  {"sc.lscheckalignui", {NRET_NARGS, NRET_NARGS, NRET_NARGS, false, false, false}},
+  {"sc.pool_register_stack", {NRET_NARGS, NRET_NARGS, NRET_NARGS, false, false, false}},
+  {"sc.pool_unregister_stack", {NRET_NARGS, NRET_NARGS, NRET_NARGS, false, false, false}},
+  {"sc.pool_register_global", {NRET_NARGS, NRET_NARGS, NRET_NARGS, false, false, false}},
+  {"sc.pool_unregister_global", {NRET_NARGS, NRET_NARGS, NRET_NARGS, false, false, false}},
+  {"sc.pool_register", {NRET_NARGS, NRET_NARGS, NRET_NARGS, false, false, false}},
+  {"sc.pool_unregister", {NRET_NARGS, NRET_NARGS, NRET_NARGS, false, false, false}},
+  {"sc.get_actual_val", {NRET_NARGS, NRET_NARGS, NRET_NARGS, false, true, false}},
+
 #if 0
   {"remove",     {false, false, false,  true, false, false, false, false, false}},
   {"unlink",     {false, false, false,  true, false, false, false, false, false}},
@@ -217,6 +230,44 @@ StdLibDataStructures::eraseCallsTo(Function* F) {
 	      << CI->getParent()->getParent()->getNameStr() << "\n");
         Graph->removeFunctionCalls(*F);
       }
+}
+
+//
+// Function: processRuntimeCheck()
+//
+// Description:
+//  Modify a run-time check so that its return value has the same DSNode as the
+//  checked pointer.
+//
+void
+StdLibDataStructures::processRuntimeCheck (Module & M, std::string name) {
+  //
+  // Get a pointer to the function.
+  //
+  Function* F = M.getFunction (name);
+
+  //
+  // If the function doesn't exist, then there is no work to do.
+  //
+  if (!F) return;
+
+  //
+  // Scan through all direct calls to the function (there should only be direct
+  // calls) and process each one.
+  //
+  for (Value::use_iterator ii = F->use_begin(), ee = F->use_end();
+       ii != ee; ++ii) {
+    if (CallInst* CI = dyn_cast<CallInst>(ii)) {
+      if (CI->getOperand(0) == F) {
+        DSGraph* Graph = getDSGraph(*CI->getParent()->getParent());
+        DSNodeHandle RetNode = Graph->getNodeForValue(CI);
+        DSNodeHandle ArgNode = Graph->getNodeForValue(CI->getOperand(2));
+        RetNode.mergeWith(ArgNode);
+      }
+    }
+  }
+
+  return;
 }
 
 bool
@@ -338,5 +389,13 @@ StdLibDataStructures::runOnModule (Module &M) {
         eraseCallsTo(F);
       }
   
+  //
+  // Merge return values and checked pointer values for SAFECode run-time
+  // checks.
+  //
+  processRuntimeCheck (M, "sc.boundscheck");
+  processRuntimeCheck (M, "sc.boundscheckui");
+  processRuntimeCheck (M, "sc.exactcheck2");
+
   return false;
 }
