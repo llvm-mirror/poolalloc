@@ -141,16 +141,18 @@ bool BUDataStructures::runOnModuleInternal(Module& M) {
   formGlobalECs();
 
   // Merge the globals variables (not the calls) from the globals graph back
-  // into the main function's graph so that the main function contains all of
-  // the information about global pools and GV usage in the program.
-  for (std::vector<const Function*>::iterator ii = EntryPoints.begin(),
-       ee = EntryPoints.end(); ii != ee; ++ii) {
-    DSGraph* MainGraph = getOrCreateGraph(*ii);
-    cloneGlobalsInto(MainGraph);
-
-    MainGraph->maskIncompleteMarkers();
-    MainGraph->markIncompleteNodes(DSGraph::MarkFormalArgs |
+  // into the individual function's graph so that changes made to globals during
+  // BU can be reflected. This is specifically needed for correct call graph 
+  
+  for (Module::iterator F = M.begin(); F != M.end(); ++F) {
+    if (!(F->isDeclaration())){
+      DSGraph *Graph  = getOrCreateGraph(F);
+      cloneGlobalsInto(Graph);
+      Graph->maskIncompleteMarkers();
+      Graph->markIncompleteNodes(DSGraph::MarkFormalArgs |
                                    DSGraph::IgnoreGlobals);
+      
+    }
   }
 
   NumCallEdges += callgraph.size();
@@ -161,7 +163,7 @@ bool BUDataStructures::runOnModuleInternal(Module& M) {
   //
   callgraph.buildSCCs();
   callgraph.buildRoots();
-
+  
   return false;
 }
 
@@ -509,6 +511,7 @@ BUDataStructures::calculateGraphs (const Function *F,
   return MyID;  // == Min
 }
 
+#if 0
 //
 // Method: postOrder()
 //
@@ -608,6 +611,7 @@ void BUDataStructures::finalizeGlobals(void) {
   GlobalsGraph->getScalarMap().clear_scalars();
 }
 
+#endif
 
 //
 // Method: CloneAuxIntoGlobal()
@@ -686,7 +690,7 @@ void BUDataStructures::calculateGraph(DSGraph* Graph) {
 
     // Fast path for noop calls.  Note that we don't care about merging globals
     // in the callee with nodes in the caller here.
-    if (CS.getRetVal().isNull() && CS.getNumPtrArgs() == 0 && !CS.isVarArg()) {
+    if (!CS.isIndirectCall() && CS.getRetVal().isNull() && CS.getNumPtrArgs() == 0 && !CS.isVarArg()) {
       TempFCs.erase(TempFCs.begin());
       continue;
     }
@@ -742,7 +746,7 @@ void BUDataStructures::calculateGraph(DSGraph* Graph) {
         std::sort(NodeCallees.begin(), NodeCallees.end());
         eraseCS = std::includes(CalledFuncs.begin(), CalledFuncs.end(),
                                 NodeCallees.begin(), NodeCallees.end());
-      }
+      } 
 
       //
       // Update the statistics on resolved indirect function calls.
