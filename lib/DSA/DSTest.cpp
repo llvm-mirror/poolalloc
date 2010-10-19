@@ -36,6 +36,7 @@
 #include "dsa/DataStructure.h"
 #include "dsa/DSGraph.h"
 #include "dsa/DSNode.h"
+#include "dsa/DSCallGraph.h"
 #include "llvm/Module.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/CommandLine.h"
@@ -61,6 +62,9 @@ namespace {
       cl::CommaSeparated, cl::ReallyHidden);
   // For each value, verify that type is as given
   cl::list<std::string> CheckType("check-type",
+      cl::CommaSeparated, cl::ReallyHidden);
+  // For first function, verify that it calls the other functions
+  cl::list<std::string> CheckCallees("check-callees",
       cl::CommaSeparated, cl::ReallyHidden);
 }
 
@@ -197,7 +201,7 @@ class NodeValue {
 
     assert(V && "Parsing value failed!");
   }
-
+  
   /// stripAtIfRequired -- removes the leading '@' character if one exists
   ///
   StringRef stripAtIfRequired(StringRef v) {
@@ -534,9 +538,40 @@ static bool verifyFlags(llvm::raw_ostream &O, const Module *M, const DataStructu
     }
     return true;
   }
-
   return false;
+}
 
+/// checkCallees -- Verify callees for the given functions
+/// Returns true iff the user specified anything for this option
+///
+/// checks that the first function calls the rest of the 
+/// functions in the list
+static bool checkCallees(llvm::raw_ostream &O, const Module *M, const DataStructures *DS) {
+  
+  cl::list<std::string>::iterator I = CheckCallees.begin(),
+                                  E = CheckCallees.end();
+  // If the user specified that a set of values should be in the same node...
+  if (I != E) {
+      std::string &func = *(I);
+      Function *caller = M->getFunction(func);
+      assert(caller && "Function not found in module"); 
+      const DSCallGraph callgraph = DS->getCallGraph();
+      ++I;
+      while(I != E ){
+        std::string &func = *(I);
+        Function *callee = M->getFunction(func);
+        bool found = false;
+        for(DSCallGraph::flat_iterator CI = callgraph.flat_callee_begin(caller); CI != callgraph.flat_callee_end(caller); CI ++) {
+           if ( callee == *CI)
+             found = true;
+           //(*CI)->dump();
+        }
+        assert(found && "callee not in call graph");
+        ++I;
+      }
+    return true;
+  }
+  return false;
 }
 
 /// handleTest -- handles any user-specified testing options.
@@ -551,6 +586,7 @@ bool DataStructures::handleTest(llvm::raw_ostream &O, const Module *M) const {
   tested |= checkIfNodesAreNotSame(O,M,this);
   tested |= verifyFlags(O,M,this);
   tested |= checkTypes(O,M,this);
+  tested |= checkCallees(O,M,this);
 
   return tested;
 }
