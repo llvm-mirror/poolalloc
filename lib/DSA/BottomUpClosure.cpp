@@ -133,6 +133,7 @@ bool BUDataStructures::runOnModuleInternal(Module& M) {
 
   // Mark external globals incomplete.
   GlobalsGraph->markIncompleteNodes(DSGraph::IgnoreGlobals);
+  GlobalsGraph->computeExternalFlags(DSGraph::DontMarkFormalsExternal);
 
   //
   // Create equivalence classes for aliasing globals so that we only need to
@@ -151,7 +152,7 @@ bool BUDataStructures::runOnModuleInternal(Module& M) {
       Graph->maskIncompleteMarkers();
       Graph->markIncompleteNodes(DSGraph::MarkFormalArgs |
                                    DSGraph::IgnoreGlobals);
-      
+      Graph->computeExternalFlags(DSGraph::DontMarkFormalsExternal);
     }
   }
 
@@ -163,7 +164,7 @@ bool BUDataStructures::runOnModuleInternal(Module& M) {
   //
   callgraph.buildSCCs();
   callgraph.buildRoots();
-  
+
   return false;
 }
 
@@ -746,7 +747,7 @@ void BUDataStructures::calculateGraph(DSGraph* Graph) {
         std::sort(NodeCallees.begin(), NodeCallees.end());
         eraseCS = std::includes(CalledFuncs.begin(), CalledFuncs.end(),
                                 NodeCallees.begin(), NodeCallees.end());
-      } 
+      }
 
       //
       // Update the statistics on resolved indirect function calls.
@@ -794,7 +795,7 @@ void BUDataStructures::calculateGraph(DSGraph* Graph) {
   // Recompute the Incomplete markers
   Graph->maskIncompleteMarkers();
   Graph->markIncompleteNodes(DSGraph::MarkFormalArgs);
-
+  Graph->computeExternalFlags(DSGraph::DontMarkFormalsExternal);
   
   //
   // Update the callgraph with the new information that we have gleaned.

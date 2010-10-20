@@ -159,10 +159,18 @@ namespace {
       for (Function::arg_iterator I = f.arg_begin(), E = f.arg_end();
            I != E; ++I) {
         if (isa<PointerType>(I->getType())) {
+          // WD: Why do we set the external marker so early in the analysis?
+          // Functions we have definitions for, but are externally reachable have no external contexts
+          // that we'd want to BU external information into (since those contexts are by definition
+          // ones we don't have code for).  Shouldn't this just be set in TD?
+#if 0
           DSNode * Node = getValueDest(I).getNode();
 
           if (!f.hasInternalLinkage())
             Node->setExternalMarker();
+#else
+          getValueDest(I).getNode();
+#endif
 
         }
       }
@@ -194,7 +202,19 @@ namespace {
       }
 
       g.markIncompleteNodes(DSGraph::MarkFormalArgs);
-      
+
+      // Compute sources of external
+      unsigned EFlags = 0
+        | DSGraph::DontMarkFormalsExternal
+        | DSGraph::ProcessCallSites;
+      // Mark globals reachable from formals as external if we don't have
+      // internal linkage.
+      if (!f.hasInternalLinkage()) {
+        EFlags |= DSGraph::MarkGlobalsReachableFromFormals;
+      }
+
+      g.computeExternalFlags(EFlags);
+
       // Remove any nodes made dead due to merging...
       g.removeDeadNodes(DSGraph::KeepUnreachableGlobals);
     }
@@ -1236,6 +1256,7 @@ bool LocalDataStructures::runOnModule(Module &M) {
 
   GlobalsGraph->removeTriviallyDeadNodes();
   GlobalsGraph->markIncompleteNodes(DSGraph::MarkFormalArgs);
+  GlobalsGraph->computeExternalFlags(DSGraph::ProcessCallSites);
 
   // Now that we've computed all of the graphs, and merged all of the info into
   // the globals graph, see if we have further constrained the globals in the

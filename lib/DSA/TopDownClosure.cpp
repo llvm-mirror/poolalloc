@@ -89,7 +89,8 @@ bool TDDataStructures::runOnModule(Module &M) {
   for (DSScalarMap::global_iterator I=GGSM.global_begin(), E=GGSM.global_end();
        I != E; ++I) {
     DSNode *N = GGSM.find(*I)->second.getNode();
-    if (N->isIncompleteNode())
+    if (N->isIncompleteNode()) assert(N->isExternalNode());
+    if (N->isIncompleteNode() || N->isExternalNode())
       markReachableFunctionsExternallyAccessible(N, Visited);
   }
 
@@ -150,6 +151,7 @@ bool TDDataStructures::runOnModule(Module &M) {
 
   ArgsRemainIncomplete.clear();
   GlobalsGraph->removeTriviallyDeadNodes();
+  GlobalsGraph->computeExternalFlags(DSGraph::DontMarkFormalsExternal);
 
   // CBU contains the correct call graph.
   // Restore it, so that subsequent passes and clients can get it.
@@ -274,10 +276,16 @@ void TDDataStructures::InlineCallersIntoGraph(DSGraph* DSG) {
     }
 
   // Recompute the Incomplete markers.  Depends on whether args are complete
-  unsigned Flags
-    = HasIncompleteArgs ? DSGraph::MarkFormalArgs : DSGraph::IgnoreFormalArgs;
-  Flags |= DSGraph::IgnoreGlobals | DSGraph::MarkVAStart;
-  DSG->markIncompleteNodes(Flags);
+  unsigned IncFlags = DSGraph::IgnoreFormalArgs;
+  IncFlags |= DSGraph::IgnoreGlobals | DSGraph::MarkVAStart;
+  DSG->markIncompleteNodes(IncFlags);
+
+  // If this graph contains functions that are externally callable, now is the time to mark
+  // their arguments and return values as external.  At this point TD is inlining all caller information,
+  // and that means External callers too.
+  unsigned ExtFlags
+    = HasIncompleteArgs ? DSGraph::MarkFormalsExternal : DSGraph::DontMarkFormalsExternal;
+  DSG->computeExternalFlags(ExtFlags);
 
   //
   // Delete dead nodes.  Treat globals that are unreachable as dead also.

@@ -648,18 +648,6 @@ void DSGraph::markIncompleteNodes(unsigned Flags) {
            E = AuxFunctionCalls.end(); I != E; ++I)
       markIncomplete(*I);
 
-  // Mark stuff passed into external functions as being incomplete.
-  // External functions may not appear in Aux during td, so process
-  // them specially
-#if 0
-  for (std::list<DSCallSite>::iterator I = FunctionCalls.begin(),
-         E = FunctionCalls.end(); I != E; ++I)
-    if(I->isDirectCall() && I->getCalleeFunc()->isDeclaration())
-      markIncomplete(*I);
-#endif
-  // Handle all sources of external
-  recalculateExternalNodes();
-
   // Mark all global nodes as incomplete.
   for (DSScalarMap::global_iterator I = ScalarMap.global_begin(),
          E = ScalarMap.global_end(); I != E; ++I)
@@ -676,104 +664,182 @@ void DSGraph::markIncompleteNodes(unsigned Flags) {
   }
 }
 
-static void markExternalNode(DSNode *N) {
-  // Stop recursion if no node, or if node already marked...
-  if (N == 0 || N->isExternalNode()) return;
+// markExternalNode -- Marks the specified node, and all that's reachable from it,
+// as external.  Uses 'processedNodes' to track recursion.
+static void markExternalNode(DSNode *N, svset<DSNode *> & processedNodes) {
+  // Stop recursion if no node, or if node already processed
+  if (N == 0 || processedNodes.count(N) ) return;
+
+  processedNodes.insert(N);
 
   // Actually mark the node
   N->setExternalMarker();
-
-  // External also means incomplete
-  N->setIncompleteMarker();
   
   // FIXME: Should we 'collapse' the node as well?
 
   // Recursively process children...
   for (DSNode::edge_iterator ii = N->edge_begin(), ee = N->edge_end();
        ii != ee; ++ii)
-    markExternalNode(ii->second.getNode());
+    markExternalNode(ii->second.getNode(), processedNodes);
 }
 
-static void markExternal(DSCallSite &Call) {
-  markExternalNode(Call.getRetVal().getNode());
+// markExternal --marks the specified callsite external, using 'processedNodes' to track recursion.
+// Additionally, we set the externFuncMarker as appropriate.
+static void markExternal(const DSCallSite &Call, svset<DSNode *> & processedNodes) {
+  markExternalNode(Call.getRetVal().getNode(), processedNodes);
 
-  markExternalNode(Call.getVAVal().getNode());
+  markExternalNode(Call.getVAVal().getNode(), processedNodes);
 
-  // All objects pointed to by function arguments are incomplete!
+  // Mark all pointer arguments...
   for (unsigned i = 0, e = Call.getNumPtrArgs(); i != e; ++i)
-    markExternalNode(Call.getPtrArg(i).getNode());
+    markExternalNode(Call.getPtrArg(i).getNode(), processedNodes);
+
+  // Set the flag indicating this fptr contains external functions.
+  // FIXME: As far as I can tell, we don't actually set this anywhere else,
+  // and I haven't given much thought to where it's appropriate to do so.
+  // For now, setting it because it's not wrong and clearly a step forward
+  // but want to make it clear that I don't claim that this is now set
+  // properly everywhere the way it should.
+  if (Call.isIndirectCall()) {
+    Call.getCalleeNode()->setExternFuncMarker();
+  }
 }
 
-// recalculateExternalNodes - Clear the external flag on all nodes,
-// then traverse the graph, identifying nodes that may be
-// exposed to external code.  The sources of this happening are:
-// --Arguments and return values for external functions
-// --Arguments and return values for externally visible functions
-// --Externally visible globals
-void DSGraph::recalculateExternalNodes() {
+// propagateExternal -- Walk the given DSGraph making sure that within this graph
+// everything reachable from an already-external node is also marked External.
+static void propagateExternal(DSGraph * G, svset<DSNode *> & processedNodes) {
+  DSGraph::node_iterator I = G->node_begin(),
+                         E = G->node_end();
+  for ( ; I != E; ++I ) {
+    if (I->isExternalNode())
+      markExternalNode(&*I, processedNodes);
+  }
+}
 
-  // Clear the external flag (we use it as marker for recursion)
-  maskNodeTypes(~DSNode::ExternalNode);
+// computeExternalFlags -- mark all reachable from external as external
+void DSGraph::computeExternalFlags(unsigned Flags) {
 
-  // Process all CallSites that call functions influenced by external code
-  for (std::list<DSCallSite>::iterator I = FunctionCalls.begin(),
-         E = FunctionCalls.end(); I != E; ++I) {
-    bool shouldBeMarkedExternal = false;
+  svset<DSNode *> processedNodes;
 
-    // Figure out what this callsite calls...
-    std::vector<const Function *> Functions;
-    if (I->isDirectCall())
-      Functions.push_back(I->getCalleeFunc());
-    else
-      I->getCalleeNode()->addFullFunctionList(Functions);
+  // Reset if indicated
+  if (Flags & ResetExternal) {
+    maskNodeTypes(~DSNode::ExternalNode);
+  }
 
-    // ...And examine each callee:
-    for (std::vector<const Function *>::iterator II = Functions.begin(),
-                                            EE = Functions.end();
-          (II != EE) && !shouldBeMarkedExternal; ++II) {
-
-      // Calls to external functions should be marked external
-      shouldBeMarkedExternal |= (*II)->isDeclaration();
-      // Calls to code that is externally visible should be marked
-      // external.  This might be overkill due to unification and the
-      // various passes propagating this information,
-      // but for now we /ensure/ the flags are set correctly.
-      shouldBeMarkedExternal |= !(*II)->hasInternalLinkage();
+  if (Flags & MarkGlobalsReachableFromFormals) {
+    DenseSet<const DSNode*> ReachableFromFormals;
+    for (ReturnNodesTy::iterator FI = ReturnNodes.begin(), E = ReturnNodes.end();
+        FI != E; ++FI) {
+      const Function &F = *FI->first;
+      // Find all reachable from arguments...
+      for (Function::const_arg_iterator I = F.arg_begin(), E = F.arg_end();
+          I != E; ++I)
+        if (isa<PointerType>(I->getType())) {
+          DSNode * N = getNodeForValue(I).getNode();
+          if (N) N->markReachableNodes(ReachableFromFormals);
+        }
+      // ...and the return value...
+      if (!FI->second.isNull())
+        FI->second.getNode()->markReachableNodes(ReachableFromFormals);
+      if (!getVANodeFor(F).isNull())
+        getVANodeFor(F).getNode()->markReachableNodes(ReachableFromFormals);
     }
 
-    if (shouldBeMarkedExternal) {
-      markExternal(*I);
+    DenseSet<const DSNode*> ReachableFromGlobals;
+
+    for (DSScalarMap::global_iterator I = ScalarMap.global_begin(),
+        E = ScalarMap.global_end(); I != E; ++I) {
+      DSNode * N = getNodeForValue(*I).getNode();
+      if (N) N->markReachableNodes(ReachableFromGlobals);
+    }
+
+    // Find intersection of the two...
+    // FIXME: This works fine for local, but what about in other places where we might newly
+    // discover that something reachable from an externally visible function's argument is
+    // also reachable from a global and as such should be marked external in all graphs
+    // that use it?
+    for (DenseSet<const DSNode*>::iterator I = ReachableFromFormals.begin(),
+         E = ReachableFromFormals.end(); I != E; ++I) {
+      DSNode * N = (DSNode *)*I;
+      if (ReachableFromGlobals.count(N)) {
+        // Reachable from both a global and the formals, mark external!
+        markExternalNode(N, processedNodes);
+      }
     }
   }
 
-  // Additionally, look at each *function* that is external-related
-  // and set the External flag for its arguments and return value.
-  for (ReturnNodesTy::iterator FI = ReturnNodes.begin(), E =ReturnNodes.end();
-      FI != E; ++FI) {
-    const Function &F = *FI->first;
-    // If this function is potentially influenced by external code...
-    if (!F.hasInternalLinkage() || F.isDeclaration()) {
+  // Make sure that everything reachable from something already external is also external
+  propagateExternal(this, processedNodes);
+
+  // If requested, we mark all functions (their formals) in this
+  // graph (read: SCC) as external.
+  if (Flags & MarkFormalsExternal) {
+    for (ReturnNodesTy::iterator FI = ReturnNodes.begin(), E =ReturnNodes.end();
+        FI != E; ++FI) {
+      const Function &F = *FI->first;
       // Mark its arguments, return value (and vanode) as external.
       for (Function::const_arg_iterator I = F.arg_begin(), E = F.arg_end();
           I != E; ++I)
         if (isa<PointerType>(I->getType()))
-          markExternalNode(getNodeForValue(I).getNode());
-      markExternalNode(FI->second.getNode());
-      markExternalNode(getVANodeFor(F).getNode());
+          markExternalNode(getNodeForValue(I).getNode(), processedNodes);
+      markExternalNode(FI->second.getNode(), processedNodes);
+      markExternalNode(getVANodeFor(F).getNode(), processedNodes);
     }
   }
 
-  // Now handle all external globals...
+  // If requested, look for callsites to external functions and make
+  // sure that they're marked external as appropriate.
+  if (Flags & ProcessCallSites) {
+    // Get List of all callsites, resolved or not...
+    std::list<DSCallSite> AllCalls;
+    AllCalls.insert(AllCalls.begin(), fc_begin(), fc_end());
+    AllCalls.insert(AllCalls.begin(), afc_begin(), afc_end());
+
+    // ...and use that list to find all CallSites that call external functions
+    // and mark them accordingly.
+    for (std::list<DSCallSite>::iterator I = AllCalls.begin(),
+        E = AllCalls.end(); I != E; ++I) {
+      bool shouldBeMarkedExternal = false;
+
+      // Figure out what this callsite calls...
+      std::vector<const Function *> Functions;
+      if (I->isDirectCall())
+        Functions.push_back(I->getCalleeFunc());
+      else
+        I->getCalleeNode()->addFullFunctionList(Functions);
+
+      // ...And examine each callee:
+      for (std::vector<const Function *>::iterator II = Functions.begin(),
+          EE = Functions.end();
+          (II != EE) && !shouldBeMarkedExternal; ++II) {
+
+        // Calls to external functions should be marked external
+        shouldBeMarkedExternal |= (*II)->isDeclaration();
+      }
+
+      // If this callsite can call external code, it better be the case that the pointer arguments
+      // and the return values are all marked external (and what's reachable from them)
+      if (shouldBeMarkedExternal) {
+        markExternal(*I, processedNodes);
+      }
+    }
+  }
+
+  // Finally handle all external globals...
   for (DSScalarMap::global_iterator I = ScalarMap.global_begin(),
-         E = ScalarMap.global_end(); I != E; ++I)
+      E = ScalarMap.global_end(); I != E; ++I)
     if (const GlobalVariable *GV = dyn_cast<GlobalVariable>(*I)) {
       // If the global is external... mark it as such!
       // FIXME: It's unclear to me that a global we initialize
-      // can't be externally visible.  For now preserving original
-      // behavior (and additionally marking external as well as incomplete).
-      if (!GV->hasInitializer())
-        markExternalNode(ScalarMap[GV].getNode());
+      // can't be externally visible.  For now following original
+      // behavior and marking external.
+      DSNode * N = ScalarMap[GV].getNode();
+      if (!GV->hasInitializer() || N->isExternalNode())
+        markExternalNode(N, processedNodes);
     }
+
+  // FIXME: Sync with globals graph?
+  // For now, trust the caller to do this as appropriate.
 }
 
 static inline void killIfUselessEdge(DSNodeHandle &Edge) {

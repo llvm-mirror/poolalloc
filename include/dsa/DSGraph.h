@@ -507,13 +507,14 @@ public:
   };
   void markIncompleteNodes(unsigned Flags);
 
-  // recalculateExternalNodes - Clear the external flag on all nodes,
-  // then traverse the graph, identifying nodes that may be
-  // exposed to external code.  The sources of this happening are:
-  // --Arguments and return values for external functions
-  // --Arguments and return values for externally visible functions
-  // --Externally visible globals
-  void recalculateExternalNodes(void);
+  // Mark all reachable from external as external. 
+  enum ComputeExternalFlags {
+    MarkFormalsExternal = 1, DontMarkFormalsExternal = 0,
+    ProcessCallSites = 2, IgnoreCallSites = 0,
+    ResetExternal = 4, DontResetExternal = 0,
+    MarkGlobalsReachableFromFormals = 8, IgnoreGlobalsReachableFromFormals = 0
+  };
+  void computeExternalFlags(unsigned Flags);
 
   // removeDeadNodes - Use a reachability analysis to eliminate subgraphs that
   // are unreachable.  This often occurs because the data structure doesn't

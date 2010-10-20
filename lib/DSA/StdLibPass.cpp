@@ -388,7 +388,7 @@ StdLibDataStructures::runOnModule (Module &M) {
         //
         eraseCallsTo(F);
       }
-  
+
   //
   // Merge return values and checked pointer values for SAFECode run-time
   // checks.
@@ -396,6 +396,23 @@ StdLibDataStructures::runOnModule (Module &M) {
   processRuntimeCheck (M, "sc.boundscheck");
   processRuntimeCheck (M, "sc.boundscheckui");
   processRuntimeCheck (M, "sc.exactcheck2");
+
+  // In Local we marked nodes passed to/returned from 'StdLib' functions as External, because at
+  // that point they were.  However they no longer are necessarily so, and we need to update accordingly.
+  GlobalsGraph->computeExternalFlags(DSGraph::ResetExternal);
+  for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I)
+    if (!I->isDeclaration()) {
+      DSGraph * G = getDSGraph(*I);
+      unsigned EFlags = 0
+        | DSGraph::ResetExternal
+        | DSGraph::DontMarkFormalsExternal
+        | DSGraph::ProcessCallSites;
+      if (!I->hasInternalLinkage()) {
+        EFlags |= DSGraph::MarkGlobalsReachableFromFormals;
+      }
+      G->computeExternalFlags(EFlags);
+    }
+  GlobalsGraph->computeExternalFlags(DSGraph::ProcessCallSites);
 
   return false;
 }
