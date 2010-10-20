@@ -1245,7 +1245,7 @@ std::string DSGraph::getFunctionNames() const {
 DSGraph::DSGraph(DSGraph* G, EquivalenceClasses<const GlobalValue*> &ECs,
                  DSGraph* GG, unsigned CloneFlags)
   : GlobalsGraph(GG), ScalarMap(ECs), TD(G->TD) {
-  PrintAuxCalls = false;
+  UseAuxCalls = false;
   cloneInto(G, CloneFlags);
 }
 
@@ -1763,7 +1763,7 @@ void DSGraph::markIncompleteNodes(unsigned Flags) {
     }
 
   // Mark stuff passed into functions calls as being incomplete.
-  if (!shouldPrintAuxCalls())
+  if (!shouldUseAuxCalls())
     for (std::list<DSCallSite>::iterator I = FunctionCalls.begin(),
            E = FunctionCalls.end(); I != E; ++I)
       markIncomplete(*I);
@@ -2533,7 +2533,7 @@ DSGraph* DataStructures::getOrFetchDSGraph(const Function* F) {
       if (resetAuxCalls) 
         G->getAuxFunctionCalls() = G->getFunctionCalls();
     }
-    G->setPrintAuxCalls();
+    G->setUseAuxCalls();
     
     // Note that this graph is the graph for ALL of the function in the SCC, not
     // just F.
@@ -2643,7 +2643,7 @@ void DataStructures::formGlobalECs() {
   }
 }
 
-void DataStructures::init(DataStructures* D, bool clone, bool printAuxCalls, 
+void DataStructures::init(DataStructures* D, bool clone, bool useAuxCalls, 
                           bool copyGlobalAuxCalls, bool resetAux) {
   assert (!GraphSource && "Already init");
   GraphSource = D;
@@ -2654,7 +2654,7 @@ void DataStructures::init(DataStructures* D, bool clone, bool printAuxCalls,
   GlobalECs = D->getGlobalECs();
   GlobalsGraph = new DSGraph(D->getGlobalsGraph(), GlobalECs, 0,
                              copyGlobalAuxCalls?0:DSGraph::DontCloneAuxCallNodes);
-  if (printAuxCalls) GlobalsGraph->setPrintAuxCalls();
+  if (useAuxCalls) GlobalsGraph->setUseAuxCalls();
 
   //
   // Tell the other DSA pass if we're stealing its graph.

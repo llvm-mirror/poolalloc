@@ -15,6 +15,8 @@
 //   -print-only-types              Only print the types for the given values
 // -check-same-node=<list>        Verify the given values' nodes were merged.
 // -check-not-same-node=<list>    Verify the given values' nodes weren't merged.
+// -check-type=<list>,type        Verify the given nodes have the given type
+// -check-callees=caller,<list>   Verify the given caller has the following callees
 // -verify-flags=<list>           Verify the given values match the flag specifications.
 //
 // In general a 'value' query on the DSA results looks like this:
@@ -548,6 +550,7 @@ static bool verifyFlags(llvm::raw_ostream &O, const Module *M, const DataStructu
 /// functions in the list
 static bool checkCallees(llvm::raw_ostream &O, const Module *M, const DataStructures *DS) {
   
+  //Mangled names must be provided for C++
   cl::list<std::string>::iterator I = CheckCallees.begin(),
                                   E = CheckCallees.end();
   // If the user specified that a set of values should be in the same node...

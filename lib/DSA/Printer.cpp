@@ -246,7 +246,7 @@ struct DOTGraphTraits<const DSGraph*> : public DefaultDOTGraphTraits {
 
     // Output all of the call nodes...
     const std::list<DSCallSite> &FCs =
-      G->shouldPrintAuxCalls() ? G->getAuxFunctionCalls()
+      G->shouldUseAuxCalls() ? G->getAuxFunctionCalls()
       : G->getFunctionCalls();
     for (std::list<DSCallSite>::const_iterator I = FCs.begin(), E = FCs.end();
          I != E; ++I) {
@@ -305,7 +305,7 @@ void DSGraph::writeGraphToFile(llvm::raw_ostream &O,
 
   if (!Error.size()) {
     print(F);
-    unsigned NumCalls = shouldPrintAuxCalls() ?
+    unsigned NumCalls = shouldUseAuxCalls() ?
       getAuxFunctionCalls().size() : getFunctionCalls().size();
     O << " [" << getGraphSize() << "+" << NumCalls << "]\n";
   } else {
@@ -333,7 +333,7 @@ static void printCollection(const Collection &C, llvm::raw_ostream &O,
   for (Module::const_iterator I = M->begin(), E = M->end(); I != E; ++I)
     if (C.hasDSGraph(*I)) {
       DSGraph* Gr = C.getDSGraph((Function&)*I);
-      unsigned NumCalls = Gr->shouldPrintAuxCalls() ?
+      unsigned NumCalls = Gr->shouldUseAuxCalls() ?
         Gr->getAuxFunctionCalls().size() : Gr->getFunctionCalls().size();
       bool IsDuplicateGraph = false;
 

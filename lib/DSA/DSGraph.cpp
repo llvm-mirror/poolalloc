@@ -99,7 +99,7 @@ DSGraph::DSGraph(DSGraph* G, EquivalenceClasses<const GlobalValue*> &ECs,
                  SuperSet<const Type*>& tss,
                  unsigned CloneFlags)
   : GlobalsGraph(0), ScalarMap(ECs), TD(G->TD), TypeSS(tss) {
-  PrintAuxCalls = false;
+  UseAuxCalls = false;
   cloneInto(G, CloneFlags);
 }
 
@@ -639,7 +639,7 @@ void DSGraph::markIncompleteNodes(unsigned Flags) {
   }
 
   // Mark stuff passed into functions calls as being incomplete.
-  if (!shouldPrintAuxCalls())
+  if (!shouldUseAuxCalls())
     for (std::list<DSCallSite>::iterator I = FunctionCalls.begin(),
            E = FunctionCalls.end(); I != E; ++I)
       markIncomplete(*I);
@@ -1582,7 +1582,7 @@ void DSGraph::buildCallGraph(DSCallGraph& DCG, bool filter) const {
   //
   // Get the list of unresolved call sites.
   //
-  const std::list<DSCallSite>& Calls = getAuxFunctionCalls();
+  const std::list<DSCallSite>& Calls = getFunctionCalls();
   for (std::list<DSCallSite>::const_iterator ii = Calls.begin(),
                                              ee = Calls.end();
        ii != ee; ++ii) {

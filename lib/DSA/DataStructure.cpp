@@ -1259,7 +1259,7 @@ DSGraph* DataStructures::getOrCreateGraph(const Function* F) {
       if (resetAuxCalls) 
         G->getAuxFunctionCalls() = G->getFunctionCalls();
     }
-    G->setPrintAuxCalls();
+    G->setUseAuxCalls();
     G->setGlobalsGraph(GlobalsGraph);
     
     // Note that this graph is the graph for ALL of the function in the SCC, not
@@ -1373,7 +1373,7 @@ void DataStructures::eliminateUsesOfECGlobals(DSGraph &G,
   DEBUG(if(MadeChange) G.AssertGraphOK());
 }
 
-void DataStructures::init(DataStructures* D, bool clone, bool printAuxCalls, 
+void DataStructures::init(DataStructures* D, bool clone, bool useAuxCalls, 
                           bool copyGlobalAuxCalls, bool resetAux) {
   assert (!GraphSource && "Already init");
   GraphSource = D;
@@ -1386,7 +1386,7 @@ void DataStructures::init(DataStructures* D, bool clone, bool printAuxCalls,
   GlobalsGraph = new DSGraph(D->getGlobalsGraph(), GlobalECs, *TypeSS,
                              copyGlobalAuxCalls? DSGraph::CloneAuxCallNodes
 					 :DSGraph::DontCloneAuxCallNodes);
-  if (printAuxCalls) GlobalsGraph->setPrintAuxCalls();
+  if (useAuxCalls) GlobalsGraph->setUseAuxCalls();
 
   //
   // Tell the other DSA pass if we're stealing its graph.

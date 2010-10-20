@@ -81,7 +81,7 @@ protected:
   // Callgraph, as computed so far
   DSCallGraph callgraph;
 
-  void init(DataStructures* D, bool clone, bool printAuxCalls, bool copyGlobalAuxCalls, bool resetAux);
+  void init(DataStructures* D, bool clone, bool useAuxCalls, bool copyGlobalAuxCalls, bool resetAux);
   void init(TargetData* T);
 
   void formGlobalECs();

@@ -209,7 +209,15 @@ public:
   typedef std::multimap<DSNodeHandle, const DSNode*> InvNodeMapTy;
 private:
   DSGraph *GlobalsGraph;   // Pointer to the common graph of global objects
-  bool PrintAuxCalls;      // Should this graph print the Aux calls vector?
+
+  // This is use to differentiate between Local and the rest of the passes.
+  // Local should use the FunctionCalls vector that has all the DSCallSites.
+  // All other passes, shoud use the Aux calls vector, as they process and 
+  // subsequently might remove some DSCall Sites. Once those call sites
+  // have been resolved, we must not revisit them again.
+  // UseAuxCalls is false for Local. And true for the other passes.
+
+  bool UseAuxCalls;      // Should this pass use the Aux calls vector?
 
   NodeListTy Nodes;
   ScalarMapTy ScalarMap;
@@ -251,7 +259,7 @@ public:
   DSGraph(EquivalenceClasses<const GlobalValue*> &ECs, const TargetData &td,
           SuperSet<const Type*>& tss,
           DSGraph *GG = 0) 
-    :GlobalsGraph(GG), PrintAuxCalls(false), 
+    :GlobalsGraph(GG), UseAuxCalls(false), 
      ScalarMap(ECs), TD(td), TypeSS(tss)
   { }
 
@@ -285,11 +293,11 @@ public:
   ///
   const TargetData &getTargetData() const { return TD; }
 
-  /// setPrintAuxCalls - If you call this method, the auxillary call vector will
-  /// be printed instead of the standard call vector to the dot file.
+  /// setUseAuxCalls - If you call this method, the auxillary call vector will
+  /// be used instead of the standard call vector to the dot file.
   ///
-  void setPrintAuxCalls() { PrintAuxCalls = true; }
-  bool shouldPrintAuxCalls() const { return PrintAuxCalls; }
+  void setUseAuxCalls() { UseAuxCalls = true; }
+  bool shouldUseAuxCalls() const { return UseAuxCalls; }
 
   /// node_iterator/begin/end - Iterate over all of the nodes in the graph.  Be
   /// extremely careful with these methods because any merging of nodes could

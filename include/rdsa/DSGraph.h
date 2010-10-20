@@ -209,7 +209,7 @@ public:
   typedef hash_multimap<DSNodeHandle, const DSNode*> InvNodeMapTy;
 private:
   DSGraph *GlobalsGraph;   // Pointer to the common graph of global objects
-  bool PrintAuxCalls;      // Should this graph print the Aux calls vector?
+  bool UseAuxCalls;      // Should this graph print the Aux calls vector?
 
   NodeListTy Nodes;
   ScalarMapTy ScalarMap;
@@ -244,7 +244,7 @@ public:
   // Create a new, empty, DSGraph.
   DSGraph(EquivalenceClasses<const GlobalValue*> &ECs, const TargetData &td,
           DSGraph *GG) 
-    :GlobalsGraph(GG), PrintAuxCalls(false), 
+    :GlobalsGraph(GG), UseAuxCalls(false), 
      ScalarMap(ECs), TD(td)
   { }
 
@@ -272,11 +272,11 @@ public:
   ///
   const TargetData &getTargetData() const { return TD; }
 
-  /// setPrintAuxCalls - If you call this method, the auxillary call vector will
+  /// setUseAuxCalls - If you call this method, the auxillary call vector will
   /// be printed instead of the standard call vector to the dot file.
   ///
-  void setPrintAuxCalls() { PrintAuxCalls = true; }
-  bool shouldPrintAuxCalls() const { return PrintAuxCalls; }
+  void setUseAuxCalls() { UseAuxCalls = true; }
+  bool shouldUseAuxCalls() const { return UseAuxCalls; }
 
   /// node_iterator/begin/end - Iterate over all of the nodes in the graph.  Be
   /// extremely careful with these methods because any merging of nodes could
