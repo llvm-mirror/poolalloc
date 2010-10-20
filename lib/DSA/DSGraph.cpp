@@ -1648,7 +1648,7 @@ void DSGraph::buildCallGraph(DSCallGraph& DCG, bool filter) const {
   //
   // Get the list of unresolved call sites.
   //
-  const std::list<DSCallSite>& Calls = getFunctionCalls();
+  const std::list<DSCallSite>& Calls = getAuxFunctionCalls();
   for (std::list<DSCallSite>::const_iterator ii = Calls.begin(),
                                              ee = Calls.end();
        ii != ee; ++ii) {
