@@ -7,7 +7,7 @@
 ;  Should be incomplete, tests very basic tracking.
 ;RUN: dsaopt %s -dsa-local -analyze -verify-flags "main:ptrExtern+IE"
 ;RUN: dsaopt %s -dsa-local -analyze -verify-flags "main:ptr+I-E"
-;RUN: dsaopt %s -dsa-local -analyze -verify-flags "main:ptrViaExtern+IE"
+;RUN: dsaopt %s -dsa-local -analyze -verify-flags "main:ptrViaExtern+I-E"
 
 ;RUN: dsaopt %s -dsa-bu -analyze -verify-flags "main:ptrExtern+IE"
 ;RUN: dsaopt %s -dsa-bu -analyze -verify-flags "main:ptr-IE"
@@ -32,10 +32,11 @@
 target datalayout = "e-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:64:64-f32:32:32-f64:64:64-v64:64:64-v128:128:128-a0:0:64-s0:64:64-f80:128:128-n8:16:32:64"
 target triple = "x86_64-unknown-linux-gnu"
 
+;RUN: dsaopt %s -dsa-local -analyze -verify-flags "getPointerViaExtern:ptr+E"
 define i32* @getPointerViaExtern() nounwind {
 entry:
-  %0 = tail call i32* (...)* @getPointerExtern() nounwind ; <i32*> [#uses=1]
-  ret i32* %0
+  %ptr = tail call i32* (...)* @getPointerExtern() nounwind ; <i32*> [#uses=1]
+  ret i32* %ptr
 }
 
 declare i32* @getPointerExtern(...)

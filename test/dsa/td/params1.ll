@@ -1,10 +1,10 @@
 ;RUN: dsaopt %s -dsa-local -analyze -check-same-node=initialize:temp:0,initialize:arr:0
-;RUN: dsaopt %s -dsa-local -analyze -verify-flags "initialize:temp:0+IRE"
-;RUN: dsaopt %s -dsa-local -analyze -verify-flags "initialize:arr+IRE"
+;RUN: dsaopt %s -dsa-local -analyze -verify-flags "initialize:temp:0+IR-E"
+;RUN: dsaopt %s -dsa-local -analyze -verify-flags "initialize:arr+IR-E"
 
 ;RUN: dsaopt %s -dsa-bu -analyze -check-same-node=initialize:temp:0,initialize:arr:0
-;RUN: dsaopt %s -dsa-bu -analyze -verify-flags "initialize:temp:0+IRE"
-;RUN: dsaopt %s -dsa-bu -analyze -verify-flags "initialize:arr+IRE"
+;RUN: dsaopt %s -dsa-bu -analyze -verify-flags "initialize:temp:0+IR-E"
+;RUN: dsaopt %s -dsa-bu -analyze -verify-flags "initialize:arr+IR-E"
 
 ;RUN: dsaopt %s -dsa-td -analyze -check-same-node=initialize:temp:0,initialize:arr:0
 ;RUN: dsaopt %s -dsa-td -analyze -verify-flags "initialize:temp:0+HMRE-I"
