@@ -145,11 +145,9 @@ createGlobalPoolCtor (Module & M) {
 
   //
   // Get the current set of static global constructors and add the new ctor
-  // to the end of the list (the list seems to be initialized in reverse
-  // order).
+  // to the list.
   //
   std::vector<Constant *> CurrentCtors;
-  CurrentCtors.push_back (RuntimeCtorInit);
   GlobalVariable * GVCtor = M.getNamedGlobal ("llvm.global_ctors");
   if (GVCtor) {
     if (Constant * C = GVCtor->getInitializer()) {
@@ -164,6 +162,16 @@ createGlobalPoolCtor (Module & M) {
     //
     GVCtor->setName ("removed");
   }
+
+  //
+  // The ctor list seems to be initialized in different orders on different
+  // platforms, and the priority settings don't seem to work.  Examine the
+  // module's platform string and take a best guess to the order.
+  //
+  if (M.getTargetTriple().find ("linux") == std::string::npos)
+    CurrentCtors.insert (CurrentCtors.begin(), RuntimeCtorInit);
+  else
+    CurrentCtors.push_back (RuntimeCtorInit);
 
   //
   // Create a new initializer.
