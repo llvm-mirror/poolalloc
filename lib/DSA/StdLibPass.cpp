@@ -160,7 +160,6 @@ const struct {
   {"sc.pool_unregister_global", {NRET_NARGS, NRET_NARGS, NRET_NARGS, false, false, false}},
   {"sc.pool_register", {NRET_NARGS, NRET_NARGS, NRET_NARGS, false, false, false}},
   {"sc.pool_unregister", {NRET_NARGS, NRET_NARGS, NRET_NARGS, false, false, false}},
-  {"sc.get_actual_val", {NRET_NARGS, NRET_NARGS, NRET_NARGS, false, true, false}},
 
 #if 0
   {"remove",     {false, false, false,  true, false, false, false, false, false}},
@@ -396,6 +395,7 @@ StdLibDataStructures::runOnModule (Module &M) {
   processRuntimeCheck (M, "sc.boundscheck");
   processRuntimeCheck (M, "sc.boundscheckui");
   processRuntimeCheck (M, "sc.exactcheck2");
+  processRuntimeCheck (M, "sc.get_actual_value");
 
   // In Local we marked nodes passed to/returned from 'StdLib' functions as External, because at
   // that point they were.  However they no longer are necessarily so, and we need to update accordingly.
