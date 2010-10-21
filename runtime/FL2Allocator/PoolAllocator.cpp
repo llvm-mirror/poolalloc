@@ -883,6 +883,16 @@ void *poolalloc(PoolTy<NormalPoolTraits> *Pool, unsigned NumBytes) {
   return to_return;
 }
 
+void *poolcalloc(PoolTy<NormalPoolTraits> *Pool,
+                 unsigned NumBytes,
+                 unsigned NumElements) {
+  void * p = poolalloc (Pool, NumBytes * NumElements);
+  if (p) {
+    memset (p, 0, NumBytes * NumElements);
+  }
+  return p;
+}
+
 void *poolmemalign(PoolTy<NormalPoolTraits> *Pool,
                    unsigned Alignment, unsigned NumBytes) {
   //punt and use pool alloc.
