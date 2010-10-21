@@ -149,6 +149,7 @@ createGlobalPoolCtor (Module & M) {
   // order).
   //
   std::vector<Constant *> CurrentCtors;
+  CurrentCtors.push_back (RuntimeCtorInit);
   GlobalVariable * GVCtor = M.getNamedGlobal ("llvm.global_ctors");
   if (GVCtor) {
     if (Constant * C = GVCtor->getInitializer()) {
@@ -163,7 +164,6 @@ createGlobalPoolCtor (Module & M) {
     //
     GVCtor->setName ("removed");
   }
-  CurrentCtors.push_back (RuntimeCtorInit);
 
   //
   // Create a new initializer.
