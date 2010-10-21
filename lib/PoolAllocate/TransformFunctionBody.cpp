@@ -450,56 +450,82 @@ FuncTransform::visitMallocCall(CallSite &CS) {
   TransformAllocationInstr(MI, AllocSize);
 }
 
+//
+// Method: visitCallocCall()
+//
+// Description:
+//  Transform a call to calloc() to use a pool-allocation version of calloc.
+//  We do this because pool_calloc() must check for a NULL return value before
+//  zeroing out the memory.
+//
+void
+FuncTransform::visitCallocCall (CallSite CS) {
+  //
+  // Ensure that the calloc call has the correct number of arugments.
+  //
+  assert(CS.arg_end()-CS.arg_begin() == 2 && "calloc takes two arguments!");
 
-void FuncTransform::visitCallocCall(CallSite CS) {
-  TargetData& TD = PAInfo.getAnalysis<TargetData>();
-  const Type* Int8Type = Type::getInt8Ty(CS.getInstruction()->getContext());
+  //
+  // Ensure that the new instruction has the same name as the old one.  This is
+  // done by removing the name of the old instruction.
+  //
+  Instruction * I = CS.getInstruction();
+  std::string Name = I->getName(); I->setName("");
+
   const Type* Int32Type = Type::getInt32Ty(CS.getInstruction()->getContext());
-  const Type* Int64Type = Type::getInt64Ty(CS.getInstruction()->getContext());
 
-  // FIXME: This transform is not correct; calloc does not zero the memory
-  //        if NULL is returned.
   // FIXME: Ensure that we use 32/64-bit object length sizes consistently
-  // FIXME: Rename 'useLong' to something more descriptive?
   // FIXME: Introduce 'ObjectAllocationSize' variable
   //        or similar instead of repeatedly using same expression
-  // XXX: Start new review session here ***
-  bool useLong = TD.getTypeAllocSize(PointerType::getUnqual(Int8Type)) != 4;
 
-  Module *M = CS.getInstruction()->getParent()->getParent()->getParent();
-  assert(CS.arg_end()-CS.arg_begin() == 2 && "calloc takes two arguments!");
   Value *V1 = CS.getArgument(0);
   Value *V2 = CS.getArgument(1);
-  if (V1->getType() != V2->getType()) {
-    V1 = CastInst::CreateZExtOrBitCast(V1, useLong ? Int64Type : Int32Type, V1->getName(), CS.getInstruction());
-    V2 = CastInst::CreateZExtOrBitCast(V2, useLong ? Int64Type : Int32Type, V2->getName(), CS.getInstruction());
+  V1 = CastInst::CreateIntegerCast(V1, Int32Type, false, V1->getName(), I);
+  V2 = CastInst::CreateIntegerCast(V2, Int32Type, false, V2->getName(), I);
+
+  // Get the pool handle--
+  // Do not change the instruction into a poolalloc() call unless we have a
+  // real pool descriptor
+  Value *PH = getPoolHandle(CS.getInstruction());
+  if (PH == 0 || isa<ConstantPointerNull>(PH))
+    return;
+
+  //
+  // Create call to poolcalloc, and record the use of the pool
+  //
+  Value* Opts[3] = {PH, V1, V2};
+  Instruction *V = CallInst::Create(PAInfo.PoolCalloc, Opts, Opts + 3, Name, I);
+  AddPoolUse(*V, PH, PoolUses);
+
+  // Cast to the appropriate type if necessary
+  // FIXME: Make use of "castTo" utility function
+  Instruction *Casted = V;
+  if (V->getType() != I->getType())
+    Casted = CastInst::CreatePointerCast(V, I->getType(), V->getName(), I);
+
+  // Update def-use info
+  I->replaceAllUsesWith(Casted);
+
+  // If we are modifying the original function, update the DSGraph.
+  if (!FI.Clone) {
+    // V and Casted now point to whatever the original allocation did.
+    G->getScalarMap().replaceScalar(I, V);
+    if (V != Casted)
+      G->getScalarMap()[Casted] = G->getScalarMap()[V];
+  } else {             // Otherwise, update the NewToOldValueMap
+    UpdateNewToOldValueMap(I, V, V != Casted ? Casted : 0);
   }
 
-  V2 = BinaryOperator::Create(Instruction::Mul, V1, V2, "size",
-                              CS.getInstruction());
-  if (V2->getType() != (useLong ? Int64Type : Int32Type))
-    V2 = CastInst::CreateZExtOrBitCast(V2, useLong ? Int64Type : Int32Type, V2->getName(), CS.getInstruction());
+  // If this was an invoke, fix up the CFG.
+  if (InvokeInst *II = dyn_cast<InvokeInst>(I)) {
+    // FIXME: Assert out since we potentially don't handle "invoke" correctly
+    BranchInst::Create (II->getNormalDest(), I);
+    II->getUnwindDest()->removePredecessor(II->getParent(), true);
+  }
 
-  BasicBlock::iterator BBI =
-    TransformAllocationInstr(CS.getInstruction(), V2);
-  Value *Ptr = BBI++;
-
-  // We just turned the call of 'calloc' into the equivalent of malloc.  To
-  // finish calloc, we need to zero out the memory.
-  Constant *MemSet =  M->getOrInsertFunction((useLong ? "llvm.memset.i64" : "llvm.memset.i32"),
-                                             Type::getVoidTy(M->getContext()),
-                                             PointerType::getUnqual(Int8Type),
-                                             Int8Type, (useLong ? Int64Type : Int32Type),
-                                             Int32Type, NULL);
-
-  if (Ptr->getType() != PointerType::getUnqual(Int8Type))
-    Ptr = CastInst::CreatePointerCast(Ptr, PointerType::getUnqual(Int8Type), Ptr->getName(),
-                       BBI);
-  
-  // We know that the memory returned by poolalloc is at least 4 byte aligned.
-  Value* Opts[4] = {Ptr, ConstantInt::get(Int8Type, 0),
-                    V2,  ConstantInt::get(Int32Type, 4)};
-  CallInst::Create(MemSet, Opts, Opts + 4, "", BBI);
+  // Remove old allocation instruction.
+  I->eraseFromParent();
+  return;
 }
 
 
