@@ -1085,8 +1085,7 @@ GraphBuilder::MergeConstantInitIntoNode(DSNodeHandle &NH,
   // pointer we've just found.
   //
   if (isa<PointerType>(Ty)) {
-    NHN->setArrayMarker();
-  //  NHN->mergeTypeInfo(Ty, NH.getOffset());
+    NHN->mergeTypeInfo(Ty, NH.getOffset());
     NH.addEdgeTo(getValueDest(C));
     return;
   }
@@ -1242,7 +1241,6 @@ void handleMagicSections(DSGraph* GlobalsGraph, Module& M) {
                     << (*SI)->getNameStr() << "\n");
             GlobalsGraph->getNodeForValue(*SI).mergeWith(DHV);
           }
-          //DHV.getNode()->dump();
         }
       }
       msf >> count;
