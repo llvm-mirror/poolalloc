@@ -1,7 +1,7 @@
 ;2D array using pointers. Should be folded
 
-;RUN: dsaopt %s -dsa-local -analyze -check-type=main:array:0,FoldedVOID
-;RUN: dsaopt %s -dsa-local -analyze -check-type=main:array:0:0,FoldedVOID
+;RUN: dsaopt %s -dsa-local -analyze -check-type=main:array:0,0:i32*Array
+;RUN: dsaopt %s -dsa-local -analyze -check-type=main:array:0:0,0:i32Array
 ;RUN: dsaopt %s -dsa-local -analyze -check-type=main:array,0:i32**
 
 ; ModuleID = 'arrayPointers.bc'

@@ -1,4 +1,4 @@
-;RUN: dsaopt %s -dsa-local -analyze -check-same-node=func:s2:0,func:c:0,func:tmp:0:0
+;RUN: dsaopt %s -dsa-local -analyze -check-same-node=func:s2:8,func:c:0,func:tmp:0:8
 ;RUN: dsaopt %s -dsa-local -analyze -check-same-node=func:ptr:0,func:ptr1:0,func:s2
 
 ; ModuleID = 'arrays3.bc'

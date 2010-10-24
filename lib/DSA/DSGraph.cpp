@@ -39,7 +39,7 @@ using namespace llvm;
 
 #define COLLAPSE_ARRAYS_AGGRESSIVELY 0
 namespace {
-  //STATISTIC (NumCallNodesMerged , "Number of call nodes merged");
+  STATISTIC (NumCallNodesMerged , "Number of call nodes merged");
   STATISTIC (NumDNE             , "Number of nodes removed by reachability");
   STATISTIC (NumTrivialDNE      , "Number of nodes trivially removed");
   STATISTIC (NumTrivialGlobalDNE, "Number of globals trivially removed");
@@ -856,7 +856,6 @@ static inline void killIfUselessEdge(DSNodeHandle &Edge) {
 // clients can query call graph, means we need callee information for all the 
 // call sites. And hence, we should not remove them without ever inlining them
 
-#if 0
 static void removeIdenticalCalls(std::list<DSCallSite> &Calls) {
   // Remove trivially identical function calls
   Calls.sort();  // Sort by callee as primary key!
@@ -864,10 +863,10 @@ static void removeIdenticalCalls(std::list<DSCallSite> &Calls) {
   // Scan the call list cleaning it up as necessary...
   DSNodeHandle LastCalleeNode;
 #if 0
-  Function *LastCalleeFunc = 0;
+  //Function *LastCalleeFunc = 0;
   unsigned NumDuplicateCalls = 0;
 #endif
-  bool LastCalleeContainsExternalFunction = false;
+  //bool LastCalleeContainsExternalFunction = false;
 
   unsigned NumDeleted = 0;
   for (std::list<DSCallSite>::iterator I = Calls.begin(), E = Calls.end();
@@ -878,6 +877,7 @@ static void removeIdenticalCalls(std::list<DSCallSite> &Calls) {
     if (!CS.isIndirectCall()) {
       LastCalleeNode = 0;
     } else {
+      
       DSNode *Callee = CS.getCalleeNode();
 
       // If the Callee is a useless edge, this must be an unreachable call site,
@@ -894,7 +894,7 @@ static void removeIdenticalCalls(std::list<DSCallSite> &Calls) {
       // if the callee contains an external function, it will never be
       // resolvable, just merge the call sites.
       if (!LastCalleeNode.isNull() && LastCalleeNode.getNode() == Callee) {
-        LastCalleeContainsExternalFunction = Callee->isExternFuncNode();
+      //  LastCalleeContainsExternalFunction = Callee->isExternFuncNode();
 
         std::list<DSCallSite>::iterator PrevIt = OldIt;
         --PrevIt;
@@ -972,8 +972,8 @@ static void removeIdenticalCalls(std::list<DSCallSite> &Calls) {
     }
 #endif
 
-    if (I != Calls.end() && CS == *I) {
-      LastCalleeNode = 0;
+    if (I != Calls.end() && CS == *I && I->isDirectCall()) {
+     // LastCalleeNode = 0;
       Calls.erase(OldIt);
       ++NumDeleted;
       continue;
@@ -992,8 +992,8 @@ static void removeIdenticalCalls(std::list<DSCallSite> &Calls) {
 
       // If this call site is now the same as the previous one, we can delete it
       // as a duplicate.
-      if (*OldIt == *CI) {
-        DEBUG(errs() << "Deleteing " << CI->getCallSite().getInstruction() << "\n");
+      if (*OldIt == *CI && CI->isDirectCall() && OldIt->isDirectCall()) {
+      //  errs() << "Deleteing " << CI->getCallSite().getInstruction() << "\n";
         Calls.erase(CI);
         CI = OldIt;
         ++NumDeleted;
@@ -1008,8 +1008,6 @@ static void removeIdenticalCalls(std::list<DSCallSite> &Calls) {
   if (NumDeleted)
     DEBUG(errs() << "Merged " << NumDeleted << " call nodes.\n");
 }
-#endif
-
 // removeTriviallyDeadNodes - After the graph has been constructed, this method
 // removes all unreachable nodes that are created because they got merged with
 // other nodes in the graph.  These nodes will all be trivially unreachable, so
@@ -1086,9 +1084,9 @@ void DSGraph::removeTriviallyDeadNodes() {
     }
   }
 #if 0
+#endif
   removeIdenticalCalls(FunctionCalls);
   removeIdenticalCalls(AuxFunctionCalls);
-#endif
 }
 
 // CanReachAliveNodes - Simple graph walker that recursively traverses the graph
@@ -1404,7 +1402,12 @@ void DSGraph::computeNodeMapping(const DSNodeHandle &NH1,
   // Modify the entry in the node map so that the DSNode from the first
   // DSNodeHandle is mapped to the second DSNodeHandle.
   //
-  Entry.setTo(N2, NH2.getOffset()-NH1.getOffset());
+  assert(((signed int)(NH2.getOffset()-NH1.getOffset())>=0) && " Underflow error ");
+  if(NH2.getOffset() >= NH1.getOffset()) {
+    Entry.setTo(N2, NH2.getOffset()-NH1.getOffset());
+  } else {
+    Entry.setTo(N2, NH1.getOffset());
+  }
 
   //
   // The two DSNodes that we have could be strucures with outgoing links to
@@ -1682,6 +1685,15 @@ void DSGraph::buildCallGraph(DSCallGraph& DCG, bool filter) const {
           DCG.insert(CS, *Fi);
         else
           ++NumFiltered;
+     for (unsigned i = 0; i < ii->getNumMappedSites(); i++) {
+       CallSite MCS = ii->getMappedCallSite(i);
+       for (std::vector<const Function*>::iterator Fi = MaybeTargets.begin(),
+             Fe = MaybeTargets.end(); Fi != Fe; ++Fi)
+          if (!filter || functionIsCallable(MCS, *Fi))
+            DCG.insert(MCS, *Fi);
+          else
+            ++NumFiltered;
+       }
     }
   }
 }

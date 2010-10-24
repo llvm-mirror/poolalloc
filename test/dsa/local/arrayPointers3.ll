@@ -1,7 +1,7 @@
 ; array of pointers to arrays of structs. The inner array gets folded.
 
 ;RUN: dsaopt %s -dsa-local -analyze -check-type=main:array,0:%\struct.structType*Array
-;RUN: dsaopt %s -dsa-local -analyze -check-type=main:array:0,main:row1,main:row2,FoldedVOID
+;RUN: dsaopt %s -dsa-local -analyze -check-type=main:array:0,main:row1,main:row2,0:i32::4:i32::8:floatArray
 ;RUN: dsaopt %s -dsa-local -analyze -check-same-node=main:row1,main:row2,main:array:0
 
 ; ModuleID = 'arrayPointers3.bc'

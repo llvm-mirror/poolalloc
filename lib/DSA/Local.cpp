@@ -531,10 +531,10 @@ void GraphBuilder::visitGetElementPtrInst(User &GEP) {
   //        What if the array is indexed using a larger index than its declared
   //        size?  Does the LLVM verifier catch such issues?
   //
-  const PointerType *PTy = cast<PointerType > (GEP.getOperand(0)->getType());
+  /*const PointerType *PTy = cast<PointerType > (GEP.getOperand(0)->getType());
   const Type *CurTy = PTy->getElementType();
   if (TD.getTypeAllocSize(CurTy) + Value.getOffset() > Value.getNode()->getSize())
-    Value.getNode()->growSize(TD.getTypeAllocSize(CurTy) + Value.getOffset());
+    Value.getNode()->growSize(TD.getTypeAllocSize(CurTy) + Value.getOffset());*/
 
 #if 0
   // Handle the pointer index specially...
@@ -586,9 +586,15 @@ void GraphBuilder::visitGetElementPtrInst(User &GEP) {
       int FieldNo = CUI->getSExtValue();
       // increment the offset by the actual byte offset being accessed
       Offset += (unsigned)TD.getStructLayout(STy)->getElementOffset(FieldNo);
-      
+     
+      if(!Value.getNode()->isArrayNode() || Value.getNode()->getSize() <= 1){
+        if (TD.getTypeAllocSize(STy) + Value.getOffset() > Value.getNode()->getSize())
+          Value.getNode()->growSize(TD.getTypeAllocSize(STy) + Value.getOffset());
+      }
+
     } else if(const ArrayType *ATy = dyn_cast<ArrayType>(*I)) {
        // indexing into an array.
+     Value.getNode()->setArrayMarker();
      const Type *CurTy = ATy->getElementType();
 
       if(!isa<ArrayType>(CurTy) &&
@@ -609,7 +615,6 @@ void GraphBuilder::visitGetElementPtrInst(User &GEP) {
         }
      }
 // indexing into an array.
-      Value.getNode()->setArrayMarker();
       
       // Find if the DSNode belongs to the array
       // If not fold.
@@ -621,8 +626,10 @@ void GraphBuilder::visitGetElementPtrInst(User &GEP) {
         Value.getNode();
         Offset = 0;
         break;
-      } 
-    } else if (isa<PointerType>(*I)) {
+      }
+    } else if (const PointerType *PtrTy = dyn_cast<PointerType>(*I)) { 
+      const Type *CurTy = PtrTy->getElementType();
+
       //
       // Unless we're advancing the pointer by zero bytes via array indexing,
       // fold the node (i.e., mark it type-unknown) and indicate that we're
@@ -635,10 +642,32 @@ void GraphBuilder::visitGetElementPtrInst(User &GEP) {
       if (!isa<Constant>(I.getOperand()) ||
           !cast<Constant>(I.getOperand())->isNullValue()) {
         Value.getNode()->setArrayMarker();
-        Value.getNode()->foldNodeCompletely();
-        Value.getNode();
-        Offset = 0;
-        break;
+
+
+        if(!isa<ArrayType>(CurTy) && Value.getNode()->getSize() <= 1){
+          Value.getNode()->growSize(TD.getTypeAllocSize(CurTy));
+        }
+        if(CurTy->isVoidTy()) {
+          Value.getNode()->growSize(1);
+        }
+        if(isa<ArrayType>(CurTy) && Value.getNode()->getSize() <= 1){
+          const Type *ETy = (cast<ArrayType>(CurTy))->getElementType();
+          while(isa<ArrayType>(ETy)) {
+            ETy = (cast<ArrayType>(ETy))->getElementType();
+          }
+          Value.getNode()->growSize(TD.getTypeAllocSize(ETy));
+          if(ETy->isVoidTy()) {
+            Value.getNode()->growSize(1);
+          }
+        }
+        if(Value.getOffset() || Offset != 0
+         || (!isa<ArrayType>(CurTy)
+          && (Value.getNode()->getSize() != TD.getTypeAllocSize(CurTy)))) {
+          Value.getNode()->foldNodeCompletely();
+          Value.getNode();
+          Offset = 0;
+          break;
+        }
       }
     }
 
@@ -1048,7 +1077,7 @@ GraphBuilder::MergeConstantInitIntoNode(DSNodeHandle &NH,
   // Ensure a type-record exists...
   //
   DSNode *NHN = NH.getNode();
-  NHN->mergeTypeInfo(Ty, NH.getOffset());
+  //NHN->mergeTypeInfo(Ty, NH.getOffset());
 
   //
   // If we've found something of pointer type, create or find its DSNode and
@@ -1056,6 +1085,8 @@ GraphBuilder::MergeConstantInitIntoNode(DSNodeHandle &NH,
   // pointer we've just found.
   //
   if (isa<PointerType>(Ty)) {
+    NHN->setArrayMarker();
+  //  NHN->mergeTypeInfo(Ty, NH.getOffset());
     NH.addEdgeTo(getValueDest(C));
     return;
   }
@@ -1086,8 +1117,11 @@ GraphBuilder::MergeConstantInitIntoNode(DSNodeHandle &NH,
     // end with a zero-length array ([0 x sbyte]); this is a common C idiom
     // that continues to plague the world.
     //
+    //NHN->mergeTypeInfo(Ty, NH.getOffset());
+
     const StructLayout *SL = TD.getStructLayout(cast<StructType>(Ty));
-    for (unsigned i = 0, e = CS->getNumOperands(); i != e; ++i) {
+   
+     for (unsigned i = 0, e = CS->getNumOperands(); i != e; ++i) {
       DSNode *NHN = NH.getNode();
       if (SL->getElementOffset(i) < SL->getSizeInBytes()) {
         //
@@ -1102,7 +1136,7 @@ GraphBuilder::MergeConstantInitIntoNode(DSNodeHandle &NH,
         // analyzing.
         //
         unsigned offset = NH.getOffset()+(unsigned)SL->getElementOffset(i);
-
+        NHN->mergeTypeInfo(ElementType, offset);
         //
         // Create a new DSNodeHandle.  This DSNodeHandle will point to the same
         // DSNode as the one we're constructing for our caller; however, it
@@ -1149,15 +1183,23 @@ void GraphBuilder::mergeInGlobalInitializer(GlobalVariable *GV) {
   // Ensure that the DSNode is large enough to hold the new constant that we'll
   // be adding to it.
   //
-  const Type * ElementType = GV->getType()->getElementType();
-  unsigned requiredSize = TD.getTypeAllocSize(ElementType) + NH.getOffset();
-  if (NH.getNode()->getSize() < requiredSize)
-    NH.getNode()->growSize (requiredSize);
+ const Type * ElementType = GV->getType()->getElementType();
+ while(const ArrayType *ATy = dyn_cast<ArrayType>(ElementType)) {
+    ElementType = ATy->getElementType();
+  }
+  if(!NH.getNode()->isNodeCompletelyFolded()) {
+    unsigned requiredSize = TD.getTypeAllocSize(ElementType) + NH.getOffset();
+    if (NH.getNode()->getSize() < requiredSize){
+      NH.getNode()->growSize (requiredSize);
+    }
+  }
 
   //
   // Do the actual merging in of the constant initializer.
   //
-  MergeConstantInitIntoNode(NH, ElementType, GV->getInitializer());
+//  MergeConstantInitIntoNode(NH, ElementType, GV->getInitializer());
+  MergeConstantInitIntoNode(NH, GV->getType()->getElementType(), GV->getInitializer());
+
 }
 
 void GraphBuilder::mergeExternalGlobal(GlobalVariable *GV) {
