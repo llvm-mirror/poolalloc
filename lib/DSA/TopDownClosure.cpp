@@ -89,7 +89,6 @@ bool TDDataStructures::runOnModule(Module &M) {
   for (DSScalarMap::global_iterator I=GGSM.global_begin(), E=GGSM.global_end();
        I != E; ++I) {
     DSNode *N = GGSM.find(*I)->second.getNode();
-    if (N->isIncompleteNode()) assert(N->isExternalNode());
     if (N->isIncompleteNode() || N->isExternalNode())
       markReachableFunctionsExternallyAccessible(N, Visited);
   }
