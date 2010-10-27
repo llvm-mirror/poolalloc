@@ -395,7 +395,7 @@ StdLibDataStructures::runOnModule (Module &M) {
   processRuntimeCheck (M, "sc.boundscheck");
   processRuntimeCheck (M, "sc.boundscheckui");
   processRuntimeCheck (M, "sc.exactcheck2");
-  processRuntimeCheck (M, "sc.get_actual_value");
+  processRuntimeCheck (M, "sc.get_actual_val");
 
   // In Local we marked nodes passed to/returned from 'StdLib' functions as External, because at
   // that point they were.  However they no longer are necessarily so, and we need to update accordingly.
