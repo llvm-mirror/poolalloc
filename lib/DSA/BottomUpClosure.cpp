@@ -149,6 +149,7 @@ bool BUDataStructures::runOnModuleInternal(Module& M) {
     if (!(F->isDeclaration())){
       DSGraph *Graph  = getOrCreateGraph(F);
       cloneGlobalsInto(Graph);
+      Graph->buildCallGraph(callgraph, filterCallees);
       Graph->maskIncompleteMarkers();
       Graph->markIncompleteNodes(DSGraph::MarkFormalArgs |
                                    DSGraph::IgnoreGlobals);

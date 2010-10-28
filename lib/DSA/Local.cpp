@@ -44,7 +44,7 @@ namespace {
 STATISTIC(NumDirectCall,    "Number of direct calls added");
 STATISTIC(NumIndirectCall,  "Number of indirect calls added");
 STATISTIC(NumAsmCall,       "Number of asm calls collapsed/seen");
-STATISTIC(NumBoringCall,    "Number of pointer-free direct calls ignored");
+//STATISTIC(NumBoringCall,    "Number of pointer-free direct calls ignored");
 STATISTIC(NumIntrinsicCall, "Number of intrinsics called");
 
 RegisterPass<LocalDataStructures>
@@ -972,11 +972,12 @@ void GraphBuilder::visitCallSite(CallSite CS) {
     return;
   }
 
+  //Removed so that call graph is correct. Keep information about call sites.
   //uninteresting direct call
-  if (isa<Function>(Callee) && !DSCallGraph::hasPointers(CS)) {
+  /*if (isa<Function>(Callee) && !DSCallGraph::hasPointers(CS)) {
     ++NumBoringCall;
     return;
-  }
+  }*/
 
   // Set up the return value...
   DSNodeHandle RetVal;
