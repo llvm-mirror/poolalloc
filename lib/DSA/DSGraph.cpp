@@ -352,16 +352,16 @@ VisitForSCCs(const DSNode *N) {
     NodeInfo.insert(NodeInfoIt,
                     std::make_pair(N, std::make_pair(MyId, false)))->second;
 
-  // Base case: if we find a global, this doesn't reach the cloned graph
-  // portion.
-  if (N->isGlobalNode()) {
-    ThisNodeInfo.second = false;
-    return ThisNodeInfo;
-  }
 
   // Base case: if this does reach the cloned graph portion... it does. :)
   if (RC.hasClonedNode(N)) {
     ThisNodeInfo.second = true;
+    return ThisNodeInfo;
+  }
+  // Base case: if we find a global, this doesn't reach the cloned graph
+  // portion.
+  if (N->isGlobalNode()) {
+    ThisNodeInfo.second = false;
     return ThisNodeInfo;
   }
 
@@ -485,6 +485,12 @@ void DSGraph::mergeInGraph(const DSCallSite &CS,
 //  	if (!List.size())
 //  	  AuxCallToCopy.push_back(&*I);
 //        }
+  
+  // Copy aux calls that are needed.
+  // Copy these before calculating the globals to be copied, as there might be
+  // globals that reach the nodes cloned due to aux calls.
+  for (unsigned i = 0, e = AuxCallToCopy.size(); i != e; ++i)
+    AuxFunctionCalls.push_back(DSCallSite(*AuxCallToCopy[i], RC));
 
   const DSScalarMap &GSM = Graph.getScalarMap();
   for (DSScalarMap::global_iterator GI = GSM.global_begin(),
@@ -497,10 +503,6 @@ void DSGraph::mergeInGraph(const DSCallSite &CS,
         break;
       }
   }
-
-  // Copy aux calls that are needed.
-  for (unsigned i = 0, e = AuxCallToCopy.size(); i != e; ++i)
-    AuxFunctionCalls.push_back(DSCallSite(*AuxCallToCopy[i], RC));
 
   // Copy globals that are needed.
   for (unsigned i = 0, e = GlobalsToCopy.size(); i != e; ++i)
