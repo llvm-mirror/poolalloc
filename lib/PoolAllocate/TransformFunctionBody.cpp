@@ -942,7 +942,6 @@ void FuncTransform::visitCallSite(CallSite& CS) {
       std::vector<const Function*> g;
       d->addFullFunctionList(g);
       
-      if(!(d->isIncompleteNode()) && !(d->isExternalNode())) {
       //if(!(d->isIncompleteNode()) && !(d->isExternalNode()) && !(d->isCollapsedNode())) {
       
       //
@@ -956,11 +955,10 @@ void FuncTransform::visitCallSite(CallSite& CS) {
       // same DSGraph, so it doesn't matter which one we use as long as we use
       // a function that *has* a DSGraph.
       //
-        for (unsigned index = 0; index < g.size(); ++index) {
-          if (Graphs.hasDSGraph (*(g[index]))) {
-            CF = g[index];
-            break;
-          }
+      for (unsigned index = 0; index < g.size(); ++index) {
+        if (Graphs.hasDSGraph (*(g[index]))) {
+          CF = g[index];
+          break;
         }
       }
     }
