@@ -328,7 +328,7 @@ public:
 /// by the bottom-up pass.
 ///
 class TDDataStructures : public DataStructures {
-  svset<const Function*> ArgsRemainIncomplete;
+  svset<const Function*> ExternallyCallable;
 
   /// CallerCallEdges - For a particular graph, we keep a list of these records
   /// which indicates which graphs call this function and from where.

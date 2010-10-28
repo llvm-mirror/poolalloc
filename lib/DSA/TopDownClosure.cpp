@@ -62,7 +62,7 @@ void TDDataStructures::markReachableFunctionsExternallyAccessible(DSNode *N,
   {
     std::vector<const Function*> Functions;
     N->addFullFunctionList(Functions);
-    ArgsRemainIncomplete.insert(Functions.begin(), Functions.end());
+    ExternallyCallable.insert(Functions.begin(), Functions.end());
   }
 
   for (DSNode::edge_iterator ii = N->edge_begin(),
@@ -72,7 +72,7 @@ void TDDataStructures::markReachableFunctionsExternallyAccessible(DSNode *N,
       DSNode * NN = NH.getNode();
       std::vector<const Function*> Functions;
       NN->addFullFunctionList(Functions);
-      ArgsRemainIncomplete.insert(Functions.begin(), Functions.end());
+      ExternallyCallable.insert(Functions.begin(), Functions.end());
       markReachableFunctionsExternallyAccessible(NN, Visited);
     }
 }
@@ -89,8 +89,8 @@ bool TDDataStructures::runOnModule(Module &M) {
 
   // Figure out which functions must not mark their arguments complete because
   // they are accessible outside this compilation unit.  Currently, these
-  // arguments are functions which are reachable by global variables in the
-  // globals graph.
+  // arguments are functions which are reachable by incomplete or external
+  // nodes in the globals graph.
   const DSScalarMap &GGSM = GlobalsGraph->getScalarMap();
   svset<DSNode*> Visited;
   for (DSScalarMap::global_iterator I=GGSM.global_begin(), E=GGSM.global_end();
@@ -114,16 +114,16 @@ bool TDDataStructures::runOnModule(Module &M) {
   // functions
   GlobalsGraph->getAuxFunctionCalls().clear();
 
-  // Functions without internal linkage also have unknown incoming arguments!
+  // Functions without internal linkage are definitely externally callable!
   for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I)
     if (!I->isDeclaration() && !I->hasInternalLinkage())
-      ArgsRemainIncomplete.insert(I);
+      ExternallyCallable.insert(I);
 
   // Debug code to print the functions that are externally callable
 #if 0
   for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I)
-    if (ArgsRemainIncomplete.count(I)) {
-      errs() << "ArgsRemainIncomplete: " << I->getNameStr() << "\n";
+    if (ExternallyCallable.count(I)) {
+      errs() << "ExternallyCallable: " << I->getNameStr() << "\n";
     }
 #endif
 
@@ -163,7 +163,7 @@ bool TDDataStructures::runOnModule(Module &M) {
 
   formGlobalECs();
 
-  ArgsRemainIncomplete.clear();
+  ExternallyCallable.clear();
   GlobalsGraph->removeTriviallyDeadNodes();
   GlobalsGraph->computeExternalFlags(DSGraph::DontMarkFormalsExternal);
 
@@ -279,13 +279,13 @@ void TDDataStructures::InlineCallersIntoGraph(DSGraph* DSG) {
   // incompleteness markers for this graph and remove unreachable nodes.
   DSG->maskIncompleteMarkers();
 
-  // If any of the functions has incomplete incoming arguments, don't mark any
-  // of them as complete.
-  bool HasIncompleteArgs = false;
+  // If any of the functions is externally callable, treat everything in its
+  // SCC as externally callable.
+  bool isExternallyCallable = false;
   for (DSGraph::retnodes_iterator I = DSG->retnodes_begin(),
          E = DSG->retnodes_end(); I != E; ++I)
-    if (ArgsRemainIncomplete.count(I->first)) {
-      HasIncompleteArgs = true;
+    if (ExternallyCallable.count(I->first)) {
+      isExternallyCallable = true;
       break;
     }
 
@@ -298,7 +298,7 @@ void TDDataStructures::InlineCallersIntoGraph(DSGraph* DSG) {
   // their arguments and return values as external.  At this point TD is inlining all caller information,
   // and that means External callers too.
   unsigned ExtFlags
-    = HasIncompleteArgs ? DSGraph::MarkFormalsExternal : DSGraph::DontMarkFormalsExternal;
+    = isExternallyCallable ? DSGraph::MarkFormalsExternal : DSGraph::DontMarkFormalsExternal;
   DSG->computeExternalFlags(ExtFlags);
 
   //
