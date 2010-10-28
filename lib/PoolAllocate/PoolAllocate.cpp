@@ -591,7 +591,7 @@ void PoolAllocate::MicroOptimizePoolCalls() {
 //                     DSNodes reachable from globals.  DSNodes are *added* to
 //                     this container; it is not cleared by this function.
 //                     DSNodes from both the local and globals graph are added.
-static void
+static inline void
 GetNodesReachableFromGlobals (DSGraph* G,
                               DenseSet<const DSNode*> &NodesFromGlobals) {
   //
@@ -747,7 +747,7 @@ PoolAllocate::FindFunctionPoolArgs (const std::vector<const Function *> & Functi
     return;
 
   //
-  // Now find all nodes which are reachable from these DSNodes.
+  // Now find all nodes which are reachable from these argument DSNodes.
   //
   DenseSet<const DSNode*> MarkedNodes;
   for (unsigned index = 0; index < RootNodes.size(); ++index) {
@@ -762,6 +762,14 @@ PoolAllocate::FindFunctionPoolArgs (const std::vector<const Function *> & Functi
   // reachable from a global, we will create a global pool for it, so no
   // argument passage is required.
   //
+  if (!PassAllArguments) {
+    std::map<const DSNode*, Value*>::iterator gni;
+    for (gni = GlobalNodes.begin(); gni != GlobalNodes.end(); ++gni) {
+      MarkedNodes.erase(gni->first);
+    }
+  }
+
+#if 0
   DenseSet<const DSNode*> NodesFromGlobals;
   for (unsigned index = 0; index < Functions.size(); ++index) {
     //
@@ -791,6 +799,7 @@ PoolAllocate::FindFunctionPoolArgs (const std::vector<const Function *> & Functi
         NodesFromGlobals.count(N))
       MarkedNodes.erase(N);
   }
+#endif
 
   //
   // Create new FuncInfo entries for all of the functions.  Each one will have
@@ -1171,11 +1180,11 @@ PoolAllocate::ProcessFunctionBody(Function &F, Function &NewF) {
   // function.
   //
   for (unsigned index = 0; index < LocalNodes.size(); ++index) {
-    if (!(FI.MarkedNodes.count (LocalNodes[index]))) {
+    if (FI.MarkedNodes.count (LocalNodes[index]) == 0) {
       FI.NodesToPA.push_back (LocalNodes[index]);
     }
   }
-  
+
   //
   // Add code to create the pools that are local to this function.
   //
