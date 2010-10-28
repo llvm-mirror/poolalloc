@@ -58,6 +58,13 @@ void TDDataStructures::markReachableFunctionsExternallyAccessible(DSNode *N,
   if (!N || Visited.count(N)) return;
   Visited.insert(N);
 
+  // Handle this node
+  {
+    std::vector<const Function*> Functions;
+    N->addFullFunctionList(Functions);
+    ArgsRemainIncomplete.insert(Functions.begin(), Functions.end());
+  }
+
   for (DSNode::edge_iterator ii = N->edge_begin(),
           ee = N->edge_end(); ii != ee; ++ii)
     if (!ii->second.isNull()) {
@@ -111,6 +118,14 @@ bool TDDataStructures::runOnModule(Module &M) {
   for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I)
     if (!I->isDeclaration() && !I->hasInternalLinkage())
       ArgsRemainIncomplete.insert(I);
+
+  // Debug code to print the functions that are externally callable
+#if 0
+  for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I)
+    if (ArgsRemainIncomplete.count(I)) {
+      errs() << "ArgsRemainIncomplete: " << I->getNameStr() << "\n";
+    }
+#endif
 
   // We want to traverse the call graph in reverse post-order.  To do this, we
   // calculate a post-order traversal, then reverse it.
