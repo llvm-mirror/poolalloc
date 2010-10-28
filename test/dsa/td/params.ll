@@ -17,11 +17,11 @@
 
 ;RUN: dsaopt %s -dsa-td -analyze -check-same-node=func:a1:0,func:b1:0,func:mem2:0,func:mem1:0,func:r1,func:r2
 
-;RUN: dsaopt %s -dsa-local -analyze -verify-flags "test:b2:0+HIR-E"
-;RUN: dsaopt %s -dsa-local -analyze -verify-flags "test:a2:0+HIR-E"
-;RUN: dsaopt %s -dsa-local -analyze -verify-flags "test:a2+SIMR-E"
-;RUN: dsaopt %s -dsa-local -analyze -verify-flags "test:temp:0+HIR-E"
-;RUN: dsaopt %s -dsa-local -analyze -verify-flags "test:temp1:0+HIR-E"
+;RUN: dsaopt %s -dsa-stdlib -analyze -verify-flags "test:b2:0+HIR-E"
+;RUN: dsaopt %s -dsa-stdlib -analyze -verify-flags "test:a2:0+HIR-E"
+;RUN: dsaopt %s -dsa-stdlib -analyze -verify-flags "test:a2+SIMR-E"
+;RUN: dsaopt %s -dsa-stdlib -analyze -verify-flags "test:temp:0+HIR-E"
+;RUN: dsaopt %s -dsa-stdlib -analyze -verify-flags "test:temp1:0+HIR-E"
 ;RUN: dsaopt %s -dsa-local -analyze -check-same-node=test:temp2:0,test:a2:0,test:temp1:0,test:temp:0,test:b2:0
 
 ;RUN: dsaopt %s -dsa-bu -analyze -verify-flags "test:b2:0+HIMR-E"

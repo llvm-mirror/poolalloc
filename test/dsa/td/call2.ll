@@ -1,24 +1,24 @@
-;RUN: dsaopt %s -dsa-local -analyze -verify-flags "test:b2:0+I"
+;RUN: dsaopt %s -dsa-stdlib -analyze -verify-flags "test:b2:0+I"
 ;RUN: dsaopt %s -dsa-td -analyze -verify-flags "test:b2:0+HM-I"
-;RUN: dsaopt %s -dsa-local -analyze -verify-flags "test:a2:0+I"
+;RUN: dsaopt %s -dsa-stdlib -analyze -verify-flags "test:a2:0+I"
 ;RUN: dsaopt %s -dsa-td -analyze -verify-flags "test:a2:0+HM-I"
-;RUN: dsaopt %s -dsa-local -analyze -verify-flags "test:a2+IMR-E"
+;RUN: dsaopt %s -dsa-stdlib -analyze -verify-flags "test:a2+IMR-E"
 ;RUN: dsaopt %s -dsa-td -analyze -verify-flags "test:a2+SMRE-I"
 
 
-;RUN: dsaopt %s -dsa-local -analyze -verify-flags "func:a1+SM-IE"
-;RUN: dsaopt %s -dsa-local -analyze -verify-flags "func:a1:0+I-E"
+;RUN: dsaopt %s -dsa-stdlib -analyze -verify-flags "func:a1+SM-IE"
+;RUN: dsaopt %s -dsa-stdlib -analyze -verify-flags "func:a1:0+I-E"
 ;RUN: dsaopt %s -dsa-td -analyze -verify-flags "func:a1+SM-I-E"
 ;RUN: dsaopt %s -dsa-td -analyze -verify-flags "func:a1:0+HM-IE"
 
-;RUN: dsaopt %s -dsa-local -analyze -verify-flags "func:b1+SM-IE"
-;RUN: dsaopt %s -dsa-local -analyze -verify-flags "func:b1:0+I-E"
+;RUN: dsaopt %s -dsa-stdlib -analyze -verify-flags "func:b1+SM-IE"
+;RUN: dsaopt %s -dsa-stdlib -analyze -verify-flags "func:b1:0+I-E"
 ;RUN: dsaopt %s -dsa-td -analyze -verify-flags "func:b1+SM-IE"
 ;RUN: dsaopt %s -dsa-td -analyze -verify-flags "func:b1:0+HM-IE"
 
 ;RUN: dsaopt %s -dsa-td -analyze -check-same-node=func:mem1,func:mem2
-;RUN: dsaopt %s -dsa-local -analyze -verify-flags "func:mem1:0+HI-E"
-;RUN: dsaopt %s -dsa-local -analyze -verify-flags "func:mem2:0+HI-E"
+;RUN: dsaopt %s -dsa-stdlib -analyze -verify-flags "func:mem1:0+HI-E"
+;RUN: dsaopt %s -dsa-stdlib -analyze -verify-flags "func:mem2:0+HI-E"
 ;RUN: dsaopt %s -dsa-td -analyze -verify-flags "func:mem1:0+HM-IE"
 
 ; ModuleID = 'call2.bc'

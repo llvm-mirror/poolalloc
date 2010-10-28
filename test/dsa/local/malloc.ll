@@ -1,5 +1,6 @@
 ;--check that local detects call to malloc properly (marks them heap)
-;RUN: dsaopt %s -dsa-local -analyze -verify-flags "main:b:0+H"
+;RUN: dsaopt %s -dsa-stdlib -analyze -verify-flags "main:b:0+H"
+;RUN: dsaopt %s -dsa-local -analyze -verify-flags "main:b:0+IE"
 ;--check that local has b pointing to node containing c and d
 ;RUN: dsaopt %s -dsa-local -analyze -check-same-node=main:b:0,main:c,main:d
 ;--check that td/bu don't mark such nodes as incomplete

@@ -12,10 +12,16 @@ target triple = "x86_64-unknown-linux-gnu"
 ;RUN: dsaopt %s -dsa-local -analyze -verify-flags "func:stack_d+SMR"
 
 ;--Heap:
-;RUN: dsaopt %s -dsa-local -analyze -verify-flags "func:heap_a:0+H-MR"
-;RUN: dsaopt %s -dsa-local -analyze -verify-flags "func:heap_b:0+HM-R"
-;RUN: dsaopt %s -dsa-local -analyze -verify-flags "func:heap_c:0+H-M+R"
-;RUN: dsaopt %s -dsa-local -analyze -verify-flags "func:heap_d:0+HMR"
+;RUN: dsaopt %s -dsa-local -analyze -verify-flags "func:heap_a:0+IE"
+;RUN: dsaopt %s -dsa-local -analyze -verify-flags "func:heap_b:0+IE"
+;RUN: dsaopt %s -dsa-local -analyze -verify-flags "func:heap_c:0+IE"
+;RUN: dsaopt %s -dsa-local -analyze -verify-flags "func:heap_d:0+IE"
+
+;--Heap:
+;RUN: dsaopt %s -dsa-stdlib -analyze -verify-flags "func:heap_a:0+HM-R"
+;RUN: dsaopt %s -dsa-stdlib -analyze -verify-flags "func:heap_b:0+HM-R"
+;RUN: dsaopt %s -dsa-stdlib -analyze -verify-flags "func:heap_c:0+HMR"
+;RUN: dsaopt %s -dsa-stdlib -analyze -verify-flags "func:heap_d:0+HMR"
 
 ;--Globals:
 ;RUN: dsaopt %s -dsa-local -analyze -verify-flags "global_a+G-MR"

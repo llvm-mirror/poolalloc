@@ -20,6 +20,7 @@ int global_d;
 void func() {
   //Don't mod/ref
   int stack_a;
+  //Mod
   int * heap_a = malloc(sizeof(int));
 
   //Mod

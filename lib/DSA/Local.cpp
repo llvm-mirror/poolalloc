@@ -103,29 +103,8 @@ namespace {
     // Visitor functions, used to handle each instruction type we encounter...
     friend class InstVisitor<GraphBuilder>;
 
-    //TODO: generalize
-    bool visitAllocation(CallSite CS) {
-      if (Function* F = CS.getCalledFunction()) {
-        if (F->hasName() && F->getName() == "malloc") {
-          setDestTo(*CS.getInstruction(), createNode()->setHeapMarker());
-          return true;
-        }
-      }
-      return false;
-    }
-
-    //FIXME: implement in stdlib pass
-//    void visitMallocInst(MallocInst &MI)
-//    { setDestTo(MI, createNode()->setHeapMarker()); }
-
     void visitAllocaInst(AllocaInst &AI)
     { setDestTo(AI, createNode()->setAllocaMarker()); }
-
-    //FIXME: implement in stdlib pass
-    //void visitFreeInst(FreeInst &FI)
-    //{ if (DSNode *N = getValueDest(FI.getOperand(0)).getNode())
-//        N->setHeapMarker();
-//    }
 
     //the simple ones
     void visitPHINode(PHINode &PN);
@@ -951,9 +930,6 @@ void GraphBuilder::visitCallSite(CallSite CS) {
   if (Function *F = dyn_cast<Function>(Callee))
     if (F->isIntrinsic() && visitIntrinsic(CS, F))
       return;
-
-  if (visitAllocation(CS))
-    return;
 
   //Can't do much about inline asm (yet!)
   if (isa<InlineAsm> (Callee)) {

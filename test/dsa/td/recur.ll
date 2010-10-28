@@ -1,7 +1,7 @@
 ; b2 isn't exposed to external in any code we look at, but at the end of td
 ; we mark it external because there exists a (potential) caller context
 ; (externally) in which b2 would be external.
-;RUN: dsaopt %s -dsa-local -analyze -verify-flags "test:b2:0+HI-E"
+;RUN: dsaopt %s -dsa-stdlib -analyze -verify-flags "test:b2:0+HI-E"
 ;RUN: dsaopt %s -dsa-td -analyze -verify-flags "test:b2:0+HME-I"
 
 ; ModuleID = 'recur.bc'
