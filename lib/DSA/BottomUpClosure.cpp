@@ -15,6 +15,7 @@
 //===----------------------------------------------------------------------===//
 
 #define DEBUG_TYPE "dsa-bu"
+#include "llvm/Constants.h"
 #include "dsa/DataStructure.h"
 #include "dsa/DSGraph.h"
 #include "llvm/Module.h"
@@ -316,6 +317,43 @@ BUDataStructures::postOrderInline (Module & M) {
   std::map<const Function*, unsigned> ValMap;
   unsigned NextID = 1;
 
+
+  // do post order traversal on the global ctors. Use this information to update
+  // the globals graph.
+  const char *Name = "llvm.global_ctors";
+  GlobalVariable *GV = M.getNamedGlobal(Name);
+  if (GV && !(GV->isDeclaration()) && !(GV->hasLocalLinkage())){
+  // Should be an array of '{ int, void ()* }' structs.  The first value is
+  // the init priority, which we ignore.
+    ConstantArray *InitList = dyn_cast<ConstantArray>(GV->getInitializer());
+    if (InitList) {
+      for (unsigned i = 0, e = InitList->getNumOperands(); i != e; ++i)
+        if (ConstantStruct *CS = dyn_cast<ConstantStruct>(InitList->getOperand(i))) {
+          if (CS->getNumOperands() != 2) 
+            break; // Not array of 2-element structs.
+          Constant *FP = CS->getOperand(1);
+          if (FP->isNullValue())
+            break;  // Found a null terminator, exit.
+   
+          if (ConstantExpr *CE = dyn_cast<ConstantExpr>(FP))
+            if (CE->isCast())
+              FP = CE->getOperand(0);
+          if (Function *F = dyn_cast<Function>(FP)) {
+           calculateGraphs(F, Stack, NextID, ValMap);
+           CloneAuxIntoGlobal(getDSGraph(*F));
+          }
+        }
+        // propogte information calculated 
+        // from the globals graph to the other graphs.
+        for (Module::iterator F = M.begin(); F != M.end(); ++F) {
+          if (!(F->isDeclaration())){
+            DSGraph *Graph  = getDSGraph(*F);
+            cloneGlobalsInto(Graph);
+          }
+        }
+      }
+  }
+ 
   //
   // Start the post order traversal with the main() function.  If there is no
   // main() function, don't worry; we'll have a separate traversal for inlining
