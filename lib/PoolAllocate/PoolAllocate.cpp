@@ -752,7 +752,6 @@ PoolAllocate::FindFunctionPoolArgs (const std::vector<const Function *> & Functi
   DenseSet<const DSNode*> MarkedNodes;
   for (unsigned index = 0; index < RootNodes.size(); ++index) {
     if (DSNode * N = RootNodes[index].getNode()) {
-      MarkedNodes.insert (N);
       N->markReachableNodes(MarkedNodes);
     }
   }
