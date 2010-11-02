@@ -13,7 +13,7 @@ entry:
   unreachable
 }
 
-define void @attr(i16 zeroext %IntParam, i8** nocapture %NeedsPool) {
+define internal void @attr(i16 zeroext %IntParam, i8** nocapture %NeedsPool) {
 entry:
   unreachable
 }
