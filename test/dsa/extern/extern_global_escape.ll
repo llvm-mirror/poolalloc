@@ -10,15 +10,15 @@ target triple = "x86_64-unknown-linux-gnu"
 
 ; This global itself isn't externally accessible, only via 'externallyVisible'
 ; RUN: dsaopt %s -dsa-local -analyze -verify-flags "globalptr+G-E"
-; RUN: dsaopt %s -dsa-bu -analyze -verify-flags "globalptr+G-E"
-; RUN: dsaopt %s -dsa-bu -analyze -verify-flags "globalptr:0+E"
-; RUN: dsaopt %s -dsa-td -analyze -verify-flags "globalptr+G-E"
+; RUN: dsaopt %s -dsa-bu -analyze -verify-flags "globalptr+G-IE"
+; RUN: dsaopt %s -dsa-bu -analyze -verify-flags "globalptr:0-E"
+; RUN: dsaopt %s -dsa-td -analyze -verify-flags "globalptr+G-IE"
 ; RUN: dsaopt %s -dsa-td -analyze -verify-flags "globalptr:0+E"
 @globalptr = internal global i32* null                     ; <i32**> [#uses=2]
 
 ; RUN: dsaopt %s -dsa-local -analyze -verify-flags "externallyVisible:ptr+I"
 ; RUN: dsaopt %s -dsa-bu -analyze -verify-flags "externallyVisible:ptr+I-E"
-; RUN: dsaopt %s -dsa-bu -analyze -verify-flags "externallyVisible:ptr:0+IE"
+; RUN: dsaopt %s -dsa-bu -analyze -verify-flags "externallyVisible:ptr:0-E"
 ; RUN: dsaopt %s -dsa-td -analyze -verify-flags "externallyVisible:ptr+E-I"
 ; RUN: dsaopt %s -dsa-td -analyze -verify-flags "externallyVisible:ptr+E-I"
 define void @externallyVisible(i32** %ptr) nounwind {
@@ -29,7 +29,7 @@ entry:
 }
 
 ; RUN: dsaopt %s -dsa-bu -analyze -verify-flags "usesGlobalPtr:ptr-IE"
-; RUN: dsaopt %s -dsa-bu -analyze -verify-flags "usesGlobalPtr:ptr:0+E-I"
+; RUN: dsaopt %s -dsa-bu -analyze -verify-flags "usesGlobalPtr:ptr:0-EI"
 ; RUN: dsaopt %s -dsa-td -analyze -verify-flags "usesGlobalPtr:ptr-E"
 ; RUN: dsaopt %s -dsa-td -analyze -verify-flags "usesGlobalPtr:ptr:0+E"
 define void @usesGlobalPtr() nounwind {

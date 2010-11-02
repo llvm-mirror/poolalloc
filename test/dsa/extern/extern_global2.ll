@@ -32,14 +32,12 @@ return:                                           ; preds = %entry
   ret void
 }
 
-; FIXME: These runlines are wrong, the 'a' points to sometihng reachable
-; from what will be an external global, so it should be +E!
-; RUNX: dsaopt %s -dsa-local -analyze -verify-flags "B:ptr-E"
-; RUNX: dsaopt %s -dsa-local -analyze -verify-flags "B:a-E"
-; RUNX: dsaopt %s -dsa-bu -analyze -verify-flags "B:ptr-E"
-; RUNX: dsaopt %s -dsa-bu -analyze -verify-flags "B:a-E"
-; RUNX: dsaopt %s -dsa-td -analyze -verify-flags "B:ptr-E"
-; RUNX: dsaopt %s -dsa-td -analyze -verify-flags "B:a-E"
+; RUN: dsaopt %s -dsa-local -analyze -verify-flags "B:ptr:0-E"
+; RUN: dsaopt %s -dsa-local -analyze -verify-flags "B:a-E"
+; RUN: dsaopt %s -dsa-bu -analyze -verify-flags "B:ptr:0-E"
+; RUN: dsaopt %s -dsa-bu -analyze -verify-flags "B:a-E"
+; RUN: dsaopt %s -dsa-td -analyze -verify-flags "B:ptr:0+E"
+; RUN: dsaopt %s -dsa-td -analyze -verify-flags "B:a+E"
 define internal void @B() nounwind {
 entry:
   %a = alloca i32                                 ; <i32*> [#uses=1]
