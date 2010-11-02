@@ -728,48 +728,6 @@ void DSGraph::computeExternalFlags(unsigned Flags) {
     maskNodeTypes(~DSNode::ExternalNode);
   }
 
-  if (Flags & MarkGlobalsReachableFromFormals) {
-    DenseSet<const DSNode*> ReachableFromFormals;
-    for (ReturnNodesTy::iterator FI = ReturnNodes.begin(), E = ReturnNodes.end();
-        FI != E; ++FI) {
-      const Function &F = *FI->first;
-      // Find all reachable from arguments...
-      for (Function::const_arg_iterator I = F.arg_begin(), E = F.arg_end();
-          I != E; ++I)
-        if (isa<PointerType>(I->getType())) {
-          DSNode * N = getNodeForValue(I).getNode();
-          if (N) N->markReachableNodes(ReachableFromFormals);
-        }
-      // ...and the return value...
-      if (!FI->second.isNull())
-        FI->second.getNode()->markReachableNodes(ReachableFromFormals);
-      if (!getVANodeFor(F).isNull())
-        getVANodeFor(F).getNode()->markReachableNodes(ReachableFromFormals);
-    }
-
-    DenseSet<const DSNode*> ReachableFromGlobals;
-
-    for (DSScalarMap::global_iterator I = ScalarMap.global_begin(),
-        E = ScalarMap.global_end(); I != E; ++I) {
-      DSNode * N = getNodeForValue(*I).getNode();
-      if (N) N->markReachableNodes(ReachableFromGlobals);
-    }
-
-    // Find intersection of the two...
-    // FIXME: This works fine for local, but what about in other places where we might newly
-    // discover that something reachable from an externally visible function's argument is
-    // also reachable from a global and as such should be marked external in all graphs
-    // that use it?
-    for (DenseSet<const DSNode*>::iterator I = ReachableFromFormals.begin(),
-         E = ReachableFromFormals.end(); I != E; ++I) {
-      DSNode * N = (DSNode *)*I;
-      if (ReachableFromGlobals.count(N)) {
-        // Reachable from both a global and the formals, mark external!
-        markExternalNode(N, processedNodes);
-      }
-    }
-  }
-
   // Make sure that everything reachable from something already external is also external
   propagateExternal(this, processedNodes);
 
@@ -829,7 +787,7 @@ void DSGraph::computeExternalFlags(unsigned Flags) {
 
   // Finally handle all external globals...
   for (DSScalarMap::global_iterator I = ScalarMap.global_begin(),
-      E = ScalarMap.global_end(); I != E; ++I)
+      E = ScalarMap.global_end(); I != E; ++I) {
     if (const GlobalVariable *GV = dyn_cast<GlobalVariable>(*I)) {
       // If the global is external... mark it as such!
       // FIXME: It's unclear to me that a global we initialize
@@ -839,9 +797,8 @@ void DSGraph::computeExternalFlags(unsigned Flags) {
       if (!GV->hasInitializer() || N->isExternalNode())
         markExternalNode(N, processedNodes);
     }
+  }
 
-  // FIXME: Sync with globals graph?
-  // For now, trust the caller to do this as appropriate.
 }
 
 static inline void killIfUselessEdge(DSNodeHandle &Edge) {

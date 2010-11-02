@@ -167,6 +167,28 @@ bool TDDataStructures::runOnModule(Module &M) {
   GlobalsGraph->removeTriviallyDeadNodes();
   GlobalsGraph->computeExternalFlags(DSGraph::DontMarkFormalsExternal);
 
+  // Make sure each graph has updated external information about globals
+  // in the globals graph.
+  for (Module::iterator F = M.begin(); F != M.end(); ++F) {
+    if (!(F->isDeclaration())){
+      DSGraph *Graph  = getOrCreateGraph(F);
+
+      ReachabilityCloner RC(Graph, GlobalsGraph,
+          DSGraph::DontCloneCallNodes |
+          DSGraph::DontCloneAuxCallNodes);
+      for (DSScalarMap::global_iterator
+          GI = Graph->getScalarMap().global_begin(),
+          E = Graph->getScalarMap().global_end(); GI != E; ++GI)
+        RC.getClonedNH(GlobalsGraph->getNodeForValue(*GI));
+
+      // Clean up uninteresting nodes
+      Graph->removeDeadNodes(0);
+
+      Graph->computeExternalFlags(DSGraph::DontMarkFormalsExternal);
+
+    }
+  }
+
   // CBU contains the correct call graph.
   // Restore it, so that subsequent passes and clients can get it.
   restoreCorrectCallGraph();

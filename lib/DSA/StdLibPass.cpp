@@ -407,9 +407,6 @@ StdLibDataStructures::runOnModule (Module &M) {
         | DSGraph::ResetExternal
         | DSGraph::DontMarkFormalsExternal
         | DSGraph::ProcessCallSites;
-      if (!I->hasInternalLinkage()) {
-        EFlags |= DSGraph::MarkGlobalsReachableFromFormals;
-      }
       G->computeExternalFlags(EFlags);
     }
   GlobalsGraph->computeExternalFlags(DSGraph::ProcessCallSites);

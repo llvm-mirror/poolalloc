@@ -507,12 +507,11 @@ public:
   };
   void markIncompleteNodes(unsigned Flags);
 
-  // Mark all reachable from external as external. 
+  // Mark all reachable from external as external.
   enum ComputeExternalFlags {
     MarkFormalsExternal = 1, DontMarkFormalsExternal = 0,
     ProcessCallSites = 2, IgnoreCallSites = 0,
-    ResetExternal = 4, DontResetExternal = 0,
-    MarkGlobalsReachableFromFormals = 8, IgnoreGlobalsReachableFromFormals = 0
+    ResetExternal = 4, DontResetExternal = 0
   };
   void computeExternalFlags(unsigned Flags);
 

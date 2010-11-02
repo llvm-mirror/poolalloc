@@ -186,11 +186,6 @@ namespace {
       unsigned EFlags = 0
         | DSGraph::DontMarkFormalsExternal
         | DSGraph::ProcessCallSites;
-      // Mark globals reachable from formals as external if we don't have
-      // internal linkage.
-      if (!f.hasInternalLinkage()) {
-        EFlags |= DSGraph::MarkGlobalsReachableFromFormals;
-      }
 
       g.computeExternalFlags(EFlags);
 

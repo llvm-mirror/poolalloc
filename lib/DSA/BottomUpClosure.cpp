@@ -144,8 +144,8 @@ bool BUDataStructures::runOnModuleInternal(Module& M) {
 
   // Merge the globals variables (not the calls) from the globals graph back
   // into the individual function's graph so that changes made to globals during
-  // BU can be reflected. This is specifically needed for correct call graph 
-  
+  // BU can be reflected. This is specifically needed for correct call graph
+
   for (Module::iterator F = M.begin(); F != M.end(); ++F) {
     if (!(F->isDeclaration())){
       DSGraph *Graph  = getOrCreateGraph(F);
