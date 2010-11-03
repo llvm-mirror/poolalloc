@@ -1253,6 +1253,11 @@ bool LocalDataStructures::runOnModule(Module &M) {
   // Next step, iterate through the nodes in the globals graph, unioning
   // together the globals into equivalence classes.
   formGlobalECs();
+  
+  // Iterate through the address taken functions in the globals graph,
+  // collecting them in a list, to be used as target for call sites that
+  // cant be resolved.
+  formGlobalFunctionList();
 
   // Calculate all of the graphs...
   for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I)
@@ -1263,7 +1268,7 @@ bool LocalDataStructures::runOnModule(Module &M) {
       setDSGraph(*I, G);
       propagateUnknownFlag(G);
       callgraph.insureEntry(I);
-      G->buildCallGraph(callgraph, true);
+      G->buildCallGraph(callgraph, GlobalFunctionList, true);
     }
 
   GlobalsGraph->removeTriviallyDeadNodes();

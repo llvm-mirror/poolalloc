@@ -80,6 +80,9 @@ protected:
 
   // Callgraph, as computed so far
   DSCallGraph callgraph;
+  // List of all address taken functions.
+  // This is used as target, of indirect calls for any indirect call site with  // incomplete callee node.
+  std::vector<const Function*> GlobalFunctionList; 
 
   void init(DataStructures* D, bool clone, bool useAuxCalls, bool copyGlobalAuxCalls, bool resetAux);
   void init(TargetData* T);
@@ -87,6 +90,8 @@ protected:
   void formGlobalECs();
 
   void restoreCorrectCallGraph();
+  
+  void formGlobalFunctionList();
 
   DataStructures(intptr_t id, const char* name) 
     : ModulePass(id), TD(0), GraphSource(0), printname(name), GlobalsGraph(0) {  

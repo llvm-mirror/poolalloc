@@ -917,8 +917,10 @@ void FuncTransform::visitCallSite(CallSite& CS) {
       // Get the information for this function.  Since this is coming from DSA,
       // it should be an original function.
       //
+      // This call site calls a function, that is not defined in this module
+      if (!(Graphs.hasDSGraph(**I))) return;
+      // For all other cases Func Info must exist.
       FuncInfo *CFI = PAInfo.getFuncInfo(**I);
-      assert(CFI && "Func Info not found");
       //
       // If this target takes more DSNodes than the last one we found, then
       // make *this* target our canonical target.
@@ -928,14 +930,16 @@ void FuncTransform::visitCallSite(CallSite& CS) {
         CF = *I;
       }
     }
-
+    
+    // Assuming the call graph is always correct. And if the call graph reports,
+    // no callees, we can assume that it is right.
     //
     // If we didn't find the callee in the constructed call graph, try
     // checking in the DSNode itself.
     // This isn't ideal as it means that this call site didn't have inlining
     // happen.
     //
-    if (!CF) {
+    /*if (!CF) {
       DSGraph* dg = Graphs.getDSGraph(*OrigInst->getParent()->getParent());
       DSNode* d = dg->getNodeForValue(OrigInst->getOperand(0)).getNode();
       assert (d && "No DSNode!\n");
@@ -961,7 +965,7 @@ void FuncTransform::visitCallSite(CallSite& CS) {
           break;
         }
       }
-    }
+    }*/
 
     //
     // If we still haven't been able to find a target function of the call site

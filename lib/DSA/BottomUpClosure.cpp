@@ -150,7 +150,7 @@ bool BUDataStructures::runOnModuleInternal(Module& M) {
     if (!(F->isDeclaration())){
       DSGraph *Graph  = getOrCreateGraph(F);
       cloneGlobalsInto(Graph);
-      Graph->buildCallGraph(callgraph, filterCallees);
+      Graph->buildCallGraph(callgraph, GlobalFunctionList, filterCallees);
       Graph->maskIncompleteMarkers();
       Graph->markIncompleteNodes(DSGraph::MarkFormalArgs |
                                    DSGraph::IgnoreGlobals);
@@ -840,7 +840,7 @@ void BUDataStructures::calculateGraph(DSGraph* Graph) {
   // Update the callgraph with the new information that we have gleaned.
   // NOTE : This must be called before removeDeadNodes, so that no 
   // information is lost due to deletion of DSCallNodes.
-  Graph->buildCallGraph(callgraph,filterCallees);
+  Graph->buildCallGraph(callgraph,GlobalFunctionList, filterCallees);
   
   // Delete dead nodes.  Treat globals that are unreachable but that can
   // reach live nodes as live.

@@ -480,7 +480,7 @@ void DSGraph::mergeInGraph(const DSCallSite &CS,
         AuxCallToCopy.push_back(&*I);
 //       else if (I->isIndirectCall()){
 //  	//If the call node doesn't have any callees, clone it
-//  	std::vector< Function *> List;
+//  	std::vector< const Function *> List;
 //  	I->getCalleeNode()->addFullFunctionList(List);
 //  	if (!List.size())
 //  	  AuxCallToCopy.push_back(&*I);
@@ -1601,10 +1601,14 @@ llvm::functionIsCallable (CallSite CS, const Function* F) {
 //  of function calls that can be inferred from the unresolved call sites
 //  within the DSGraph.
 //
+//  The parameter GlobalFunctionList, is a list of all the address taken 
+//  functions in the module. This is used as the list of targets when a callee
+//  node is Incomplete.
+//
 //  The parameter 'filter' determines if we should attempt to prune callees
 //  that are illegal to be called from the callsite.
 //
-void DSGraph::buildCallGraph(DSCallGraph& DCG, bool filter) const {
+void DSGraph::buildCallGraph(DSCallGraph& DCG, std::vector<const Function*>& GlobalFunctionList, bool filter) const {
   //
   // Get the list of unresolved call sites.
   //
@@ -1624,7 +1628,11 @@ void DSGraph::buildCallGraph(DSCallGraph& DCG, bool filter) const {
       //
       // Get the list of known targets of this function.
       //
-      ii->getCalleeNode()->addFullFunctionList(MaybeTargets);
+      if(ii->getCalleeNode()->isIncompleteNode()) {
+        MaybeTargets.assign(GlobalFunctionList.begin(), GlobalFunctionList.end());
+      } else {
+        ii->getCalleeNode()->addFullFunctionList(MaybeTargets);
+      }
 
       //
       // Ensure that the call graph at least knows about (has a record of) this

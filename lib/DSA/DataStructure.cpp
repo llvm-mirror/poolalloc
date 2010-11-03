@@ -1302,6 +1302,26 @@ DSGraph* DataStructures::getOrCreateGraph(const Function* F) {
   return G;
 }
 
+void DataStructures::formGlobalFunctionList() {
+  std::vector<const Function*> List;
+  DSScalarMap &SN = GlobalsGraph->getScalarMap();
+  EquivalenceClasses<const GlobalValue*> &EC = GlobalsGraph->getGlobalECs();
+  for (DSScalarMap::global_iterator I = SN.global_begin(), E = SN.global_end(); I != E; ++I) {
+    EquivalenceClasses<const GlobalValue*>::iterator ECI = EC.findValue(*I);
+    if (ECI == EC.end()) {
+      if (const Function *F = dyn_cast<Function>(*I))
+        List.push_back(F);
+    } else {
+      for (EquivalenceClasses<const GlobalValue*>::member_iterator MI =
+           EC.member_begin(ECI), ME = EC.member_end(); MI != ME; ++MI){
+        if (const Function *F = dyn_cast<Function>(*MI))
+          List.push_back(F);
+      }
+    }
+  }
+  GlobalFunctionList.swap(List);
+}
+
 
 void DataStructures::formGlobalECs() {
   // Grow the equivalence classes for the globals to include anything that we
@@ -1412,6 +1432,7 @@ void DataStructures::init(DataStructures* D, bool clone, bool useAuxCalls,
   TD = D->TD;
   TypeSS = D->TypeSS;
   callgraph = D->callgraph;
+  GlobalFunctionList = D->GlobalFunctionList;
   GlobalECs = D->getGlobalECs();
   GlobalsGraph = new DSGraph(D->getGlobalsGraph(), GlobalECs, *TypeSS,
                              copyGlobalAuxCalls? DSGraph::CloneAuxCallNodes
