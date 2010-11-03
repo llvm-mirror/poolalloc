@@ -558,16 +558,23 @@ static bool checkCallees(llvm::raw_ostream &O, const Module *M, const DataStruct
       std::string &func = *(I);
       Function *caller = M->getFunction(func);
       assert(caller && "Function not found in module"); 
-      const DSCallGraph callgraph = DS->getCallGraph();
+      //const DSCallGraph callgraph = DS->getCallGraph();
+      (const_cast<DSCallGraph&>(callgraph)).dump();
       ++I;
       while(I != E ){
         std::string &func = *(I);
         Function *callee = M->getFunction(func);
         bool found = false;
+        // either the callee is found in the DSGraph
         for(DSCallGraph::flat_iterator CI = callgraph.flat_callee_begin(caller); CI != callgraph.flat_callee_end(caller); CI ++) {
-           if ( callee == *CI)
+           if (callee == *CI)
              found = true;
            //(*CI)->dump();
+        } 
+        // or the callee is in the same SCC as the caller, and hence does not show up
+        for(DSCallGraph::scc_iterator sccii = callgraph.scc_begin(caller), sccee = callgraph.scc_end(caller); sccii != sccee; ++sccii) {
+           if(callee == *sccii)
+             found = true;   
         }
         assert(found && "callee not in call graph");
         ++I;
