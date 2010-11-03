@@ -558,8 +558,8 @@ static bool checkCallees(llvm::raw_ostream &O, const Module *M, const DataStruct
       std::string &func = *(I);
       Function *caller = M->getFunction(func);
       assert(caller && "Function not found in module"); 
-      //const DSCallGraph callgraph = DS->getCallGraph();
-      (const_cast<DSCallGraph&>(callgraph)).dump();
+      const DSCallGraph callgraph = DS->getCallGraph();
+      //(const_cast<DSCallGraph&>(callgraph)).dump();
       ++I;
       while(I != E ){
         std::string &func = *(I);
