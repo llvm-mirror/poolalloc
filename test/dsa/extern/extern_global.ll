@@ -3,6 +3,8 @@
 
 ; Externally visible globals should be marked external, but complete
 ;RUN: dsaopt %s -dsa-td -analyze -verify-flags globalInt+GE-I
+; (When linkage is not specified, it is external)
+;RUN: dsaopt %s -dsa-td -analyze -verify-flags normalGlobal+GE-I
 ; Externally visible global and what it points to should be complete/external
 ;RUN: dsaopt %s -dsa-td -analyze -verify-flags globalIntPtr+GE-I
 ;RUN: dsaopt %s -dsa-td -analyze -verify-flags globalIntPtr:0+GE-I
@@ -13,7 +15,6 @@
 ;RUN: dsaopt %s -dsa-td -analyze -verify-flags globalStructWithPointers:8:8+E-I
 ;RUN: dsaopt %s -dsa-td -analyze -verify-flags main:s+ES-I
 ; Globals that aren't marked 'external' shouldn't be incomplete (or external)
-;RUN: dsaopt %s -dsa-td -analyze -verify-flags normalGlobal+G-IE
 ;RUN: dsaopt %s -dsa-td -analyze -verify-flags internalGlobal+G-IE
 ; Check some edges of the graph
 ;RUN: dsaopt %s -dsa-td -analyze -check-same-node=normalGlobal:0,globalIntPtr

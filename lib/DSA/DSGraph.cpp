@@ -650,12 +650,13 @@ void DSGraph::markIncompleteNodes(unsigned Flags) {
            E = AuxFunctionCalls.end(); I != E; ++I)
       markIncomplete(*I);
 
-  // Mark all global nodes as incomplete.
-  for (DSScalarMap::global_iterator I = ScalarMap.global_begin(),
-         E = ScalarMap.global_end(); I != E; ++I)
-    if (const GlobalVariable *GV = dyn_cast<GlobalVariable>(*I))
-      if (!GV->isConstant() && (Flags & DSGraph::IgnoreGlobals) == 0)
-        markIncompleteNode(ScalarMap[GV].getNode());
+  // Mark all global nodes as incomplete that aren't initialized and constant.
+  if ((Flags & DSGraph::IgnoreGlobals) == 0)
+    for (DSScalarMap::global_iterator I = ScalarMap.global_begin(),
+        E = ScalarMap.global_end(); I != E; ++I)
+      if (const GlobalVariable *GV = dyn_cast<GlobalVariable>(*I))
+        if (!(GV->hasInitializer() && GV->isConstant()))
+            markIncompleteNode(ScalarMap[GV].getNode());
 
   // Mark any node with the VAStart flag as incomplete.
   if (Flags & DSGraph::MarkVAStart) {
@@ -790,11 +791,8 @@ void DSGraph::computeExternalFlags(unsigned Flags) {
       E = ScalarMap.global_end(); I != E; ++I) {
     if (const GlobalVariable *GV = dyn_cast<GlobalVariable>(*I)) {
       // If the global is external... mark it as such!
-      // FIXME: It's unclear to me that a global we initialize
-      // can't be externally visible.  For now following original
-      // behavior and marking external.
       DSNode * N = ScalarMap[GV].getNode();
-      if (!GV->hasInitializer() || N->isExternalNode())
+      if (!GV->hasInternalLinkage() || N->isExternalNode())
         markExternalNode(N, processedNodes);
     }
   }
