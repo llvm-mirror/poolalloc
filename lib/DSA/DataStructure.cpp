@@ -793,8 +793,11 @@ void ReachabilityCloner::merge(const DSNodeHandle &NH,
 
       if ((SN->isArrayNode() && !DN->isArrayNode()) ||
         (!SN->isArrayNode() && DN->isArrayNode())) {
-        DN->foldNodeCompletely();
-        DN = NH.getNode();
+        if(SN->getSize() != 0 && DN->getSize() != 0
+         && (SN->getSize() != DN->getSize())){
+          DN->foldNodeCompletely();
+          DN = NH.getNode();
+        }
      }
      if ((SN->isArrayNode() && DN->isArrayNode()) &&
         (SN->getSize() != DN->getSize())) {
