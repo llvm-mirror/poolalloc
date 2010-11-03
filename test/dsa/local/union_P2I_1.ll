@@ -1,6 +1,7 @@
 ;RUN: dsaopt %s -dsa-local -analyze -check-same-node=main:c:0,main:obj:0
-;RUN: dsaopt %s -dsa-local -analyze -verify-flags "main:c:0+UP2"
-;RUN: dsaopt %s -dsa-local -analyze -check-type=main:obj,0:i32|i32*Array
+;RUN: dsaopt %s -dsa-local -analyze -check-type=main:obj,FoldedVOID
+
+;union of array of int/int*. Must get collapsed, as the element type is not of consistent size
 
 ; ModuleID = 'union_P2I_1.bc'
 target datalayout = "e-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:64:64-f32:32:32-f64:64:64-v64:64:64-v128:128:128-a0:0:64-s0:64:64-f80:128:128-n8:16:32:64"
