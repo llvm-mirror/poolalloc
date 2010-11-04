@@ -524,13 +524,15 @@ void DSNode::MergeNodes(DSNodeHandle& CurNodeH, DSNodeHandle& NH) {
       NOffset = NH.getOffset();
     }
   }
-  if ((CurNodeH.getNode()->isArrayNode() && NH.getNode()->isArrayNode()) &&
-      (CurNodeH.getNode()->getSize() != NH.getNode()->getSize())) {
+  if (CurNodeH.getNode()->isArrayNode() && NH.getNode()->isArrayNode()) {
+    if(NH.getNode()->getSize() != 1 && CurNodeH.getNode()->getSize() != 1
+       && (NH.getNode()->getSize() != CurNodeH.getNode()->getSize())){
       CurNodeH.getNode()->foldNodeCompletely();
       NH.getNode()->foldNodeCompletely();
       NSize = NH.getNode()->getSize();
     //  N = NH.getNode();
       NOffset = NH.getOffset();
+    }
   }
  
 
@@ -799,11 +801,12 @@ void ReachabilityCloner::merge(const DSNodeHandle &NH,
           DN = NH.getNode();
         }
      }
-     if ((SN->isArrayNode() && DN->isArrayNode()) &&
-        (SN->getSize() != DN->getSize())) {
+     if (SN->isArrayNode() && DN->isArrayNode()) {
+        if((SN->getSize() != DN->getSize()) && (SN->getSize() != 1) && DN->getSize() != 1) {
         DN->foldNodeCompletely();
         DN = NH.getNode();
-     }
+       }
+    }
 
 
       // Merge the type entries of the two nodes together...
