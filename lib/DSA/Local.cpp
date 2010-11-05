@@ -560,40 +560,38 @@ void GraphBuilder::visitGetElementPtrInst(User &GEP) {
       int FieldNo = CUI->getSExtValue();
       // increment the offset by the actual byte offset being accessed
       Offset += (unsigned)TD.getStructLayout(STy)->getElementOffset(FieldNo);
-     
+
       if(!Value.getNode()->isArrayNode() || Value.getNode()->getSize() <= 1){
         if (TD.getTypeAllocSize(STy) + Value.getOffset() > Value.getNode()->getSize())
           Value.getNode()->growSize(TD.getTypeAllocSize(STy) + Value.getOffset());
       }
 
     } else if(const ArrayType *ATy = dyn_cast<ArrayType>(*I)) {
-       // indexing into an array.
-     Value.getNode()->setArrayMarker();
-     const Type *CurTy = ATy->getElementType();
+      // indexing into an array.
+      Value.getNode()->setArrayMarker();
+      const Type *CurTy = ATy->getElementType();
 
       if(!isa<ArrayType>(CurTy) &&
-         Value.getNode()->getSize() <= 1) {
-          Value.getNode()->growSize(TD.getTypeAllocSize(CurTy));
-      }
-      if(CurTy->isVoidTy()) {
+          Value.getNode()->getSize() <= 1) {
+        Value.getNode()->growSize(TD.getTypeAllocSize(CurTy));
+      } else if(CurTy->isVoidTy()) {
         Value.getNode()->growSize(1);
-      }
-      if(isa<ArrayType>(CurTy) && Value.getNode()->getSize() <= 1){
+      } else if(isa<ArrayType>(CurTy) && Value.getNode()->getSize() <= 1){
         const Type *ETy = (cast<ArrayType>(CurTy))->getElementType();
         while(isa<ArrayType>(ETy)) {
           ETy = (cast<ArrayType>(ETy))->getElementType();
-         }
+        }
         Value.getNode()->growSize(TD.getTypeAllocSize(ETy));
         if(ETy->isVoidTy()) {
           Value.getNode()->growSize(1);
         }
-     }
-// indexing into an array.
-      
+      }
+      // indexing into an array.
+
       // Find if the DSNode belongs to the array
       // If not fold.
-      if((Value.getOffset() || Offset != 0) 
-	 || (!isa<ArrayType>(CurTy)
+      if((Value.getOffset() || Offset != 0)
+          || (!isa<ArrayType>(CurTy)
          && (Value.getNode()->getSize() != TD.getTypeAllocSize(CurTy)))) {
 
         Value.getNode()->foldNodeCompletely();
@@ -612,7 +610,7 @@ void GraphBuilder::visitGetElementPtrInst(User &GEP) {
       // Note that we break out of the loop if we fold the node.  Once
       // something is folded, all values within it are considered to alias.
       //
-      
+
       if (!isa<Constant>(I.getOperand()) ||
           !cast<Constant>(I.getOperand())->isNullValue()) {
         Value.getNode()->setArrayMarker();
@@ -620,11 +618,9 @@ void GraphBuilder::visitGetElementPtrInst(User &GEP) {
 
         if(!isa<ArrayType>(CurTy) && Value.getNode()->getSize() <= 1){
           Value.getNode()->growSize(TD.getTypeAllocSize(CurTy));
-        }
-        if(CurTy->isVoidTy()) {
+        } else if(CurTy->isVoidTy()) {
           Value.getNode()->growSize(1);
-        }
-        if(isa<ArrayType>(CurTy) && Value.getNode()->getSize() <= 1){
+        } else if(isa<ArrayType>(CurTy) && Value.getNode()->getSize() <= 1){
           const Type *ETy = (cast<ArrayType>(CurTy))->getElementType();
           while(isa<ArrayType>(ETy)) {
             ETy = (cast<ArrayType>(ETy))->getElementType();
@@ -635,8 +631,8 @@ void GraphBuilder::visitGetElementPtrInst(User &GEP) {
           }
         }
         if(Value.getOffset() || Offset != 0
-         || (!isa<ArrayType>(CurTy)
-          && (Value.getNode()->getSize() != TD.getTypeAllocSize(CurTy)))) {
+           || (!isa<ArrayType>(CurTy)
+           && (Value.getNode()->getSize() != TD.getTypeAllocSize(CurTy)))) {
           Value.getNode()->foldNodeCompletely();
           Value.getNode();
           Offset = 0;
