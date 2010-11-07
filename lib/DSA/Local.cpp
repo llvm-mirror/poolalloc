@@ -440,9 +440,16 @@ void GraphBuilder::visitInsertValueInst(InsertValueInst& I) {
 
   // Mark that the node is written to...
   Dest.getNode()->setModifiedMarker();
+  unsigned Offset = 0;
+  const Type* STy = I.getAggregateOperand()->getType();
+  for (llvm::ExtractValueInst::idx_iterator i = I.idx_begin(), e = I.idx_end(); i != e; i++) {
+    const StructLayout *SL = TD.getStructLayout(cast<StructType>(STy));
+    Offset += SL->getElementOffset(*i);
+    STy = (cast<StructType>(STy))->getTypeAtIndex(*i);
+  }
 
   // Ensure a type-record exists...
-  Dest.getNode()->mergeTypeInfo(StoredTy, I.getInsertedValueOperandIndex()); 
+  Dest.getNode()->mergeTypeInfo(StoredTy, Offset); 
 
   // Avoid adding edges from null, or processing non-"pointer" stores
   if (isa<PointerType>(StoredTy))
@@ -454,9 +461,16 @@ void GraphBuilder::visitExtractValueInst(ExtractValueInst& I) {
 
   // Make that the node is read from...
   Ptr.getNode()->setReadMarker();
-
+  unsigned Offset = 0;
+  const Type* STy = I.getAggregateOperand()->getType();
+  for (llvm::ExtractValueInst::idx_iterator i = I.idx_begin(), e = I.idx_end(); i != e; i++) {
+    const StructLayout *SL = TD.getStructLayout(cast<StructType>(STy));
+    Offset += SL->getElementOffset(*i);
+    STy = (cast<StructType>(STy))->getTypeAtIndex(*i);
+  }
+  
   // Ensure a typerecord exists...
-  Ptr.getNode()->mergeTypeInfo(I.getType(), I.getAggregateOperandIndex());
+  Ptr.getNode()->mergeTypeInfo(I.getType(), Offset);
 
   if (isa<PointerType>(I.getType()))
     setDestTo(I, getLink(Ptr));
