@@ -613,7 +613,7 @@ void GraphBuilder::visitGetElementPtrInst(User &GEP) {
         Offset = 0;
         break;
       }
-    } else if (const PointerType *PtrTy = dyn_cast<PointerType>(*I)) { 
+    } else if (const PointerType *PtrTy = dyn_cast<PointerType>(*I)) {
       const Type *CurTy = PtrTy->getElementType();
 
       //
