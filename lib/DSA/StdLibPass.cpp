@@ -160,6 +160,7 @@ const struct {
   {"sc.pool_unregister_global", {NRET_NARGS, NRET_NARGS, NRET_NARGS, false, false, false}},
   {"sc.pool_register", {NRET_NARGS, NRET_NARGS, NRET_NARGS, false, false, false}},
   {"sc.pool_unregister", {NRET_NARGS, NRET_NARGS, NRET_NARGS, false, false, false}},
+  {"sc.pool_argvregister", {NRET_NARGS, NRET_NARGS, NRET_NARGS, false, false, false}},
 
 #if 0
   {"remove",     {false, false, false,  true, false, false, false, false, false}},
@@ -238,8 +239,16 @@ StdLibDataStructures::eraseCallsTo(Function* F) {
 //  Modify a run-time check so that its return value has the same DSNode as the
 //  checked pointer.
 //
+// Inputs:
+//  M    - The module in which calls to the function live.
+//  name - The name of the function for which direct calls should be processed.
+//  arg  - The argument index that contains the pointer which the run-time
+//         check returns.
+//
 void
-StdLibDataStructures::processRuntimeCheck (Module & M, std::string name) {
+StdLibDataStructures::processRuntimeCheck (Module & M,
+                                           std::string name,
+                                           unsigned arg) {
   //
   // Get a pointer to the function.
   //
@@ -260,12 +269,18 @@ StdLibDataStructures::processRuntimeCheck (Module & M, std::string name) {
       if (CI->getOperand(0) == F) {
         DSGraph* Graph = getDSGraph(*CI->getParent()->getParent());
         DSNodeHandle RetNode = Graph->getNodeForValue(CI);
-        DSNodeHandle ArgNode = Graph->getNodeForValue(CI->getOperand(2));
+        DSNodeHandle ArgNode = Graph->getNodeForValue(CI->getOperand(arg));
         RetNode.mergeWith(ArgNode);
       }
     }
   }
 
+  //
+  // Erase the DSCallSites for this function.  This should prevent other DSA
+  // passes from making the DSNodes passed to/returned from the function
+  // from becoming Incomplete or External.
+  //
+  eraseCallsTo (F);
   return;
 }
 
@@ -392,13 +407,16 @@ StdLibDataStructures::runOnModule (Module &M) {
   // Merge return values and checked pointer values for SAFECode run-time
   // checks.
   //
-  processRuntimeCheck (M, "sc.boundscheck");
-  processRuntimeCheck (M, "sc.boundscheckui");
-  processRuntimeCheck (M, "sc.exactcheck2");
-  processRuntimeCheck (M, "sc.get_actual_val");
+  processRuntimeCheck (M, "sc.boundscheck", 3);
+  processRuntimeCheck (M, "sc.boundscheckui", 3);
+  processRuntimeCheck (M, "sc.exactcheck2", 2);
+  processRuntimeCheck (M, "sc.get_actual_val", 2);
 
-  // In Local we marked nodes passed to/returned from 'StdLib' functions as External, because at
-  // that point they were.  However they no longer are necessarily so, and we need to update accordingly.
+  //
+  // In the Local DSA Pass, we marked nodes passed to/returned from 'StdLib'
+  // functions as External because, at that point, they were.  However, they no
+  // longer are necessarily External, and we need to update accordingly.
+  //
   GlobalsGraph->computeExternalFlags(DSGraph::ResetExternal);
   for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I)
     if (!I->isDeclaration()) {

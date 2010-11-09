@@ -191,7 +191,7 @@ public:
 // functions and generates graphs for them.
 class StdLibDataStructures : public DataStructures {
   void eraseCallsTo(Function* F);
-  void processRuntimeCheck (Module & M, std::string name);
+  void processRuntimeCheck (Module & M, std::string name, unsigned arg);
 public:
   static char ID;
   StdLibDataStructures() : DataStructures((intptr_t)&ID, "stdlib.") {}
