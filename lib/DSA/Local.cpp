@@ -575,7 +575,7 @@ void GraphBuilder::visitGetElementPtrInst(User &GEP) {
       // increment the offset by the actual byte offset being accessed
       Offset += (unsigned)TD.getStructLayout(STy)->getElementOffset(FieldNo);
 
-      if(!Value.getNode()->isArrayNode() || Value.getNode()->getSize() <= 1){
+      if(!Value.getNode()->isArrayNode() || Value.getNode()->getSize() <= 0){
         if (TD.getTypeAllocSize(STy) + Value.getOffset() > Value.getNode()->getSize())
           Value.getNode()->growSize(TD.getTypeAllocSize(STy) + Value.getOffset());
       }
@@ -586,19 +586,14 @@ void GraphBuilder::visitGetElementPtrInst(User &GEP) {
       const Type *CurTy = ATy->getElementType();
 
       if(!isa<ArrayType>(CurTy) &&
-          Value.getNode()->getSize() <= 1) {
+          Value.getNode()->getSize() <= 0) {
         Value.getNode()->growSize(TD.getTypeAllocSize(CurTy));
-      } else if(CurTy->isVoidTy()) {
-        Value.getNode()->growSize(1);
-      } else if(isa<ArrayType>(CurTy) && Value.getNode()->getSize() <= 1){
+      } else if(isa<ArrayType>(CurTy) && Value.getNode()->getSize() <= 0){
         const Type *ETy = (cast<ArrayType>(CurTy))->getElementType();
         while(isa<ArrayType>(ETy)) {
           ETy = (cast<ArrayType>(ETy))->getElementType();
         }
         Value.getNode()->growSize(TD.getTypeAllocSize(ETy));
-        if(ETy->isVoidTy()) {
-          Value.getNode()->growSize(1);
-        }
       }
       // indexing into an array.
 
@@ -628,21 +623,16 @@ void GraphBuilder::visitGetElementPtrInst(User &GEP) {
       if (!isa<Constant>(I.getOperand()) ||
           !cast<Constant>(I.getOperand())->isNullValue()) {
         Value.getNode()->setArrayMarker();
+        
 
-
-        if(!isa<ArrayType>(CurTy) && Value.getNode()->getSize() <= 1){
+        if(!isa<ArrayType>(CurTy) && Value.getNode()->getSize() <= 0){
           Value.getNode()->growSize(TD.getTypeAllocSize(CurTy));
-        } else if(CurTy->isVoidTy()) {
-          Value.getNode()->growSize(1);
-        } else if(isa<ArrayType>(CurTy) && Value.getNode()->getSize() <= 1){
+        } else if(isa<ArrayType>(CurTy) && Value.getNode()->getSize() <= 0){
           const Type *ETy = (cast<ArrayType>(CurTy))->getElementType();
           while(isa<ArrayType>(ETy)) {
             ETy = (cast<ArrayType>(ETy))->getElementType();
           }
           Value.getNode()->growSize(TD.getTypeAllocSize(ETy));
-          if(ETy->isVoidTy()) {
-            Value.getNode()->growSize(1);
-          }
         }
         if(Value.getOffset() || Offset != 0
            || (!isa<ArrayType>(CurTy)

@@ -332,13 +332,12 @@ void DSNode::mergeTypeInfo(const Type *NewTy, unsigned Offset) {
   if (!NewTy || NewTy->isVoidTy()) return;
 
   if (isCollapsedNode()) return;
-  if (isArrayNode()) {
+  if (isArrayNode() && getSize() > 0) {
     assert (getSize() && "array node has size of zero!\n");
     Offset %= getSize();
   }
   const TargetData &TD = getParentGraph()->getTargetData();
   if (Offset >= getSize()) growSize(Offset+TD.getTypeAllocSize(NewTy));
-  if (Offset >= getSize() && NewTy->isVoidTy()) growSize(Offset + 1);
 
   TyMap[Offset] = getParentGraph()->getTypeSS().getOrCreate(TyMap[Offset], NewTy);
 
@@ -373,9 +372,6 @@ void DSNode::mergeTypeInfo(const Type *NewTy, unsigned Offset) {
 void DSNode::mergeTypeInfo(const TyMapTy::mapped_type TyIt, unsigned Offset) {
   if (isCollapsedNode()) return;
   if (isArrayNode()) Offset %= getSize();
-
-  if (Offset >= getSize())
-    growSize(Offset + 1);
 
   if (!TyMap[Offset])
     TyMap[Offset] = TyIt;
@@ -525,7 +521,7 @@ void DSNode::MergeNodes(DSNodeHandle& CurNodeH, DSNodeHandle& NH) {
     }
   }
   if (CurNodeH.getNode()->isArrayNode() && NH.getNode()->isArrayNode()) {
-    if(NH.getNode()->getSize() != 1 && CurNodeH.getNode()->getSize() != 1
+    if(NH.getNode()->getSize() != 0 && CurNodeH.getNode()->getSize() != 0
        && (NH.getNode()->getSize() != CurNodeH.getNode()->getSize())){
       CurNodeH.getNode()->foldNodeCompletely();
       NH.getNode()->foldNodeCompletely();
@@ -789,11 +785,9 @@ void ReachabilityCloner::merge(const DSNodeHandle &NH,
           DN = NH.getNode();
         }
 #endif
-      }
-      if (DN->getSize() < SN->getSize())
-        DN->growSize(SN->getSize());
+     }
 
-      if ((SN->isArrayNode() && !DN->isArrayNode()) ||
+     if ((SN->isArrayNode() && !DN->isArrayNode()) ||
         (!SN->isArrayNode() && DN->isArrayNode())) {
         if(SN->getSize() != 0 && DN->getSize() != 0
          && (SN->getSize() != DN->getSize())){
@@ -802,17 +796,18 @@ void ReachabilityCloner::merge(const DSNodeHandle &NH,
         }
      }
      if (SN->isArrayNode() && DN->isArrayNode()) {
-        if((SN->getSize() != DN->getSize()) && (SN->getSize() != 1) && DN->getSize() != 1) {
+        if((SN->getSize() != DN->getSize()) && (SN->getSize() != 0) && DN->getSize() != 0) {
         DN->foldNodeCompletely();
         DN = NH.getNode();
        }
     }
+    if (!DN->isNodeCompletelyFolded() && DN->getSize() < SN->getSize())
+      DN->growSize(SN->getSize());
 
 
       // Merge the type entries of the two nodes together...
       if (!DN->isNodeCompletelyFolded())
           DN->mergeTypeInfo(SN, NH.getOffset() - SrcNH.getOffset());
-
     }
 
     assert(!DN->isDeadNode());
