@@ -86,7 +86,6 @@ bool TDDataStructures::runOnModule(Module &M) {
   init(useEQBU ? &getAnalysis<EquivBUDataStructures>()
        : &getAnalysis<BUDataStructures>(), 
        true, true, true, false);
-
   // Figure out which functions must not mark their arguments complete because
   // they are accessible outside this compilation unit.  Currently, these
   // arguments are functions which are reachable by incomplete or external
@@ -249,6 +248,7 @@ void TDDataStructures::InlineCallersIntoGraph(DSGraph* DSG) {
   DEBUG(errs() << "[TD] Inlining callers into '" 
 	<< DSG->getFunctionNames() << "'\n");
 
+  DSG->maskIncompleteMarkers();
   // Iteratively inline caller graphs into this graph.
   while (!EdgesFromCaller.empty()) {
     DSGraph* CallerGraph = EdgesFromCaller.back().CallerGraph;
@@ -286,20 +286,9 @@ void TDDataStructures::InlineCallersIntoGraph(DSGraph* DSG) {
   }
 
 
-  {
-    DSGraph* GG = DSG->getGlobalsGraph();
-    ReachabilityCloner RC(GG, DSG,
-                          DSGraph::DontCloneCallNodes |
-                          DSGraph::DontCloneAuxCallNodes);
-    for (DSScalarMap::global_iterator
-           GI = DSG->getScalarMap().global_begin(),
-           E = DSG->getScalarMap().global_end(); GI != E; ++GI)
-      RC.getClonedNH(DSG->getNodeForValue(*GI));
-  }
 
   // Next, now that this graph is finalized, we need to recompute the
   // incompleteness markers for this graph and remove unreachable nodes.
-  DSG->maskIncompleteMarkers();
 
   // If any of the functions is externally callable, treat everything in its
   // SCC as externally callable.
@@ -323,6 +312,17 @@ void TDDataStructures::InlineCallersIntoGraph(DSGraph* DSG) {
     = isExternallyCallable ? DSGraph::MarkFormalsExternal : DSGraph::DontMarkFormalsExternal;
   DSG->computeExternalFlags(ExtFlags);
 
+  {
+    DSGraph* GG = DSG->getGlobalsGraph();
+    ReachabilityCloner RC(GG, DSG,
+                          DSGraph::DontCloneCallNodes |
+                          DSGraph::DontCloneAuxCallNodes);
+    for (DSScalarMap::global_iterator
+           GI = DSG->getScalarMap().global_begin(),
+           E = DSG->getScalarMap().global_end(); GI != E; ++GI)
+      RC.getClonedNH(DSG->getNodeForValue(*GI));
+  }
+ 
   //
   // Delete dead nodes.  Treat globals that are unreachable as dead also.
   //
