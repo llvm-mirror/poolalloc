@@ -45,7 +45,8 @@ bool EquivBUDataStructures::runOnModule(Module &M) {
   //update the EQ class from indirect calls
   buildIndirectFunctionSets();
   mergeGraphsByGlobalECs();
-  verifyMerging();
+
+  DEBUG(verifyMerging());
   bool result = runOnModuleInternal(M);  
   // CBU contains the correct call graph.
   // Restore it, so that subsequent passes and clients can get it.
@@ -53,6 +54,8 @@ bool EquivBUDataStructures::runOnModule(Module &M) {
   return result;
 }
 
+// Verifies that all the functions in an equivalence calss have been merged. 
+// This is required by to be true by poolallocation.
 void
 EquivBUDataStructures::verifyMerging() {
   
