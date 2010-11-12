@@ -78,6 +78,11 @@ static bool isIndirectCallee(Value *V) {
 
   if (CastInst *CI = dyn_cast<CastInst>(V))
     return isIndirectCallee(CI->getOperand(0));
+
+  if (ConstantExpr *CE = dyn_cast<ConstantExpr>(V))
+    if (CE->isCast()) 
+      return isIndirectCallee(CE->getOperand(0));
+
   return true;
 }
 
