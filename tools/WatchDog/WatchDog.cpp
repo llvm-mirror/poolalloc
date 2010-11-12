@@ -105,7 +105,7 @@ check_process (int sig) {
   if ((fp = popen(cmd, "r")) != NULL) {
     if (fscanf(fp, "%d", &rss) == 1) {
       if (rss > rss_max_allowable) {
-        fprintf (stderr, "Terminating bad process %d!\n", pid_to_watch);
+        fprintf (stderr, "WatchDog: Terminating bad process %d!\n", pid_to_watch);
         kill (pid_to_watch, SIGKILL);
         return;
       }
