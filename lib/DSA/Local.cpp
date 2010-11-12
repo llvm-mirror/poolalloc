@@ -188,6 +188,7 @@ namespace {
         | DSGraph::ProcessCallSites;
 
       g.computeExternalFlags(EFlags);
+      g.computeIntPtrFlags();
 
       // Remove any nodes made dead due to merging...
       g.removeDeadNodes(DSGraph::KeepUnreachableGlobals);

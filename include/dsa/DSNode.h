@@ -252,6 +252,11 @@ public:
     return true;
   }
 
+  /// markIntPtrFlags - If the node at any offset has overlapping int/ptr types
+  /// mark the P2I flags.
+  ///
+  void markIntPtrFlags();
+
   /// foldNodeCompletely - If we determine that this node has some funny
   /// behavior happening to it that we cannot represent, we fold it down to a
   /// single, completely pessimistic, node.  This node is represented as a

@@ -506,6 +506,9 @@ public:
     MarkVAStart = 4
   };
   void markIncompleteNodes(unsigned Flags);
+  
+  // Mark nodes that have overlapping Int and Pointer types.
+  void computeIntPtrFlags();
 
   // Mark all reachable from external as external.
   enum ComputeExternalFlags {

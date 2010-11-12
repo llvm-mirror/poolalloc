@@ -135,6 +135,7 @@ bool BUDataStructures::runOnModuleInternal(Module& M) {
   // Mark external globals incomplete.
   GlobalsGraph->markIncompleteNodes(DSGraph::IgnoreGlobals);
   GlobalsGraph->computeExternalFlags(DSGraph::DontMarkFormalsExternal);
+  GlobalsGraph->computeIntPtrFlags();
 
   //
   // Create equivalence classes for aliasing globals so that we only need to
@@ -155,6 +156,7 @@ bool BUDataStructures::runOnModuleInternal(Module& M) {
       Graph->markIncompleteNodes(DSGraph::MarkFormalArgs |
                                    DSGraph::IgnoreGlobals);
       Graph->computeExternalFlags(DSGraph::DontMarkFormalsExternal);
+      Graph->computeIntPtrFlags();
     }
   }
 
@@ -835,6 +837,7 @@ void BUDataStructures::calculateGraph(DSGraph* Graph) {
   Graph->maskIncompleteMarkers();
   Graph->markIncompleteNodes(DSGraph::MarkFormalArgs);
   Graph->computeExternalFlags(DSGraph::DontMarkFormalsExternal);
+  Graph->computeIntPtrFlags();
   
   //
   // Update the callgraph with the new information that we have gleaned.

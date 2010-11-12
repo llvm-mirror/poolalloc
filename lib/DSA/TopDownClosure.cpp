@@ -165,6 +165,7 @@ bool TDDataStructures::runOnModule(Module &M) {
   ExternallyCallable.clear();
   GlobalsGraph->removeTriviallyDeadNodes();
   GlobalsGraph->computeExternalFlags(DSGraph::DontMarkFormalsExternal);
+  GlobalsGraph->computeIntPtrFlags();
 
   // Make sure each graph has updated external information about globals
   // in the globals graph.
@@ -184,6 +185,7 @@ bool TDDataStructures::runOnModule(Module &M) {
       Graph->removeDeadNodes(0);
 
       Graph->computeExternalFlags(DSGraph::DontMarkFormalsExternal);
+      Graph->computeIntPtrFlags();
 
     }
   }
@@ -311,6 +313,7 @@ void TDDataStructures::InlineCallersIntoGraph(DSGraph* DSG) {
   unsigned ExtFlags
     = isExternallyCallable ? DSGraph::MarkFormalsExternal : DSGraph::DontMarkFormalsExternal;
   DSG->computeExternalFlags(ExtFlags);
+  DSG->computeIntPtrFlags();
 
   {
     DSGraph* GG = DSG->getGlobalsGraph();

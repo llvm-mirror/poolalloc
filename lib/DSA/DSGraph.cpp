@@ -718,6 +718,14 @@ static void propagateExternal(DSGraph * G, svset<DSNode *> & processedNodes) {
       markExternalNode(&*I, processedNodes);
   }
 }
+// computeIntPtrFlags -- mark all nodes that must get P2 flags due to type overlap
+void DSGraph::computeIntPtrFlags() {
+  DSGraph::node_iterator I = node_begin(),
+                         E = node_end();
+  for ( ; I != E; ++I ) {
+    I->markIntPtrFlags();
+  }
+}
 
 // computeExternalFlags -- mark all reachable from external as external
 void DSGraph::computeExternalFlags(unsigned Flags) {

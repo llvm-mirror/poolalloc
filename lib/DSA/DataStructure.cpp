@@ -319,6 +319,78 @@ void DSNode::dumpFuncs() {
   return;
 }
 
+/// markIntPtrFlags - Mark P2 flags on node, if integer and pointer types
+/// overlap at any offset.
+///
+void DSNode::markIntPtrFlags() {
+  // check if the types merged have both int and pointer at the same offset,
+  
+  const TargetData &TD = getParentGraph()->getTargetData();
+  // check all offsets for that node.
+  for(unsigned offset = 0; offset < getSize() ; offset++) {
+   // if that Node has no Type information, skip
+   if(TyMap.find(offset) == TyMap.end())
+      continue;
+    
+    bool pointerTy = false;
+    bool integerTy = false;
+    unsigned intSize = 0;
+    unsigned ptrSize = 0;
+
+    // Iterate through all the Types, at that offset, checking if we have
+    // found a pointer type/integer type
+    for (svset<const Type*>::const_iterator ni = TyMap[offset]->begin(),
+         ne = TyMap[offset]->end(); ni != ne; ++ni) {
+      if((*ni)->isPointerTy()) {
+        pointerTy = true;
+        ptrSize = TD.getPointerSize();
+      }
+      if((*ni)->isIntegerTy()) {
+        integerTy = true;
+        if (TD.getTypeStoreSize(*ni) > intSize)
+          intSize = TD.getTypeStoreSize(*ni);
+      }
+    }
+    // If this offset itself contains both pointer and integer, set the
+    // flags and exit.
+    if(pointerTy && integerTy){
+      setUnknownMarker()->setIntToPtrMarker()->setPtrToIntMarker();
+      return;
+    }
+    if(!pointerTy && !integerTy){
+      continue;
+    }
+   
+    // If only either integer or pointer was found, we must see if it 
+    // overlaps with any other pointer or integer type at an offset that
+    // comes later. 
+    unsigned maxOffset = offset + (pointerTy ? ptrSize:intSize);
+    unsigned offset2 = offset;
+    while(offset2 < maxOffset && offset2 < getSize()) {
+      if(TyMap.find(offset2) == TyMap.end()) {
+        offset2++;
+        continue;
+      }
+      for (svset<const Type*>::const_iterator ni = TyMap[offset2]->begin(),
+           ne = TyMap[offset2]->end(); ni != ne; ++ni) {
+        if((*ni)->isPointerTy()) {
+          pointerTy = true;
+        }
+        if((*ni)->isIntegerTy()) {
+          integerTy = true;
+        }
+      }
+      // whenever we have found overlapping integer and pointer types,
+      // we can set the flags, and exit.
+      if(pointerTy && integerTy){
+        setUnknownMarker()->setIntToPtrMarker()->setPtrToIntMarker();
+        return;
+      }
+      offset2++;
+    }
+  }
+}
+
 /// mergeTypeInfo - This method merges the specified type into the current node
 /// at the specified offset.  This may update the current node's type record if
 /// this gives more information to the node, it may do nothing to the node if
@@ -341,31 +413,6 @@ void DSNode::mergeTypeInfo(const Type *NewTy, unsigned Offset) {
 
   TyMap[Offset] = getParentGraph()->getTypeSS().getOrCreate(TyMap[Offset], NewTy);
 
-  // check if the types merged have both int and pointer at the same offset,
-  // If yes, the IntToPtr and PtrToInt flag must be set on the node pointed to at
-  // that offset. If no such node exists, it is created.
- 
-  bool pointerTy = false;
-  bool integerTy = false;
-  for (svset<const Type*>::const_iterator ni = TyMap[Offset]->begin(),
-       ne = TyMap[Offset]->end(); ni != ne; ++ni) {
-    if((*ni)->isPointerTy()) {
-      pointerTy = true;
-    }
-    if((*ni)->isIntegerTy()) {
-      integerTy = true;
-    }
-  }
-
-  if(pointerTy && integerTy) {
-    if(!hasLink(Offset)) {
-      const DSNodeHandle &NH  = new DSNode(getParentGraph());
-      addEdgeTo(Offset, NH);
-    }
-    DSNodeHandle &Edge = getLink(Offset);
-    assert(!Edge.isNull());
-    Edge.getNode()->setUnknownMarker()->setIntToPtrMarker()->setPtrToIntMarker();
-  }
   assert(TyMap[Offset]);
 }
 
@@ -381,32 +428,6 @@ void DSNode::mergeTypeInfo(const TyMapTy::mapped_type TyIt, unsigned Offset) {
     TyMap[Offset] = getParentGraph()->getTypeSS().getOrCreate(S);
   }
   
-  // check if the types merged have both int and pointer at the same offset,
-  // If yes, the IntToPtr and PtrToInt flag must be set on the node pointed to at
-  // that offset. If no such node exists, it is created.
-  bool pointerTy = false;
-  bool integerTy = false;
-  for (svset<const Type*>::const_iterator ni = TyMap[Offset]->begin(),
-       ne = TyMap[Offset]->end(); ni != ne; ++ni) {
-    if((*ni)->isPointerTy()) {
-      pointerTy = true;
-    }
-    if((*ni)->isIntegerTy()) {
-      integerTy = true;
-    }
-    const TargetData &TD = getParentGraph()->getTargetData();
-    if ((Offset + TD.getTypeAllocSize(*ni))>= getSize()) growSize(Offset+TD.getTypeAllocSize(*ni));
-  }
-  if(pointerTy && integerTy) {
-    if(!hasLink(Offset)) {
-      const DSNodeHandle &NH  = new DSNode(getParentGraph());
-      addEdgeTo(Offset, NH);
-    }
-    DSNodeHandle &Edge = getLink(Offset);
-    assert(!Edge.isNull());
-    Edge.getNode()->setUnknownMarker()->setIntToPtrMarker()->setPtrToIntMarker();
-  }
-
   assert(TyMap[Offset]);
 }
 
@@ -435,7 +456,6 @@ void DSNode::addEdgeTo(unsigned Offset, const DSNodeHandle &NH) {
     setLink(Offset, NH);               // Just force a link in there...
   }
 }
-
 
 void DSNode::mergeGlobals(const DSNode &RHS) {
   Globals.insert(RHS.Globals.begin(), RHS.Globals.end());
@@ -508,18 +528,33 @@ void DSNode::MergeNodes(DSNodeHandle& CurNodeH, DSNodeHandle& NH) {
     NOffset = NH.getOffset();
     assert(NOffset == 0 && NSize == 1);
   }
-
-  if((NH.getNode()->isArrayNode() && !CurNodeH.getNode()->isArrayNode()) ||
-  (!NH.getNode()->isArrayNode() && CurNodeH.getNode()->isArrayNode())) {
-    if(NH.getNode()->getSize() != 0 && CurNodeH.getNode()->getSize() != 0
-       && (NH.getNode()->getSize() != CurNodeH.getNode()->getSize())){
-      CurNodeH.getNode()->foldNodeCompletely();
-      NH.getNode()->foldNodeCompletely();
-      NSize = NH.getNode()->getSize();
-  //    N = NH.getNode();
-      NOffset = NH.getOffset();
+  
+  // FIXME:Add comments.
+  if(NH.getNode()->isArrayNode() && !CurNodeH.getNode()->isArrayNode()) {
+    if(NH.getNode()->getSize() != 0 && CurNodeH.getNode()->getSize() != 0) { 
+      if((NH.getNode()->getSize() != CurNodeH.getNode()->getSize() &&
+       (NH.getOffset() != 0 || CurNodeH.getOffset() != 0) 
+        && NH.getNode()->getSize() < CurNodeH.getNode()->getSize())) {
+        CurNodeH.getNode()->foldNodeCompletely();
+        NH.getNode()->foldNodeCompletely();
+        NSize = NH.getNode()->getSize();
+        NOffset = NH.getOffset();
+      }
     }
   }
+  if(!NH.getNode()->isArrayNode() && CurNodeH.getNode()->isArrayNode()) {
+    if(NH.getNode()->getSize() != 0 && CurNodeH.getNode()->getSize() != 0) { 
+      if((NH.getNode()->getSize() != CurNodeH.getNode()->getSize() &&
+       (NH.getOffset() != 0 || CurNodeH.getOffset() != 0) 
+        && NH.getNode()->getSize() > CurNodeH.getNode()->getSize())) {
+        CurNodeH.getNode()->foldNodeCompletely();
+        NH.getNode()->foldNodeCompletely();
+        NSize = NH.getNode()->getSize();
+        NOffset = NH.getOffset();
+      }
+    }
+  }
+
   if (CurNodeH.getNode()->isArrayNode() && NH.getNode()->isArrayNode()) {
     if(NH.getNode()->getSize() != 0 && CurNodeH.getNode()->getSize() != 0
        && (NH.getNode()->getSize() != CurNodeH.getNode()->getSize())){
@@ -541,8 +576,6 @@ void DSNode::MergeNodes(DSNodeHandle& CurNodeH, DSNodeHandle& NH) {
   if (NH.getNode()->getSize() + NOffset > CurNodeH.getNode()->getSize())
     CurNodeH.getNode()->growSize(NH.getNode()->getSize() + NOffset);
   assert(!CurNodeH.getNode()->isDeadNode());
-
-
 
   // Merge the NodeType information.
   CurNodeH.getNode()->NodeType |= N->NodeType;
@@ -785,29 +818,45 @@ void ReachabilityCloner::merge(const DSNodeHandle &NH,
           DN = NH.getNode();
         }
 #endif
-     }
-
-     if ((SN->isArrayNode() && !DN->isArrayNode()) ||
-        (!SN->isArrayNode() && DN->isArrayNode())) {
-        if(SN->getSize() != 0 && DN->getSize() != 0
-         && (SN->getSize() != DN->getSize())){
-          DN->foldNodeCompletely();
-          DN = NH.getNode();
+      }
+      
+     
+      // FIXME:Add comments.
+      if(!DN->isArrayNode() && SN->isArrayNode()) {
+        if(DN->getSize() != 0 && SN->getSize() != 0) { 
+          if((DN->getSize() != SN->getSize() &&
+            (NH.getOffset() != 0 || SrcNH.getOffset() != 0) 
+            && DN->getSize() > SN->getSize())) {
+            DN->foldNodeCompletely();
+            DN = NH.getNode();
+          }
         }
-     }
-     if (SN->isArrayNode() && DN->isArrayNode()) {
-        if((SN->getSize() != DN->getSize()) && (SN->getSize() != 0) && DN->getSize() != 0) {
-        DN->foldNodeCompletely();
-        DN = NH.getNode();
-       }
-    }
-    if (!DN->isNodeCompletelyFolded() && DN->getSize() < SN->getSize())
-      DN->growSize(SN->getSize());
+      }
+      if(!SN->isArrayNode() && DN->isArrayNode()) {
+        if(DN->getSize() != 0 && SN->getSize() != 0) { 
+          if((DN->getSize() != SN->getSize() &&
+            (NH.getOffset() != 0 || SrcNH.getOffset() != 0) 
+            && DN->getSize() < SN->getSize())) {
+            DN->foldNodeCompletely();
+            DN = NH.getNode();
+          }
+        }
+      } 
+
+      if (SN->isArrayNode() && DN->isArrayNode()) {
+        if((SN->getSize() != DN->getSize()) && (SN->getSize() != 0) 
+           && DN->getSize() != 0) {
+           DN->foldNodeCompletely();
+           DN = NH.getNode();
+        }
+      }
+      if (!DN->isNodeCompletelyFolded() && DN->getSize() < SN->getSize())
+        DN->growSize(SN->getSize());
 
 
       // Merge the type entries of the two nodes together...
       if (!DN->isNodeCompletelyFolded())
-          DN->mergeTypeInfo(SN, NH.getOffset() - SrcNH.getOffset());
+        DN->mergeTypeInfo(SN, NH.getOffset() - SrcNH.getOffset());
     }
 
     assert(!DN->isDeadNode());

@@ -1,7 +1,7 @@
 ;checks that the PtrToInt and IntToPtr flag is set on unions that contain integer and pointer types
 
 ;RUN: dsaopt %s -dsa-local -analyze -check-same-node=main:ptr:0,main:obj:0
-;RUN: dsaopt %s -dsa-local -analyze -verify-flags "main:ptr:0+UP2"
+;RUN: dsaopt %s -dsa-local -analyze -verify-flags "main:obj+UP2"
 ;RUN: dsaopt %s -dsa-local -analyze -check-type=main:obj,0:i32|%\struct.StructType*
 
 
