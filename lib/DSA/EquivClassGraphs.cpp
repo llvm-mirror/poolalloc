@@ -42,12 +42,33 @@ char EquivBUDataStructures::ID = 0;
 bool EquivBUDataStructures::runOnModule(Module &M) {
   init(&getAnalysis<CompleteBUDataStructures>(), false, true, false, true);
 
+  //make a list of all the DSGraphs
+  std::list<DSGraph *>graphList;
+  for(Module::iterator F = M.begin(); F != M.end(); ++F) 
+  {
+    if(!(F->isDeclaration()))
+      graphList.push_back(getOrCreateGraph(F));
+  }
+
   //update the EQ class from indirect calls
   buildIndirectFunctionSets();
   mergeGraphsByGlobalECs();
+  
+  //remove all the DSGraph, that still have references
+  for(Module::iterator F = M.begin(); F != M.end(); ++F) 
+  {
+    if(!(F->isDeclaration()))
+      graphList.remove(getOrCreateGraph(F));
+  }
+  // free memory for the DSGraphs, no longer in use.
+  for(std::list<DSGraph*>::iterator i = graphList.begin(),e = graphList.end();
+      i!=e;i++) {
+    delete (*i);
+  }
 
   DEBUG(verifyMerging());
-  bool result = runOnModuleInternal(M);  
+  bool result = runOnModuleInternal(M); 
+  
   // CBU contains the correct call graph.
   // Restore it, so that subsequent passes and clients can get it.
   restoreCorrectCallGraph();
