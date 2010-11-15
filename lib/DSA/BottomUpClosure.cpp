@@ -83,8 +83,10 @@ bool BUDataStructures::runOnModuleInternal(Module& M) {
   // for their DSGraphs, and we want to have them if asked.
   //
   for (Module::iterator F = M.begin(); F != M.end(); ++F) {
-    if (!(F->isDeclaration()))
-      getOrCreateGraph(F);
+    if (!(F->isDeclaration())){
+      DSGraph *Graph = getOrCreateGraph(F);
+      cloneGlobalsInto(Graph);
+    }
   }
 
   //
@@ -803,8 +805,8 @@ void BUDataStructures::calculateGraph(DSGraph* Graph) {
 
     for (unsigned x = 0; x < CalledFuncs.size(); ++x) {
       const Function *Callee = CalledFuncs[x];
-
       // Get the data structure graph for the called function.
+
       GI = getDSGraph(*Callee);  // Graph to inline
       DEBUG(GI->AssertGraphOK(); GI->getGlobalsGraph()->AssertGraphOK());
       DEBUG(errs() << "    Inlining graph for " << Callee->getName()
