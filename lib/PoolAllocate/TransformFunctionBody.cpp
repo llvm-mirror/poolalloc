@@ -832,7 +832,10 @@ void FuncTransform::visitCallSite(CallSite& CS) {
     } else if (CF->getName() == "pthread_create") {
       thread_creation_point = true;
 
-      //Get DSNode representing the DSNode of the function pointer Value of the pthread_create call
+      //
+      // Get DSNode representing the DSNode of the function pointer Value of
+      // the pthread_create call
+      //
       DSNode* thread_callee_node = G->getNodeForValue(CS.getArgument(2)).getNode();
       if(!thread_callee_node)
       {
@@ -841,7 +844,7 @@ void FuncTransform::visitCallSite(CallSite& CS) {
     	  thread_callee_node = G->getNodeForValue(CFI->MapValueToOriginal(CS.getArgument(2))).getNode();
       }
 
-      //Fill in CF with the name of one of the functions in thread_callee_node
+      // Fill in CF with the name of one of the functions in thread_callee_node
       CF = const_cast<Function*>(dyn_cast<Function>(*thread_callee_node->globals_begin()));
     }
   }
