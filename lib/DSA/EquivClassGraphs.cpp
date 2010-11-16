@@ -43,11 +43,11 @@ bool EquivBUDataStructures::runOnModule(Module &M) {
   init(&getAnalysis<CompleteBUDataStructures>(), false, true, false, true);
 
   //make a list of all the DSGraphs
-  std::list<DSGraph *>graphList;
+  std::set<DSGraph *>graphList;
   for(Module::iterator F = M.begin(); F != M.end(); ++F) 
   {
     if(!(F->isDeclaration()))
-      graphList.push_back(getOrCreateGraph(F));
+      graphList.insert(getOrCreateGraph(F));
   }
 
   //update the EQ class from indirect calls
@@ -58,10 +58,10 @@ bool EquivBUDataStructures::runOnModule(Module &M) {
   for(Module::iterator F = M.begin(); F != M.end(); ++F) 
   {
     if(!(F->isDeclaration()))
-      graphList.remove(getOrCreateGraph(F));
+      graphList.erase(getOrCreateGraph(F));
   }
   // free memory for the DSGraphs, no longer in use.
-  for(std::list<DSGraph*>::iterator i = graphList.begin(),e = graphList.end();
+  for(std::set<DSGraph*>::iterator i = graphList.begin(),e = graphList.end();
       i!=e;i++) {
     delete (*i);
   }
