@@ -68,6 +68,14 @@ CompleteBUDataStructures::runOnModule (Module &M) {
     }
   }
 
+  for (Module::iterator F = M.begin(); F != M.end(); ++F) {
+    if (!(F->isDeclaration())) {
+      if (DSGraph * Graph = getOrCreateGraph(F)) {
+        cloneGlobalsInto (Graph);
+      }
+    }
+  }
+
   //
   // Do bottom-up propagation.
   //
