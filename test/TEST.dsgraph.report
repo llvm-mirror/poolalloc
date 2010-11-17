@@ -142,7 +142,6 @@ my $USERSYSTTIME = '([0-9.]+)[ 0-9.]+\([^)]+\)[ 0-9.]+\([^)]+\) +';
             ["BUTim:", "${USERSYSTTIME}Bottom"],
             ["TDTim:", "${USERSYSTTIME}Top"],
             ["SumTm:", sub { return SumCols(@_, 3); }],
-            ["SteTm:", "${USERSYSTTIME}Steensgaard"],
             [],
 # Sizes
             ["LcSize:" , '([0-9]+)  Local'],

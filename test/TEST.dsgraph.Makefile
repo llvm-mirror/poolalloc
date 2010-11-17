@@ -32,8 +32,6 @@ Output/%.$(TEST).report.txt: Output/%.llvm.bc Output/%.LOC.txt $(LOPT)
 	@# Gather data
 	-($(RUNOPT) -analyze -dsa-$(PASS) $(ANALYZE_OPTS) $<)> $@.time.1 2>&1
 	-($(RUNOPT) -analyze $(MEM) -dsa-$(PASS) -disable-verify $<)> $@.mem.1 2>&1
-	-($(RUNOPT) -steens-aa -time-passes -disable-output $<) > $@.time.2 2>&1
-	-($(RUNOPT) -steens-aa $(MEM) -disable-output $<) > $@.mem.2 2>&1
 	@# Emit data.
 	@echo "---------------------------------------------------------------" > $@
 	@echo ">>> ========= '$(RELDIR)/$*' Program" >> $@
@@ -75,9 +73,6 @@ Output/%.$(TEST).report.txt: Output/%.llvm.bc Output/%.LOC.txt $(LOPT)
 	@/bin/echo -n "TIME: " >> $@
 	-@grep '  Top-down Data Structure' $@.time.1 >> $@
 	@echo >> $@
-	@/bin/echo -n "TIME: " >> $@
-	-@grep '  Steensgaard.s alias analysis' $@.time.2 >> $@
-	@echo >> $@
 	@# Emit space data.
 	@/bin/echo -n "MEM: " >> $@
 	-@grep '  Local Data Structure' $@.mem.1 >> $@
@@ -87,9 +82,6 @@ Output/%.$(TEST).report.txt: Output/%.llvm.bc Output/%.LOC.txt $(LOPT)
 	@echo >> $@
 	@/bin/echo -n "MEM: " >> $@
 	-@grep '  Top-down Data Structure' $@.mem.1 >> $@
-	@echo >> $@
-	@/bin/echo -n "MEM: " >> $@
-	-@grep '  Steensgaard.s alias analysis' $@.mem.2 >> $@
 
 
 
