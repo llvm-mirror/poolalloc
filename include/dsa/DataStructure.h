@@ -220,6 +220,7 @@ protected:
   EntryPointAnalysis* EP;
 
   void cloneIntoGlobals(DSGraph* G);
+  void cloneGlobalsInto(DSGraph* G);
 
   // filterCallees -- Whether or not we filter out illegal callees
   // from the CallGraph.  This is useful while doing original BU,
@@ -266,7 +267,6 @@ private:
   void calculateGraph(DSGraph* G);
 
   void CloneAuxIntoGlobal(DSGraph* G);
-  void cloneGlobalsInto(DSGraph* G);
   void finalizeGlobals(void);
 
   void getAllCallees(const DSCallSite &CS,
