@@ -36,6 +36,14 @@ namespace {
                                 "Number of loads/stores which are fully typed");
   STATISTIC (NumUntypedMemAccesses,
                                 "Number of loads/stores which are untyped");
+  STATISTIC (NumTypeCount1Accesses,
+                                "Number of loads/stores which are access a DSNode with 1 type");
+  STATISTIC (NumTypeCount2Accesses,
+                                "Number of loads/stores which are access a DSNode with 2 type");
+  STATISTIC (NumTypeCount3Accesses,
+                                "Number of loads/stores which are access a DSNode with 3 type");
+  STATISTIC (NumTypeCount4Accesses,
+                                "Number of loads/stores which are access a DSNode with >3 type");
 
   class DSGraphStats : public FunctionPass, public InstVisitor<DSGraphStats> {
     void countCallees(const Function &F);
@@ -141,16 +149,25 @@ bool DSGraphStats::isNodeForValueUntyped(Value *V) {
     DSNode* N = NH.getNode();
     if (N->isNodeCompletelyFolded() || N->isIncompleteNode())
       return true;
-    // it is a complete node, now check if it is typesafe
-   /*if (N->type_begin() != N->type_end())
+    // it is a complete node, now check how many types are present
+   int count = 0;
+   unsigned offset = NH.getOffset();
+   if (N->type_begin() != N->type_end())
     for (DSNode::TyMapTy::const_iterator ii = N->type_begin(),
         ee = N->type_end(); ii != ee; ++ii) {
       if(ii->first != offset)
         continue;
       count += ii->second->size();
     }
-    if(count > 1)
-      return true;*/
+ 
+   if(count == 1)
+      ++NumTypeCount1Accesses;
+    else if(count == 2)
+      ++NumTypeCount2Accesses;
+    else if(count == 3)
+      ++NumTypeCount3Accesses;
+    else 
+      ++NumTypeCount4Accesses;
   }
   return false;
 }
