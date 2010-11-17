@@ -687,7 +687,6 @@ static void markExternalNode(DSNode *N, svset<DSNode *> & processedNodes) {
 }
 
 // markExternal --marks the specified callsite external, using 'processedNodes' to track recursion.
-// Additionally, we set the externFuncMarker as appropriate.
 static void markExternal(const DSCallSite &Call, svset<DSNode *> & processedNodes) {
   markExternalNode(Call.getRetVal().getNode(), processedNodes);
 
@@ -696,16 +695,6 @@ static void markExternal(const DSCallSite &Call, svset<DSNode *> & processedNode
   // Mark all pointer arguments...
   for (unsigned i = 0, e = Call.getNumPtrArgs(); i != e; ++i)
     markExternalNode(Call.getPtrArg(i).getNode(), processedNodes);
-
-  // Set the flag indicating this fptr contains external functions.
-  // FIXME: As far as I can tell, we don't actually set this anywhere else,
-  // and I haven't given much thought to where it's appropriate to do so.
-  // For now, setting it because it's not wrong and clearly a step forward
-  // but want to make it clear that I don't claim that this is now set
-  // properly everywhere the way it should.
-  if (Call.isIndirectCall()) {
-    Call.getCalleeNode()->setExternFuncMarker();
-  }
 }
 
 // propagateExternal -- Walk the given DSGraph making sure that within this graph

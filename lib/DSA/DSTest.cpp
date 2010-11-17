@@ -314,17 +314,18 @@ static std::string getFlags(DSNode *N) {
   // Probably would be good to make this code shared...
   // Leaving it separate for now to minimize invasiveness
   if (unsigned NodeType = N->getNodeFlags()) {
-    if (NodeType & DSNode::AllocaNode     ) flags += "S";
-    if (NodeType & DSNode::HeapNode       ) flags += "H";
-    if (NodeType & DSNode::GlobalNode     ) flags += "G";
-    if (NodeType & DSNode::UnknownNode    ) flags += "U";
-    if (NodeType & DSNode::IncompleteNode ) flags += "I";
-    if (NodeType & DSNode::ModifiedNode   ) flags += "M";
-    if (NodeType & DSNode::ReadNode       ) flags += "R";
-    if (NodeType & DSNode::ExternalNode   ) flags += "E";
-    if (NodeType & DSNode::IntToPtrNode   ) flags += "P";
-    if (NodeType & DSNode::PtrToIntNode   ) flags += "2";
-    if (NodeType & DSNode::VAStartNode    ) flags += "V";
+    if (NodeType & DSNode::AllocaNode       ) flags += "S";
+    if (NodeType & DSNode::HeapNode         ) flags += "H";
+    if (NodeType & DSNode::GlobalNode       ) flags += "G";
+    if (NodeType & DSNode::UnknownNode      ) flags += "U";
+    if (NodeType & DSNode::IncompleteNode   ) flags += "I";
+    if (NodeType & DSNode::ModifiedNode     ) flags += "M";
+    if (NodeType & DSNode::ReadNode         ) flags += "R";
+    if (NodeType & DSNode::ExternalNode     ) flags += "E";
+    if (NodeType & DSNode::ExternFuncNode   ) flags += "X";
+    if (NodeType & DSNode::IntToPtrNode     ) flags += "P";
+    if (NodeType & DSNode::PtrToIntNode     ) flags += "2";
+    if (NodeType & DSNode::VAStartNode      ) flags += "V";
   }
 
   return flags;
