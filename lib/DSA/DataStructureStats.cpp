@@ -41,8 +41,8 @@ namespace {
     void countCallees(const Function &F);
     const DSGraph *TDGraph;
 
-    DSNode *getNodeForValue(Value *V);
-    bool isNodeForValueCollapsed(Value *V);
+    DSNodeHandle getNodeHandleForValue(Value *V);
+    bool isNodeForValueUntyped(Value *V);
   public:
     static char ID;
     DSGraphStats() : FunctionPass((intptr_t)&ID) {}
@@ -117,26 +117,46 @@ void DSGraphStats::countCallees(const Function& F) {
   }
 }
 
-DSNode *DSGraphStats::getNodeForValue(Value *V) {
+DSNodeHandle DSGraphStats::getNodeHandleForValue(Value *V) {
   const DSGraph *G = TDGraph;
-  if (isa<Constant>(V))
-    G = TDGraph->getGlobalsGraph();
-
   const DSGraph::ScalarMapTy &ScalarMap = G->getScalarMap();
   DSGraph::ScalarMapTy::const_iterator I = ScalarMap.find(V);
   if (I != ScalarMap.end())
-    return I->second.getNode();
+    return I->second;
+  
+  G = TDGraph->getGlobalsGraph();
+  const DSGraph::ScalarMapTy &GlobalScalarMap = G->getScalarMap();
+  I = GlobalScalarMap.find(V);
+  if (I != GlobalScalarMap.end())
+    return I->second;
+  
   return 0;
 }
 
-bool DSGraphStats::isNodeForValueCollapsed(Value *V) {
-  if (DSNode *N = getNodeForValue(V))
-    return N->isNodeCompletelyFolded() || N->isIncompleteNode();
+bool DSGraphStats::isNodeForValueUntyped(Value *V) {
+  DSNodeHandle NH = getNodeHandleForValue(V);
+  if(!NH.getNode())
+    return true;
+  else {
+    DSNode* N = NH.getNode();
+    if (N->isNodeCompletelyFolded() || N->isIncompleteNode())
+      return true;
+    // it is a complete node, now check if it is typesafe
+   /*if (N->type_begin() != N->type_end())
+    for (DSNode::TyMapTy::const_iterator ii = N->type_begin(),
+        ee = N->type_end(); ii != ee; ++ii) {
+      if(ii->first != offset)
+        continue;
+      count += ii->second->size();
+    }
+    if(count > 1)
+      return true;*/
+  }
   return false;
 }
 
 void DSGraphStats::visitLoad(LoadInst &LI) {
-  if (isNodeForValueCollapsed(LI.getOperand(0))) {
+  if (isNodeForValueUntyped(LI.getOperand(0))) {
     NumUntypedMemAccesses++;
   } else {
     NumTypedMemAccesses++;
@@ -144,7 +164,7 @@ void DSGraphStats::visitLoad(LoadInst &LI) {
 }
 
 void DSGraphStats::visitStore(StoreInst &SI) {
-  if (isNodeForValueCollapsed(SI.getOperand(1))) {
+  if (isNodeForValueUntyped(SI.getOperand(1))) {
     NumUntypedMemAccesses++;
   } else {
     NumTypedMemAccesses++;
