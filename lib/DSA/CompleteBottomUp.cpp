@@ -46,9 +46,9 @@ CompleteBUDataStructures::runOnModule (Module &M) {
 
   //
   // Make sure we have a DSGraph for all declared functions in the Module.
-  // formGlobalECs assumes that DSInfo is populated with a list of 
-  // DSgraphs for all the functions. 
-  
+  // formGlobalECs assumes that DSInfo is populated with a list of
+  // DSgraphs for all the functions.
+
   for (Module::iterator F = M.begin(); F != M.end(); ++F) {
     if (!(F->isDeclaration()))
       getOrCreateGraph(F);
@@ -101,8 +101,8 @@ CompleteBUDataStructures::buildIndirectFunctionSets (void) {
     //   we have an entry in the GlobalsGraph
 
     // If any function in an SCC is a callee of an indirect function
-    // call, the DScallgraph contains the leader of the SCC as the 
-    // callee of the indirect call. 
+    // call, the DScallgraph contains the leader of the SCC as the
+    // callee of the indirect call.
     // The leasder of the SCC may not have an entry in the Globals
     // Graph, but at least one of the functions in the SCC
     // should have an entry in the GlobalsGraph
@@ -125,13 +125,12 @@ CompleteBUDataStructures::buildIndirectFunctionSets (void) {
                                     sccee = callgraph.scc_end(F);
           bool flag = false;
           for(; sccii != sccee; ++sccii) {
-            flag |= SM.count(SM.getLeaderForGlobal(*sccii)); 
+            flag |= SM.count(SM.getLeaderForGlobal(*sccii));
           } 
           assert (flag &&
                   "Indirect function callee not in globals?");
          }
       }
-
     }
 #endif
 
@@ -158,20 +157,20 @@ CompleteBUDataStructures::buildIndirectFunctionSets (void) {
     DSCallGraph::callee_iterator csi = callgraph.callee_begin(*ii),
             cse = callgraph.callee_end(*ii);
 
-    
-    // We get all the callees, and then for all functions in that SCC, find the 
-    // ones that have entries in the GlobalsGraph. 
+
+    // We get all the callees, and then for all functions in that SCC, find the
+    // ones that have entries in the GlobalsGraph.
 
     // We merge all the functions in the SCC that have entries, and then move
     // on to the next callee and repeat.
 
-    // If an SCC has functions that have entries in the GlobalsGraph, and are 
+    // If an SCC has functions that have entries in the GlobalsGraph, and are
     // targets of an indirect function call site, they will be merged.
-   
-    // However, if an SCC has functions, that have entries in the GlobalsGraph, 
-    // bur are not the targets of an indirect function call site, they will not 
+
+    // However, if an SCC has functions, that have entries in the GlobalsGraph,
+    // bur are not the targets of an indirect function call site, they will not
     // be merged by CBU.
-    
+
     // This NH starts off empty, but ends up merging them all together
     DSNodeHandle calleesNH;
 
