@@ -84,8 +84,7 @@ bool BUDataStructures::runOnModuleInternal(Module& M) {
   //
   for (Module::iterator F = M.begin(); F != M.end(); ++F) {
     if (!(F->isDeclaration())){
-      DSGraph *Graph = getOrCreateGraph(F);
-      cloneGlobalsInto(Graph);
+      getOrCreateGraph(F);
     }
   }
 
