@@ -141,8 +141,10 @@ public:
     assert(F == SCCs.getLeaderValue(F) && "Requested non-leader");
     return SCCs.member_end();
   }
-
-
+  
+  const llvm::Function* sccLeader(llvm::Function*F) const {
+    return SCCs.getLeaderValue(F);
+  }
   unsigned callee_size(llvm::CallSite CS) const {
     ActualCalleesTy::const_iterator ii = ActualCallees.find(CS);
     if (ii == ActualCallees.end())
