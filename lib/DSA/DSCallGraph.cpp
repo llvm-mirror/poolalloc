@@ -114,11 +114,11 @@ void DSCallGraph::buildSCCs() {
        ii != ee; ++ii)
     if (!ValMap.count(*ii))
       tarjan_rec(*ii, Stack, NextID, ValMap);
-          
+
   removeECFunctions();
 }
 
-static void removeECs(DSCallGraph::FuncSet& F, 
+static void removeECs(DSCallGraph::FuncSet& F,
                       llvm::EquivalenceClasses<const llvm::Function*>& ECs) {
   DSCallGraph::FuncSet result;
   for (DSCallGraph::FuncSet::const_iterator ii = F.begin(), ee = F.end();

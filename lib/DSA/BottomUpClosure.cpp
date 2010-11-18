@@ -733,7 +733,8 @@ void BUDataStructures::calculateGraph(DSGraph* Graph) {
     
     // Fast path for noop calls.  Note that we don't care about merging globals
     // in the callee with nodes in the caller here.
-    if (!CS.isIndirectCall() && CS.getRetVal().isNull() && CS.getNumPtrArgs() == 0 && !CS.isVarArg()) {
+    if (!CS.isIndirectCall() && CS.getRetVal().isNull()
+        && CS.getNumPtrArgs() == 0 && !CS.isVarArg()) {
       TempFCs.erase(TempFCs.begin());
       continue;
     }
@@ -755,9 +756,9 @@ void BUDataStructures::calculateGraph(DSGraph* Graph) {
     // This means, that either it is a direct call site. Or if it is
     // an indirect call site, its calleeNode is complete, and we can
     // resolve this particular call site.
-    assert((CS.isDirectCall() || CS.getCalleeNode()->isCompleteNode()) 
+    assert((CS.isDirectCall() || CS.getCalleeNode()->isCompleteNode())
        && "Resolving an indirect incomplete call site");
-    
+
     if (CS.isIndirectCall()) {
         ++NumIndResolved;
     }
@@ -798,13 +799,13 @@ void BUDataStructures::calculateGraph(DSGraph* Graph) {
   Graph->markIncompleteNodes(DSGraph::MarkFormalArgs);
   Graph->computeExternalFlags(DSGraph::DontMarkFormalsExternal);
   Graph->computeIntPtrFlags();
-  
+
   //
   // Update the callgraph with the new information that we have gleaned.
   // NOTE : This must be called before removeDeadNodes, so that no 
   // information is lost due to deletion of DSCallNodes.
   Graph->buildCallGraph(callgraph,GlobalFunctionList, filterCallees);
-  
+
   // Delete dead nodes.  Treat globals that are unreachable but that can
   // reach live nodes as live.
   Graph->removeDeadNodes(DSGraph::KeepUnreachableGlobals);

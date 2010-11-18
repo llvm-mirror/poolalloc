@@ -372,7 +372,8 @@ static void printNode(llvm::raw_ostream &O, NodeValue &NV) {
 /// See 'printNode' for more details.
 /// Returns true iff the user specified nodes to print.
 ///
-static bool printNodes(llvm::raw_ostream &O, const Module *M, const DataStructures *DS) {
+static bool printNodes(llvm::raw_ostream &O, const Module *M,
+                       const DataStructures *DS) {
   cl::list<std::string>::iterator I = PrintNodesForValues.begin(),
                                   E = PrintNodesForValues.end();
   if (I != E) {
@@ -391,7 +392,8 @@ static bool printNodes(llvm::raw_ostream &O, const Module *M, const DataStructur
 /// should be merged, is in fact merged.
 /// Returns true iff the user specified any nodes for this option.
 ///
-static bool checkIfNodesAreSame(llvm::raw_ostream &O, const Module *M, const DataStructures *DS) {
+static bool checkIfNodesAreSame(llvm::raw_ostream &O, const Module *M,
+                                const DataStructures *DS) {
 
   // Verify all nodes listed in "CheckNodesSame" belong to the same node.
   cl::list<std::string>::iterator I = CheckNodesSame.begin(),
@@ -416,7 +418,8 @@ static bool checkIfNodesAreSame(llvm::raw_ostream &O, const Module *M, const Dat
 /// shouldn't be merged, wasn't merged
 /// Returns true iff the user specified any nodes for this option.
 ///
-static bool checkIfNodesAreNotSame(llvm::raw_ostream &O, const Module *M, const DataStructures *DS) {
+static bool checkIfNodesAreNotSame(llvm::raw_ostream &O, const Module *M,
+                                   const DataStructures *DS) {
 
   // Verify all nodes listed in "CheckNodesNotSame" belong to distinct nodes.
   cl::list<std::string>::iterator I = CheckNodesNotSame.begin(),
@@ -450,7 +453,8 @@ static bool checkIfNodesAreNotSame(llvm::raw_ostream &O, const Module *M, const 
 /// Returns true iff the user specified anything for this option
 ///
 
-static bool checkTypes(llvm::raw_ostream &O, const Module *M, const DataStructures *DS) {
+static bool checkTypes(llvm::raw_ostream &O, const Module *M,
+                       const DataStructures *DS) {
 
   // Verify all nodes listed in "CheckType" have the same Type
   cl::list<std::string>::iterator I = CheckType.begin(),
@@ -490,7 +494,8 @@ static bool checkTypes(llvm::raw_ostream &O, const Module *M, const DataStructur
 /// Where +flags means 'this node should have these flags'
 /// And -flags means 'this node should NOT have these flags'
 ///
-static bool verifyFlags(llvm::raw_ostream &O, const Module *M, const DataStructures *DS) {
+static bool verifyFlags(llvm::raw_ostream &O, const Module *M,
+                        const DataStructures *DS) {
   cl::list<std::string>::iterator I = VerifyFlags.begin(),
                                   E = VerifyFlags.end();
   if (I != E) {
@@ -549,7 +554,8 @@ static bool verifyFlags(llvm::raw_ostream &O, const Module *M, const DataStructu
 ///
 /// checks that the first function calls the rest of the
 /// functions in the list
-static bool checkCallees(llvm::raw_ostream &O, const Module *M, const DataStructures *DS) {
+static bool checkCallees(llvm::raw_ostream &O, const Module *M,
+                         const DataStructures *DS) {
 
   //Mangled names must be provided for C++
   cl::list<std::string>::iterator I = CheckCallees.begin(),
