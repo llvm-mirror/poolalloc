@@ -72,7 +72,7 @@ namespace {
 
 /// NodeValue -- represents a particular node in a DSGraph
 /// constructed from a serialized string representation of a value
-/// 
+///
 /// FIXME: Make this integrated into cl parsing, as mentioned:
 ///   http://llvm.org/docs/CommandLine.html#customparser
 ///
@@ -203,7 +203,7 @@ class NodeValue {
 
     assert(V && "Parsing value failed!");
   }
-  
+
   /// stripAtIfRequired -- removes the leading '@' character if one exists
   ///
   StringRef stripAtIfRequired(StringRef v) {
@@ -451,7 +451,7 @@ static bool checkIfNodesAreNotSame(llvm::raw_ostream &O, const Module *M, const 
 ///
 
 static bool checkTypes(llvm::raw_ostream &O, const Module *M, const DataStructures *DS) {
-  
+
   // Verify all nodes listed in "CheckType" have the same Type
   cl::list<std::string>::iterator I = CheckType.begin(),
                                   E = CheckType.end();
@@ -465,9 +465,9 @@ static bool checkTypes(llvm::raw_ostream &O, const Module *M, const DataStructur
       NodeValue NV(*I, M, DS);
       std::string *type = new std::string();
       llvm::raw_string_ostream *test= new llvm::raw_string_ostream(*type);
-      
+
       printTypesForNode(*test, NV);
-      
+
       if(test->str()!=typeRef) {
         errs() << "ERROR: Testing for type :   \t" <<
           typeRef  << "\n";
@@ -501,7 +501,7 @@ static bool verifyFlags(llvm::raw_ostream &O, const Module *M, const DataStructu
         errs() << "No flags given for option \"" << NodeFlagOption << "\"!\n";
         assert(0 && "Invalid input!");
       }
-      
+
       // Grab the part before the flag specifiers and parse that as a node
       std::string NodeString = std::string(I->begin(),I->begin()+FlagPos);
       NodeValue NV(NodeString, M, DS);
@@ -547,10 +547,10 @@ static bool verifyFlags(llvm::raw_ostream &O, const Module *M, const DataStructu
 /// checkCallees -- Verify callees for the given functions
 /// Returns true iff the user specified anything for this option
 ///
-/// checks that the first function calls the rest of the 
+/// checks that the first function calls the rest of the
 /// functions in the list
 static bool checkCallees(llvm::raw_ostream &O, const Module *M, const DataStructures *DS) {
-  
+
   //Mangled names must be provided for C++
   cl::list<std::string>::iterator I = CheckCallees.begin(),
                                   E = CheckCallees.end();
@@ -558,7 +558,7 @@ static bool checkCallees(llvm::raw_ostream &O, const Module *M, const DataStruct
   if (I != E) {
       std::string &func = *(I);
       Function *caller = M->getFunction(func);
-      assert(caller && "Function not found in module"); 
+      assert(caller && "Function not found in module");
       const DSCallGraph callgraph = DS->getCallGraph();
       //(const_cast<DSCallGraph&>(callgraph)).dump();
       ++I;
@@ -566,22 +566,25 @@ static bool checkCallees(llvm::raw_ostream &O, const Module *M, const DataStruct
         std::string &func = *(I);
         const Function *callee = M->getFunction(func);
         bool found = false;
-        
         Function const*leader = callgraph.sccLeader(&*caller);
+
         // either the callee is in the same SCC as the caller, and hence does not show up
-        for(DSCallGraph::scc_iterator sccii = callgraph.scc_begin(leader), sccee = callgraph.scc_end(leader); sccii != sccee; ++sccii) {
+        for(DSCallGraph::scc_iterator sccii = callgraph.scc_begin(leader),
+           sccee = callgraph.scc_end(leader); sccii != sccee; ++sccii) {
            if(callee == *sccii)
-             found = true;   
+             found = true;
         }
         // or the callee is found in the DSCallGraph
-        for(DSCallGraph::flat_iterator CI = callgraph.flat_callee_begin(caller); CI != callgraph.flat_callee_end(caller); CI ++) {
+        for(DSCallGraph::flat_iterator CI = callgraph.flat_callee_begin(caller);
+              CI != callgraph.flat_callee_end(caller); CI ++) {
           if (callee == *CI)
              found = true;
-          for(DSCallGraph::scc_iterator sccii = callgraph.scc_begin(*CI), sccee = callgraph.scc_end(*CI); sccii != sccee; ++sccii) {
+          for(DSCallGraph::scc_iterator sccii = callgraph.scc_begin(*CI),
+                sccee = callgraph.scc_end(*CI); sccii != sccee; ++sccii) {
              if(callee == *sccii)
-             found = true;   
+             found = true;
           }
-        } 
+        }
         assert(found && "callee not in call graph");
         ++I;
       }
