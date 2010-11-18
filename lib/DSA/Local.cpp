@@ -486,23 +486,14 @@ void GraphBuilder::visitGetElementPtrInst(User &GEP) {
     Value = createNode();
 
   //
-  // There are a few quick and easy cases to handle.  If the index operands of
-  // the GEP are all zero, or if the DSNode of the indexed pointer is already
-  // folded, then we know that the result of the GEP will have the same offset
-  // into the same DSNode as the indexed pointer.
+  // There are a few quick and easy cases to handle.  If  the DSNode of the 
+  // indexed pointer is already folded, then we know that the result of the 
+  // GEP will have the same offset into the same DSNode 
+  // as the indexed pointer.
   //
-  bool AllZeros = true;
-  for (unsigned i = 1, e = GEP.getNumOperands(); i != e; ++i) {
-    if (ConstantInt * CI = dyn_cast<ConstantInt>(GEP.getOperand(i)))
-      if (CI->isZero()) {
-        continue;
-      }
-    AllZeros = false;
-    break;
-  }
 
-  if (AllZeros || (!Value.isNull() &&
-                   Value.getNode()->isNodeCompletelyFolded())) {
+  if (!Value.isNull() &&
+                   Value.getNode()->isNodeCompletelyFolded()) {
     setDestTo(GEP, Value);
     return;
   }
