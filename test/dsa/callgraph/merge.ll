@@ -23,7 +23,7 @@ return:                                           ; preds = %entry
 
 define internal void @C() nounwind {
 entry:
-  call internal void @D() nounwind
+  call void @D() nounwind
   br label %return
 
 return:                                           ; preds = %entry
