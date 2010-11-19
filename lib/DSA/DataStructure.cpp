@@ -405,11 +405,11 @@ void DSNode::mergeTypeInfo(const Type *NewTy, unsigned Offset) {
 
   if (isCollapsedNode()) return;
   if (isArrayNode() && getSize() > 0) {
-    assert (getSize() && "array node has size of zero!\n");
     Offset %= getSize();
   }
   const TargetData &TD = getParentGraph()->getTargetData();
-  if (Offset >= getSize()) growSize(Offset+TD.getTypeAllocSize(NewTy));
+  if (Offset +TD.getTypeAllocSize(NewTy) >= getSize())
+    growSize(Offset+TD.getTypeAllocSize(NewTy));
 
   TyMap[Offset] = getParentGraph()->getTypeSS().getOrCreate(TyMap[Offset], NewTy);
 
@@ -420,14 +420,19 @@ void DSNode::mergeTypeInfo(const TyMapTy::mapped_type TyIt, unsigned Offset) {
   if (isCollapsedNode()) return;
   if (isArrayNode()) Offset %= getSize();
 
-  if (!TyMap[Offset])
+  const TargetData &TD = getParentGraph()->getTargetData();
+  if (!TyMap[Offset]){
     TyMap[Offset] = TyIt;
-  if (TyIt) {
+    for (svset<const Type*>::const_iterator ni = TyMap[Offset]->begin(),
+         ne = TyMap[Offset]->end(); ni != ne; ++ni) {
+      if (Offset + TD.getTypeAllocSize(*ni) >= getSize())
+        growSize(Offset+TD.getTypeAllocSize(*ni));
+    }
+  } else if (TyIt) {
     svset<const Type*> S(*TyMap[Offset]);
     S.insert(TyIt->begin(), TyIt->end());
     TyMap[Offset] = getParentGraph()->getTypeSS().getOrCreate(S);
   }
-  
   assert(TyMap[Offset]);
 }
 
@@ -727,7 +732,6 @@ DSNodeHandle ReachabilityCloner::getClonedNH(const DSNodeHandle &SrcNH) {
   DSNode *DN = new DSNode(*SN, Dest, true /* Null out all links */);
   DN->maskNodeTypes(BitsToKeep);
   NH = DN;
-  //DOUT << "getClonedNH: " << SN << " becomes " << DN << "\n";
 
   // Next, recursively clone all outgoing links as necessary.  Note that
   // adding these links can cause the node to collapse itself at any time, and
