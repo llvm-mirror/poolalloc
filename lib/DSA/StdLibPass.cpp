@@ -510,8 +510,10 @@ StdLibDataStructures::runOnModule (Module &M) {
         | DSGraph::DontMarkFormalsExternal
         | DSGraph::ProcessCallSites;
       G->computeExternalFlags(EFlags);
+      DEBUG(G->AssertGraphOK());
     }
   GlobalsGraph->computeExternalFlags(DSGraph::ProcessCallSites);
+  DEBUG(GlobalsGraph->AssertGraphOK());
 
   return false;
 }
