@@ -565,12 +565,18 @@ void GraphBuilder::visitGetElementPtrInst(User &GEP) {
       const ConstantInt* CUI = cast<ConstantInt>(I.getOperand());
       int FieldNo = CUI->getSExtValue();
       // increment the offset by the actual byte offset being accessed
-      Offset += (unsigned)TD.getStructLayout(STy)->getElementOffset(FieldNo);
 
+      unsigned requiredSize = TD.getTypeAllocSize(STy) + Value.getOffset() + Offset;
       if(!Value.getNode()->isArrayNode() || Value.getNode()->getSize() <= 0){
-        if (TD.getTypeAllocSize(STy) + Value.getOffset() > Value.getNode()->getSize())
-          Value.getNode()->growSize(TD.getTypeAllocSize(STy) + Value.getOffset());
+        if (requiredSize > Value.getNode()->getSize())
+          Value.getNode()->growSize(requiredSize);
+      } else {
+         if (((Offset + Value.getOffset()) % Value.getNode()->getSize()) == 0
+             && (TD.getTypeAllocSize(STy) % Value.getNode()->getSize() == 0))
+           Value.getNode()->growSize(requiredSize);
       }
+      
+      Offset += (unsigned)TD.getStructLayout(STy)->getElementOffset(FieldNo);
 
     } else if(const ArrayType *ATy = dyn_cast<ArrayType>(*I)) {
       // indexing into an array.
