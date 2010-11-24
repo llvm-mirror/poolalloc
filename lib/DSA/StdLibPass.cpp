@@ -86,7 +86,6 @@ const struct {
   {"fprintf",    {NRET_YARGS,  NRET_YNARGS, NRET_NARGS, false, false, false}},
   {"sprintf",    {NRET_YARGS,  NRET_YNARGS, NRET_NARGS, false, false, false}},
   {"snprintf",   {NRET_YARGS,  NRET_YNARGS, NRET_NARGS, false, false, false}},
-  {"fprintf",    {NRET_YARGS,  NRET_YNARGS, NRET_NARGS, false, false, false}},
   {"puts",       {NRET_YARGS,  NRET_NARGS,  NRET_NARGS, false, false, false}},
   {"putc",       {NRET_NARGS,  NRET_NARGS,  NRET_NARGS, false, false, false}},
   {"putchar",    {NRET_NARGS,  NRET_NARGS,  NRET_NARGS, false, false, false}},
@@ -135,7 +134,7 @@ const struct {
 
   {"strcpy",     {YRET_YARGS, YRET_YARGS, NRET_NARGS, true, true, true}},
   {"wcscpy",     {YRET_YARGS, YRET_YARGS, NRET_NARGS, true, true, true}},
-  {"strcpy",     {YRET_YARGS, YRET_YARGS, NRET_NARGS, true, true, true}},
+  {"strncpy",    {YRET_YARGS, YRET_YARGS, NRET_NARGS, true, true, true}},
   {"wcsncpy",    {YRET_YARGS, YRET_YARGS, NRET_NARGS, true, true, true}},
 
 
@@ -222,7 +221,7 @@ void
 StdLibDataStructures::eraseCallsTo(Function* F) {
   for (Value::use_iterator ii = F->use_begin(), ee = F->use_end();
        ii != ee; ++ii)
-    if (CallInst* CI = dyn_cast<CallInst>(ii))
+    if (CallInst* CI = dyn_cast<CallInst>(ii)){
       if (CI->getOperand(0) == F) {
         DSGraph* Graph = getDSGraph(*CI->getParent()->getParent());
         //delete the call
@@ -230,6 +229,22 @@ StdLibDataStructures::eraseCallsTo(Function* F) {
 	      << CI->getParent()->getParent()->getNameStr() << "\n");
         Graph->removeFunctionCalls(*F);
       }
+    } else if(ConstantExpr *CE = dyn_cast<ConstantExpr>(ii)) {
+      if(CE->isCast()) {
+        for (Value::use_iterator ci = CE->use_begin(), ce = CE->use_end();
+             ci != ce; ++ci) {
+          if (CallInst* CI = dyn_cast<CallInst>(ci)){
+            if(CI->getOperand(0) == CE) {
+              DSGraph* Graph = getDSGraph(*CI->getParent()->getParent());
+              //delete the call
+              DEBUG(errs() << "Removing " << F->getNameStr() << " from " 
+	        << CI->getParent()->getParent()->getNameStr() << "\n");
+              Graph->removeFunctionCalls(*F);
+            }
+          }
+        }
+      }
+    }
 }
 
 //
@@ -334,7 +349,7 @@ StdLibDataStructures::runOnModule (Module &M) {
       if (F->isDeclaration()) {
         for (Value::use_iterator ii = F->use_begin(), ee = F->use_end();
              ii != ee; ++ii)
-          if (CallInst* CI = dyn_cast<CallInst>(ii))
+          if (CallInst* CI = dyn_cast<CallInst>(ii)){
             if (CI->getOperand(0) == F) {
               DSGraph* Graph = getDSGraph(*CI->getParent()->getParent());
 
@@ -396,6 +411,75 @@ StdLibDataStructures::runOnModule (Module &M) {
                       Node->foldNodeCompletely();
               }
             }
+          } else if(ConstantExpr *CE = dyn_cast<ConstantExpr>(ii)) {
+              if(CE->isCast()) 
+                for (Value::use_iterator ci = CE->use_begin(), ce = CE->use_end();
+                  ci != ce; ++ci) {
+                  if (CallInst* CI = dyn_cast<CallInst>(ci)){
+                    if (CI->getOperand(0) == CE) {
+                      DSGraph* Graph = getDSGraph(*CI->getParent()->getParent());
+
+                      //
+                      // Set the read, write, and heap markers on the return value
+                      // as appropriate.
+                      //
+                     if (recFuncs[x].action.read[0])
+                        Graph->getNodeForValue(CI).getNode()->setReadMarker();
+                     if (recFuncs[x].action.write[0])
+                       Graph->getNodeForValue(CI).getNode()->setModifiedMarker();
+                     if (recFuncs[x].action.heap[0])
+                       Graph->getNodeForValue(CI).getNode()->setHeapMarker();
+
+                      //
+                      // Set the read, write, and heap markers on the actual arguments
+                      // as appropriate.
+                      //
+                      for (unsigned y = 1; y < CI->getNumOperands(); ++y)
+                        if (recFuncs[x].action.read[y])
+                          if (isa<PointerType>(CI->getOperand(y)->getType()))
+                            if (DSNode * Node=Graph->getNodeForValue(CI->getOperand(y)).getNode())
+                              Node->setReadMarker();
+                      for (unsigned y = 1; y < CI->getNumOperands(); ++y)
+                        if (recFuncs[x].action.write[y])
+                          if (isa<PointerType>(CI->getOperand(y)->getType()))
+                            if (DSNode * Node=Graph->getNodeForValue(CI->getOperand(y)).getNode())
+                              Node->setModifiedMarker();
+                      for (unsigned y = 1; y < CI->getNumOperands(); ++y)
+                        if (recFuncs[x].action.heap[y])
+                          if (isa<PointerType>(CI->getOperand(y)->getType()))
+                            if (DSNode * Node=Graph->getNodeForValue(CI->getOperand(y)).getNode())
+                              Node->setHeapMarker();
+
+                      //
+                      // Merge the DSNoes for return values and parameters as
+                      // appropriate.
+                      //
+                      std::vector<DSNodeHandle> toMerge;
+                      if (recFuncs[x].action.mergeWithRet)
+                        toMerge.push_back(Graph->getNodeForValue(CI));
+                      if (recFuncs[x].action.mergeAllArgs || recFuncs[x].action.mergeWithRet)
+                        for (unsigned y = 1; y < CI->getNumOperands(); ++y)
+                          if (isa<PointerType>(CI->getOperand(y)->getType()))
+                            toMerge.push_back(Graph->getNodeForValue(CI->getOperand(y)));
+                      for (unsigned y = 1; y < toMerge.size(); ++y)
+                        toMerge[0].mergeWith(toMerge[y]);
+        
+                      //
+                      // Collapse (fold) the DSNode of the return value and the actual
+                      // arguments if directed to do so.
+                      //
+                      if (recFuncs[x].action.collapse) {
+                        if (isa<PointerType>(CI->getType()))
+                          Graph->getNodeForValue(CI).getNode()->foldNodeCompletely();
+                        for (unsigned y = 1; y < CI->getNumOperands(); ++y)
+                          if (isa<PointerType>(CI->getOperand(y)->getType()))
+                            if (DSNode * Node=Graph->getNodeForValue(CI->getOperand(y)).getNode())
+                              Node->foldNodeCompletely();
+                      }
+                  }
+                }
+              }
+          }
 
         //
         // Pretend that this call site does not call this function anymore.
