@@ -328,10 +328,12 @@ void DSNode::markIntPtrFlags() {
   const TargetData &TD = getParentGraph()->getTargetData();
   // check all offsets for that node.
   for(unsigned offset = 0; offset < getSize() ; offset++) {
-   // if that Node has no Type information, skip
-   if(TyMap.find(offset) == TyMap.end())
+    // if that Node has no Type information, skip
+    if(TyMap.find(offset) == TyMap.end())
       continue;
-    
+    if(!TyMap[offset])
+      continue;
+
     bool pointerTy = false;
     bool integerTy = false;
     unsigned intSize = 0;
