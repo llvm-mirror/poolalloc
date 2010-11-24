@@ -1160,7 +1160,6 @@ void GraphBuilder::mergeInGlobalInitializer(GlobalVariable *GV) {
   //
   // Do the actual merging in of the constant initializer.
   //
-//  MergeConstantInitIntoNode(NH, ElementType, GV->getInitializer());
   MergeConstantInitIntoNode(NH, GV->getType()->getElementType(), GV->getInitializer());
 
 }

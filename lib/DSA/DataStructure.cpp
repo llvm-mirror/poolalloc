@@ -410,8 +410,8 @@ void DSNode::mergeTypeInfo(const Type *NewTy, unsigned Offset) {
     Offset %= getSize();
   }
   const TargetData &TD = getParentGraph()->getTargetData();
-  if (Offset +TD.getTypeAllocSize(NewTy) >= getSize())
-    growSize(Offset+TD.getTypeAllocSize(NewTy));
+  if (Offset + TD.getTypeAllocSize(NewTy) >= getSize())
+    growSize(Offset + TD.getTypeAllocSize(NewTy));
 
   TyMap[Offset] = getParentGraph()->getTypeSS().getOrCreate(TyMap[Offset], NewTy);
 
@@ -428,7 +428,7 @@ void DSNode::mergeTypeInfo(const TyMapTy::mapped_type TyIt, unsigned Offset) {
     for (svset<const Type*>::const_iterator ni = TyMap[Offset]->begin(),
          ne = TyMap[Offset]->end(); ni != ne; ++ni) {
       if (Offset + TD.getTypeAllocSize(*ni) >= getSize())
-        growSize(Offset+TD.getTypeAllocSize(*ni));
+        growSize(Offset + TD.getTypeAllocSize(*ni));
     }
   } else if (TyIt) {
     svset<const Type*> S(*TyMap[Offset]);
@@ -541,7 +541,7 @@ void DSNode::MergeNodes(DSNodeHandle& CurNodeH, DSNodeHandle& NH) {
     if(NH.getNode()->getSize() != 0 && CurNodeH.getNode()->getSize() != 0) { 
       if((NH.getNode()->getSize() != CurNodeH.getNode()->getSize() &&
        (NH.getOffset() != 0 || CurNodeH.getOffset() != 0) 
-        && NH.getNode()->getSize() < CurNodeH.getNode()->getSize())) {
+        && NH.getNode()->getSize() <= CurNodeH.getNode()->getSize())) {
         CurNodeH.getNode()->foldNodeCompletely();
         NH.getNode()->foldNodeCompletely();
         NSize = NH.getNode()->getSize();
@@ -565,11 +565,13 @@ void DSNode::MergeNodes(DSNodeHandle& CurNodeH, DSNodeHandle& NH) {
   if (CurNodeH.getNode()->isArrayNode() && NH.getNode()->isArrayNode()) {
     if(NH.getNode()->getSize() != 0 && CurNodeH.getNode()->getSize() != 0
        && (NH.getNode()->getSize() != CurNodeH.getNode()->getSize())){
-      CurNodeH.getNode()->foldNodeCompletely();
-      NH.getNode()->foldNodeCompletely();
-      NSize = NH.getNode()->getSize();
-    //  N = NH.getNode();
-      NOffset = NH.getOffset();
+       if(((NH.getNode()->getSize() % CurNodeH.getNode()->getSize()) != 0 ) 
+          && ((CurNodeH.getNode()->getSize() % NH.getNode()->getSize()) != 0)){
+        CurNodeH.getNode()->foldNodeCompletely();
+        NH.getNode()->foldNodeCompletely();
+        NSize = NH.getNode()->getSize();
+        NOffset = NH.getOffset();
+      }
     }
   }
  
@@ -852,8 +854,11 @@ void ReachabilityCloner::merge(const DSNodeHandle &NH,
       if (SN->isArrayNode() && DN->isArrayNode()) {
         if((SN->getSize() != DN->getSize()) && (SN->getSize() != 0) 
            && DN->getSize() != 0) {
-           DN->foldNodeCompletely();
-           DN = NH.getNode();
+           if(((SN->getSize() % DN->getSize()) != 0) && 
+              ((DN->getSize() % SN->getSize()) != 0)){
+             DN->foldNodeCompletely();
+             DN = NH.getNode();
+           }
         }
       }
       if (!DN->isNodeCompletelyFolded() && DN->getSize() < SN->getSize())
