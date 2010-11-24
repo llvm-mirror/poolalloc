@@ -44,6 +44,8 @@ namespace {
                                 "Number of loads/stores which are access a DSNode with 3 type");
   STATISTIC (NumTypeCount4Accesses,
                                 "Number of loads/stores which are access a DSNode with >3 type");
+  STATISTIC (NumIncompleteAccesses,
+                                "Number of loads/stores which are on incomplete nodes");
 
   class DSGraphStats : public FunctionPass, public InstVisitor<DSGraphStats> {
     void countCallees(const Function &F);
@@ -147,8 +149,12 @@ bool DSGraphStats::isNodeForValueUntyped(Value *V) {
     return true;
   else {
     DSNode* N = NH.getNode();
-    if (N->isNodeCompletelyFolded() || N->isIncompleteNode())
+    if (N->isNodeCompletelyFolded())
       return true;
+    if ( N->isIncompleteNode()){
+      ++NumIncompleteAccesses;
+      return true;
+    }
     // it is a complete node, now check how many types are present
    int count = 0;
    unsigned offset = NH.getOffset();
