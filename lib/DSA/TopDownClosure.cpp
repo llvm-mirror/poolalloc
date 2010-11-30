@@ -173,14 +173,7 @@ bool TDDataStructures::runOnModule(Module &M) {
     if (!(F->isDeclaration())){
       DSGraph *Graph  = getOrCreateGraph(F);
 
-      ReachabilityCloner RC(Graph, GlobalsGraph,
-          DSGraph::DontCloneCallNodes |
-          DSGraph::DontCloneAuxCallNodes);
-      for (DSScalarMap::global_iterator
-          GI = Graph->getScalarMap().global_begin(),
-          E = Graph->getScalarMap().global_end(); GI != E; ++GI)
-        RC.getClonedNH(GlobalsGraph->getNodeForValue(*GI));
-
+      cloneGlobalsInto(Graph);
       // Clean up uninteresting nodes
       Graph->removeDeadNodes(0);
 
@@ -236,16 +229,7 @@ void TDDataStructures::InlineCallersIntoGraph(DSGraph* DSG) {
   // then having RemoveDeadNodes clone it back, we should do all of this as a
   // post-pass over all of the graphs.  We need to take cloning out of
   // removeDeadNodes and gut removeDeadNodes at the same time first though. :(
-  {
-    DSGraph* GG = DSG->getGlobalsGraph();
-    ReachabilityCloner RC(DSG, GG,
-                          DSGraph::DontCloneCallNodes |
-                          DSGraph::DontCloneAuxCallNodes);
-    for (DSScalarMap::global_iterator
-           GI = DSG->getScalarMap().global_begin(),
-           E = DSG->getScalarMap().global_end(); GI != E; ++GI)
-      RC.getClonedNH(GG->getNodeForValue(*GI));
-  }
+  cloneGlobalsInto(DSG);
 
   DEBUG(errs() << "[TD] Inlining callers into '" 
 	<< DSG->getFunctionNames() << "'\n");

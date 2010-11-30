@@ -45,7 +45,7 @@ char BUDataStructures::ID;
 //
 bool BUDataStructures::runOnModule(Module &M) {
   init(&getAnalysis<StdLibDataStructures>(), false, true, false, false );
-  EP = &getAnalysis<EntryPointAnalysis>();
+  //EP = &getAnalysis<EntryPointAnalysis>();
 
   return runOnModuleInternal(M);
 }
@@ -82,10 +82,12 @@ bool BUDataStructures::runOnModuleInternal(Module& M) {
   //
   postOrderInline (M);
 
-
+#if 0
+  //DSA does not use entryPoint analysis 
   std::vector<const Function*> EntryPoints;
   EP = &getAnalysis<EntryPointAnalysis>();
   EP->findEntryPoints(M, EntryPoints);
+#endif
 
   // At the end of the bottom-up pass, the globals graph becomes complete.
   // FIXME: This is not the right way to do this, but it is sorta better than
@@ -672,39 +674,5 @@ void BUDataStructures::calculateGraph(DSGraph* Graph) {
   cloneIntoGlobals(Graph);
   //Graph.writeGraphToFile(cerr, "bu_" + F.getName());
 
-}
-
-//For Entry Points
-void BUDataStructures::cloneGlobalsInto(DSGraph* Graph) {
-  // If this graph contains main, copy the contents of the globals graph over.
-  // Note that this is *required* for correctness.  If a callee contains a use
-  // of a global, we have to make sure to link up nodes due to global-argument
-  // bindings.
-  const DSGraph* GG = Graph->getGlobalsGraph();
-  ReachabilityCloner RC(Graph, GG,
-                        DSGraph::DontCloneCallNodes |
-                        DSGraph::DontCloneAuxCallNodes);
-
-  // Clone the global nodes into this graph.
-  for (DSScalarMap::global_iterator I = Graph->getScalarMap().global_begin(),
-       E = Graph->getScalarMap().global_end(); I != E; ++I)
-    RC.getClonedNH(GG->getNodeForValue(*I));
-}
-
-//For all graphs
-void BUDataStructures::cloneIntoGlobals(DSGraph* Graph) {
-  // When this graph is finalized, clone the globals in the graph into the
-  // globals graph to make sure it has everything, from all graphs.
-  DSScalarMap &MainSM = Graph->getScalarMap();
-  ReachabilityCloner RC(GlobalsGraph, Graph,
-                        DSGraph::DontCloneCallNodes |
-                        DSGraph::DontCloneAuxCallNodes |
-                        DSGraph::StripAllocaBit);
-
-  // Clone everything reachable from globals in the function graph into the
-  // globals graph.
-  for (DSScalarMap::global_iterator I = MainSM.global_begin(),
-         E = MainSM.global_end(); I != E; ++I)
-    RC.getClonedNH(MainSM[*I]);
 }
 

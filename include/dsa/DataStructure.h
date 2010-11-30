@@ -88,6 +88,9 @@ protected:
   void init(TargetData* T);
 
   void formGlobalECs();
+  
+  void cloneIntoGlobals(DSGraph* G);
+  void cloneGlobalsInto(DSGraph* G);
 
   void restoreCorrectCallGraph();
   
@@ -218,9 +221,6 @@ protected:
   const char* debugname;
 
   EntryPointAnalysis* EP;
-
-  void cloneIntoGlobals(DSGraph* G);
-  void cloneGlobalsInto(DSGraph* G);
 
   // filterCallees -- Whether or not we filter out illegal callees
   // from the CallGraph.  This is useful while doing original BU,
