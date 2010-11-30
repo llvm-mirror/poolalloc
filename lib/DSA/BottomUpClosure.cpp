@@ -59,23 +59,12 @@ bool BUDataStructures::runOnModule(Module &M) {
 // entry-points correctly.  As a bonus, we can be more aggressive at propagating
 // information upwards, as long as we don't remove unresolved call sites.
 bool BUDataStructures::runOnModuleInternal(Module& M) {
-#if 0
-  llvm::errs() << "BU is currently being worked in in very invasive ways.\n"
-          << "It is probably broken right now\n";
-#endif
 
   //
   // Put the callgraph into canonical form by finding SCCs.
   //
   callgraph.buildSCCs();
   callgraph.buildRoots();
-
-#if 0
-  //
-  // Merge the DSGraphs of functions belonging to an SCC.
-  //
-  mergeSCCs();
-#endif
 
   //
   // Make sure we have a DSGraph for all declared functions in the Module.
@@ -91,30 +80,7 @@ bool BUDataStructures::runOnModuleInternal(Module& M) {
   //
   // Do a post-order traversal of the SCC callgraph and do bottom-up inlining.
   //
-#if 0
-  {
-    //errs() << *DSG.knownRoots.begin() << " -> " << *DSG.knownRoots.rbegin() << "\n";
-    svset<const Function*> marked;
-    for (DSCallGraph::root_iterator ii = callgraph.root_begin(),
-         ee = callgraph.root_end(); ii != ee; ++ii) {
-      //errs() << (*ii)->getName() << "\n";
-
-      //
-      // Do bottom-up inlining of the function.
-      //
-      DSGraph* G = postOrder(*ii, marked);
-
-      //
-      // Update the list of unresolved indirect function call sites in the
-      // globals graph with the new information learned about the current
-      // function.
-      //
-      CloneAuxIntoGlobal(G);
-    }
-  }
-#else
   postOrderInline (M);
-#endif
 
 
   std::vector<const Function*> EntryPoints;
@@ -127,8 +93,6 @@ bool BUDataStructures::runOnModuleInternal(Module& M) {
   // nodes at the end of the BU phase should make things that they point to
   // incomplete in the globals graph.
   //
-
-  //finalizeGlobals();
 
   GlobalsGraph->removeTriviallyDeadNodes();
   GlobalsGraph->maskIncompleteMarkers();
@@ -554,108 +518,6 @@ BUDataStructures::calculateGraphs (const Function *F,
   return MyID;  // == Min
 }
 
-#if 0
-//
-// Method: postOrder()
-//
-// Description:
-//  Process the SCCs of the callgraph in post order.  When we process a
-//  function, we inline the DSGraphs of its callees into the function's own
-//  DSGraph, thereby doing the "bottom-up" pass that makes BU so famous.
-//
-// Inputs:
-//  F      - The function in the SCC to process.  Note that its children in the 
-//           callgraph will be processed first through a recursive call.
-//  marked - A reference to a set containing all values processed by
-//           previous invocations (this method is recursive).
-//
-// Outputs:
-//  marked - A set containing pointers to functions that have already been
-//           processed.
-//
-// Return value:
-//  The DSGraph of the function after it has been processed is returned.
-//
-DSGraph*
-BUDataStructures::postOrder(const Function* F, svset<const Function*>& marked) {
-  //
-  // If we have already processed this function before, do not process it
-  // again.
-  //
-  callgraph.assertSCCRoot(F);
-  DSGraph* G = getDSGraph(*F);
-  if (marked.count(F)) return G;
-
-  //
-  // Find the set of callees to process.
-  //
-  // For this operation, we do not want to use the call graph.  Instead, we
-  // want to consult the DSGraph and see which call sites have not yet been
-  // resolved.  This is because we may learn about more call sites after doing
-  // one pass of bottom-up inlining, and so we don't want to reprocess the
-  // callees that were previously processed in an earlier BU phase.
-  //
-  for (DSCallGraph::flat_iterator ii = callgraph.flat_callee_begin(F),
-          ee = callgraph.flat_callee_end(F); ii != ee; ++ii) {
-    callgraph.assertSCCRoot(*ii);
-    assert (*ii != F && "Simple loop in callgraph");
-    if (!(*ii)->isDeclaration())
-      postOrder(*ii, marked);
-  }
-
-  //
-  // Record that we are about to process the given function.
-  //
-  marked.insert(F);
-
-  //
-  // Inline the graphs of callees into this function's callgraph.
-  //
-  calculateGraph(G);
-
-  //
-  // Now that we have new information merged into the function's DSGraph,
-  // update the call graph using this new information.
-  //
-  G->buildCallGraph(callgraph,filterCallees);
-
-  //
-  // Return the DSGraph associated with this function.
-  //
-  return G;
-}
-
-void BUDataStructures::finalizeGlobals(void) {
-  // Any unresolved call can be removed (resolved) if it does not contain
-  // external functions and it is not reachable from any call that does
-  // contain external functions
-  std::set<DSCallSite> GoodCalls, BadCalls;
-  for (DSGraph::afc_iterator ii = GlobalsGraph->afc_begin(), 
-         ee = GlobalsGraph->afc_end(); ii != ee; ++ii)
-    if (ii->isDirectCall() || ii->getCalleeNode()->isExternFuncNode())
-      BadCalls.insert(*ii);
-    else
-      GoodCalls.insert(*ii);
-  DenseSet<const DSNode*> reachable;
-  for (std::set<DSCallSite>::iterator ii = BadCalls.begin(),
-         ee = BadCalls.end(); ii != ee; ++ii) {
-    ii->getRetVal().getNode()->markReachableNodes(reachable);
-    ii->getVAVal().getNode()->markReachableNodes(reachable);
-    for (unsigned x = 0; x < ii->getNumPtrArgs(); ++x)
-      ii->getPtrArg(x).getNode()->markReachableNodes(reachable);
-  }
-  for (std::set<DSCallSite>::iterator ii = GoodCalls.begin(),
-         ee = GoodCalls.end(); ii != ee; ++ii)
-    if (reachable.count(ii->getCalleeNode()))
-      GlobalsGraph->getAuxFunctionCalls()
-        .erase(std::find(GlobalsGraph->getAuxFunctionCalls().begin(),
-                         GlobalsGraph->getAuxFunctionCalls().end(),
-                         *ii));
-  GlobalsGraph->getScalarMap().clear_scalars();
-}
-
-#endif
-
 //
 // Method: CloneAuxIntoGlobal()
 //
@@ -680,9 +542,6 @@ void BUDataStructures::CloneAuxIntoGlobal(DSGraph* G) {
   for (DSGraph::afc_iterator ii = G->afc_begin(), ee = G->afc_end();
        ii != ee;
        ++ii) {
-#if 0
-    cerr << "Pushing " << ii->getCallSite().getInstruction()->getOperand(0) << "\n";
-#endif
 
     //
     // If we can, merge with an existing call site for this instruction.
