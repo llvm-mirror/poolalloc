@@ -57,16 +57,8 @@ CompleteBUDataStructures::runOnModule (Module &M) {
   buildIndirectFunctionSets();
   formGlobalECs();
 
-  //
-  // Propagate information from the local graphs to the globals graphs.
-  //
-  for (Module::iterator F = M.begin(); F != M.end(); ++F) {
-    if (!(F->isDeclaration())) {
-      if (DSGraph * Graph = getOrCreateGraph(F)) {
-        cloneIntoGlobals (Graph);
-      }
-    }
-  }
+
+
 
   for (Module::iterator F = M.begin(); F != M.end(); ++F) {
     if (!(F->isDeclaration())) {
