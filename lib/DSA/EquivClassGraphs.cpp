@@ -66,6 +66,15 @@ bool EquivBUDataStructures::runOnModule(Module &M) {
     delete (*i);
   }
 
+  formGlobalECs();
+  for (Module::iterator F = M.begin(); F != M.end(); ++F) {
+    if (!(F->isDeclaration())) {
+      if (DSGraph * Graph = getOrCreateGraph(F)) {
+        cloneGlobalsInto (Graph);
+      }
+    }
+  }
+  
   DEBUG(verifyMerging());
   bool result = runOnModuleInternal(M); 
   

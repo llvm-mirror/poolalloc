@@ -397,7 +397,7 @@ BUDataStructures::calculateGraphs (const Function *F,
 	  << F->getName() << "\n");
     Stack.pop_back();
     DEBUG(errs() << "  [BU] Calculating graph for: " << F->getName()<< "\n");
-    calculateGraph (Graph);
+    calculateGraph(Graph);
     DEBUG(errs() << "  [BU] Done inlining: " << F->getName() << " ["
 	  << Graph->getGraphSize() << "+" << Graph->getAuxFunctionCalls().size()
 	  << "]\n");
@@ -407,7 +407,7 @@ BUDataStructures::calculateGraphs (const Function *F,
     //
     // Should we revisit the graph?  Only do it if there are now new resolvable
     // callees.
-    getAllAuxCallees (Graph, CalleeFunctions);
+    getAllAuxCallees(Graph, CalleeFunctions);
     if (!CalleeFunctions.empty()) {
       DEBUG(errs() << "Recalculating " << F->getName() << " due to new knowledge\n");
       ValMap.erase(F);
