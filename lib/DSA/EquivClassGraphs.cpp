@@ -67,13 +67,15 @@ bool EquivBUDataStructures::runOnModule(Module &M) {
   }
 
   formGlobalECs();
-  for (Module::iterator F = M.begin(); F != M.end(); ++F) {
+
+  //FIXME: This causes a regression in 255.vortex while poolallocating
+  /*for (Module::iterator F = M.begin(); F != M.end(); ++F) {
     if (!(F->isDeclaration())) {
       if (DSGraph * Graph = getOrCreateGraph(F)) {
         cloneGlobalsInto (Graph);
       }
     }
-  }
+  }*/
   
   DEBUG(verifyMerging());
   bool result = runOnModuleInternal(M); 
