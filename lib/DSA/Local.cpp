@@ -44,7 +44,6 @@ namespace {
 STATISTIC(NumDirectCall,    "Number of direct calls added");
 STATISTIC(NumIndirectCall,  "Number of indirect calls added");
 STATISTIC(NumAsmCall,       "Number of asm calls collapsed/seen");
-//STATISTIC(NumBoringCall,    "Number of pointer-free direct calls ignored");
 STATISTIC(NumIntrinsicCall, "Number of intrinsics called");
 
 RegisterPass<LocalDataStructures>
@@ -169,15 +168,14 @@ namespace {
       // Only merge info for nodes that already exist in the local pass
       // otherwise leaf functions could contain less collapsing than the globals
       // graph
-       if (g.getScalarMap().global_begin() != g.getScalarMap().global_end()) {
+      if (g.getScalarMap().global_begin() != g.getScalarMap().global_end()) {
         ReachabilityCloner RC(&g, g.getGlobalsGraph(), 0);
-        std::vector<const GlobalValue*> GVV(g.getScalarMap().global_begin(),
-                                            g.getScalarMap().global_end());
-        for (std::vector<const GlobalValue*>::iterator I = GVV.begin();
-             I != GVV.end(); ++I)
+        for (DSScalarMap::global_iterator I = g.getScalarMap().global_begin(),
+             E = g.getScalarMap().global_end(); I != E; ++I) {
           if (const GlobalVariable * GV = dyn_cast<GlobalVariable > (*I))
             if (GV->isConstant())
               RC.merge(g.getNodeForValue(GV), g.getGlobalsGraph()->getNodeForValue(GV));
+        }
       }
 
       g.markIncompleteNodes(DSGraph::MarkFormalArgs);
@@ -941,13 +939,6 @@ void GraphBuilder::visitCallSite(CallSite CS) {
     return;
   }
 
-  //Removed so that call graph is correct. Keep information about call sites.
-  //uninteresting direct call
-  /*if (isa<Function>(Callee) && !DSCallGraph::hasPointers(CS)) {
-    ++NumBoringCall;
-    return;
-  }*/
-
   // Set up the return value...
   DSNodeHandle RetVal;
   Instruction *I = CS.getInstruction();
@@ -969,7 +960,6 @@ void GraphBuilder::visitCallSite(CallSite CS) {
   // local it's possible that we need to create a DSNode for the argument, as
   // opposed to getNodeForValue which simply retrieves the existing node.
   
-  // FIXME: refactor so we don't have this duplication. 
 
   //Get the FunctionType for the called function
   const FunctionType *CalleeFuncType = DSCallSite::FunctionTypeOfCallSite(CS);
