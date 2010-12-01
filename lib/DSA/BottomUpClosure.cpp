@@ -29,7 +29,6 @@ namespace {
   STATISTIC (MaxSCC, "Maximum SCC Size in Call Graph");
   STATISTIC (NumInlines, "Number of graphs inlined");
   STATISTIC (NumCallEdges, "Number of 'actual' call edges");
-  STATISTIC (NumSCCMerges, "Number of SCC merges");
   STATISTIC (NumIndResolved, "Number of resolved IndCalls");
   STATISTIC (NumIndUnresolved, "Number of unresolved IndCalls");
   STATISTIC (NumEmptyCalls, "Number of calls we know nothing about");
@@ -137,49 +136,6 @@ bool BUDataStructures::runOnModuleInternal(Module& M) {
   callgraph.buildRoots();
 
   return false;
-}
-
-//
-// Method: mergeSCCs()
-//
-// Description:
-//  Create a single DSGraph for every Strongly Connected Component (SCC) in the
-//  callgraph.  This is done by merging the DSGraphs of every function within
-//  each SCC.
-//
-void BUDataStructures::mergeSCCs() {
-
-  for (DSCallGraph::flat_key_iterator ii = callgraph.flat_key_begin(),
-       ee = callgraph.flat_key_end(); ii != ee; ++ii) {
-    //
-    // External functions form their own singleton SCC.
-    //
-    if ((*ii)->isDeclaration()) continue;
-
-    DSGraph* SCCGraph = getOrCreateGraph(*ii);
-    unsigned SCCSize = 1;
-    callgraph.assertSCCRoot(*ii);
-
-    for (DSCallGraph::scc_iterator Fi = callgraph.scc_begin(*ii),
-         Fe = callgraph.scc_end(*ii); Fi != Fe; ++Fi) {
-      const Function* F = *Fi;
-      if (F->isDeclaration()) continue;
-      if (F == *ii) continue;
-      ++SCCSize;
-      DSGraph* NFG = getOrCreateGraph(F);
-      if (NFG != SCCGraph) {
-        ++NumSCCMerges;
-        // Update the Function -> DSG map.
-        for (DSGraph::retnodes_iterator I = NFG->retnodes_begin(),
-             E = NFG->retnodes_end(); I != E; ++I)
-          setDSGraph(*I->first, SCCGraph);
-
-        SCCGraph->spliceFrom(NFG);
-        delete NFG;
-      }
-    }
-    if (MaxSCC < SCCSize) MaxSCC = SCCSize;
-  }
 }
 
 //

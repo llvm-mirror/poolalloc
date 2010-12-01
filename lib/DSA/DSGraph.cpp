@@ -1141,11 +1141,6 @@ void DSGraph::removeDeadNodes(unsigned Flags) {
 
       // Make sure that all globals are cloned over as roots.
       if (!(Flags & DSGraph::RemoveUnreachableGlobals) && GlobalsGraph) {
-        DSGraph::ScalarMapTy::iterator SMI =
-          GlobalsGraph->getScalarMap().find(I->first);
-        if (SMI != GlobalsGraph->getScalarMap().end())
-          GGCloner.merge(SMI->second, I->second);
-        else
           GGCloner.getClonedNH(I->second);
       }
     } else {

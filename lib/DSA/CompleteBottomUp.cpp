@@ -57,9 +57,6 @@ CompleteBUDataStructures::runOnModule (Module &M) {
   buildIndirectFunctionSets();
   formGlobalECs();
 
-
-
-
   for (Module::iterator F = M.begin(); F != M.end(); ++F) {
     if (!(F->isDeclaration())) {
       if (DSGraph * Graph = getOrCreateGraph(F)) {
