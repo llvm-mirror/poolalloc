@@ -25,12 +25,7 @@
 #include "llvm/ADT/Statistic.h"
 using namespace llvm;
 
-#if 0
-#define TIME_REGION(VARNAME, DESC) \
-   NamedRegionTimer VARNAME(DESC)
-#else
 #define TIME_REGION(VARNAME, DESC)
-#endif
 
 namespace {
   RegisterPass<TDDataStructures>   // Register the pass
@@ -299,7 +294,8 @@ void TDDataStructures::InlineCallersIntoGraph(DSGraph* DSG) {
   DSG->computeExternalFlags(ExtFlags);
   DSG->computeIntPtrFlags();
 
-  {
+  cloneIntoGlobals(DSG);
+  /*{
     DSGraph* GG = DSG->getGlobalsGraph();
     ReachabilityCloner RC(GG, DSG,
                           DSGraph::DontCloneCallNodes |
@@ -308,7 +304,7 @@ void TDDataStructures::InlineCallersIntoGraph(DSGraph* DSG) {
            GI = DSG->getScalarMap().global_begin(),
            E = DSG->getScalarMap().global_end(); GI != E; ++GI)
       RC.getClonedNH(DSG->getNodeForValue(*GI));
-  }
+  }*/
  
   //
   // Delete dead nodes.  Treat globals that are unreachable as dead also.
@@ -323,11 +319,7 @@ void TDDataStructures::InlineCallersIntoGraph(DSGraph* DSG) {
   //
   //  So, for now, just remove dead nodes but leave the globals alone.
   //
-#if 0
-  DSG->removeDeadNodes(DSGraph::RemoveUnreachableGlobals);
-#else
   DSG->removeDeadNodes(0);
-#endif
 
   // We are done with computing the current TD Graph!  Finally, before we can
   // finish processing this function, we figure out which functions it calls and
