@@ -1102,6 +1102,8 @@ static bool CallSiteUsesAliveArgs(const DSCallSite &CS,
 // from the caller's graph entirely.  This is only appropriate to use when
 // inlining graphs.
 //
+// This function also clones information about globals back into the globals
+// graph before it deletes the nodes.
 void DSGraph::removeDeadNodes(unsigned Flags) {
   DEBUG(AssertGraphOK(); if (GlobalsGraph) GlobalsGraph->AssertGraphOK());
 
@@ -1118,10 +1120,14 @@ void DSGraph::removeDeadNodes(unsigned Flags) {
   // Copy and merge all information about globals to the GlobalsGraph if this is
   // not a final pass (where unreachable globals are removed).
   //
-  // Strip all alloca bits since the current function is only for the BU pass.
+  // Strip all alloca bits since we are merging information into the globals
+  // graph.
   // Strip all incomplete bits since they are short-lived properties and they
   // will be correctly computed when rematerializing nodes into the functions.
   //
+  // This code merges information learned about the globals in 'this' graph
+  // back into the globals graph, before it deletes any such global nodes, 
+  // (with some new information possibly) from 'this' current function graph.
   ReachabilityCloner GGCloner(GlobalsGraph, this, DSGraph::StripAllocaBit |
                               DSGraph::StripIncompleteBit);
 
