@@ -52,6 +52,7 @@ bool EquivBUDataStructures::runOnModule(Module &M) {
 
   //update the EQ class from indirect calls
   buildIndirectFunctionSets();
+  formGlobalECs();
   mergeGraphsByGlobalECs();
   
   //remove all the DSGraph, that still have references
@@ -65,6 +66,7 @@ bool EquivBUDataStructures::runOnModule(Module &M) {
       i!=e;i++) {
     delete (*i);
   }
+  DEBUG(verifyMerging());
 
   formGlobalECs();
 
@@ -77,7 +79,6 @@ bool EquivBUDataStructures::runOnModule(Module &M) {
     }
   }*/
   
-  DEBUG(verifyMerging());
   bool result = runOnModuleInternal(M); 
   
   // CBU contains the correct call graph.
