@@ -19,6 +19,7 @@
 #include "llvm/Module.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Support/Debug.h"
+#include "llvm/Support/FormattedStream.h"
 using namespace llvm;
 
 namespace {
@@ -150,6 +151,23 @@ CompleteBUDataStructures::buildIndirectFunctionSets (void) {
     // this code is careful to handle callees not existing in the globals graph
     // In other words what we have here should be correct, but might be overkill
     // that we can trim down later as needed.
+    
+    DSNodeHandle calleesNH;
+   
+    // When we build SCCs we remove any calls that are to functions in the 
+    // same SCC. Hence, for every indirect call site we must assume that it
+    // might call functions in its function's SCC that are address taken.
+    const Function *F1 = (*ii).getInstruction()->getParent()->getParent();
+    F1 = callgraph.sccLeader(&*F1);
+
+    DSCallGraph::scc_iterator sccii = callgraph.scc_begin(F1),
+                                sccee = callgraph.scc_end(F1);
+    for(;sccii != sccee; ++sccii) {
+      DSGraph::ScalarMapTy::const_iterator I = SM.find(SM.getLeaderForGlobal(*sccii));
+      if (I != SM.end()) {
+        calleesNH.mergeWith(I->second);
+      }
+    }
 
     DSCallGraph::callee_iterator csi = callgraph.callee_begin(*ii),
             cse = callgraph.callee_end(*ii);
@@ -169,14 +187,13 @@ CompleteBUDataStructures::buildIndirectFunctionSets (void) {
     // be merged by CBU.
 
     // This NH starts off empty, but ends up merging them all together
-    DSNodeHandle calleesNH;
 
     while(csi != cse) {
       const Function *F = *csi;
       DSCallGraph::scc_iterator sccii = callgraph.scc_begin(F),
                                 sccee = callgraph.scc_end(F);
       for(;sccii != sccee; ++sccii) {
-        DSGraph::ScalarMapTy::const_iterator I = SM.find(*sccii);
+        DSGraph::ScalarMapTy::const_iterator I = SM.find(SM.getLeaderForGlobal(*sccii));
         if (I != SM.end()) {
           calleesNH.mergeWith(I->second);
         }

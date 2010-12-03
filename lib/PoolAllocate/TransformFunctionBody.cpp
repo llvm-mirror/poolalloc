@@ -892,7 +892,9 @@ void FuncTransform::visitCallSite(CallSite& CS) {
     CalleeGraph = Graphs.getDSGraph(*CF);
   } else {
     DEBUG(errs() << "  Handling indirect call: " << *TheCall << "\n");
-    
+    DSGraph *G =  Graphs.getGlobalsGraph();
+    DSGraph::ScalarMapTy& SM = G->getScalarMap();
+
     // Here we fill in CF with one of the possible called functions.  Because we
     // merged together all of the arguments to all of the functions in the
     // equivalence set, it doesn't really matter which one we pick.
@@ -914,23 +916,53 @@ void FuncTransform::visitCallSite(CallSite& CS) {
     //
     const DSCallGraph & callGraph = Graphs.getCallGraph();
     unsigned maxArgsWithNodes = 0;
+
     DSCallGraph::callee_iterator I = callGraph.callee_begin(OrigInst);
     for (; I != callGraph.callee_end(OrigInst); ++I) {
+      for(DSCallGraph::scc_iterator sccii = callGraph.scc_begin(*I),
+                           sccee = callGraph.scc_end(*I); sccii != sccee; ++sccii){
+        if(SM.find(SM.getLeaderForGlobal(*sccii)) == SM.end())
+          continue;
+        //
+        // Get the information for this function.  Since this is coming from DSA,
+        // it should be an original function.
+        //
+        // This call site calls a function, that is not defined in this module
+        if (!(Graphs.hasDSGraph(**sccii))) return;
+        // For all other cases Func Info must exist.
+        FuncInfo *CFI = PAInfo.getFuncInfo(**sccii);
+        //
+        // If this target takes more DSNodes than the last one we found, then
+        // make *this* target our canonical target.
+        //
+        if (CFI->ArgNodes.size() >= maxArgsWithNodes) {
+          maxArgsWithNodes = CFI->ArgNodes.size();
+          CF = *sccii;
+        }
+      }
+    }
+    const Function *F1 = OrigInst->getParent()->getParent();
+    F1 = callGraph.sccLeader(&*F1);
+
+    for(DSCallGraph::scc_iterator sccii = callGraph.scc_begin(F1),
+                           sccee = callGraph.scc_end(F1); sccii != sccee; ++sccii){
+        if(SM.find(SM.getLeaderForGlobal(*sccii)) == SM.end())
+          continue;
       //
       // Get the information for this function.  Since this is coming from DSA,
       // it should be an original function.
       //
       // This call site calls a function, that is not defined in this module
-      if (!(Graphs.hasDSGraph(**I))) return;
+      if (!(Graphs.hasDSGraph(**sccii))) return;
       // For all other cases Func Info must exist.
-      FuncInfo *CFI = PAInfo.getFuncInfo(**I);
+      FuncInfo *CFI = PAInfo.getFuncInfo(**sccii);
       //
       // If this target takes more DSNodes than the last one we found, then
       // make *this* target our canonical target.
       //
       if (CFI->ArgNodes.size() >= maxArgsWithNodes) {
         maxArgsWithNodes = CFI->ArgNodes.size();
-        CF = *I;
+        CF = *sccii;
       }
     }
     
@@ -942,33 +974,6 @@ void FuncTransform::visitCallSite(CallSite& CS) {
     // This isn't ideal as it means that this call site didn't have inlining
     // happen.
     //
-    /*if (!CF) {
-      DSGraph* dg = Graphs.getDSGraph(*OrigInst->getParent()->getParent());
-      DSNode* d = dg->getNodeForValue(OrigInst->getOperand(0)).getNode();
-      assert (d && "No DSNode!\n");
-      std::vector<const Function*> g;
-      d->addFullFunctionList(g);
-      
-      //if(!(d->isIncompleteNode()) && !(d->isExternalNode()) && !(d->isCollapsedNode())) {
-      
-      //
-      // Perform some consistency checks on the callees.
-      //
-      verifyCallees (g);
-
-      //
-      // If we found any callees, grab the first one with a DSGraph and use it.
-      // Since we're using EQBU/EQTD, all potential targets should have the
-      // same DSGraph, so it doesn't matter which one we use as long as we use
-      // a function that *has* a DSGraph.
-      //
-      for (unsigned index = 0; index < g.size(); ++index) {
-        if (Graphs.hasDSGraph (*(g[index]))) {
-          CF = g[index];
-          break;
-        }
-      }
-    }*/
 
     //
     // If we still haven't been able to find a target function of the call site

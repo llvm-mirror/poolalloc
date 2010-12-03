@@ -142,7 +142,7 @@ public:
     return SCCs.member_end();
   }
   
-  const llvm::Function* sccLeader(llvm::Function*F) const {
+  const llvm::Function* sccLeader(const llvm::Function*F) const {
     return SCCs.getLeaderValue(F);
   }
   unsigned callee_size(llvm::CallSite CS) const {
