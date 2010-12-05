@@ -1485,15 +1485,13 @@ void DataStructures::eliminateUsesOfECGlobals(DSGraph &G,
 }
 
 //For Entry Points
-void DataStructures::cloneGlobalsInto(DSGraph* Graph) {
+void DataStructures::cloneGlobalsInto(DSGraph* Graph, unsigned cloneFlags) {
   // If this graph contains main, copy the contents of the globals graph over.
   // Note that this is *required* for correctness.  If a callee contains a use
   // of a global, we have to make sure to link up nodes due to global-argument
   // bindings.
   const DSGraph* GG = Graph->getGlobalsGraph();
-  ReachabilityCloner RC(Graph, GG,
-                        DSGraph::DontCloneCallNodes |
-                        DSGraph::DontCloneAuxCallNodes);
+  ReachabilityCloner RC(Graph, GG, cloneFlags);
 
   // Clone the global nodes into this graph.
   for (DSScalarMap::global_iterator I = Graph->getScalarMap().global_begin(),
@@ -1502,14 +1500,11 @@ void DataStructures::cloneGlobalsInto(DSGraph* Graph) {
 }
 
 //For all graphs
-void DataStructures::cloneIntoGlobals(DSGraph* Graph) {
+void DataStructures::cloneIntoGlobals(DSGraph* Graph, unsigned cloneFlags) {
   // When this graph is finalized, clone the globals in the graph into the
   // globals graph to make sure it has everything, from all graphs.
   DSScalarMap &MainSM = Graph->getScalarMap();
-  ReachabilityCloner RC(GlobalsGraph, Graph,
-                        DSGraph::DontCloneCallNodes |
-                        DSGraph::DontCloneAuxCallNodes |
-                        DSGraph::StripAllocaBit);
+  ReachabilityCloner RC(GlobalsGraph, Graph, cloneFlags);
 
   // Clone everything reachable from globals in the function graph into the
   // globals graph.

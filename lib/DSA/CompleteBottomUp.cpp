@@ -57,11 +57,21 @@ CompleteBUDataStructures::runOnModule (Module &M) {
 
   buildIndirectFunctionSets();
   formGlobalECs();
+  for (Module::iterator F = M.begin(); F != M.end(); ++F) {
+    if (!(F->isDeclaration())) {
+      if (DSGraph * Graph = getOrCreateGraph(F)) {
+        cloneIntoGlobals(Graph, DSGraph::DontCloneCallNodes |
+                        DSGraph::DontCloneAuxCallNodes |
+                        DSGraph::StripAllocaBit);
+      }
+    }
+  }
 
   for (Module::iterator F = M.begin(); F != M.end(); ++F) {
     if (!(F->isDeclaration())) {
       if (DSGraph * Graph = getOrCreateGraph(F)) {
-        cloneGlobalsInto (Graph);
+        cloneGlobalsInto(Graph, DSGraph::DontCloneCallNodes |
+                        DSGraph::DontCloneAuxCallNodes);
       }
     }
   }

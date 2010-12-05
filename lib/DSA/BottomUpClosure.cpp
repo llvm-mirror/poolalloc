@@ -116,7 +116,8 @@ bool BUDataStructures::runOnModuleInternal(Module& M) {
   for (Module::iterator F = M.begin(); F != M.end(); ++F) {
     if (!(F->isDeclaration())){
       DSGraph *Graph  = getOrCreateGraph(F);
-      cloneGlobalsInto(Graph);
+      cloneGlobalsInto(Graph, DSGraph::DontCloneCallNodes |
+                        DSGraph::DontCloneAuxCallNodes);
       Graph->buildCallGraph(callgraph, GlobalFunctionList, filterCallees);
       Graph->maskIncompleteMarkers();
       Graph->markIncompleteNodes(DSGraph::MarkFormalArgs |
@@ -273,7 +274,8 @@ BUDataStructures::postOrderInline (Module & M) {
         for (Module::iterator F = M.begin(); F != M.end(); ++F) {
           if (!(F->isDeclaration())){
             DSGraph *Graph  = getDSGraph(*F);
-            cloneGlobalsInto(Graph);
+            cloneGlobalsInto(Graph, DSGraph::DontCloneCallNodes |
+                        DSGraph::DontCloneAuxCallNodes);
           }
         }
       }
@@ -627,7 +629,9 @@ void BUDataStructures::calculateGraph(DSGraph* Graph) {
   // reach live nodes as live.
   Graph->removeDeadNodes(DSGraph::KeepUnreachableGlobals);
 
-  cloneIntoGlobals(Graph);
+  cloneIntoGlobals(Graph, DSGraph::DontCloneCallNodes |
+                        DSGraph::DontCloneAuxCallNodes |
+                        DSGraph::StripAllocaBit);
   //Graph.writeGraphToFile(cerr, "bu_" + F.getName());
 
 }

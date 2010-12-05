@@ -73,7 +73,8 @@ bool EquivBUDataStructures::runOnModule(Module &M) {
   for (Module::iterator F = M.begin(); F != M.end(); ++F) {
     if (!(F->isDeclaration())) {
       if (DSGraph * Graph = getOrCreateGraph(F)) {
-        cloneGlobalsInto (Graph);
+        cloneGlobalsInto(Graph, DSGraph::DontCloneCallNodes |
+                        DSGraph::DontCloneAuxCallNodes);
       }
     }
   }
@@ -243,7 +244,9 @@ EquivBUDataStructures::mergeGraphsByGlobalECs() {
     // graph merging.
     //
     if (BaseGraph)
-      cloneIntoGlobals(BaseGraph);
+      cloneIntoGlobals(BaseGraph, DSGraph::DontCloneCallNodes |
+                        DSGraph::DontCloneAuxCallNodes |
+                        DSGraph::StripAllocaBit);
   }
 }
 

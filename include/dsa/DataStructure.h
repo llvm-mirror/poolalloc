@@ -89,8 +89,8 @@ protected:
 
   void formGlobalECs();
   
-  void cloneIntoGlobals(DSGraph* G);
-  void cloneGlobalsInto(DSGraph* G);
+  void cloneIntoGlobals(DSGraph* G, unsigned cloneFlags);
+  void cloneGlobalsInto(DSGraph* G, unsigned cloneFlags);
 
   void restoreCorrectCallGraph();
   
