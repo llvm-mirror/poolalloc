@@ -241,6 +241,7 @@ public:
   void mergeTypeInfo(const Type *Ty, unsigned Offset);
   void mergeTypeInfo(const TyMapTy::mapped_type TyIt, unsigned Offset);
   void mergeTypeInfo(const DSNode* D, unsigned Offset);
+  void mergeArrayTypeInfo(const DSNode* D);
 
   // Types records might exist without types in them
   bool hasNoType() {

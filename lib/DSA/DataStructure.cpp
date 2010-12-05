@@ -446,6 +446,13 @@ void DSNode::mergeTypeInfo(const DSNode* DN, unsigned Offset) {
     mergeTypeInfo(ii->second, ii->first + Offset);
 }
 
+void DSNode::mergeArrayTypeInfo(const DSNode* DN) {
+  unsigned Offset = 0;
+  while(Offset < getSize()) {
+    mergeTypeInfo(DN, Offset);
+    Offset += DN->getSize();
+  }
+}
 /// addEdgeTo - Add an edge from the current node to the specified node.  This
 /// can cause merging of nodes in the graph.
 ///
@@ -571,6 +578,12 @@ void DSNode::MergeNodes(DSNodeHandle& CurNodeH, DSNodeHandle& NH) {
         NH.getNode()->foldNodeCompletely();
         NSize = NH.getNode()->getSize();
         NOffset = NH.getOffset();
+      } else {
+        if(NH.getNode()->getSize() > CurNodeH.getNode()->getSize()) {
+          NH.getNode()->mergeArrayTypeInfo(CurNodeH.getNode());
+        } else {
+          CurNodeH.getNode()->mergeArrayTypeInfo(NH.getNode());
+        }
       }
     }
   }
@@ -858,6 +871,12 @@ void ReachabilityCloner::merge(const DSNodeHandle &NH,
               ((DN->getSize() % SN->getSize()) != 0)){
              DN->foldNodeCompletely();
              DN = NH.getNode();
+           } else {
+             if(DN->getSize() > SN->getSize()) {
+               DN->mergeArrayTypeInfo(SN);
+             } else {
+               SrcNH.getNode()->mergeArrayTypeInfo(NH.getNode());
+             }
            }
         }
       }
