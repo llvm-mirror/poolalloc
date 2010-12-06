@@ -48,6 +48,8 @@ namespace {
                                 "Number of loads/stores which are on incomplete nodes");
   STATISTIC (NumUnknownAccesses,
                                 "Number of loads/stores which are on unknown nodes");
+  STATISTIC (NumExternalAccesses,
+                                "Number of loads/stores which are on external nodes");
 
   class DSGraphStats : public FunctionPass, public InstVisitor<DSGraphStats> {
     void countCallees(const Function &F);
@@ -155,6 +157,10 @@ bool DSGraphStats::isNodeForValueUntyped(Value *V) {
       return true;
     if ( N->isIncompleteNode()){
       ++NumIncompleteAccesses;
+      return true;
+    }
+    if ( N->isExternalNode()){
+      ++NumExternalAccesses;
       return true;
     }
     if (N->isUnknownNode()){
