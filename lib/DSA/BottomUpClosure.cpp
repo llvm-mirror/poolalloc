@@ -44,7 +44,6 @@ char BUDataStructures::ID;
 //
 bool BUDataStructures::runOnModule(Module &M) {
   init(&getAnalysis<StdLibDataStructures>(), false, true, false, false );
-  //EP = &getAnalysis<EntryPointAnalysis>();
 
   return runOnModuleInternal(M);
 }
@@ -80,13 +79,6 @@ bool BUDataStructures::runOnModuleInternal(Module& M) {
   // Do a post-order traversal of the SCC callgraph and do bottom-up inlining.
   //
   postOrderInline (M);
-
-#if 0
-  //DSA does not use entryPoint analysis 
-  std::vector<const Function*> EntryPoints;
-  EP = &getAnalysis<EntryPointAnalysis>();
-  EP->findEntryPoints(M, EntryPoints);
-#endif
 
   // At the end of the bottom-up pass, the globals graph becomes complete.
   // FIXME: This is not the right way to do this, but it is sorta better than

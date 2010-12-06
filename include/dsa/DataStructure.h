@@ -19,7 +19,6 @@
 #include "llvm/Support/CallSite.h"
 #include "llvm/ADT/EquivalenceClasses.h"
 
-#include "dsa/EntryPointAnalysis.h"
 #include "dsa/DSCallGraph.h"
 #include "dsa/svset.h"
 #include "dsa/super_set.h"
@@ -206,7 +205,6 @@ public:
   ///
   virtual void getAnalysisUsage(AnalysisUsage &AU) const {
     AU.addRequired<LocalDataStructures>();
-    AU.addPreserved<EntryPointAnalysis>();
     AU.setPreservesCFG();
   }
 };
@@ -220,7 +218,6 @@ protected:
 
   const char* debugname;
 
-  EntryPointAnalysis* EP;
 
   // filterCallees -- Whether or not we filter out illegal callees
   // from the CallGraph.  This is useful while doing original BU,
@@ -242,8 +239,6 @@ public:
 
   virtual void getAnalysisUsage(AnalysisUsage &AU) const {
     AU.addRequired<StdLibDataStructures>();
-    AU.addRequired<EntryPointAnalysis>();
-    AU.addPreserved<EntryPointAnalysis>();
     AU.setPreservesCFG();
   }
 
@@ -292,8 +287,6 @@ public:
 
   virtual void getAnalysisUsage(AnalysisUsage &AU) const {
     AU.addRequired<BUDataStructures>();
-    AU.addRequired<EntryPointAnalysis > ();
-    AU.addPreserved<EntryPointAnalysis>();
     AU.setPreservesCFG();
   }
 
@@ -317,7 +310,6 @@ public:
   virtual bool runOnModule(Module &M);
 
   virtual void getAnalysisUsage(AnalysisUsage &AU) const {
-	AU.addRequired<EntryPointAnalysis>();
     AU.addRequired<CompleteBUDataStructures>();
     AU.setPreservesCFG();
   }
