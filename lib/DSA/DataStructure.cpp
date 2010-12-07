@@ -572,19 +572,10 @@ void DSNode::MergeNodes(DSNodeHandle& CurNodeH, DSNodeHandle& NH) {
   if (CurNodeH.getNode()->isArrayNode() && NH.getNode()->isArrayNode()) {
     if(NH.getNode()->getSize() != 0 && CurNodeH.getNode()->getSize() != 0
        && (NH.getNode()->getSize() != CurNodeH.getNode()->getSize())){
-       if(((NH.getNode()->getSize() % CurNodeH.getNode()->getSize()) != 0 ) 
-          && ((CurNodeH.getNode()->getSize() % NH.getNode()->getSize()) != 0)){
         CurNodeH.getNode()->foldNodeCompletely();
         NH.getNode()->foldNodeCompletely();
         NSize = NH.getNode()->getSize();
         NOffset = NH.getOffset();
-      } else {
-        if(NH.getNode()->getSize() > CurNodeH.getNode()->getSize()) {
-          NH.getNode()->mergeArrayTypeInfo(CurNodeH.getNode());
-        } else {
-          CurNodeH.getNode()->mergeArrayTypeInfo(NH.getNode());
-        }
-      }
     }
   }
  
@@ -867,17 +858,8 @@ void ReachabilityCloner::merge(const DSNodeHandle &NH,
       if (SN->isArrayNode() && DN->isArrayNode()) {
         if((SN->getSize() != DN->getSize()) && (SN->getSize() != 0) 
            && DN->getSize() != 0) {
-           if(((SN->getSize() % DN->getSize()) != 0) && 
-              ((DN->getSize() % SN->getSize()) != 0)){
              DN->foldNodeCompletely();
              DN = NH.getNode();
-           } else {
-             if(DN->getSize() > SN->getSize()) {
-               DN->mergeArrayTypeInfo(SN);
-             } else {
-               SrcNH.getNode()->mergeArrayTypeInfo(NH.getNode());
-             }
-           }
         }
       }
       if (!DN->isNodeCompletelyFolded() && DN->getSize() < SN->getSize())
