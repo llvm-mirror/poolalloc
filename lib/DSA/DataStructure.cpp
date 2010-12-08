@@ -1344,7 +1344,7 @@ DSGraph* DataStructures::getOrCreateGraph(const Function* F) {
     //Clone or Steal the Source Graph
     DSGraph* BaseGraph = GraphSource->getDSGraph(*F);
     if (Clone) {
-      G = new DSGraph(BaseGraph, GlobalECs, *TypeSS, DSGraph::DontCloneAuxCallNodes);
+      G = new DSGraph(BaseGraph, GlobalECs, *TypeSS);
     } else {
       G = new DSGraph(GlobalECs, GraphSource->getTargetData(), *TypeSS);
       G->spliceFrom(BaseGraph);
