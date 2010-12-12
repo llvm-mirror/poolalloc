@@ -268,6 +268,11 @@ Output/%.$(TEST).report.txt: Output/%.out-nat                \
 	  printf "RUN-TIME-POOLALLOC: " >> $@;\
 	  grep "^program" Output/$*.poolalloc.out.time >> $@;\
 	fi
+	@-if test -f Output/$*.poolalloc.bc.info; then \
+	  printf "PATIME: " >> $@;\
+	  grep '  Pool allocate disjoint' Output/$*.poolalloc.bc.info >> $@;\
+	fi
+
 	-printf "LOC: " >> $@
 	-cat Output/$*.LOC.txt >> $@
 	@-cat Output/$*.$(TEST).bc.info >> $@
