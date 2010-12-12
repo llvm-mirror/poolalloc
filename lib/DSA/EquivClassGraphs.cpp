@@ -40,7 +40,7 @@ char EquivBUDataStructures::ID = 0;
 // in the program.
 //
 bool EquivBUDataStructures::runOnModule(Module &M) {
-  init(&getAnalysis<CompleteBUDataStructures>(), false, true, false, true);
+  init(&getAnalysis<CompleteBUDataStructures>(), true, true, false, true);
 
   //make a list of all the DSGraphs
   std::set<DSGraph *>graphList;

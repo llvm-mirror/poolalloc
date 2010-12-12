@@ -42,7 +42,7 @@ char CompleteBUDataStructures::ID;
 //
 bool
 CompleteBUDataStructures::runOnModule (Module &M) {
-  init(&getAnalysis<BUDataStructures>(), false, true, false, true);
+  init(&getAnalysis<BUDataStructures>(), true, true, false, true);
 
 
   //

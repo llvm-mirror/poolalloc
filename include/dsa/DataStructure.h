@@ -206,6 +206,7 @@ public:
   virtual void getAnalysisUsage(AnalysisUsage &AU) const {
     AU.addRequired<LocalDataStructures>();
     AU.setPreservesCFG();
+    AU.setPreservesAll();
   }
 };
 
@@ -240,6 +241,7 @@ public:
   virtual void getAnalysisUsage(AnalysisUsage &AU) const {
     AU.addRequired<StdLibDataStructures>();
     AU.setPreservesCFG();
+    AU.setPreservesAll();
   }
 
 protected:
@@ -288,6 +290,7 @@ public:
   virtual void getAnalysisUsage(AnalysisUsage &AU) const {
     AU.addRequired<BUDataStructures>();
     AU.setPreservesCFG();
+    AU.setPreservesAll();
   }
 
 };
@@ -312,6 +315,7 @@ public:
   virtual void getAnalysisUsage(AnalysisUsage &AU) const {
     AU.addRequired<CompleteBUDataStructures>();
     AU.setPreservesCFG();
+    AU.setPreservesAll();
   }
 
 };
@@ -369,6 +373,7 @@ public:
       AU.addPreserved<BUDataStructures>();
     }
     AU.setPreservesCFG();
+    AU.setPreservesAll();
   }
 
 private:

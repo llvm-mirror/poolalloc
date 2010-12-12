@@ -43,7 +43,7 @@ char BUDataStructures::ID;
 // program.
 //
 bool BUDataStructures::runOnModule(Module &M) {
-  init(&getAnalysis<StdLibDataStructures>(), false, true, false, false );
+  init(&getAnalysis<StdLibDataStructures>(), true, true, false, false );
 
   return runOnModuleInternal(M);
 }

@@ -133,6 +133,8 @@ const struct {
   {"strncat",    {YRET_YARGS, YRET_YARGS, NRET_NARGS,  true, true, true}},
 
   {"strcpy",     {YRET_YARGS, YRET_YARGS, NRET_NARGS, true, true, true}},
+  {"memccpy",    {YRET_YARGS, YRET_YARGS, NRET_NARGS, true, true, true}},
+  {"wmemccpy",   {YRET_YARGS, YRET_YARGS, NRET_NARGS, true, true, true}},
   {"wcscpy",     {YRET_YARGS, YRET_YARGS, NRET_NARGS, true, true, true}},
   {"strncpy",    {YRET_YARGS, YRET_YARGS, NRET_NARGS, true, true, true}},
   {"wcsncpy",    {YRET_YARGS, YRET_YARGS, NRET_NARGS, true, true, true}},
@@ -187,12 +189,6 @@ const struct {
   {"getrusage",  {false, false, false, false,  true, false, false, false, false}},
   {"memmove",    {false,  true, false,  true,  true, false,  true,  true,  true}},
   {"bcopy",      {false, false, false,  true,  true, false,  true, false,  true}},
-  {"strcpy",     {false,  true, false,  true,  true, false,  true,  true,  true}},
-  {"strncpy",    {false,  true, false,  true,  true, false,  true,  true,  true}},
-  {"memccpy",    {false,  true, false,  true,  true, false,  true,  true,  true}},
-  {"wcscpy",     {false,  true, false,  true,  true, false,  true,  true,  true}},
-  {"wcsncpy",    {false,  true, false,  true,  true, false,  true,  true,  true}},
-  {"wmemccpy",   {false,  true, false,  true,  true, false,  true,  true,  true}},
   {"getcwd",     { true,  true,  true,  true,  true,  true, false,  true,  true}},
 #endif
   // C++ functions, as mangled on linux gcc 4.2
@@ -304,7 +300,7 @@ StdLibDataStructures::runOnModule (Module &M) {
   //
   // Get the results from the local pass.
   //
-  init (&getAnalysis<LocalDataStructures>(), false, true, false, false);
+  init (&getAnalysis<LocalDataStructures>(), true, true, false, false);
 
   //
   // Fetch the DSGraphs for all defined functions within the module.
