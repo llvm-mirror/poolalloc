@@ -658,6 +658,45 @@ PoolAllocate::FindPoolArgs (Module & M) {
   // for corresponding arguments.  Therefore, we want to process all the
   // functions in the same equivalence class once to avoid doing extra work.
   //
+  const DSCallGraph & callgraph = Graphs->getCallGraph();
+  DSGraph* G = Graphs->getGlobalsGraph();
+  DSGraph::ScalarMapTy& SM = G->getScalarMap();
+  for (DSCallGraph::callee_key_iterator ii = callgraph.key_begin(),
+       ee = callgraph.key_end(); ii != ee; ++ii) {
+    bool isIndirect = ((*ii).getCalledFunction() == NULL);
+
+    if (isIndirect) {
+      std::vector<const Function *> Functions;
+      DSCallGraph::callee_iterator csi = callgraph.callee_begin(*ii),
+                                   cse = callgraph.callee_end(*ii);
+      while(csi != cse) {
+        const Function *F = *csi;
+        DSCallGraph::scc_iterator sccii = callgraph.scc_begin(F),
+                                sccee = callgraph.scc_end(F);
+        for(;sccii != sccee; ++sccii) {
+          DSGraph::ScalarMapTy::const_iterator I = SM.find(SM.getLeaderForGlobal(*sccii));
+          if (I != SM.end() && !((*sccii)->isDeclaration())) {
+            Functions.push_back (*sccii);
+          }
+        }
+        ++csi;
+      }
+      const Function *F1 = (*ii).getInstruction()->getParent()->getParent();
+      F1 = callgraph.sccLeader(&*F1);
+
+      DSCallGraph::scc_iterator sccii = callgraph.scc_begin(F1),
+                                sccee = callgraph.scc_end(F1);
+      for(;sccii != sccee; ++sccii) {
+        DSGraph::ScalarMapTy::const_iterator I = SM.find(SM.getLeaderForGlobal(*sccii));
+        if (I != SM.end() && !((*sccii)->isDeclaration())) {
+          Functions.push_back (*sccii);
+        }
+      }
+    
+      FindFunctionPoolArgs (Functions);
+    }
+  }
+  /*
   EquivalenceClasses<const GlobalValue*> & GlobalECs = Graphs->getGlobalECs();
   EquivalenceClasses<const GlobalValue*>::iterator EQSI = GlobalECs.begin();
   EquivalenceClasses<const GlobalValue*>::iterator EQSE = GlobalECs.end();
@@ -691,7 +730,7 @@ PoolAllocate::FindPoolArgs (Module & M) {
     // class and construct the FuncInfo structure for each one.
     //
     FindFunctionPoolArgs (Functions);
-  }
+  }*/
 
   //
   // Make sure every function has a FuncInfo structure.

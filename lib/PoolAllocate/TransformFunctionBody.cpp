@@ -935,12 +935,12 @@ void FuncTransform::visitCallSite(CallSite& CS) {
         // If this target takes more DSNodes than the last one we found, then
         // make *this* target our canonical target.
         //
-        if (CFI->ArgNodes.size() >= maxArgsWithNodes) {
-          maxArgsWithNodes = CFI->ArgNodes.size();
-          CF = *sccii;
-        }
+        maxArgsWithNodes = CFI->ArgNodes.size();
+        CF = *sccii;
+        break;
       }
     }
+    if(!CF){
     const Function *F1 = OrigInst->getParent()->getParent();
     F1 = callGraph.sccLeader(&*F1);
 
@@ -960,10 +960,9 @@ void FuncTransform::visitCallSite(CallSite& CS) {
       // If this target takes more DSNodes than the last one we found, then
       // make *this* target our canonical target.
       //
-      if (CFI->ArgNodes.size() >= maxArgsWithNodes) {
-        maxArgsWithNodes = CFI->ArgNodes.size();
-        CF = *sccii;
-      }
+      maxArgsWithNodes = CFI->ArgNodes.size();
+      CF = *sccii;
+    }
     }
     
     // Assuming the call graph is always correct. And if the call graph reports,
