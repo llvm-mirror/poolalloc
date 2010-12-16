@@ -29,10 +29,17 @@ using namespace llvm;
 
 static RegisterPass<StdLibDataStructures>
 X("dsa-stdlib", "Standard Library Local Data Structure Analysis");
+STATISTIC(NumNodesFoldedInStdLib,    "Number of nodes folded in std lib");
 
 char StdLibDataStructures::ID;
 
 #define numOps 10
+namespace {
+  static cl::opt<bool> noStdLibFold("dsa-stdlib-no-fold",
+         cl::desc("Don't fold nodes in std-lib."),
+         cl::Hidden,
+         cl::init(false));
+}
 
 //
 // Structure: libAction
@@ -398,13 +405,19 @@ StdLibDataStructures::runOnModule (Module &M) {
               // Collapse (fold) the DSNode of the return value and the actual
               // arguments if directed to do so.
               //
-              if (recFuncs[x].action.collapse) {
-                if (isa<PointerType>(CI->getType()))
+              if (!noStdLibFold && recFuncs[x].action.collapse) {
+                if (isa<PointerType>(CI->getType())){
                   Graph->getNodeForValue(CI).getNode()->foldNodeCompletely();
-                for (unsigned y = 1; y < CI->getNumOperands(); ++y)
-                  if (isa<PointerType>(CI->getOperand(y)->getType()))
-                    if (DSNode * Node=Graph->getNodeForValue(CI->getOperand(y)).getNode())
+                  NumNodesFoldedInStdLib++;
+                }
+                for (unsigned y = 1; y < CI->getNumOperands(); ++y){
+                  if (isa<PointerType>(CI->getOperand(y)->getType())){
+                    if (DSNode * Node=Graph->getNodeForValue(CI->getOperand(y)).getNode()){
                       Node->foldNodeCompletely();
+                      NumNodesFoldedInStdLib++;
+                    }
+                  }
+                }
               }
             }
           } else if(ConstantExpr *CE = dyn_cast<ConstantExpr>(ii)) {
@@ -464,13 +477,18 @@ StdLibDataStructures::runOnModule (Module &M) {
                       // Collapse (fold) the DSNode of the return value and the actual
                       // arguments if directed to do so.
                       //
-                      if (recFuncs[x].action.collapse) {
-                        if (isa<PointerType>(CI->getType()))
+                      if (!noStdLibFold && recFuncs[x].action.collapse) {
+                        if (isa<PointerType>(CI->getType())){
                           Graph->getNodeForValue(CI).getNode()->foldNodeCompletely();
+                          NumNodesFoldedInStdLib++;
+                        }
                         for (unsigned y = 1; y < CI->getNumOperands(); ++y)
-                          if (isa<PointerType>(CI->getOperand(y)->getType()))
-                            if (DSNode * Node=Graph->getNodeForValue(CI->getOperand(y)).getNode())
+                          if (isa<PointerType>(CI->getOperand(y)->getType())){
+                            if (DSNode * Node=Graph->getNodeForValue(CI->getOperand(y)).getNode()){
                               Node->foldNodeCompletely();
+                              NumNodesFoldedInStdLib++;
+                            }
+                          }
                       }
                   }
                 }
