@@ -22,16 +22,17 @@ RUNOPT := $(RUNTOOLSAFELY) $(LLVM_OBJ_ROOT)/projects/poolalloc/$(CONFIGURATION)/
 # PASS - The dsgraph pass to run: ds, bu, td
 PASS := td
 
-#ANALYZE_OPTS := -stats -time-passes -only-print-main-ds -dsstats
-ANALYZE_OPTS := -stats -time-passes -dsstats
+ANALYZE_OPTS := -stats -time-passes -disable-output -dsstats
+#ANALYZE_OPTS := -stats -time-passes -dsstats 
 ANALYZE_OPTS +=  -instcount -disable-verify
-MEM := -track-memory -time-passes
+MEM := -track-memory -time-passes -disable-output
 
 $(PROGRAMS_TO_TEST:%=Output/%.$(TEST).report.txt): \
 Output/%.$(TEST).report.txt: Output/%.llvm.bc Output/%.LOC.txt $(LOPT)
 	@# Gather data
-	-($(RUNOPT) -analyze -dsa-$(PASS) $(ANALYZE_OPTS) $<)> $@.time.1 2>&1
-	-($(RUNOPT) -analyze $(MEM) -dsa-$(PASS) -disable-verify $<)> $@.mem.1 2>&1
+	-($(RUNOPT) -dsa-$(PASS)  $(ANALYZE_OPTS) $<)> $@.time.1 2>&1
+	-($(RUNOPT) -dsa-$(PASS) -dsa-stdlib-no-fold  $(ANALYZE_OPTS) $<)> $@.time.2 2>&1
+	-($(RUNOPT)  $(MEM) -dsa-$(PASS) -disable-verify -debug-pass=Details $<)> $@.mem.1 2>&1
 	@# Emit data.
 	@echo "---------------------------------------------------------------" > $@
 	@echo ">>> ========= '$(RELDIR)/$*' Program" >> $@
@@ -62,6 +63,30 @@ Output/%.$(TEST).report.txt: Output/%.llvm.bc Output/%.LOC.txt $(LOPT)
 	@echo >> $@
 	@/bin/echo -n "ACCESSES UNTYPED: " >> $@
 	-@grep 'Number of loads/stores which are untyped' $@.time.1 >> $@
+	@echo >> $@
+	@/bin/echo -n "ACCESSES TYPED1: " >> $@
+	-@grep 'Number of loads/stores which are access a DSNode with 1 type' $@.time.1 >> $@
+	@echo >> $@
+	@/bin/echo -n "ACCESSES TYPED2: " >> $@
+	-@grep 'Number of loads/stores which are access a DSNode with 2 type' $@.time.1 >> $@
+	@echo >> $@
+	@/bin/echo -n "ACCESSES TYPED3: " >> $@
+	-@grep 'Number of loads/stores which are access a DSNode with 3 type' $@.time.1 >> $@
+	@echo >> $@
+	@/bin/echo -n "ACCESSES TYPED4: " >> $@
+	-@grep 'Number of loads/stores which are access a DSNode with >3 type' $@.time.1 >> $@
+	@echo >> $@
+	@/bin/echo -n "ACCESSES I: " >> $@
+	-@grep 'Number of loads/stores which are on incomplete nodes' $@.time.1 >> $@
+	@echo >> $@
+	@/bin/echo -n "ACCESSES E: " >> $@
+	-@grep 'Number of loads/stores which are on external nodes' $@.time.1 >> $@
+	@echo >> $@
+	@/bin/echo -n "ACCESSES U: " >> $@
+	-@grep 'Number of loads/stores which are on unknown nodes' $@.time.1 >> $@
+	@echo >> $@
+	@/bin/echo -n "STD_LIB_FOLD: " >> $@
+	-@grep 'Number of nodes folded in std lib' $@.time.1 >> $@
 	@echo >> $@
 	@# Emit timing data.
 	@/bin/echo -n "TIME: " >> $@

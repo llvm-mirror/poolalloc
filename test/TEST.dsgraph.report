@@ -159,5 +159,16 @@ my $USERSYSTTIME = '([0-9.]+)[ 0-9.]+\([^)]+\)[ 0-9.]+\([^)]+\) +';
             ["TypeSafe", "ACCESSES TYPED: *([0-9]+)"],
             ["NonType",  "ACCESSES UNTYPED: *([0-9]+)"],
             ["TS %" , sub { return TypeSafeRatio(@_); }],
+            [],
+            ["Type1", "ACCESSES TYPED1: *([0-9]+)"],
+            ["Type2", "ACCESSES TYPED2: *([0-9]+)"],
+            ["Type3", "ACCESSES TYPED3: *([0-9]+)"],
+            ["Type4", "ACCESSES TYPED4: *([0-9]+)"],
+            ["I", "ACCESSES I: *([0-9]+)"],
+            ["E", "ACCESSES E: *([0-9]+)"],
+            ["U", "ACCESSES U: *([0-9]+)"],
+            ["U", "ACCESSES U: *([0-9]+)"],
             []
+# Nodes Folded
+            ["StdLibFold", "STD_LIB_FOLD: *([0-9]+)"],
            );
