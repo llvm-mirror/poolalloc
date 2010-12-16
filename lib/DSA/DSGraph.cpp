@@ -69,7 +69,7 @@ static bool shouldHaveNodeForValue(const Value *V) {
   // Undef values, even ones of pointer type, don't get nodes.
   if (isa<UndefValue>(V)) return false;
 
-  if (isa<Constant>(V) && cast<Constant>(V)->isNullValue())
+  if (isa<ConstantPointerNull>(V))
     return false;
 
   // Use the Aliasee of GlobalAliases
