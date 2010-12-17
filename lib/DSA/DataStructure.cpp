@@ -548,7 +548,7 @@ void DSNode::MergeNodes(DSNodeHandle& CurNodeH, DSNodeHandle& NH) {
     if(NH.getNode()->getSize() != 0 && CurNodeH.getNode()->getSize() != 0) { 
       if((NH.getNode()->getSize() != CurNodeH.getNode()->getSize() &&
        (NH.getOffset() != 0 || CurNodeH.getOffset() != 0) 
-        && NH.getNode()->getSize() <= CurNodeH.getNode()->getSize())) {
+        && NH.getNode()->getSize() < CurNodeH.getNode()->getSize())) {
         CurNodeH.getNode()->foldNodeCompletely();
         NH.getNode()->foldNodeCompletely();
         NSize = NH.getNode()->getSize();
