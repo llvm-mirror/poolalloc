@@ -568,10 +568,6 @@ void GraphBuilder::visitGetElementPtrInst(User &GEP) {
       if(!Value.getNode()->isArrayNode() || Value.getNode()->getSize() <= 0){
         if (requiredSize > Value.getNode()->getSize())
           Value.getNode()->growSize(requiredSize);
-      } else {
-         if (((Offset + Value.getOffset()) % Value.getNode()->getSize()) == 0
-             && (TD.getTypeAllocSize(STy) % Value.getNode()->getSize() == 0))
-           Value.getNode()->growSize(requiredSize);
       }
       
       Offset += (unsigned)TD.getStructLayout(STy)->getElementOffset(FieldNo);
@@ -641,36 +637,6 @@ void GraphBuilder::visitGetElementPtrInst(User &GEP) {
       }
     }
 
-
-#if 0
-    if (const SequentialType *STy = cast<SequentialType>(*I)) {
-      CurTy = STy->getElementType();
-      if (ConstantInt *CS = dyn_cast<ConstantInt>(GEP.getOperand(i))) {
-        Offset += 
-          (CS->getType()->isSigned() ? CS->getSExtValue() : CS->getZExtValue())
-          * TD.getTypeAllocSize(CurTy);
-      } else {
-        // Variable index into a node.  We must merge all of the elements of the
-        // sequential type here.
-        if (isa<PointerType>(STy)) {
-          DEBUG(errs() << "Pointer indexing not handled yet!\n");
-	} else {
-          const ArrayType *ATy = cast<ArrayType>(STy);
-          unsigned ElSize = TD.getTypeAllocSize(CurTy);
-          DSNode *N = Value.getNode();
-          assert(N && "Value must have a node!");
-          unsigned RawOffset = Offset+Value.getOffset();
-
-          // Loop over all of the elements of the array, merging them into the
-          // zeroth element.
-          for (unsigned i = 1, e = ATy->getNumElements(); i != e; ++i)
-            // Merge all of the byte components of this array element
-            for (unsigned j = 0; j != ElSize; ++j)
-              N->mergeIndexes(RawOffset+j, RawOffset+i*ElSize+j);
-        }
-      }
-    }
-#endif
 
   // Add in the offset calculated...
   Value.setOffset(Value.getOffset()+Offset);
