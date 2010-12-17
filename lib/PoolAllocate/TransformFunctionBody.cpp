@@ -948,21 +948,21 @@ void FuncTransform::visitCallSite(CallSite& CS) {
                            sccee = callGraph.scc_end(F1); sccii != sccee; ++sccii){
         if(SM.find(SM.getLeaderForGlobal(*sccii)) == SM.end())
           continue;
-      //
-      // Get the information for this function.  Since this is coming from DSA,
-      // it should be an original function.
-      //
-      // This call site calls a function, that is not defined in this module
-      if (!(Graphs.hasDSGraph(**sccii))) return;
-      // For all other cases Func Info must exist.
-      FuncInfo *CFI = PAInfo.getFuncInfo(**sccii);
-      //
-      // If this target takes more DSNodes than the last one we found, then
-      // make *this* target our canonical target.
-      //
-      maxArgsWithNodes = CFI->ArgNodes.size();
-      CF = *sccii;
-    }
+        //
+        // Get the information for this function.  Since this is coming from DSA,
+        // it should be an original function.
+        //
+        // This call site calls a function, that is not defined in this module
+        if (!(Graphs.hasDSGraph(**sccii))) return;
+        // For all other cases Func Info must exist.
+        FuncInfo *CFI = PAInfo.getFuncInfo(**sccii);
+        //
+        // If this target takes more DSNodes than the last one we found, then
+        // make *this* target our canonical target.
+        //
+        maxArgsWithNodes = CFI->ArgNodes.size();
+        CF = *sccii;
+      }
     }
     
     // Assuming the call graph is always correct. And if the call graph reports,
