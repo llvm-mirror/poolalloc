@@ -1345,6 +1345,8 @@ DSGraph* DataStructures::getOrCreateGraph(const Function* F) {
     DSGraph* BaseGraph = GraphSource->getDSGraph(*F);
     if (Clone) {
       G = new DSGraph(BaseGraph, GlobalECs, *TypeSS);
+      if (resetAuxCalls) 
+        G->getAuxFunctionCalls() = G->getFunctionCalls();
     } else {
       G = new DSGraph(GlobalECs, GraphSource->getTargetData(), *TypeSS);
       G->spliceFrom(BaseGraph);

@@ -81,6 +81,13 @@ bool TDDataStructures::runOnModule(Module &M) {
   init(useEQBU ? &getAnalysis<EquivBUDataStructures>()
        : &getAnalysis<BUDataStructures>(), 
        true, true, true, false);
+  
+  for (Module::iterator F = M.begin(); F != M.end(); ++F) {
+    if (!(F->isDeclaration())){
+      DSGraph *G = getOrCreateGraph(F);
+      G->getAuxFunctionCalls().clear();
+    }
+  }
   // Figure out which functions must not mark their arguments complete because
   // they are accessible outside this compilation unit.  Currently, these
   // arguments are functions which are reachable by incomplete or external
