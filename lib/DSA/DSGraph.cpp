@@ -1620,6 +1620,7 @@ void DSGraph::buildCallGraph(DSCallGraph& DCG, std::vector<const Function*>& Glo
     //
     // Direct calls are easy.  We know to where they go.
     //
+
     if (ii->isDirectCall()) {
       DCG.insert(ii->getCallSite(), ii->getCalleeFunc());
     } else {
@@ -1671,7 +1672,6 @@ void DSGraph::buildCompleteCallGraph(DSCallGraph& DCG, std::vector<const Functio
        ii != ee; ++ii) {
     
     if (ii->isDirectCall()) continue;
-    if (ii->getCalleeNode()->isCompleteNode()) continue;
     CallSite CS = ii->getCallSite();
     if (DCG.callee_size(CS) != 0) continue;
     std::vector<const Function*> MaybeTargets;
