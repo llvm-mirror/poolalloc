@@ -845,6 +845,12 @@ PoolAllocate::FindFunctionPoolArgs (const std::vector<const Function *> & Functi
   //
   for (unsigned index = 0; index < Functions.size(); ++index) {
     Function * F = (Function *) Functions[index];
+    if (FunctionInfo.find (F) != FunctionInfo.end()) {
+      FuncInfo & FI =  FunctionInfo.find(F)->second;
+      assert(FI.ArgNodes.size() == MarkedNodes.size());
+      continue;
+    }
+
     FuncInfo & FI =
             FunctionInfo.insert(std::make_pair(F, FuncInfo(*F))).first->second;
     //
