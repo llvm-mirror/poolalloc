@@ -102,6 +102,7 @@ my $USERSYSTTIME = '([0-9.]+)[ 0-9.]+\([^)]+\)[ 0-9.]+\([^)]+\) +';
  ["PFE",            '([0-9]+).*Number of poolfree.s elided'],
  ["NumArgs",        '([0-9]+).*Number of function arguments added'],
  ["MaxArgs",        '([0-9]+).*Maximum function arguments added'],
+ ["UnresolvedCalls",'([0-9]+).*Number of calls that could not be resolved'],
 #["Nonprofit",      '([0-9]+).*Number of DSNodes not profitable'],
  []
 );
