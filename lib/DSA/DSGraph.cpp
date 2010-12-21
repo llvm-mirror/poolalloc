@@ -39,11 +39,12 @@ using namespace llvm;
 
 #define COLLAPSE_ARRAYS_AGGRESSIVELY 0
 namespace {
-  STATISTIC (NumCallNodesMerged , "Number of call nodes merged");
-  STATISTIC (NumDNE             , "Number of nodes removed by reachability");
-  STATISTIC (NumTrivialDNE      , "Number of nodes trivially removed");
-  STATISTIC (NumTrivialGlobalDNE, "Number of globals trivially removed");
-  STATISTIC (NumFiltered        , "Number of calls filtered");
+  STATISTIC (NumCallNodesMerged               , "Number of call nodes merged");
+  STATISTIC (NumDNE                           , "Number of nodes removed by reachability");
+  STATISTIC (NumTrivialDNE                    , "Number of nodes trivially removed");
+  STATISTIC (NumTrivialGlobalDNE              , "Number of globals trivially removed");
+  STATISTIC (NumFiltered                      , "Number of calls filtered");
+  STATISTIC (NumIndirectIncompleteCallSites   , "Number of calls that could not be resolved");
   static cl::opt<bool> noDSACallConv("dsa-no-filter-callcc",
          cl::desc("Don't filter call sites based on calling convention."),
          cl::Hidden,
@@ -1678,6 +1679,7 @@ void DSGraph::buildCompleteCallGraph(DSCallGraph& DCG, std::vector<const Functio
     MaybeTargets.assign(GlobalFunctionList.begin(), GlobalFunctionList.end());
 
     DCG.insert(CS, 0);
+    NumIndirectIncompleteCallSites++;
     //
     // Add to the call graph only function targets that have well-defined
     // behavior using LLVM semantics.
