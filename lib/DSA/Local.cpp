@@ -1195,19 +1195,10 @@ bool LocalDataStructures::runOnModule(Module &M) {
           GGB.mergeInGlobalInitializer(I);
       }
     // Add Functions to the globals graph.
+    // FIXME: Write a separate pass to handle address taken property better.
     for (Module::iterator FI = M.begin(), FE = M.end(); FI != FE; ++FI){
-      for (Value::use_iterator I = (*FI).use_begin(), E = (*FI).use_end(); I != E; ++I) {
-        User *U = *I;
-        if (!isa<CallInst>(U) && !isa<InvokeInst>(U)){
-          if(U->getNumUses() == 0)
-            continue;
+      if(FI->hasAddressTaken()) {
           GGB.mergeFunction(FI);
-          continue;
-        } 
-        CallSite CS(cast<Instruction>(U));
-        if (!CS.isCallee(I)){
-          GGB.mergeFunction(FI);
-        }
       }
     }
   }
