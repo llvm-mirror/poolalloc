@@ -209,7 +209,7 @@ public:
   DSCallSite(const DSCallSite &DSCS)   // Simple copy ctor
     : Site(DSCS.Site), CalleeF(DSCS.CalleeF), CalleeN(DSCS.CalleeN),
       RetVal(DSCS.RetVal), VarArgVal(DSCS.VarArgVal),
-      CallArgs(DSCS.CallArgs) {}
+      CallArgs(DSCS.CallArgs), MappedSites(DSCS.MappedSites) {}
 
   /// Mapping copy constructor - This constructor takes a preexisting call site
   /// to copy plus a map that specifies how the links should be transformed.
