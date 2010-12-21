@@ -258,10 +258,7 @@ GetNodesReachableFromGlobals (DSGraph* G,
     // Unknown nodes could be anything.
     //
     const DSNode *tmp = *Last;
-    if (!(tmp->isHeapNode() ||
-          tmp->isExternalNode() ||
-          tmp->isIncompleteNode() ||
-          tmp->isUnknownNode()))
+    if (!(tmp->isHeapNode())) 
       toRemove.push_back (tmp);
   }
  
@@ -336,25 +333,6 @@ Heuristic::findGlobalPoolNodes (DSNodeSet_t & Nodes) {
     if (Graphs->hasDSGraph(*F)) {
       DSGraph* G = Graphs->getDSGraph(*F);
       GetNodesReachableFromGlobals (G, GlobalHeapNodes);
-    }
-  }
-
-  //
-  // Scan through all the local graphs looking for DSNodes which may be
-  // reachable by a global.  These nodes may not end up in the globals graph 
-  // because of the fact that DSA doesn't actually know what is happening to
-  // them.
-  //
-  for (Module::iterator F = M->begin(); F != M->end(); ++F) {
-    if (F->isDeclaration()) continue;
-    DSGraph* G = Graphs->getDSGraph(*F);
-    for (DSGraph::node_iterator I = G->node_begin(), E = G->node_end();
-         I != E;
-         ++I) {
-      DSNode * Node = I;
-      if (Node->isExternalNode() || Node->isUnknownNode()) {
-        GlobalHeapNodes.insert (Node);
-      }
     }
   }
 
