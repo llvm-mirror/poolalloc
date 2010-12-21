@@ -1626,14 +1626,12 @@ void DSGraph::buildCallGraph(DSCallGraph& DCG, std::vector<const Function*>& Glo
       CallSite CS = ii->getCallSite();
       std::vector<const Function*> MaybeTargets;
 
+      if(ii->getCalleeNode()->isIncompleteNode())
+        continue;
       //
       // Get the list of known targets of this function.
       //
-      if(ii->getCalleeNode()->isIncompleteNode()) {
-        MaybeTargets.assign(GlobalFunctionList.begin(), GlobalFunctionList.end());
-      } else {
-        ii->getCalleeNode()->addFullFunctionList(MaybeTargets);
-      }
+      ii->getCalleeNode()->addFullFunctionList(MaybeTargets);
 
       //
       // Ensure that the call graph at least knows about (has a record of) this
@@ -1661,5 +1659,44 @@ void DSGraph::buildCallGraph(DSCallGraph& DCG, std::vector<const Function*>& Glo
             ++NumFiltered;
        }
     }
+  }
+}
+void DSGraph::buildCompleteCallGraph(DSCallGraph& DCG, std::vector<const Function*>& GlobalFunctionList, bool filter) const {
+  //
+  // Get the list of unresolved call sites.
+  //
+  const std::list<DSCallSite>& Calls = getAuxFunctionCalls();
+  for (std::list<DSCallSite>::const_iterator ii = Calls.begin(),
+                                             ee = Calls.end();
+       ii != ee; ++ii) {
+    
+    if (ii->isDirectCall()) continue;
+    if (ii->getCalleeNode()->isCompleteNode()) continue;
+    CallSite CS = ii->getCallSite();
+    if (DCG.callee_size(CS) != 0) continue;
+    std::vector<const Function*> MaybeTargets;
+    MaybeTargets.assign(GlobalFunctionList.begin(), GlobalFunctionList.end());
+
+    DCG.insert(CS, 0);
+    //
+    // Add to the call graph only function targets that have well-defined
+    // behavior using LLVM semantics.
+    //
+    for (std::vector<const Function*>::iterator Fi = MaybeTargets.begin(),
+         Fe = MaybeTargets.end(); Fi != Fe; ++Fi)
+      if (!filter || functionIsCallable(CS, *Fi))
+        DCG.insert(CS, *Fi);
+      else
+        ++NumFiltered;
+    for (unsigned i = 0; i < ii->getNumMappedSites(); i++) {
+      CallSite MCS = ii->getMappedCallSite(i);
+      for (std::vector<const Function*>::iterator Fi = MaybeTargets.begin(),
+            Fe = MaybeTargets.end(); Fi != Fe; ++Fi){
+        if (!filter || functionIsCallable(MCS, *Fi))
+          DCG.insert(MCS, *Fi);
+        else
+          ++NumFiltered;
+      }
+     }
   }
 }

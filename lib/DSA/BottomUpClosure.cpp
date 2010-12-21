@@ -59,12 +59,6 @@ bool BUDataStructures::runOnModule(Module &M) {
 bool BUDataStructures::runOnModuleInternal(Module& M) {
 
   //
-  // Put the callgraph into canonical form by finding SCCs.
-  //
-  callgraph.buildSCCs();
-  callgraph.buildRoots();
-
-  //
   // Make sure we have a DSGraph for all declared functions in the Module.
   // While we may not need them in this DSA pass, a later DSA pass may ask us
   // for their DSGraphs, and we want to have them if asked.
@@ -120,13 +114,6 @@ bool BUDataStructures::runOnModuleInternal(Module& M) {
   }
 
   NumCallEdges += callgraph.size();
-
-  //
-  // Put the callgraph into canonical form by finding SCCs.  It has been
-  // updated since we did this last.
-  //
-  callgraph.buildSCCs();
-  callgraph.buildRoots();
 
   return false;
 }
@@ -615,7 +602,7 @@ void BUDataStructures::calculateGraph(DSGraph* Graph) {
   // Update the callgraph with the new information that we have gleaned.
   // NOTE : This must be called before removeDeadNodes, so that no 
   // information is lost due to deletion of DSCallNodes.
-  Graph->buildCallGraph(callgraph,GlobalFunctionList, filterCallees);
+  Graph->buildCallGraph(callgraph, GlobalFunctionList, filterCallees);
 
   // Delete dead nodes.  Treat globals that are unreachable but that can
   // reach live nodes as live.

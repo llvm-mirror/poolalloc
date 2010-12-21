@@ -346,6 +346,7 @@ public:
   void addAuxFunctionCall(DSCallSite D) { AuxFunctionCalls.push_front(D); }
 
   void buildCallGraph(DSCallGraph& DCG, std::vector<const Function*> &GlobalFunctionList, bool filter) const;
+  void buildCompleteCallGraph(DSCallGraph& DCG, std::vector<const Function*> &GlobalFunctionList, bool filter) const;
 
   /// removeFunction - Specify that all call sites to the function have been
   /// fully specified by a pass such as StdLibPass.

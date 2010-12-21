@@ -51,9 +51,13 @@ CompleteBUDataStructures::runOnModule (Module &M) {
   // DSgraphs for all the functions.
 
   for (Module::iterator F = M.begin(); F != M.end(); ++F) {
-    if (!(F->isDeclaration()))
-      getOrCreateGraph(F);
+    if (!(F->isDeclaration())){
+      DSGraph *Graph = getOrCreateGraph(F);
+      Graph->buildCompleteCallGraph(callgraph, GlobalFunctionList, filterCallees);
+    }
   }
+  callgraph.buildSCCs();
+  callgraph.buildRoots();
 
   buildIndirectFunctionSets();
   formGlobalECs();
@@ -80,6 +84,10 @@ CompleteBUDataStructures::runOnModule (Module &M) {
   // Do bottom-up propagation.
   //
   bool modified = runOnModuleInternal(M);
+  
+  callgraph.buildSCCs();
+  callgraph.buildRoots();
+  
   return modified;
 }
 
