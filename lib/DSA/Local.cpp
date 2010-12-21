@@ -189,7 +189,7 @@ namespace {
       g.computeIntPtrFlags();
 
       // Remove any nodes made dead due to merging...
-      g.removeDeadNodes(DSGraph::KeepUnreachableGlobals);
+      //g.removeDeadNodes(DSGraph::KeepUnreachableGlobals);
     }
 
     // GraphBuilder ctor for working on the globals graph
@@ -1195,9 +1195,21 @@ bool LocalDataStructures::runOnModule(Module &M) {
           GGB.mergeInGlobalInitializer(I);
       }
     // Add Functions to the globals graph.
-    for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I)
-      if (I->hasAddressTaken())
-        GGB.mergeFunction(I);
+    for (Module::iterator FI = M.begin(), FE = M.end(); FI != FE; ++FI){
+      for (Value::use_iterator I = (*FI).use_begin(), E = (*FI).use_end(); I != E; ++I) {
+        User *U = *I;
+        if (!isa<CallInst>(U) && !isa<InvokeInst>(U)){
+          if(U->getNumUses() == 0)
+            continue;
+          GGB.mergeFunction(FI);
+          continue;
+        } 
+        CallSite CS(cast<Instruction>(U));
+        if (!CS.isCallee(I)){
+          GGB.mergeFunction(FI);
+        }
+      }
+    }
   }
   
   if (hasMagicSections.size())
@@ -1225,7 +1237,7 @@ bool LocalDataStructures::runOnModule(Module &M) {
       DEBUG(G->AssertGraphOK());
     }
 
-  GlobalsGraph->removeTriviallyDeadNodes();
+  //GlobalsGraph->removeTriviallyDeadNodes();
   GlobalsGraph->markIncompleteNodes(DSGraph::MarkFormalArgs);
   GlobalsGraph->computeExternalFlags(DSGraph::ProcessCallSites);
 
