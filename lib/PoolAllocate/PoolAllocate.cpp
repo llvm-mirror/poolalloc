@@ -664,6 +664,7 @@ PoolAllocate::FindPoolArgs (Module & M) {
   for (DSCallGraph::callee_key_iterator ii = callgraph.key_begin(),
        ee = callgraph.key_end(); ii != ee; ++ii) {
     bool isIndirect = ((*ii).getCalledFunction() == NULL);
+    bool externFunctionFound = false;
 
     if (isIndirect) {
       std::vector<const Function *> Functions;
@@ -675,7 +676,11 @@ PoolAllocate::FindPoolArgs (Module & M) {
                                 sccee = callgraph.scc_end(F);
         for(;sccii != sccee; ++sccii) {
           DSGraph::ScalarMapTy::const_iterator I = SM.find(SM.getLeaderForGlobal(*sccii));
-          if (I != SM.end() && !((*sccii)->isDeclaration())) {
+          if (I != SM.end()) {
+            if ((*sccii)->isDeclaration()) {
+              externFunctionFound = true;
+              break;
+            }
             Functions.push_back (*sccii);
           }
         }
@@ -688,14 +693,36 @@ PoolAllocate::FindPoolArgs (Module & M) {
                                 sccee = callgraph.scc_end(F1);
       for(;sccii != sccee; ++sccii) {
         DSGraph::ScalarMapTy::const_iterator I = SM.find(SM.getLeaderForGlobal(*sccii));
-        if (I != SM.end() && !((*sccii)->isDeclaration())) {
+        if (I != SM.end()) {
+          if ((*sccii)->isDeclaration()) {
+            externFunctionFound = true;
+            break;
+          }
           Functions.push_back (*sccii);
         }
       }
-    
-      FindFunctionPoolArgs (Functions);
+      if(!externFunctionFound) 
+        FindFunctionPoolArgs (Functions);
+      else {
+        // For functions that are in the same equivalence class as an 
+        // external function, we cannot pass pool args. Because we 
+        // cannot know which function the call site calls, the 
+        // internal function or the external ones. 
+        // FIXME: Solve this by devirtualizing the call site.
+        for (unsigned index = 0; index < Functions.size(); ++index) {
+          Function * F = (Function *) Functions[index];
+          if (FunctionInfo.find (F) != FunctionInfo.end()) {
+            FuncInfo & FI =  FunctionInfo.find(F)->second;
+            assert(FI.ArgNodes.size() == 0);
+            continue;
+          }
+          FunctionInfo.insert(std::make_pair(F, FuncInfo(*F))).first->second;
+        }
+      }
+
     }
   }
+  
   /*
   EquivalenceClasses<const GlobalValue*> & GlobalECs = Graphs->getGlobalECs();
   EquivalenceClasses<const GlobalValue*>::iterator EQSI = GlobalECs.begin();
