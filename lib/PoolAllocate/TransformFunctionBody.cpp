@@ -58,8 +58,7 @@ namespace {
 
     template <typename InstType, typename SetType>
     void AddPoolUse(InstType &I, Value *PoolHandle, SetType &Set) {
-      // FIXME: Strip away pointer casts
-      if (AllocaInst *AI = dyn_cast<AllocaInst>(PoolHandle))
+      if (AllocaInst *AI=dyn_cast<AllocaInst>(PoolHandle->stripPointerCasts()))
         Set.insert(std::make_pair(AI, &I));
     }
 
