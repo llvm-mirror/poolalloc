@@ -1180,6 +1180,7 @@ char LocalDataStructures::ID;
 
 bool LocalDataStructures::runOnModule(Module &M) {
   init(&getAnalysis<TargetData>());
+  addrAnalysis = &getAnalysis<AddressTakenAnalysis>();
 
   // First step, build the globals graph.
   {
@@ -1197,7 +1198,7 @@ bool LocalDataStructures::runOnModule(Module &M) {
     // Add Functions to the globals graph.
     // FIXME: Write a separate pass to handle address taken property better.
     for (Module::iterator FI = M.begin(), FE = M.end(); FI != FE; ++FI){
-      if(FI->hasAddressTaken()) {
+      if(addrAnalysis->hasAddressTaken(FI)) {
           GGB.mergeFunction(FI);
       }
     }

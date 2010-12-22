@@ -22,6 +22,7 @@
 #include "dsa/DSCallGraph.h"
 #include "dsa/svset.h"
 #include "dsa/super_set.h"
+#include "dsa/AddressTakenAnalysis.h"
 
 #include <map>
 
@@ -174,6 +175,7 @@ public:
 // be automatically preserved.  Until we can do that, this is a Pass.
 //
 class LocalDataStructures : public DataStructures {
+  AddressTakenAnalysis* addrAnalysis;
 public:
   static char ID;
   LocalDataStructures() : DataStructures((intptr_t)&ID, "local.") {}
@@ -185,6 +187,7 @@ public:
   ///
   virtual void getAnalysisUsage(AnalysisUsage &AU) const {
     AU.addRequired<TargetData>();
+    AU.addRequired<AddressTakenAnalysis>();
     AU.setPreservesAll();
   }
 };
