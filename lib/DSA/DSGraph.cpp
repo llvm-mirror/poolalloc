@@ -852,16 +852,19 @@ static void removeIdenticalCalls(std::list<DSCallSite> &Calls) {
       // if the callee contains an external function, it will never be
       // resolvable, just merge the call sites.
       if (!LastCalleeNode.isNull() && LastCalleeNode.getNode() == Callee) {
-      //  LastCalleeContainsExternalFunction = Callee->isExternFuncNode();
-
+        // check that arguments also match
         std::list<DSCallSite>::iterator PrevIt = OldIt;
         --PrevIt;
-        PrevIt->mergeWith(CS);
+        if(CS == *PrevIt) {
+        //  LastCalleeContainsExternalFunction = Callee->isExternFuncNode();
 
-        // No need to keep this call anymore.
-        Calls.erase(OldIt);
-        ++NumDeleted;
-        continue;
+          PrevIt->mergeWith(CS);
+
+          // No need to keep this call anymore.
+          Calls.erase(OldIt);
+          ++NumDeleted;
+          continue;
+        }
       } else {
         LastCalleeNode = Callee;
       }

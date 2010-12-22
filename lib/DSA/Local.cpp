@@ -189,7 +189,7 @@ namespace {
       g.computeIntPtrFlags();
 
       // Remove any nodes made dead due to merging...
-      //g.removeDeadNodes(DSGraph::KeepUnreachableGlobals);
+      g.removeDeadNodes(DSGraph::KeepUnreachableGlobals);
     }
 
     // GraphBuilder ctor for working on the globals graph
