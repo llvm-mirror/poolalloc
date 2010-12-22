@@ -1155,9 +1155,18 @@ PoolAllocate::CreatePools (Function &F, DSGraph* DSG,
       if (!IsMain) {
         PoolDesc = new AllocaInst(PoolDescType, 0, "PD", InsertPoint);
 
+#if 0
+        //
         // Create a node in DSG to represent the new alloca.
+        //
+        // Note:
+        //  Disable this for now.  Other passes don't look up DSNodes for pool
+        //  handles, and doing this seems to blow up memory consumption.  So,
+        //  for now, don't do this.
+        //
         DSNode *NewNode = DSG->addObjectToGraph(PoolDesc);
         NewNode->setModifiedMarker()->setReadMarker();  // This is M/R
+#endif
       } else {
         PoolDesc = CreateGlobalPool(Pool.PoolSize, Pool.PoolAlignment,
                                     "PoolForMain", InsertPoint);
