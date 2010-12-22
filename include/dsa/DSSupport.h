@@ -351,6 +351,12 @@ public:
            RetVal == CS.RetVal && CallArgs == CS.CallArgs &&
            VarArgVal == CS.VarArgVal;
   }
+  
+  bool operator==(DSCallSite &CS) {
+    return CalleeF == CS.CalleeF && CalleeN == CS.CalleeN &&
+           RetVal == CS.RetVal && CallArgs == CS.CallArgs &&
+           VarArgVal == CS.VarArgVal;
+  }
 
   /// FunctionTypeOfCallSite - Helper method to extract the signature of a function
   /// that is called a given CallSite
