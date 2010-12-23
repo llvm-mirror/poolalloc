@@ -46,6 +46,10 @@ private:
 
   // Functions we know about that aren't called
   svset<const llvm::Function*> knownRoots;
+  
+  // Functions that might be called from an incomplete
+  // unresolved call site.
+  svset<const llvm::Function*> IncompleteCalleeSet;
 
   svset<llvm::CallSite> completeCS;
 
@@ -152,6 +156,10 @@ public:
     return ii->second.size();
   }
 
+  bool called_from_incomplete_site(const llvm::Function *F) const {
+    return !(IncompleteCalleeSet.find(F) 
+             == IncompleteCalleeSet.end()); 
+  }
   void callee_mark_complete(llvm::CallSite CS) {
     completeCS.insert(CS);
   }
@@ -175,6 +183,8 @@ public:
   void buildSCCs();
 
   void buildRoots();
+  
+  void buildIncompleteCalleeSet(svset<const llvm::Function*> callees);
 
   void dump();
 

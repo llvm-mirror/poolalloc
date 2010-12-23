@@ -170,6 +170,10 @@ void DSCallGraph::buildRoots() {
                      std::inserter(knownRoots, knownRoots.begin()));
 }
 
+void DSCallGraph::buildIncompleteCalleeSet(svset<const llvm::Function*> callees) {
+  IncompleteCalleeSet.insert(callees.begin(), callees.end());
+}
+
 template <class T>
 void printNameOrPtr(T& Out, const llvm::Function* F) {
   if (F->hasName())

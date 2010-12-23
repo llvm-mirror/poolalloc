@@ -1666,7 +1666,8 @@ void DSGraph::buildCallGraph(DSCallGraph& DCG, std::vector<const Function*>& Glo
     }
   }
 }
-void DSGraph::buildCompleteCallGraph(DSCallGraph& DCG, std::vector<const Function*>& GlobalFunctionList, bool filter) const {
+void DSGraph::buildCompleteCallGraph(DSCallGraph& DCG, 
+                                     std::vector<const Function*>& GlobalFunctionList, bool filter) const {
   //
   // Get the list of unresolved call sites.
   //
@@ -1702,6 +1703,9 @@ void DSGraph::buildCompleteCallGraph(DSCallGraph& DCG, std::vector<const Functio
         else
           ++NumFiltered;
       }
-     }
+    }
   }
+  svset<const llvm::Function*> callees;
+  callees.insert(GlobalFunctionList.begin(), GlobalFunctionList.end());
+  DCG.buildIncompleteCalleeSet(callees);
 }

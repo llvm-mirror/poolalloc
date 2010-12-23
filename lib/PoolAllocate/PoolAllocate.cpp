@@ -701,9 +701,21 @@ PoolAllocate::FindPoolArgs (Module & M) {
           Functions.push_back (*sccii);
         }
       }
-      if(!externFunctionFound) 
-        FindFunctionPoolArgs (Functions);
-      else {
+      bool doNotPassPools = externFunctionFound;
+      // go through the list of functions to check if any is external
+      // or callable from an incomplete call site. Then no pool args 
+      // are needed; else find pool args. 
+      if(!doNotPassPools){
+        for (unsigned index = 0; index < Functions.size(); ++index) {
+          const Function * F = Functions[index];
+          if (callgraph.called_from_incomplete_site(F)){
+            doNotPassPools = true;
+            break;
+          }
+        }
+      }
+       
+      if(doNotPassPools) {
         // For functions that are in the same equivalence class as an 
         // external function, we cannot pass pool args. Because we 
         // cannot know which function the call site calls, the 
@@ -718,47 +730,12 @@ PoolAllocate::FindPoolArgs (Module & M) {
           }
           FunctionInfo.insert(std::make_pair(F, FuncInfo(*F))).first->second;
         }
+      } else {
+        FindFunctionPoolArgs (Functions);
       }
-
     }
   }
   
-  /*
-  EquivalenceClasses<const GlobalValue*> & GlobalECs = Graphs->getGlobalECs();
-  EquivalenceClasses<const GlobalValue*>::iterator EQSI = GlobalECs.begin();
-  EquivalenceClasses<const GlobalValue*>::iterator EQSE = GlobalECs.end();
-  for (;EQSI != EQSE; ++EQSI) {
-    //
-    // If this element is not a leader, then skip it.
-    //
-    if (!EQSI->isLeader()) continue;
-
-    //
-    // Iterate through all members of this equivalence class, looking for
-    // functions.  Record all of those functions which need to be processed.
-    //
-    std::vector<const Function *> Functions;
-    EquivalenceClasses<const GlobalValue*>::member_iterator MI;
-    for (MI=GlobalECs.member_begin(EQSI); MI != GlobalECs.member_end(); ++MI) {
-      if (const Function* F = dyn_cast<Function>(*MI)) {
-        //
-        // If the function has no body, then it has no DSGraph.
-        //
-        // FIXME: I don't believe this is correct; the stdlib pass can assign
-        //        DSGraphs to C standard library functions.
-        //
-        if (!(F->isDeclaration()))
-          Functions.push_back (F);
-      }
-    }
-
-    //
-    // Find the pool arguments for all of the functions in the equivalence
-    // class and construct the FuncInfo structure for each one.
-    //
-    FindFunctionPoolArgs (Functions);
-  }*/
-
   //
   // Make sure every function has a FuncInfo structure.
   //
