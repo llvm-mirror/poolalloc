@@ -104,6 +104,7 @@ my $USERSYSTTIME = '([0-9.]+)[ 0-9.]+\([^)]+\)[ 0-9.]+\([^)]+\) +';
  ["MaxArgs",        '([0-9]+).*Maximum function arguments added'],
  ["UnresolvedCalls",'([0-9]+).*Number of calls that could not be resolved'],
 #["Nonprofit",      '([0-9]+).*Number of DSNodes not profitable'],
- []
+ [],
+ ["DynamicPools",   '([0-9]+).*DYNAMIC POOLS ALLOCATED FROM ...'],
 );
 

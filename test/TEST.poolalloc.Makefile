@@ -268,6 +268,10 @@ Output/%.$(TEST).report.txt: Output/%.out-nat                \
 	  printf "RUN-TIME-POOLALLOC: " >> $@;\
 	  grep "^program" Output/$*.poolalloc.out.time >> $@;\
 	fi
+	@-if test -f Output/$*.poolalloc.diff-nat; then \
+	  printf "DYNPOOLS: " >> $@;\
+	  grep '*** .* DYNAMIC POOLS ALLOCATED FROM ***' Output/$*.poolalloc.out >> $@;\
+	fi
 	@-if test -f Output/$*.poolalloc.bc.info; then \
 	  printf "PATIME: " >> $@;\
 	  grep '  Pool allocate disjoint' Output/$*.poolalloc.bc.info >> $@;\
