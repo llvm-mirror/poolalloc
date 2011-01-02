@@ -27,6 +27,8 @@ typedef unsigned long uintptr_t;
 #define INITIAL_SLAB_SIZE 4096
 #define LARGE_SLAB_SIZE   4096
 
+#define PRINT_NUM_POOLS          // Print use dynamic # pools info
+
 #ifndef NDEBUG
 #define NDEBUG
 #endif
