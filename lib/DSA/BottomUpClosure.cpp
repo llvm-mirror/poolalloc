@@ -407,12 +407,14 @@ BUDataStructures::calculateGraphs (const Function *F,
     //
     // SCCFunctions - Keep track of the functions in the current SCC
     //
-    std::vector<DSGraph*> SCCGraphs;
+    std::vector<const Function*> SCCFunctions;
 
     unsigned SCCSize = 1;
     const Function *NF = Stack.back();
-    ValMap[NF] = ~0U;
+    if(NF != F)
+      ValMap[NF] = ~0U;
     DSGraph* SCCGraph = getDSGraph(*NF);
+    SCCFunctions.push_back(NF);
 
     //
     // First thing first: collapse all of the DSGraphs into a single graph for
@@ -422,7 +424,9 @@ BUDataStructures::calculateGraphs (const Function *F,
     while (NF != F) {
       Stack.pop_back();
       NF = Stack.back();
-      ValMap[NF] = ~0U;
+      SCCFunctions.push_back(NF);
+      if(NF != F)
+        ValMap[NF] = ~0U;
 
       DSGraph* NFG = getDSGraph(*NF);
 
@@ -455,6 +459,14 @@ BUDataStructures::calculateGraphs (const Function *F,
     DEBUG(errs() << "  [BU] Done inlining SCC  [" << SCCGraph->getGraphSize()
 	  << "+" << SCCGraph->getAuxFunctionCalls().size() << "]\n"
 	  << "DONE with SCC #: " << MyID << "\n");
+    getAllAuxCallees(SCCGraph, CalleeFunctions);
+    if (!CalleeFunctions.empty()) {
+      DEBUG(errs() << "Recalculating SCC Graph " << F->getName() << " due to new knowledge\n");
+      ValMap.erase(F);
+      return calculateGraphs(F, Stack, NextID, ValMap);
+    } else {
+      ValMap[F] = ~0U;
+    }
 
     // We never have to revisit "SCC" processed functions...
     return MyID;
