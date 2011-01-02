@@ -10,12 +10,12 @@
 // we inline the SCC graph again, pulling in the unresolved call site
 // again. This causes an infinte looping in BU.
 
-;XFAIL:*
-;RUN: not
+//RUN: llvm-gcc %s -c --emit-llvm -o - |  \
+//RUN: dsaopt -dsa-bu -dsa-td -disable-output
 
 typedef int* (*funcptr)(int *);
 
-static int* A();
+static int* A(void);
 
 static int* func(int * arg) {
   A();
