@@ -51,11 +51,8 @@ bool BUDataStructures::runOnModule(Module &M) {
 // BU:
 // Construct the callgraph from the local graphs
 // Find SCCs
-// inline bottum up
+// inline bottom up
 //
-// We must split these out (they were merged in PLDI07) to handle multiple
-// entry-points correctly.  As a bonus, we can be more aggressive at propagating
-// information upwards, as long as we don't remove unresolved call sites.
 bool BUDataStructures::runOnModuleInternal(Module& M) {
 
   //
@@ -98,7 +95,7 @@ bool BUDataStructures::runOnModuleInternal(Module& M) {
   // Merge the globals variables (not the calls) from the globals graph back
   // into the individual function's graph so that changes made to globals during
   // BU can be reflected. This is specifically needed for correct call graph
-
+  //
   for (Module::iterator F = M.begin(); F != M.end(); ++F) {
     if (!(F->isDeclaration())){
       DSGraph *Graph  = getOrCreateGraph(F);
@@ -112,10 +109,13 @@ bool BUDataStructures::runOnModuleInternal(Module& M) {
       Graph->computeIntPtrFlags();
     }
   }
+
+  // Once the correct flags have been calculated. Update the callgraph.
   for (Module::iterator F = M.begin(); F != M.end(); ++F) {
     if (!(F->isDeclaration())){
       DSGraph *Graph = getOrCreateGraph(F);
-      Graph->buildCompleteCallGraph(callgraph, GlobalFunctionList, filterCallees);
+      Graph->buildCompleteCallGraph(callgraph,
+                                    GlobalFunctionList, filterCallees);
     }
   }
 
@@ -140,11 +140,10 @@ applyCallsiteFilter(const DSCallSite &DCS, std::vector<const Function*> &Callees
 
   std::vector<const Function*>::iterator I = Callees.begin();
   CallSite CS = DCS.getCallSite();
-  while(I != Callees.end()) {
+  while (I != Callees.end()) {
     if (functionIsCallable(CS, *I)) {
       ++I;
-    }
-    else {
+    } else {
       I = Callees.erase(I);
     }
   }
@@ -229,13 +228,13 @@ BUDataStructures::postOrderInline (Module & M) {
   unsigned NextID = 1;
 
 
-  // do post order traversal on the global ctors. Use this information to update
+  // Do post order traversal on the global ctors. Use this information to update
   // the globals graph.
   const char *Name = "llvm.global_ctors";
   GlobalVariable *GV = M.getNamedGlobal(Name);
-  if (GV && !(GV->isDeclaration()) && !(GV->hasLocalLinkage())){
-  // Should be an array of '{ int, void ()* }' structs.  The first value is
-  // the init priority, which we ignore.
+  if (GV && !(GV->isDeclaration()) && !(GV->hasLocalLinkage())) {
+    // Should be an array of '{ int, void ()* }' structs.  The first value is
+    // the init priority, which we ignore.
     ConstantArray *InitList = dyn_cast<ConstantArray>(GV->getInitializer());
     if (InitList) {
       for (unsigned i = 0, e = InitList->getNumOperands(); i != e; ++i)
@@ -263,7 +262,7 @@ BUDataStructures::postOrderInline (Module & M) {
                         DSGraph::DontCloneAuxCallNodes);
           }
         }
-      }
+    }
   }
  
   //
@@ -288,7 +287,6 @@ BUDataStructures::postOrderInline (Module & M) {
       calculateGraphs(I, Stack, NextID, ValMap);     // Calculate all graphs.
       CloneAuxIntoGlobal(getDSGraph(*I));
     }
-
   return;
 }
 
@@ -471,7 +469,7 @@ BUDataStructures::calculateGraphs (const Function *F,
 //
 // Description:
 //  This method takes the specified graph and processes each unresolved call
-//  site (a call site for which all targets are not yet known).  For each
+//  site (a call site for which all targets are not yet known). For each
 //  unresolved call site, it adds it to the globals graph and merges
 //  information about the call site if the globals graph already had the call
 //  site in its own list of unresolved call sites.
@@ -620,7 +618,6 @@ void BUDataStructures::calculateGraph(DSGraph* Graph) {
   cloneIntoGlobals(Graph, DSGraph::DontCloneCallNodes |
                         DSGraph::DontCloneAuxCallNodes |
                         DSGraph::StripAllocaBit);
-  //Graph.writeGraphToFile(cerr, "bu_" + F.getName());
-
+  //Graph->writeGraphToFile(cerr, "bu_" + F.getName());
 }
 
