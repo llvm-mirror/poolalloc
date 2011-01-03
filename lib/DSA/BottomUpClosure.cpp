@@ -404,17 +404,11 @@ BUDataStructures::calculateGraphs (const Function *F,
     }
     return MyID;
   } else {
-    //
-    // SCCFunctions - Keep track of the functions in the current SCC
-    //
-    std::vector<const Function*> SCCFunctions;
-
     unsigned SCCSize = 1;
     const Function *NF = Stack.back();
     if(NF != F)
       ValMap[NF] = ~0U;
     DSGraph* SCCGraph = getDSGraph(*NF);
-    SCCFunctions.push_back(NF);
 
     //
     // First thing first: collapse all of the DSGraphs into a single graph for
@@ -424,7 +418,6 @@ BUDataStructures::calculateGraphs (const Function *F,
     while (NF != F) {
       Stack.pop_back();
       NF = Stack.back();
-      SCCFunctions.push_back(NF);
       if(NF != F)
         ValMap[NF] = ~0U;
 
@@ -467,8 +460,6 @@ BUDataStructures::calculateGraphs (const Function *F,
     } else {
       ValMap[F] = ~0U;
     }
-
-    // We never have to revisit "SCC" processed functions...
     return MyID;
   }
 
