@@ -58,13 +58,12 @@ namespace {
 
     template <typename InstType, typename SetType>
     void AddPoolUse(InstType &I, Value *PoolHandle, SetType &Set) {
-      if (AllocaInst *AI=dyn_cast<AllocaInst>(PoolHandle->stripPointerCasts()))
+      if (AllocaInst *AI = dyn_cast<AllocaInst>(PoolHandle->stripPointerCasts()))
         Set.insert(std::make_pair(AI, &I));
     }
 
     // FIXME: Factor out assumptions about c stdlib function names
     void visitInstruction(Instruction &I);
-    //void visitMallocInst(MallocInst &MI);
     void visitAllocaInst(AllocaInst &MI);
     void visitMallocCall(CallSite & CS);
     void visitCallocCall(CallSite CS);
@@ -72,7 +71,6 @@ namespace {
     void visitMemAlignCall(CallSite CS);
     void visitStrdupCall(CallSite CS);
     void visitRuntimeCheck(CallSite CS);
-    //void visitFreeInst(FreeInst &FI);
     void visitFreeCall(CallSite &CS);
     void visitCallSite(CallSite &CS);
     void visitCallInst(CallInst &CI) {
