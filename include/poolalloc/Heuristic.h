@@ -143,7 +143,13 @@ namespace PA {
   //  to be pool allocated.
   //
   class AllNodesHeuristic: public Heuristic, public ModulePass {
-    public:
+  protected:
+    // Map of DSNodes to pool handles
+        std::map<const DSNode *, OnePool> PoolMap;
+         void GetNodesReachableFromGlobals (DSGraph* G,
+                                                  DenseSet<const DSNode*> &NodesFromGlobals);
+          
+  public:
       // Pass ID
       static char ID;
 
@@ -173,9 +179,15 @@ namespace PA {
         AU.setPreservesAll();
       }
 
-      //
+      void releaseMemory () {
+        PoolMap.clear();
+        GlobalPoolNodes.clear();
+        return;
+      }
+
       // Interface methods
       //
+      virtual void findGlobalPoolNodes (DSNodeSet_t & Nodes);
       virtual void AssignToPools (const DSNodeList_t & NodesToPA,
                                   Function *F, DSGraph* G,
                                   std::vector<OnePool> &ResultPools);

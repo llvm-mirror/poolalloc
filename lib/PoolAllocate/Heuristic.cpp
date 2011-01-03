@@ -438,42 +438,6 @@ Heuristic::getLocalPoolNodes (const Function & F, DSNodeList_t & Nodes) {
   return;
 }
 
-//===-- AllNodes Heuristic ------------------------------------------------===//
-//
-// This heuristic pool allocates everything possible into separate pools.
-//
-
-bool
-AllNodesHeuristic::runOnModule (Module & Module) {
-  //
-  // Remember which module we are analyzing.
-  //
-  M = &Module;
-
-  //
-  // Get the reference to the DSA Graph.
-  //
-  Graphs = &getAnalysis<EQTDDataStructures>();   
-  assert (Graphs && "No DSGraphs!\n");
-
-  //
-  // Find DSNodes which are reachable from globals and should be pool
-  // allocated.
-  //
-  findGlobalPoolNodes (GlobalPoolNodes);
-
-  // We never modify anything in this pass
-  return false;
-}
-
-void
-AllNodesHeuristic::AssignToPools (const std::vector<const DSNode*> &NodesToPA,
-                                  Function *F, DSGraph* G,
-                                  std::vector<OnePool> &ResultPools) {
-  for (unsigned i = 0, e = NodesToPA.size(); i != e; ++i)
-    ResultPools.push_back(OnePool(NodesToPA[i]));
-}
-
 //===-- AllButUnreachableFromMemoryHeuristic Heuristic --------------------===//
 //
 // This heuristic pool allocates everything possible into separate pools, unless
@@ -937,9 +901,6 @@ NoNodesHeuristic::runOnModule (Module & Module) {
 //
 // Register all of the heuristic passes.
 //
-static RegisterPass<AllNodesHeuristic>
-A ("paheur-AllNodes", "Pool allocate all nodes");
-
 static RegisterPass<AllButUnreachableFromMemoryHeuristic>
 B ("paheur-AllButUnreachableFromMemory", "Pool allocate all reachable from memory objects");
 
@@ -964,7 +925,6 @@ G ("paheur-NoNodes", "Pool allocate nothing heuristic");
 static RegisterAnalysisGroup<Heuristic>
 HeuristicGroup ("Pool Allocation Heuristic");
 
-RegisterAnalysisGroup<Heuristic> Heuristic1(A);
 RegisterAnalysisGroup<Heuristic> Heuristic2(B);
 RegisterAnalysisGroup<Heuristic> Heuristic3(C);
 RegisterAnalysisGroup<Heuristic> Heuristic4(D);
@@ -973,7 +933,6 @@ RegisterAnalysisGroup<Heuristic> Heuristic6(F);
 RegisterAnalysisGroup<Heuristic, true> Heuristic7(G);
 
 char Heuristic::ID = 0;
-char AllNodesHeuristic::ID = 0;
 char AllButUnreachableFromMemoryHeuristic::ID = 0;
 char CyclicNodesHeuristic::ID = 0;
 char SmartCoallesceNodesHeuristic::ID = 0;
