@@ -72,7 +72,7 @@ AllNodesHeuristic::GetNodesReachableFromGlobals (DSGraph* G,
   //
   // Remove those global nodes which we know will never be pool allocated.
   //
-  std::vector<const DSNode *> toRemove;
+  /*std::vector<const DSNode *> toRemove;
   for (DenseSet<const DSNode*>::iterator I = NodesFromGlobals.begin(),
          E = NodesFromGlobals.end(); I != E; ) {
     DenseSet<const DSNode*>::iterator Last = I; ++I;
@@ -91,7 +91,7 @@ AllNodesHeuristic::GetNodesReachableFromGlobals (DSGraph* G,
   //
   for (unsigned index = 0; index < toRemove.size(); ++index) {
     NodesFromGlobals.erase(toRemove[index]);
-  }
+  }*/
 
   //
   // Now the fun part.  Find DSNodes in the local graph that correspond to
