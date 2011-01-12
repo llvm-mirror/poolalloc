@@ -105,7 +105,7 @@ const struct {
   {"valloc",     {NRET_NARGS, YRET_NARGS, YRET_NARGS,  false, false, false}},
   {"memalign",   {NRET_NARGS, YRET_NARGS, YRET_NARGS,  false, false, false}},
   {"realloc",    {NRET_NARGS, YRET_NARGS, YRET_YNARGS, false,  true,  true}},
-  {"free",       {NRET_NARGS, NRET_NARGS, NRET_YNARGS,  false, false, false}},
+  {"free",       {NRET_NARGS, NRET_NARGS, NRET_YNARGS, false, false, false}},
   
   {"strdup",     {NRET_YARGS, YRET_NARGS, YRET_NARGS,  false, true, false}},
   {"wcsdup",     {NRET_YARGS, YRET_NARGS, YRET_NARGS,  false, true, false}},
