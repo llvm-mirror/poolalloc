@@ -73,7 +73,7 @@ AllNodesHeuristic::GetNodesReachableFromGlobals (DSGraph* G,
   // Remove those global nodes which we know will never be pool allocated.
   //
   
-  /*std::vector<const DSNode *> toRemove;
+  std::vector<const DSNode *> toRemove;
   for (DenseSet<const DSNode*>::iterator I = NodesFromGlobals.begin(),
          E = NodesFromGlobals.end(); I != E; ) {
     DenseSet<const DSNode*>::iterator Last = I; ++I;
@@ -92,7 +92,7 @@ AllNodesHeuristic::GetNodesReachableFromGlobals (DSGraph* G,
   //
   for (unsigned index = 0; index < toRemove.size(); ++index) {
     NodesFromGlobals.erase(toRemove[index]);
-  }*/
+  }
 
   //
   // Now the fun part.  Find DSNodes in the local graph that correspond to
@@ -182,9 +182,15 @@ AllNodesHeuristic::findGlobalPoolNodes (DSNodeSet_t & Nodes) {
         //assert (!GGN || GlobalHeapNodes.count (GGN));
         if (GGN && GlobalHeapNodes.count (GGN))
           PoolMap[GGN].NodesInPool.push_back (N);
+        else if (N->isHeapNode() && N->isPtrToIntNode()){
+          //FIXME: This is needed to fix failures in 164.gzip and 
+          // 197.parser. I am not fully sure this is the right fix.
+          if( !N->isAllocaNode() && !N->isUnknownNode()) { 
+            PoolMap[N]= OnePool(N);
+            GlobalHeapNodes.insert(N);
+          }
+        }
       }
-      
-      
     }
   }
 
@@ -239,7 +245,6 @@ AllNodesHeuristic::AssignToPools (const std::vector<const DSNode*> &NodesToPA,
        ResultPools.push_back(PoolMap[NodesToPA[i]]);
      else
        ResultPools.push_back (OnePool(NodesToPA[i]));
-//    ResultPools.push_back(OnePool(NodesToPA[i]));
   }
 }
 
