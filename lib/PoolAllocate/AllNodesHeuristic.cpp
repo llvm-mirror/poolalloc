@@ -77,14 +77,14 @@ AllNodesHeuristic::GetNodesReachableFromGlobals (DSGraph* G,
   for (DenseSet<const DSNode*>::iterator I = NodesFromGlobals.begin(),
          E = NodesFromGlobals.end(); I != E; ) {
     DenseSet<const DSNode*>::iterator Last = I; ++I;
-    //
-    // Nodes that escape to external code could be reachable from globals.
-    // Nodes that are incomplete could be heap nodes.
-    // Unknown nodes could be anything.
-    //
+
     const DSNode *tmp = *Last;
     if (!(tmp->isHeapNode())) 
       toRemove.push_back (tmp);
+    // Do not poolallocate nodes that are cast to Int.
+    // As we do not track through ints, these could be escaping
+    if (tmp->isPtrToIntNode())
+      toRemove.push_back(tmp);
   }
  
   //
@@ -182,14 +182,6 @@ AllNodesHeuristic::findGlobalPoolNodes (DSNodeSet_t & Nodes) {
         //assert (!GGN || GlobalHeapNodes.count (GGN));
         if (GGN && GlobalHeapNodes.count (GGN))
           PoolMap[GGN].NodesInPool.push_back (N);
-        else if (N->isHeapNode() && N->isPtrToIntNode()){
-          //FIXME: This is needed to fix failures in 164.gzip and 
-          // 197.parser. I am not fully sure this is the right fix.
-          if( !N->isAllocaNode() && !N->isUnknownNode()) { 
-            PoolMap[N]= OnePool(N);
-            GlobalHeapNodes.insert(N);
-          }
-        }
       }
     }
   }
