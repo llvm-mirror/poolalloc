@@ -996,14 +996,16 @@ void FuncTransform::visitCallSite(CallSite& CS) {
 
 #ifndef NDEBUG
     // Verify that all potential callees at call site have the same DS graph.
-    /*DSCallGraph::callee_iterator E = PAInfo.getCallGraph().callee_end(OrigInst);
+#if 0
+    DSCallGraph::callee_iterator E = PAInfo.getCallGraph().callee_end(OrigInst);
     for (; I != E; ++I) {
       const Function * F = *I;
       assert (F);
       if (!(F)->isDeclaration())
         assert(CalleeGraph == Graphs.getDSGraph(**I) &&
                "Callees at call site do not have a common graph!");
-    }*/
+    }
+#endif
 #endif    
 
     // Find the DS nodes for the arguments that need to be added, if any.
