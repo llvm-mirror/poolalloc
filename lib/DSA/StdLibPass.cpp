@@ -374,18 +374,18 @@ StdLibDataStructures::runOnModule (Module &M) {
               for (unsigned y = 1; y < CI->getNumOperands(); ++y)
                 if (recFuncs[x].action.read[y])
                   if (isa<PointerType>(CI->getOperand(y)->getType()))
-                    if (DSNode * Node=Graph->getNodeForValue(CI->getOperand(y)).getNode())
-                      Node->setReadMarker();
+                    if (Graph->hasNodeForValue(CI->getOperand(y)))
+                    Graph->getNodeForValue(CI->getOperand(y)).getNode()->setReadMarker();
               for (unsigned y = 1; y < CI->getNumOperands(); ++y)
                 if (recFuncs[x].action.write[y])
                   if (isa<PointerType>(CI->getOperand(y)->getType()))
-                    if (DSNode * Node=Graph->getNodeForValue(CI->getOperand(y)).getNode())
-                      Node->setModifiedMarker();
+                    if (Graph->hasNodeForValue(CI->getOperand(y)))
+                    Graph->getNodeForValue(CI->getOperand(y)).getNode()->setModifiedMarker();
               for (unsigned y = 1; y < CI->getNumOperands(); ++y)
                 if (recFuncs[x].action.heap[y])
                   if (isa<PointerType>(CI->getOperand(y)->getType()))
-                    if (DSNode * Node=Graph->getNodeForValue(CI->getOperand(y)).getNode())
-                      Node->setHeapMarker();
+                    if (Graph->hasNodeForValue(CI->getOperand(y)))
+                    Graph->getNodeForValue(CI->getOperand(y)).getNode()->setHeapMarker();
 
               //
               // Merge the DSNoes for return values and parameters as
@@ -397,7 +397,8 @@ StdLibDataStructures::runOnModule (Module &M) {
               if (recFuncs[x].action.mergeAllArgs || recFuncs[x].action.mergeWithRet)
                 for (unsigned y = 1; y < CI->getNumOperands(); ++y)
                   if (isa<PointerType>(CI->getOperand(y)->getType()))
-                    toMerge.push_back(Graph->getNodeForValue(CI->getOperand(y)));
+                    if (Graph->hasNodeForValue(CI->getOperand(y)))
+                      toMerge.push_back(Graph->getNodeForValue(CI->getOperand(y)));
               for (unsigned y = 1; y < toMerge.size(); ++y)
                 toMerge[0].mergeWith(toMerge[y]);
 
@@ -412,8 +413,8 @@ StdLibDataStructures::runOnModule (Module &M) {
                 }
                 for (unsigned y = 1; y < CI->getNumOperands(); ++y){
                   if (isa<PointerType>(CI->getOperand(y)->getType())){
-                    if (DSNode * Node=Graph->getNodeForValue(CI->getOperand(y)).getNode()){
-                      Node->foldNodeCompletely();
+                    if (Graph->hasNodeForValue(CI->getOperand(y))){
+                      Graph->getNodeForValue(CI->getOperand(y)).getNode()->foldNodeCompletely();
                       NumNodesFoldedInStdLib++;
                     }
                   }
@@ -446,18 +447,18 @@ StdLibDataStructures::runOnModule (Module &M) {
                       for (unsigned y = 1; y < CI->getNumOperands(); ++y)
                         if (recFuncs[x].action.read[y])
                           if (isa<PointerType>(CI->getOperand(y)->getType()))
-                            if (DSNode * Node=Graph->getNodeForValue(CI->getOperand(y)).getNode())
-                              Node->setReadMarker();
+                            if (Graph->hasNodeForValue(CI->getOperand(y)))
+                              Graph->getNodeForValue(CI->getOperand(y)).getNode()->setReadMarker();
                       for (unsigned y = 1; y < CI->getNumOperands(); ++y)
                         if (recFuncs[x].action.write[y])
                           if (isa<PointerType>(CI->getOperand(y)->getType()))
-                            if (DSNode * Node=Graph->getNodeForValue(CI->getOperand(y)).getNode())
-                              Node->setModifiedMarker();
+                            if (Graph->hasNodeForValue(CI->getOperand(y)))
+                              Graph->getNodeForValue(CI->getOperand(y)).getNode()->setModifiedMarker();
                       for (unsigned y = 1; y < CI->getNumOperands(); ++y)
                         if (recFuncs[x].action.heap[y])
                           if (isa<PointerType>(CI->getOperand(y)->getType()))
-                            if (DSNode * Node=Graph->getNodeForValue(CI->getOperand(y)).getNode())
-                              Node->setHeapMarker();
+                            if (Graph->hasNodeForValue(CI->getOperand(y)))
+                              Graph->getNodeForValue(CI->getOperand(y)).getNode()->setHeapMarker();
 
                       //
                       // Merge the DSNoes for return values and parameters as
@@ -469,7 +470,8 @@ StdLibDataStructures::runOnModule (Module &M) {
                       if (recFuncs[x].action.mergeAllArgs || recFuncs[x].action.mergeWithRet)
                         for (unsigned y = 1; y < CI->getNumOperands(); ++y)
                           if (isa<PointerType>(CI->getOperand(y)->getType()))
-                            toMerge.push_back(Graph->getNodeForValue(CI->getOperand(y)));
+                            if (Graph->hasNodeForValue(CI->getOperand(y)))
+                              toMerge.push_back(Graph->getNodeForValue(CI->getOperand(y)));
                       for (unsigned y = 1; y < toMerge.size(); ++y)
                         toMerge[0].mergeWith(toMerge[y]);
         
@@ -484,7 +486,8 @@ StdLibDataStructures::runOnModule (Module &M) {
                         }
                         for (unsigned y = 1; y < CI->getNumOperands(); ++y)
                           if (isa<PointerType>(CI->getOperand(y)->getType())){
-                            if (DSNode * Node=Graph->getNodeForValue(CI->getOperand(y)).getNode()){
+                            if (Graph->hasNodeForValue(CI->getOperand(y))){
+                              DSNode * Node=Graph->getNodeForValue(CI->getOperand(y)).getNode();
                               Node->foldNodeCompletely();
                               NumNodesFoldedInStdLib++;
                             }
