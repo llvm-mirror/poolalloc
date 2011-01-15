@@ -238,7 +238,6 @@ Output/%.$(TEST).report.txt: Output/%.out-nat                \
 			     Output/%.mallocrepl.diff-nat    \
 			     Output/%.onlyoverhead.diff-nat  \
                              Output/%.LOC.txt
-	@-cat $<
 	@echo > $@
 	@echo "---------------------------------------------------------------" >> $@
 	@echo ">>> ========= '$(RELDIR)/$*' Program" >> $@
