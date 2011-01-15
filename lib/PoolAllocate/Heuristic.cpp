@@ -429,7 +429,7 @@ Heuristic::getLocalPoolNodes (const Function & F, DSNodeList_t & Nodes) {
       if (!(GlobalPoolNodes.count (N) || GlobalPoolNodes.count (GGN))) {
         // Otherwise, if it was not passed in from outside the function, it must
         // be a local pool!
-        assert(!N->isGlobalNode() || N->isPtrToIntNode() && "Should be in global mapping!");
+        assert((!N->isGlobalNode() || N->isPtrToIntNode()) && "Should be in global mapping!");
         if(!N->isPtrToIntNode()) {
           Nodes.push_back (N);
         }
