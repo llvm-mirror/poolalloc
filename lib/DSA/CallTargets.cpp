@@ -43,6 +43,9 @@ char CallTargetFinder::ID = 0;
 void CallTargetFinder::findIndTargets(Module &M)
 {
   EQTDDataStructures* T = &getAnalysis<EQTDDataStructures>();
+  const DSCallGraph & callgraph = T->getCallGraph();
+  DSGraph* G = T->getGlobalsGraph();
+  DSGraph::ScalarMapTy& SM = G->getScalarMap();
   for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I)
     if (!I->isDeclaration())
       for (Function::iterator F = I->begin(), FE = I->end(); F != FE; ++F)
@@ -67,10 +70,37 @@ void CallTargetFinder::findIndTargets(Module &M)
                 CompleteSites.insert(cs);
               } else {
                 IndCall++;
+
+                DSCallGraph::callee_iterator csi = callgraph.callee_begin(cs),
+                                   cse = callgraph.callee_end(cs);
+                while(csi != cse) {
+                  const Function *F = *csi;
+                  DSCallGraph::scc_iterator sccii = callgraph.scc_begin(F),
+                    sccee = callgraph.scc_end(F);
+                  for(;sccii != sccee; ++sccii) {
+                    DSGraph::ScalarMapTy::const_iterator I = SM.find(SM.getLeaderForGlobal(*sccii));
+                    if (I != SM.end()) {
+                      IndMap[cs].push_back (*sccii);
+                    }
+                  }
+                  ++csi;
+                }
+                const Function *F1 = (cs).getInstruction()->getParent()->getParent();
+                F1 = callgraph.sccLeader(&*F1);
+                
+                DSCallGraph::scc_iterator sccii = callgraph.scc_begin(F1),
+                  sccee = callgraph.scc_end(F1);
+                for(;sccii != sccee; ++sccii) {
+                  DSGraph::ScalarMapTy::const_iterator I = SM.find(SM.getLeaderForGlobal(*sccii));
+                  if (I != SM.end()) {
+                    IndMap[cs].push_back (*sccii);
+                  }
+                }
+
                 DSNode* N = T->getDSGraph(*cs.getCaller())
                   ->getNodeForValue(cs.getCalledValue()).getNode();
                 assert (N && "CallTarget: findIndTargets: No DSNode!\n");
-                N->addFullFunctionList(IndMap[cs]);
+
                 if (N->isCompleteNode() && IndMap[cs].size()) {
                   CompleteSites.insert(cs);
                   ++CompleteInd;
