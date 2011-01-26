@@ -40,27 +40,29 @@ LARGE_PROBLEM_SIZE_DIRS := \
 
 NORMAL_PROBLEM_SIZE_DIRS := \
    MultiSource/Benchmarks/Olden \
-   External/SPEC/CINT2000 \
+   External/SPEC/CINT2000/ \
+   #External/SPEC/CINT2000/164.gzip \
+   #External/SPEC/CINT2000/175.vpr \
+   #External/SPEC/CINT2000/176.gcc \
+   #External/SPEC/CINT2000/181.mcf \
+   #External/SPEC/CINT2000/186.crafty \
+   #External/SPEC/CINT2000/197.parser \
+   #External/SPEC/CINT2000/252.eon \
+   #External/SPEC/CINT2000/253.perlbmk \
+   #External/SPEC/CINT2000/254.gap \
+   #External/SPEC/CINT2000/255.vortex \
+   #External/SPEC/CINT2000/256.bzip2 \
+   #External/SPEC/CINT2000/300.twolf \
    #MultiSource/Applications \
    #MultiSource/Applications/Burg \
    #MultiSource/Applications/hexxagon \
    #MultiSource/Applications/kimwitu++ \
    #MultiSource/Applications/lambda-0.1.3 \
-   #External/SPEC/CINT2000/175.vpr \
    #MultiSource/Benchmarks/Olden/bh \
-   #External/SPEC/CINT2000/181.mcf \
-   #External/SPEC/CINT2000/186.crafty \
    #External/FPGrowth \
    #External/Namd \
    #External/Povray \
    #MultiSource/Benchmarks/SciMark2-C/scimark2 \
-   #External/SPEC/CINT2000/164.gzip \
-   #External/SPEC/CINT2000/175.vpr \
-   #External/SPEC/CINT2000/176.gcc \
-   #External/SPEC/CINT2000/252.eon \
-   #External/SPEC/CINT2000/253.perlbmk \
-   #External/SPEC/CINT2000/254.gap \
-   #External/SPEC/CINT2000/300.twolf
 
 
 NORMAL_PROBLEM_SIZE_DIRS := \
