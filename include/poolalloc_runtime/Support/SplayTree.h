@@ -52,12 +52,12 @@ class RangeSplayTree {
   tree_node* Tree;
     
   tree_node* rotate_right(tree_node* p) {
-   tree_node* x = p->left;
-   p->left = x->right;
+    tree_node* x = p->left;
+    p->left = x->right;
     x->right = p;
     return x;
   }
-    
+
   tree_node* rotate_left(tree_node* p) {
     tree_node* x = p->right;
     p->right = x->left;
@@ -153,7 +153,7 @@ class RangeSplayTree {
   }
 
   template<class O>
-    void __clear_internal(tree_node* t, O& act) {
+  void __clear_internal(tree_node* t, O& act) {
     if (!t) return;
     __clear_internal(t->left);
     __clear_internal(t->right);
@@ -265,9 +265,9 @@ class RangeSplaySet
   bool remove(void* key) {
     return Tree.__remove(key);
   }
-  
+
   bool count() { return Tree.__count(); }
-  
+
   void clear() { Tree.__clear(); }
 
   template <class O>
