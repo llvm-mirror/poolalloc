@@ -185,6 +185,8 @@ public:
   void buildRoots();
   
   void buildIncompleteCalleeSet(svset<const llvm::Function*> callees);
+  
+  void addFullFunctionList(llvm::CallSite CS, std::vector<const llvm::Function*> &List) const;
 
   void dump();
 

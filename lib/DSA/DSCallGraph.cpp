@@ -12,6 +12,8 @@
 //===----------------------------------------------------------------------===//
 
 #include "dsa/DSCallGraph.h"
+#include "dsa/DataStructure.h"
+#include "dsa/DSGraph.h"
 
 #include "llvm/Function.h"
 #include "llvm/DerivedTypes.h"
@@ -19,6 +21,8 @@
 #include "llvm/Support/CommandLine.h"
 
 #include <algorithm>
+
+using namespace llvm;
 
 static bool _hasPointers(const llvm::FunctionType* T) {
   if (T->isVarArg()) return true;
@@ -252,4 +256,26 @@ DSCallGraph::insert(llvm::CallSite CS, const llvm::Function* F) {
 
 void DSCallGraph::insureEntry(const llvm::Function* F) {
   SimpleCallees[F];
+}
+
+void DSCallGraph::addFullFunctionList(llvm::CallSite CS, 
+                    std::vector<const llvm::Function*> &List) const {
+  DSCallGraph::callee_iterator csi = callee_begin(CS),
+                               cse = callee_end(CS);
+  while(csi != cse) {
+    const Function *F = *csi;        
+    DSCallGraph::scc_iterator sccii = scc_begin(F),
+                              sccee = scc_end(F);
+    for(;sccii != sccee; ++sccii) {
+      List.push_back (*sccii);
+    }
+    ++csi;
+  }
+  const Function *F1 = CS.getInstruction()->getParent()->getParent();
+  F1 = sccLeader(&*F1);
+  DSCallGraph::scc_iterator sccii = scc_begin(F1),
+                            sccee = scc_end(F1);
+  for(;sccii != sccee; ++sccii) {
+    List.push_back (*sccii);
+  }
 }
