@@ -10,14 +10,14 @@ CFLAGS = -O2 -fno-strict-aliasing
 EXTRA_PA_FLAGS := 
 
 CURDIR  := $(shell cd .; pwd)
-PROGDIR := $(shell cd $(LLVM_SRC_ROOT)/projects/llvm-test; pwd)/
+PROGDIR := $(shell cd $(LLVM_SRC_ROOT)/projects/test-suite/; pwd)/
 RELDIR  := $(subst $(PROGDIR),,$(CURDIR))
 
 # Pool allocator pass shared object
-PA_SO    := $(PROJECT_DIR)/Release/lib/libpoolalloc$(SHLIBEXT)
+PA_SO    := $(PROJECT_DIR)/$(CONFIGURATION)/lib/libpoolalloc$(SHLIBEXT)
 
 # Command to run opt with the pool allocator pass loaded
-OPT_PA := $(LOPT) -load $(PA_SO)
+OPT_PA := $(RUNTOOLSAFELY) $(WATCHDOG) $(LOPT) -load $(DSA_SO) -load $(PA_SO)
 
 # OPT_PA_STATS - Run opt with the -stats and -time-passes options, capturing the
 # output to a file.
