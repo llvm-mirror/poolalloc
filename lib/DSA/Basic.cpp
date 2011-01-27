@@ -43,7 +43,7 @@ bool BasicDataStructures::runOnModule(Module &M) {
   DSNode * GVNodeExternal = new DSNode(GlobalsGraph);
   for (Module::global_iterator I = M.global_begin(), E = M.global_end();
        I != E; ++I) {
-    if (I->isDeclaration()) {
+    if (I->isDeclaration() || (!(I->hasInternalLinkage()))) {
       GlobalsGraph->getNodeForValue(&*I).mergeWith(GVNodeExternal);
     } else {
       GlobalsGraph->getNodeForValue(&*I).mergeWith(GVNodeInternal);
@@ -54,6 +54,7 @@ bool BasicDataStructures::runOnModule(Module &M) {
   GVNodeInternal->maskNodeTypes(DSNode::IncompleteNode);
 
   GVNodeExternal->foldNodeCompletely();
+  GVNodeExternal->setExternalMarker();
 
   // Next step, iterate through the nodes in the globals graph, unioning
   // together the globals into equivalence classes.
