@@ -144,7 +144,7 @@ namespace {
 #if 0
           DSNode * Node = getValueDest(I).getNode();
 
-          if (!f.hasInternalLinkage())
+          if (!f.hasInternalLinkage() || !f.hasPrivateLinkage())
             Node->setExternalMarker();
 #else
           getValueDest(I).getNode();
@@ -407,8 +407,6 @@ void GraphBuilder::visitVAArgInst(VAArgInst &I) {
 }
 
 void GraphBuilder::visitIntToPtrInst(IntToPtrInst &I) {
-//  std::cerr << "cast in " << I.getParent()->getParent()->getName() << "\n";
-//  I.dump();
   setDestTo(I, createNode()->setUnknownMarker()->setIntToPtrMarker()); 
 }
 
@@ -500,48 +498,34 @@ void GraphBuilder::visitGetElementPtrInst(User &GEP) {
   // Okay, no easy way out.  Calculate the offset into the object being
   // indexed.
   //
+ 
+  unsigned Offset = 0;
 
-  //
-  // Ensure the uncollapsed node has a large enough size for the struct type
-  //
+#if 0
+
+  // Trying to special case constant index "inbounds" GEPs
+  if(GetElementPtrInst *GEPInst = dyn_cast<GetElementPtrInst>(&GEP)) {
+    if(GEPInst->isInBounds())
+    if(GEPInst->hasAllConstantIndices()){
+      if(GEPInst->getType() == llvm::Type::getInt8PtrTy(GEPInst->getParent()->getParent()->getContext()))
+        if(GEPInst->getNumIndices() == 1) {
+          Offset = (cast<ConstantInt>(GEPInst->getOperand(1)))->getSExtValue();
+          if(Value.getNode()->getSize() <= (Offset+8)) {
+            Value.getNode()->growSize(Offset + 8);
+          }
+          goto end;
+        }
+    }
+  }
+
+#endif
+
   // FIXME: I am not sure if the code below is completely correct (especially
   //        if we start doing fancy analysis on non-constant array indices).
   //        What if the array is indexed using a larger index than its declared
   //        size?  Does the LLVM verifier catch such issues?
   //
-  /*const PointerType *PTy = cast<PointerType > (GEP.getOperand(0)->getType());
-  const Type *CurTy = PTy->getElementType();
-  if (TD.getTypeAllocSize(CurTy) + Value.getOffset() > Value.getNode()->getSize())
-    Value.getNode()->growSize(TD.getTypeAllocSize(CurTy) + Value.getOffset());*/
-
-#if 0
-  // Handle the pointer index specially...
-  if (GEP.getNumOperands() > 1 &&
-      (!isa<Constant>(GEP.getOperand(1)) ||
-       !cast<Constant>(GEP.getOperand(1))->isNullValue())) {
-
-    // If we already know this is an array being accessed, don't do anything...
-    if (!TopTypeRec.isArray) {
-      TopTypeRec.isArray = true;
-
-      // If we are treating some inner field pointer as an array, fold the node
-      // up because we cannot handle it right.  This can come because of
-      // something like this:  &((&Pt->X)[1]) == &Pt->Y
-      //
-      if (Value.getOffset()) {
-        // Value is now the pointer we want to GEP to be...
-        Value.getNode()->foldNodeCompletely();
-        setDestTo(GEP, Value);  // GEP result points to folded node
-        return;
-      } else {
-        // This is a pointer to the first byte of the node.  Make sure that we
-        // are pointing to the outter most type in the node.
-        // FIXME: We need to check one more case here...
-      }
-    }
-  }
-#endif
-
+  
   //
   // Determine the offset (in bytes) between the result of the GEP and the
   // GEP's pointer operand.
@@ -554,7 +538,6 @@ void GraphBuilder::visitGetElementPtrInst(User &GEP) {
   //        passes (e.g., ScalarEvolution) to find min/max values to do less
   //        conservative type-folding.
   //
-  unsigned Offset = 0;
   for (gep_type_iterator I = gep_type_begin(GEP), E = gep_type_end(GEP);
        I != E; ++I)
     if (const StructType *STy = dyn_cast<StructType>(*I)) {

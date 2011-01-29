@@ -117,7 +117,7 @@ bool TDDataStructures::runOnModule(Module &M) {
 
   // Functions without internal linkage are definitely externally callable!
   for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I)
-    if (!I->isDeclaration() && !I->hasInternalLinkage())
+    if (!I->isDeclaration() && !I->hasInternalLinkage() && !I->hasPrivateLinkage())
       ExternallyCallable.insert(I);
 
   // Debug code to print the functions that are externally callable

@@ -793,7 +793,7 @@ void DSGraph::computeExternalFlags(unsigned Flags) {
     if (const GlobalVariable *GV = dyn_cast<GlobalVariable>(*I)) {
       // If the global is external... mark it as such!
       DSNode * N = ScalarMap[GV].getNode();
-      if (!GV->hasInternalLinkage() || N->isExternalNode())
+      if (!(GV->hasInternalLinkage() || GV->hasPrivateLinkage()) || N->isExternalNode())
         markExternalNode(N, processedNodes);
     }
   }
