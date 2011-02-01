@@ -28,7 +28,8 @@ SteensgaardDataStructures::~SteensgaardDataStructures() { }
 
 void
 SteensgaardDataStructures::releaseMemory() {
-  delete ResultGraph; ResultGraph = 0;
+  delete ResultGraph; 
+  ResultGraph = 0;
   DataStructures::releaseMemory();
 }
 
@@ -73,8 +74,8 @@ SteensgaardDataStructures::runOnModuleInternal(Module &M) {
   }
 
   ResultGraph->removeTriviallyDeadNodes();
-
-  // FIXME: Must recalculate and use the Incomplete markers!!
+  ResultGraph->maskIncompleteMarkers();
+  ResultGraph->markIncompleteNodes(DSGraph::MarkFormalArgs | DSGraph::IgnoreGlobals);
 
   // Now that we have all of the graphs inlined, we can go about eliminating
   // call nodes...
@@ -125,7 +126,6 @@ SteensgaardDataStructures::runOnModuleInternal(Module &M) {
   // Update the "incomplete" markers on the nodes, ignoring unknownness due to
   // incoming arguments...
   ResultGraph->maskIncompleteMarkers();
-
   ResultGraph->markIncompleteNodes(DSGraph::MarkFormalArgs | DSGraph::IgnoreGlobals);
 
   // Remove any nodes that are dead after all of the merging we have done...
@@ -141,16 +141,10 @@ SteensgaardDataStructures::runOnModuleInternal(Module &M) {
   formGlobalECs();
 
   // Clone the global nodes into this graph.
-  ReachabilityCloner RC(ResultGraph, GlobalsGraph,
-      DSGraph::DontCloneCallNodes |
-      DSGraph::DontCloneAuxCallNodes);
-  for (DSScalarMap::global_iterator I = GlobalsGraph->getScalarMap().global_begin(),
-      E = GlobalsGraph->getScalarMap().global_end(); I != E; ++I)
-    if (isa<GlobalVariable>(*I))
-      RC.getClonedNH(GlobalsGraph->getNodeForValue(*I));
-   
+  cloneGlobalsInto(ResultGraph, DSGraph::DontCloneCallNodes |
+                              DSGraph::DontCloneAuxCallNodes);
 
-  print(errs(), &M);
+  DEBUG(print(errs(), &M));
   return false;
 }
 

@@ -27,7 +27,6 @@ using namespace llvm;
 namespace {
   STATISTIC (TotalNumCallees, "Total number of callee functions at all indirect call sites");
   STATISTIC (NumIndirectCalls, "Total number of indirect call sites in the program");
-  //  STATISTIC (NumPoolNodes, "Number of allocation nodes that could be pool allocated");
 
   // Typed/Untyped memory accesses: If DSA can infer that the types the loads
   // and stores are accessing are correct (ie, the node has not been collapsed),
@@ -102,6 +101,7 @@ static bool isIndirectCallee(Value *V) {
 
 
 void DSGraphStats::countCallees(const Function& F) {
+  //FIXME:Use callgraph
   unsigned numIndirectCalls = 0, totalNumCallees = 0;
 
   for (DSGraph::fc_iterator I = TDGraph->fc_begin(), E = TDGraph->fc_end();
@@ -155,16 +155,17 @@ bool DSGraphStats::isNodeForValueUntyped(Value *V) {
     DSNode* N = NH.getNode();
     if (N->isNodeCompletelyFolded())
       return true;
-    if ( N->isIncompleteNode()){
-      ++NumIncompleteAccesses;
-      return true;
-    }
     if ( N->isExternalNode()){
       ++NumExternalAccesses;
       return true;
     }
+    if ( N->isIncompleteNode()){
+      ++NumIncompleteAccesses;
+      return true;
+    }
     if (N->isUnknownNode()){
       ++NumUnknownAccesses;
+      return true;
     }
     // it is a complete node, now check how many types are present
    int count = 0;
