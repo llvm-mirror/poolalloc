@@ -39,6 +39,8 @@ AddressTakenAnalysis::~AddressTakenAnalysis() {}
 static bool isAddressTaken(Value* V) {
   for (Value::use_iterator I = V->use_begin(), E = V->use_end(); I != E; ++I) {
     User *U = *I;
+    if(U->getNumUses() == 0)
+      continue;
     if (!isa<CallInst>(U) && !isa<InvokeInst>(U)) {
       if(isa<GlobalAlias>(U)) {
         if(isAddressTaken(U))
@@ -53,9 +55,8 @@ static bool isAddressTaken(Value* V) {
       // are never used
     } else {
       llvm::CallSite CS(cast<Instruction>(U));
-      if (!CS.isCallee(I)) {
+      if (!CS.isCallee(I))
         return true;
-      }
     }
   }
   return false;
