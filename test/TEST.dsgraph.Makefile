@@ -24,7 +24,7 @@ PASS := td
 
 ANALYZE_OPTS := -stats -time-passes -disable-output -dsstats
 #ANALYZE_OPTS := -stats -time-passes -dsstats 
-ANALYZE_OPTS +=  -instcount -disable-verify
+ANALYZE_OPTS +=  -instcount -disable-verify -analyze
 MEM := -track-memory -time-passes -disable-output
 
 $(PROGRAMS_TO_TEST:%=Output/%.$(TEST).report.txt): \
@@ -44,10 +44,10 @@ Output/%.$(TEST).report.txt: Output/%.llvm.bc Output/%.LOC.txt $(LOPT)
 	-@grep 'Number of memory instructions' $@.time.1 >> $@
 	@echo >> $@
 	@/bin/echo -n "FOLDEDNODES: " >> $@
-	-@grep 'Number of folded nodes' $@.time.1 >> $@
+	-@grep 'Number of nodes completely folded' $@.time.1 >> $@
 	@echo >> $@
 	@/bin/echo -n "TOTALNODES: " >> $@
-	-@grep 'Graphs contain.*nodes total' $@.time.1 >> $@
+	-@grep 'Number of nodes allocated' $@.time.1 >> $@
 	@echo >> $@
 	@/bin/echo -n "MAXGRAPHSIZE: " >> $@
 	-@grep 'Maximum graph size' $@.time.1 >> $@
