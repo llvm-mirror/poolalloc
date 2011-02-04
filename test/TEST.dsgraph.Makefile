@@ -27,10 +27,14 @@ ANALYZE_OPTS := -stats -time-passes -disable-output -dsstats
 ANALYZE_OPTS +=  -instcount -disable-verify -analyze
 MEM := -track-memory -time-passes -disable-output
 
+#ifdef TYPE_INFERENCE_OPT
+ANALYZE_OPTS += -enable-type-inference-opts
+#endif 
+
 $(PROGRAMS_TO_TEST:%=Output/%.$(TEST).report.txt): \
 Output/%.$(TEST).report.txt: Output/%.llvm.bc Output/%.LOC.txt $(LOPT)
 	@# Gather data
-	-($(RUNOPT) -dsa-$(PASS)  $(ANALYZE_OPTS) $<)> $@.time.1 2>&1
+	-($(RUNOPT) -dsa-$(PASS) $(ANALYZE_OPTS) $<)> $@.time.1 2>&1
 	-($(RUNOPT) -dsa-$(PASS) -dsa-stdlib-no-fold  $(ANALYZE_OPTS) $<)> $@.time.2 2>&1
 	-($(RUNOPT)  $(MEM) -dsa-$(PASS) -disable-verify -debug-pass=Details $<)> $@.mem.1 2>&1
 	@# Emit data.

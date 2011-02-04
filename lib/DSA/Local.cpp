@@ -51,6 +51,10 @@ X("dsa-local", "Local Data Structure Analysis");
 
 cl::opt<std::string> hasMagicSections("dsa-magic-sections",
         cl::desc("File with section to global mapping")); //, cl::ReallyHidden);
+static cl::opt<bool> TypeInferenceOptimize("enable-type-inference-opts",
+         cl::desc("Enable Type Inference Optimizations added to DSA."),
+         cl::Hidden,
+         cl::init(false));
 }
 
 namespace {
@@ -355,7 +359,6 @@ void GraphBuilder::visitSelectInst(SelectInst &SI) {
 
 void GraphBuilder::visitLoadInst(LoadInst &LI) {
   DSNodeHandle Ptr = getValueDest(LI.getOperand(0));
-
   if (Ptr.isNull()) return; // Load from null
 
   // Make that the node is read from...
@@ -501,24 +504,28 @@ void GraphBuilder::visitGetElementPtrInst(User &GEP) {
  
   unsigned Offset = 0;
 
-#if 0
-
+  if(TypeInferenceOptimize) {
   // Trying to special case constant index "inbounds" GEPs
-  if(GetElementPtrInst *GEPInst = dyn_cast<GetElementPtrInst>(&GEP)) {
-    if(GEPInst->isInBounds())
-    if(GEPInst->hasAllConstantIndices()){
-      if(GEPInst->getType() == llvm::Type::getInt8PtrTy(GEPInst->getParent()->getParent()->getContext()))
-        if(GEPInst->getNumIndices() == 1) {
-          Offset = (cast<ConstantInt>(GEPInst->getOperand(1)))->getSExtValue();
-          if(Value.getNode()->getSize() <= (Offset+8)) {
-            Value.getNode()->growSize(Offset + 8);
+    if(GetElementPtrInst *GEPInst = dyn_cast<GetElementPtrInst>(&GEP)) {
+      if(GEPInst->isInBounds())
+      if(GEPInst->hasAllConstantIndices()){
+        if(GEPInst->getType() == llvm::Type::getInt8PtrTy(GEPInst->getParent()->getParent()->getContext()))
+          if(GEPInst->getNumIndices() == 1) {
+            Offset = (cast<ConstantInt>(GEPInst->getOperand(1)))->getSExtValue();
+            if(Value.getNode()->getSize() <= (Offset+1)) {
+              Value.getNode()->growSize(Offset + 1);
+            }
+            Value.setOffset(Value.getOffset()+Offset);
+            DSNode *N = Value.getNode();
+            if((int)Offset < 0)
+              N->foldNodeCompletely();
+            setDestTo(GEP, Value);
+            return;
           }
-          goto end;
-        }
+      }
     }
   }
 
-#endif
 
   // FIXME: I am not sure if the code below is completely correct (especially
   //        if we start doing fancy analysis on non-constant array indices).
@@ -619,7 +626,6 @@ void GraphBuilder::visitGetElementPtrInst(User &GEP) {
         }
       }
     }
-
 
   // Add in the offset calculated...
   Value.setOffset(Value.getOffset()+Offset);
