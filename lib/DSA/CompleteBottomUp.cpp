@@ -52,8 +52,7 @@ CompleteBUDataStructures::runOnModule (Module &M) {
 
   for (Module::iterator F = M.begin(); F != M.end(); ++F) {
     if (!(F->isDeclaration())){
-      DSGraph *Graph = getOrCreateGraph(F);
-      Graph->buildCompleteCallGraph(callgraph, GlobalFunctionList, filterCallees);
+      getOrCreateGraph(F);
     }
   }
   callgraph.buildSCCs();
