@@ -6,7 +6,11 @@
 // License. See LICENSE.TXT for details.
 //
 //===----------------------------------------------------------------------===//
-
+//
+// This pass clones functions that take constant function pointers as arguments
+// from some call sites. It changes those call sites to call cloned functions.
+// 
+//===----------------------------------------------------------------------===//
 #define DEBUG_TYPE "funcspec"
 
 #include "llvm/Instructions.h"
@@ -15,6 +19,7 @@
 #include "llvm/Transforms/Utils/Cloning.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Support/FormattedStream.h"
+#include "llvm/Support/Debug.h"
 
 #include <set>
 #include <map>
@@ -22,7 +27,7 @@
 
 using namespace llvm;
 
-STATISTIC(numCloned, "Number of Functions Cloned");
+STATISTIC(numCloned, "Number of Functions Cloned in FuncSpec");
 STATISTIC(numReplaced, "Number of Calls Replaced");
 
 namespace {
@@ -42,26 +47,28 @@ namespace {
             if (const PointerType* Ty = dyn_cast<PointerType>(ii->getType())) {
               if (isa<FunctionType>(Ty->getElementType())) {
                 FPArgs.push_back(ii->getArgNo());
-                errs() << "Eligable: " << I->getNameStr() << "\n";
+                DEBUG(errs() << "Eligible: " << I->getNameStr() << "\n");
               }
             } else if (isa<FunctionType>(ii->getType())) {
               FPArgs.push_back(ii->getArgNo());
-              errs() << "Eligable: " << I->getNameStr() << "\n";
-            }
+              DEBUG(errs() << "Eligible: " << I->getNameStr() << "\n");
+            } 
           for(Value::use_iterator ui = I->use_begin(), ue = I->use_end();
-              ui != ue; ++ui)
+              ui != ue; ++ui) {
             if (CallInst* CI = dyn_cast<CallInst>(ui)) {
-              std::vector<std::pair<unsigned, Constant*> > Consts;
-              for (unsigned x = 0; x < FPArgs.size(); ++x)
-                if (Constant* C = dyn_cast<Constant>(ui->getOperand(x + 1))) {
-                  Consts.push_back(std::make_pair(x, C));
-                  CI->dump();
+              if(CI->getCalledValue()->stripPointerCasts() == I) {
+                std::vector<std::pair<unsigned, Constant*> > Consts;
+                for (unsigned x = 0; x < FPArgs.size(); ++x)
+                  if (Constant* C = dyn_cast<Constant>(ui->getOperand(FPArgs.at(x) + 1))) {
+                    Consts.push_back(std::make_pair(FPArgs.at(x), C));
+                  }
+                if (!Consts.empty()) {
+                  cloneSites[CI] = Consts;
+                  toClone[std::make_pair(I, Consts)] = 0;
                 }
-              if (!Consts.empty()) {
-                cloneSites[CI] = Consts;
-                toClone[std::make_pair(I, Consts)] = 0;
               }
             }
+          }
         }
 
       numCloned += toClone.size();
@@ -86,4 +93,4 @@ namespace {
 
 char FuncSpec::ID = 0;
 static RegisterPass<FuncSpec>
-X("funcspec", "Specialize for Funnction Pointers");
+X("funcspec", "Specialize for Function Pointers");

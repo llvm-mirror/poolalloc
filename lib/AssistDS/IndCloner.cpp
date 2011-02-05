@@ -31,7 +31,7 @@ static RegisterPass<IndClone>
 X("indclone", "Indirect call cloning");
 
 // Pass statistics
-STATISTIC(numCloned,   "Number of Functions Cloned");
+STATISTIC(numCloned,   "Number of Functions Cloned in IndCloner");
 STATISTIC(numReplaced, "Number of Calls Replaced");
 
 //
