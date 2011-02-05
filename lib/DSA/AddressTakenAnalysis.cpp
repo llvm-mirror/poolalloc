@@ -39,6 +39,8 @@ AddressTakenAnalysis::~AddressTakenAnalysis() {}
 static bool isAddressTaken(Value* V) {
   for (Value::use_iterator I = V->use_begin(), E = V->use_end(); I != E; ++I) {
     User *U = *I;
+    if(isa<StoreInst>(U))
+      return true;
     if(U->getNumUses() == 0)
       continue;
     if (!isa<CallInst>(U) && !isa<InvokeInst>(U)) {
