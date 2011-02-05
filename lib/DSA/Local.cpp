@@ -512,8 +512,8 @@ void GraphBuilder::visitGetElementPtrInst(User &GEP) {
         if(GEPInst->getType() == llvm::Type::getInt8PtrTy(GEPInst->getParent()->getParent()->getContext()))
           if(GEPInst->getNumIndices() == 1) {
             Offset = (cast<ConstantInt>(GEPInst->getOperand(1)))->getSExtValue();
-            if(Value.getNode()->getSize() <= (Offset+1)) {
-              Value.getNode()->growSize(Offset + 1);
+            if(Value.getNode()->getSize() <= Value.getOffset() + (Offset+1)) {
+              Value.getNode()->growSize(Value.getOffset() + Offset + 1);
             }
             Value.setOffset(Value.getOffset()+Offset);
             DSNode *N = Value.getNode();
