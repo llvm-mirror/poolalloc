@@ -140,7 +140,6 @@ Devirtualize::buildBounce (CallSite CS, std::vector<const Function*>& Targets) {
   // module.
   //
   ++FuncAdded;
-
   //
   // Create a bounce function that has a function signature almost identical
   // to the function being called.  The only difference is that it will have
@@ -192,7 +191,6 @@ Devirtualize::buildBounce (CallSite CS, std::vector<const Function*>& Targets) {
     // Create the basic block for doing the direct call
     BasicBlock* BL = BasicBlock::Create (M->getContext(), FL->getName(), F);
     targets[FL] = BL;
-
     // Create the direct function call
     Value* directCall = CallInst::Create ((Value *)FL,
                                           fargs.begin(),
@@ -294,13 +292,13 @@ Devirtualize::makeDirectCall (CallSite & CS) {
   //
   // Find the targets of the indirect function call.
   //
-  std::vector<const Function*> Targets;
-  Targets.insert (Targets.begin(), CTF->begin(CS), CTF->end(CS));
 
   //
   // Convert the call site if there were any function call targets found.
   //
-  if (Targets.size() > 0) {
+  if (CTF->size(CS)) {
+    std::vector<const Function*> Targets;
+    Targets.insert (Targets.begin(), CTF->begin(CS), CTF->end(CS));
     //
     // Determine if an existing bounce function can be used for this call site.
     //
