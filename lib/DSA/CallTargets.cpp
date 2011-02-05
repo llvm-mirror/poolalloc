@@ -63,8 +63,8 @@ void CallTargetFinder::findIndTargets(Module &M)
             if (!CF)
               CF = dyn_cast<Function>(cs.getCalledValue()->stripPointerCasts());
 
-            Value * calledValue = cs.getCalledValue()->stripPointerCasts();
             if (!CF) {
+              Value * calledValue = cs.getCalledValue()->stripPointerCasts();
               if (isa<ConstantPointerNull>(calledValue)) {
                 ++DirCall;
                 CompleteSites.insert(cs);
@@ -101,14 +101,14 @@ void CallTargetFinder::findIndTargets(Module &M)
                   ->getNodeForValue(cs.getCalledValue()).getNode();
                 assert (N && "CallTarget: findIndTargets: No DSNode!\n");
 
-                if (N->isCompleteNode() && IndMap[cs].size()) {
+                if (!N->isIncompleteNode() && !N->isExternalNode() && IndMap[cs].size()) {
                   CompleteSites.insert(cs);
                   ++CompleteInd;
                 } 
-                if (N->isCompleteNode() && !IndMap[cs].size()) {
+                if (!N->isIncompleteNode() && !N->isExternalNode() && !IndMap[cs].size()) {
                   ++CompleteEmpty;
                   DEBUG(errs() << "Call site empty: '"
-                                << cs.getInstruction()->getName() 
+                                << cs.getInstruction()->getName()
                                 << "' In '"
                                 << cs.getInstruction()->getParent()->getParent()->getName()
                                 << "'\n");
@@ -116,7 +116,7 @@ void CallTargetFinder::findIndTargets(Module &M)
               }
             } else {
               ++DirCall;
-              IndMap[cs].push_back(cs.getCalledFunction());
+              IndMap[cs].push_back(CF);
               CompleteSites.insert(cs);
             }
           }
@@ -128,7 +128,11 @@ void CallTargetFinder::print(llvm::raw_ostream &O, const Module *M) const
   for (std::map<CallSite, std::vector<const Function*> >::const_iterator ii =
        IndMap.begin(),
          ee = IndMap.end(); ii != ee; ++ii) {
-    if (!ii->first.getCalledFunction()) { //only print indirect
+
+    if (ii->first.getCalledFunction())  //only print indirect
+      continue;
+    if(isa<Function>(ii->first.getCalledValue()->stripPointerCasts()))
+      continue;
       if (!isComplete(ii->first)) {
         O << "* ";
         CallSite cs = ii->first;
@@ -142,7 +146,6 @@ void CallTargetFinder::print(llvm::raw_ostream &O, const Module *M) const
         O << " " << (*i)->getNameStr();
       }
       O << "\n";
-    }
   }
 }
 
@@ -162,6 +165,9 @@ std::vector<const Function*>::iterator CallTargetFinder::begin(CallSite cs) {
 
 std::vector<const Function*>::iterator CallTargetFinder::end(CallSite cs) {
   return IndMap[cs].end();
+}
+unsigned CallTargetFinder::size(CallSite cs) {
+  return IndMap[cs].size();
 }
 
 bool CallTargetFinder::isComplete(CallSite cs) const {

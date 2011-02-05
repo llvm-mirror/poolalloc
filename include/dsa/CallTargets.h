@@ -43,6 +43,7 @@ namespace llvm {
     // Given a CallSite, get an iterator of callees
     std::vector<const Function*>::iterator begin(CallSite cs);
     std::vector<const Function*>::iterator end(CallSite cs);
+    unsigned size(CallSite cs);
 
     // Iterate over CallSites in program
     std::list<CallSite>::iterator cs_begin();
