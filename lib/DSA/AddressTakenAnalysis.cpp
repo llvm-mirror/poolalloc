@@ -41,7 +41,7 @@ static bool isAddressTaken(Value* V) {
     User *U = *I;
     if(isa<StoreInst>(U))
       return true;
-    if(U->getNumUses() == 0)
+    if(U->use_empty())
       continue;
     if (!isa<CallInst>(U) && !isa<InvokeInst>(U)) {
       if(isa<GlobalAlias>(U)) {
