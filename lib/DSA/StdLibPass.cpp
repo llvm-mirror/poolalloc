@@ -394,6 +394,8 @@ StdLibDataStructures::runOnModule (Module &M) {
               //
               std::vector<DSNodeHandle> toMerge;
               if (recFuncs[x].action.mergeWithRet)
+                if (isa<PointerType>(CI->getType()))
+                  if (Graph->hasNodeForValue(CI))
                 toMerge.push_back(Graph->getNodeForValue(CI));
               if (recFuncs[x].action.mergeAllArgs || recFuncs[x].action.mergeWithRet)
                 for (unsigned y = 1; y < CI->getNumOperands(); ++y)
@@ -409,7 +411,8 @@ StdLibDataStructures::runOnModule (Module &M) {
               //
               if (!noStdLibFold && recFuncs[x].action.collapse) {
                 if (isa<PointerType>(CI->getType())){
-                  Graph->getNodeForValue(CI).getNode()->foldNodeCompletely();
+                  if (Graph->hasNodeForValue(CI))
+                    Graph->getNodeForValue(CI).getNode()->foldNodeCompletely();
                   NumNodesFoldedInStdLib++;
                 }
                 for (unsigned y = 1; y < CI->getNumOperands(); ++y){
@@ -467,7 +470,9 @@ StdLibDataStructures::runOnModule (Module &M) {
                       //
                       std::vector<DSNodeHandle> toMerge;
                       if (recFuncs[x].action.mergeWithRet)
-                        toMerge.push_back(Graph->getNodeForValue(CI));
+                        if (isa<PointerType>(CI->getType()))
+                          if (Graph->hasNodeForValue(CI))
+                            toMerge.push_back(Graph->getNodeForValue(CI));
                       if (recFuncs[x].action.mergeAllArgs || recFuncs[x].action.mergeWithRet)
                         for (unsigned y = 1; y < CI->getNumOperands(); ++y)
                           if (isa<PointerType>(CI->getOperand(y)->getType()))
@@ -482,7 +487,8 @@ StdLibDataStructures::runOnModule (Module &M) {
                       //
                       if (!noStdLibFold && recFuncs[x].action.collapse) {
                         if (isa<PointerType>(CI->getType())){
-                          Graph->getNodeForValue(CI).getNode()->foldNodeCompletely();
+                          if (Graph->hasNodeForValue(CI))
+                            Graph->getNodeForValue(CI).getNode()->foldNodeCompletely();
                           NumNodesFoldedInStdLib++;
                         }
                         for (unsigned y = 1; y < CI->getNumOperands(); ++y)
