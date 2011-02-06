@@ -360,32 +360,33 @@ StdLibDataStructures::runOnModule (Module &M) {
               // Set the read, write, and heap markers on the return value
               // as appropriate.
               //
-              if (recFuncs[x].action.read[0])
-                Graph->getNodeForValue(CI).getNode()->setReadMarker();
-              if (recFuncs[x].action.write[0])
-                Graph->getNodeForValue(CI).getNode()->setModifiedMarker();
-              if (recFuncs[x].action.heap[0])
-                Graph->getNodeForValue(CI).getNode()->setHeapMarker();
+              if(isa<PointerType>((CI)->getType())){
+                if(Graph->hasNodeForValue(CI)){
+                  if (recFuncs[x].action.read[0])
+                    Graph->getNodeForValue(CI).getNode()->setReadMarker();
+                  if (recFuncs[x].action.write[0])
+                    Graph->getNodeForValue(CI).getNode()->setModifiedMarker();
+                  if (recFuncs[x].action.heap[0])
+                    Graph->getNodeForValue(CI).getNode()->setHeapMarker();
+                }
+              }
 
               //
               // Set the read, write, and heap markers on the actual arguments
               // as appropriate.
               //
               for (unsigned y = 1; y < CI->getNumOperands(); ++y)
-                if (recFuncs[x].action.read[y])
-                  if (isa<PointerType>(CI->getOperand(y)->getType()))
-                    if (Graph->hasNodeForValue(CI->getOperand(y)))
-                    Graph->getNodeForValue(CI->getOperand(y)).getNode()->setReadMarker();
-              for (unsigned y = 1; y < CI->getNumOperands(); ++y)
-                if (recFuncs[x].action.write[y])
-                  if (isa<PointerType>(CI->getOperand(y)->getType()))
-                    if (Graph->hasNodeForValue(CI->getOperand(y)))
-                    Graph->getNodeForValue(CI->getOperand(y)).getNode()->setModifiedMarker();
-              for (unsigned y = 1; y < CI->getNumOperands(); ++y)
-                if (recFuncs[x].action.heap[y])
-                  if (isa<PointerType>(CI->getOperand(y)->getType()))
-                    if (Graph->hasNodeForValue(CI->getOperand(y)))
-                    Graph->getNodeForValue(CI->getOperand(y)).getNode()->setHeapMarker();
+                if (isa<PointerType>(CI->getOperand(y)->getType())){
+                  if (Graph->hasNodeForValue(CI->getOperand(y))){
+                    if (recFuncs[x].action.read[y])
+                      Graph->getNodeForValue(CI->getOperand(y)).getNode()->setReadMarker();
+                    if (recFuncs[x].action.write[y])
+                      Graph->getNodeForValue(CI->getOperand(y)).getNode()->setModifiedMarker();
+                    if (recFuncs[x].action.heap[y])
+                      Graph->getNodeForValue(CI->getOperand(y)).getNode()->setHeapMarker();
+                  }
+                }
+
 
               //
               // Merge the DSNoes for return values and parameters as
@@ -433,32 +434,32 @@ StdLibDataStructures::runOnModule (Module &M) {
                       // Set the read, write, and heap markers on the return value
                       // as appropriate.
                       //
-                     if (recFuncs[x].action.read[0])
-                        Graph->getNodeForValue(CI).getNode()->setReadMarker();
-                     if (recFuncs[x].action.write[0])
-                       Graph->getNodeForValue(CI).getNode()->setModifiedMarker();
-                     if (recFuncs[x].action.heap[0])
-                       Graph->getNodeForValue(CI).getNode()->setHeapMarker();
+                     if(isa<PointerType>((CI)->getType())){
+                       if(Graph->hasNodeForValue(CI)){
+                         if (recFuncs[x].action.read[0])
+                           Graph->getNodeForValue(CI).getNode()->setReadMarker();
+                         if (recFuncs[x].action.write[0])
+                           Graph->getNodeForValue(CI).getNode()->setModifiedMarker();
+                         if (recFuncs[x].action.heap[0])
+                           Graph->getNodeForValue(CI).getNode()->setHeapMarker();
+                       }
+                     }
 
                       //
                       // Set the read, write, and heap markers on the actual arguments
                       // as appropriate.
                       //
                       for (unsigned y = 1; y < CI->getNumOperands(); ++y)
-                        if (recFuncs[x].action.read[y])
-                          if (isa<PointerType>(CI->getOperand(y)->getType()))
+                        if (recFuncs[x].action.read[y]){
+                          if (isa<PointerType>(CI->getOperand(y)->getType())){
                             if (Graph->hasNodeForValue(CI->getOperand(y)))
                               Graph->getNodeForValue(CI->getOperand(y)).getNode()->setReadMarker();
-                      for (unsigned y = 1; y < CI->getNumOperands(); ++y)
-                        if (recFuncs[x].action.write[y])
-                          if (isa<PointerType>(CI->getOperand(y)->getType()))
                             if (Graph->hasNodeForValue(CI->getOperand(y)))
                               Graph->getNodeForValue(CI->getOperand(y)).getNode()->setModifiedMarker();
-                      for (unsigned y = 1; y < CI->getNumOperands(); ++y)
-                        if (recFuncs[x].action.heap[y])
-                          if (isa<PointerType>(CI->getOperand(y)->getType()))
                             if (Graph->hasNodeForValue(CI->getOperand(y)))
                               Graph->getNodeForValue(CI->getOperand(y)).getNode()->setHeapMarker();
+                          }
+                        }
 
                       //
                       // Merge the DSNoes for return values and parameters as
