@@ -15,6 +15,7 @@ PADIR   := $(LLVM_OBJ_ROOT)/projects/poolalloc
 
 # Pathame to the DSA pass dynamic library
 DSA_SO   := $(PADIR)/$(CONFIGURATION)/lib/libLLVMDataStructure$(SHLIBEXT)
+ASSIST_SO := $(PADIR)/$(CONFIGURATION)/lib/libAssistDS$(SHLIBEXT)
 
 # Command for running the opt program
 RUNOPT := $(RUNTOOLSAFELY) $(LLVM_OBJ_ROOT)/projects/poolalloc/$(CONFIGURATION)/bin/watchdog $(LOPT) -load $(DSA_SO)
@@ -27,16 +28,22 @@ ANALYZE_OPTS := -stats -time-passes -disable-output -dsstats
 ANALYZE_OPTS +=  -instcount -disable-verify -analyze
 MEM := -track-memory -time-passes -disable-output
 
+#TYPE_INFERENCE_OPT := 1
+
 #ifdef TYPE_INFERENCE_OPT
-ANALYZE_OPTS += -enable-type-inference-opts
+ANALYZE_OPTS += -enable-type-inference-opts -dsa-stdlib-no-fold
 #endif 
 
+$(PROGRAMS_TO_TEST:%=Output/%.base.bc): \
+Output/%.base.bc: Output/%.llvm.bc $(LOPT) $(ASSIST_SO)
+	-$(RUNOPT) -load $(ASSIST_SO) -info-output-file=$(CURDIR)/$@.info -instnamer -internalize -indclone -funcspec -ipsccp -deadargelim -instcombine -globaldce -stats -time-passes $< -f -o $@ 
+
 $(PROGRAMS_TO_TEST:%=Output/%.$(TEST).report.txt): \
-Output/%.$(TEST).report.txt: Output/%.llvm.bc Output/%.LOC.txt $(LOPT)
+Output/%.$(TEST).report.txt: Output/%.base.bc Output/%.LOC.txt $(LOPT)
 	@# Gather data
 	-($(RUNOPT) -dsa-$(PASS) $(ANALYZE_OPTS) $<)> $@.time.1 2>&1
 	-($(RUNOPT) -dsa-$(PASS) -dsa-stdlib-no-fold  $(ANALYZE_OPTS) $<)> $@.time.2 2>&1
-	-($(RUNOPT)  $(MEM) -dsa-$(PASS) -disable-verify -debug-pass=Details $<)> $@.mem.1 2>&1
+	-($(RUNOPT)  $(MEM) -dsa-$(PASS) -disable-verify  $<)> $@.mem.1 2>&1
 	@# Emit data.
 	@echo "---------------------------------------------------------------" > $@
 	@echo ">>> ========= '$(RELDIR)/$*' Program" >> $@
@@ -111,6 +118,13 @@ Output/%.$(TEST).report.txt: Output/%.llvm.bc Output/%.LOC.txt $(LOPT)
 	@echo >> $@
 	@/bin/echo -n "MEM: " >> $@
 	-@grep '  Top-down Data Structure' $@.mem.1 >> $@
+	@# Emit AssistDS stats
+	@/bin/echo -n "CLONED_FUNCSPEC: " >> $@
+	-@grep 'Number of Functions Cloned in FuncSpec' $<.info >> $@
+	@echo >> $@
+	@/bin/echo -n "CLONED_INDCLONE: " >> $@
+	-@grep 'Number of Functions Cloned in IndClone' $<.info >> $@
+	@echo >> $@
 
 
 
