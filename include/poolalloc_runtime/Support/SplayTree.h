@@ -266,7 +266,7 @@ class RangeSplaySet
     return Tree.__remove(key);
   }
 
-  bool count() { return Tree.__count(); }
+  unsigned count() { return Tree.__count(); }
 
   void clear() { Tree.__clear(); }
 
@@ -306,7 +306,7 @@ class RangeSplayMap {
     return Tree.__remove(key);
   }
   
-  bool count() { return Tree.__count(); }
+  unsigned count() { return Tree.__count(); }
   
   void clear() { Tree.__clear(); }
   
