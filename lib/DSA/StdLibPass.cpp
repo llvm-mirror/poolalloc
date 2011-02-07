@@ -60,11 +60,8 @@ struct libAction {
   // The return value/arguments that should be marked as heap.
   bool heap[numOps];
 
-  // Flags whether all arguments should be merged together.
-  bool mergeAllArgs;
-
   // Flags whether the return value should be merged with all arguments.
-  bool mergeWithRet;
+  bool mergeNodes[numOps];
 
   // Flags whether the return value and arguments should be folded.
   bool collapse;
@@ -84,106 +81,107 @@ const struct {
   const char* name;
   libAction action;
 } recFuncs[] = {
-  {"stat",       {NRET_YNARGS, NRET_NYARGS, NRET_NARGS, false, false, false}},
-  {"fstat",      {NRET_YNARGS, NRET_NYARGS, NRET_NARGS, false, false, false}},
-  {"lstat",      {NRET_YNARGS, NRET_NYARGS, NRET_NARGS, false, false, false}},
+  {"stat",       {NRET_YNARGS, NRET_NYARGS, NRET_NARGS, NRET_NARGS, false}},
+  {"fstat",      {NRET_YNARGS, NRET_NYARGS, NRET_NARGS, NRET_NARGS, false}},
+  {"lstat",      {NRET_YNARGS, NRET_NYARGS, NRET_NARGS, NRET_NARGS, false}},
+  {"read",       {NRET_YARGS, YRET_YARGS, NRET_NARGS, NRET_NARGS, false}}, 
 
   // printf not strictly true, %n could cause a write
-  {"printf",     {NRET_YARGS,  NRET_NARGS,  NRET_NARGS, false, false, false}},
-  {"fprintf",    {NRET_YARGS,  NRET_YNARGS, NRET_NARGS, false, false, false}},
-  {"sprintf",    {NRET_YARGS,  NRET_YNARGS, NRET_NARGS, false, false, false}},
-  {"snprintf",   {NRET_YARGS,  NRET_YNARGS, NRET_NARGS, false, false, false}},
-  {"puts",       {NRET_YARGS,  NRET_NARGS,  NRET_NARGS, false, false, false}},
-  {"putc",       {NRET_NARGS,  NRET_NARGS,  NRET_NARGS, false, false, false}},
-  {"putchar",    {NRET_NARGS,  NRET_NARGS,  NRET_NARGS, false, false, false}},
-  {"fputs",      {NRET_YARGS,  NRET_NYARGS, NRET_NARGS, false, false, false}},
-  {"fputc",      {NRET_YARGS,  NRET_NYARGS, NRET_NARGS, false, false, false}},
+  {"printf",     {NRET_YARGS,  NRET_NARGS,  NRET_NARGS, NRET_NARGS, false}},
+  {"fprintf",    {NRET_YARGS,  NRET_YNARGS, NRET_NARGS, NRET_NARGS, false}},
+  {"sprintf",    {NRET_YARGS,  NRET_YNARGS, NRET_NARGS, NRET_NARGS, false}},
+  {"snprintf",   {NRET_YARGS,  NRET_YNARGS, NRET_NARGS, NRET_NARGS, false}},
+  {"puts",       {NRET_YARGS,  NRET_NARGS,  NRET_NARGS, NRET_NARGS, false}},
+  {"putc",       {NRET_NARGS,  NRET_NARGS,  NRET_NARGS, NRET_NARGS, false}},
+  {"putchar",    {NRET_NARGS,  NRET_NARGS,  NRET_NARGS, NRET_NARGS, false}},
+  {"fputs",      {NRET_YARGS,  NRET_NYARGS, NRET_NARGS, NRET_NARGS, false}},
+  {"fputc",      {NRET_YARGS,  NRET_NYARGS, NRET_NARGS, NRET_NARGS, false}},
 
 
-  {"calloc",     {NRET_NARGS, YRET_NARGS, YRET_NARGS,  false, false, false}},
-  {"malloc",     {NRET_NARGS, YRET_NARGS, YRET_NARGS,  false, false, false}},
-  {"valloc",     {NRET_NARGS, YRET_NARGS, YRET_NARGS,  false, false, false}},
-  {"memalign",   {NRET_NARGS, YRET_NARGS, YRET_NARGS,  false, false, false}},
-  {"realloc",    {NRET_NARGS, YRET_NARGS, YRET_YNARGS, false,  true,  true}},
-  {"free",       {NRET_NARGS, NRET_NARGS, NRET_YNARGS, false, false, false}},
+  {"calloc",     {NRET_NARGS, YRET_NARGS, YRET_NARGS,  NRET_NARGS, false}},
+  {"malloc",     {NRET_NARGS, YRET_NARGS, YRET_NARGS,  NRET_NARGS, false}},
+  {"valloc",     {NRET_NARGS, YRET_NARGS, YRET_NARGS,  NRET_NARGS, false}},
+  {"realloc",    {NRET_NARGS, YRET_NARGS, YRET_YNARGS, YRET_YNARGS,false}},
+  {"memalign",   {NRET_NARGS, YRET_NARGS, YRET_NARGS,  NRET_NARGS, false}},
+  {"posix_memalign",   {NRET_YARGS, YRET_YNARGS, NRET_NARGS,  NRET_NARGS, false}},
+  {"free",       {NRET_NARGS, NRET_NARGS, NRET_YNARGS, NRET_NARGS, false}},
   
-  {"strdup",     {NRET_YARGS, YRET_NARGS, YRET_NARGS,  false, true, false}},
-  {"wcsdup",     {NRET_YARGS, YRET_NARGS, YRET_NARGS,  false, true, false}},
+  {"strdup",     {NRET_YARGS, YRET_NARGS, YRET_NARGS,  NRET_NARGS, false}},
+  {"wcsdup",     {NRET_YARGS, YRET_NARGS, YRET_NARGS,  NRET_NARGS, false}},
 
-  {"atoi",       {NRET_YARGS, NRET_NARGS, NRET_NARGS, false, false, false}},
-  {"atof",       {NRET_YARGS, NRET_NARGS, NRET_NARGS, false, false, false}},
-  {"atol",       {NRET_YARGS, NRET_NARGS, NRET_NARGS, false, false, false}},
-  {"atoll",      {NRET_YARGS, NRET_NARGS, NRET_NARGS, false, false, false}},
-  {"atoq",       {NRET_YARGS, NRET_NARGS, NRET_NARGS, false, false, false}},
+  {"atoi",       {NRET_YARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
+  {"atof",       {NRET_YARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
+  {"atol",       {NRET_YARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
+  {"atoll",      {NRET_YARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
+  {"atoq",       {NRET_YARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
 
-  {"memcmp",     {NRET_YARGS, NRET_NARGS, NRET_NARGS, false, false, false}},
-  {"strcmp",     {NRET_YARGS, NRET_NARGS, NRET_NARGS, false, false, false}},
-  {"wcscmp",     {NRET_YARGS, NRET_NARGS, NRET_NARGS, false, false, false}},
-  {"strncmp",    {NRET_YARGS, NRET_NARGS, NRET_NARGS, false, false, false}},
-  {"wcsncmp",    {NRET_YARGS, NRET_NARGS, NRET_NARGS, false, false, false}},
-  {"strcasecmp", {NRET_YARGS, NRET_NARGS, NRET_NARGS, false, false, false}},
-  {"wcscasecmp", {NRET_YARGS, NRET_NARGS, NRET_NARGS, false, false, false}},
-  {"strncasecmp",{NRET_YARGS, NRET_NARGS, NRET_NARGS, false, false, false}},
-  {"wcsncasecmp",{NRET_YARGS, NRET_NARGS, NRET_NARGS, false, false, false}},
-  {"strlen",     {NRET_YARGS, NRET_NARGS, NRET_NARGS, false, false, false}},
-  {"wcslen",     {NRET_YARGS, NRET_NARGS, NRET_NARGS, false, false, false}},
+  {"memcmp",     {NRET_YARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
+  {"strcmp",     {NRET_YARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
+  {"wcscmp",     {NRET_YARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
+  {"strncmp",    {NRET_YARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
+  {"wcsncmp",    {NRET_YARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
+  {"strcasecmp", {NRET_YARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
+  {"wcscasecmp", {NRET_YARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
+  {"strncasecmp",{NRET_YARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
+  {"wcsncasecmp",{NRET_YARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
+  {"strlen",     {NRET_YARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
+  {"wcslen",     {NRET_YARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
 
-  {"memchr",     {YRET_YARGS, NRET_NARGS, NRET_NARGS, false, true, true}},
-  {"wmemchr",    {YRET_YARGS, NRET_NARGS, NRET_NARGS, false, true, true}},
-  {"memrchr",    {YRET_YARGS, NRET_NARGS, NRET_NARGS, false, true, true}},
-  {"strchr",     {YRET_YARGS, NRET_NARGS, NRET_NARGS, false, true, true}},
-  {"wcschr",     {YRET_YARGS, NRET_NARGS, NRET_NARGS, false, true, true}},
-  {"strrchr",    {YRET_YARGS, NRET_NARGS, NRET_NARGS, false, true, true}},
-  {"wcsrchr",    {YRET_YARGS, NRET_NARGS, NRET_NARGS, false, true, true}},
-  {"strchrhul",  {YRET_YARGS, NRET_NARGS, NRET_NARGS, false, true, true}},
-  {"strcat",     {YRET_YARGS, YRET_YARGS, NRET_NARGS,  true, true, true}},
-  {"strncat",    {YRET_YARGS, YRET_YARGS, NRET_NARGS,  true, true, true}},
+  {"memchr",     {YRET_YARGS, NRET_NARGS, NRET_NARGS, YRET_YNARGS, true}},
+  {"wmemchr",    {YRET_YARGS, NRET_NARGS, NRET_NARGS, YRET_YNARGS, true}},
+  {"memrchr",    {YRET_YARGS, NRET_NARGS, NRET_NARGS, YRET_YNARGS, true}},
+  {"strchr",     {YRET_YARGS, NRET_NARGS, NRET_NARGS, YRET_YNARGS, true}},
+  {"wcschr",     {YRET_YARGS, NRET_NARGS, NRET_NARGS, YRET_YNARGS, true}},
+  {"strrchr",    {YRET_YARGS, NRET_NARGS, NRET_NARGS, YRET_YNARGS, true}},
+  {"wcsrchr",    {YRET_YARGS, NRET_NARGS, NRET_NARGS, YRET_YNARGS, true}},
+  {"strchrhul",  {YRET_YARGS, NRET_NARGS, NRET_NARGS, YRET_YNARGS, true}},
+  {"strcat",     {YRET_YARGS, YRET_YARGS, NRET_NARGS, YRET_YNARGS, true}},
+  {"strncat",    {YRET_YARGS, YRET_YARGS, NRET_NARGS, YRET_YNARGS, true}},
 
-  {"strcpy",     {YRET_YARGS, YRET_YARGS, NRET_NARGS, true, true, true}},
-  {"memccpy",    {YRET_YARGS, YRET_YARGS, NRET_NARGS, true, true, true}},
-  {"wmemccpy",   {YRET_YARGS, YRET_YARGS, NRET_NARGS, true, true, true}},
-  {"wcscpy",     {YRET_YARGS, YRET_YARGS, NRET_NARGS, true, true, true}},
-  {"strncpy",    {YRET_YARGS, YRET_YARGS, NRET_NARGS, true, true, true}},
-  {"wcsncpy",    {YRET_YARGS, YRET_YARGS, NRET_NARGS, true, true, true}},
+  {"strcpy",     {YRET_YARGS, YRET_YARGS, NRET_NARGS, YRET_YNARGS, true}},
+  {"strncpy",    {YRET_YARGS, YRET_YARGS, NRET_NARGS, YRET_YNARGS, true}},
+  {"memccpy",    {YRET_YARGS, YRET_YARGS, NRET_NARGS, YRET_YNARGS, true}},
+  {"memcpy",    {YRET_YARGS, YRET_YARGS, NRET_NARGS, YRET_YNARGS, true}},
+  {"memmove",    {YRET_YARGS, YRET_YARGS, NRET_NARGS, YRET_YNARGS, true}}, 
+  {"wmemccpy",   {YRET_YARGS, YRET_YARGS, NRET_NARGS, YRET_YNARGS, true}},
+  {"wcscpy",     {YRET_YARGS, YRET_YARGS, NRET_NARGS, YRET_YNARGS, true}},
+  {"wcsncpy",    {YRET_YARGS, YRET_YARGS, NRET_NARGS, YRET_YNARGS, true}},
 
+  {"fwrite",     {NRET_YARGS, NRET_NYARGS, NRET_NARGS, NRET_NARGS, false}},
+  {"write",      {NRET_YARGS,  NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
+  {"fread",      {NRET_NYARGS, NRET_YARGS, NRET_NARGS, NRET_NARGS, false}},
+  {"fflush",     {NRET_YARGS,  NRET_YARGS, NRET_NARGS, NRET_NARGS, false}},
+  {"fclose",     {NRET_YARGS,  NRET_YARGS, NRET_NARGS, NRET_NARGS, false}},
+  {"fopen",      {NRET_YARGS,  YRET_NARGS, YRET_NARGS, NRET_NARGS, false}},
+  {"open",       {NRET_YARGS,  NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
+  {"fileno",     {NRET_YARGS,  NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
+  {"unlink",     {NRET_YARGS,  NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
 
-  {"fwrite",     {NRET_YARGS, NRET_NYARGS, NRET_NARGS, false, false, false}},
-  {"fread",      {NRET_NYARGS, NRET_YARGS, NRET_NARGS, false, false, false}},
-  {"fflush",     {NRET_YARGS,  NRET_YARGS, NRET_NARGS, false, false, false}},
-  {"fclose",     {NRET_YARGS,  NRET_YARGS, NRET_NARGS, false, false, false}},
-  {"fopen",      {NRET_YARGS,  YRET_NARGS, YRET_NARGS, false, false, false}},
-  {"fileno",     {NRET_YARGS,  NRET_NARGS, NRET_NARGS, false, false, false}},
-  {"unlink",     {NRET_YARGS,  NRET_NARGS, NRET_NARGS, false, false, false}},
-
-  {"perror",     {NRET_YARGS,  NRET_NARGS, NRET_NARGS, false, false, false}},
+  {"perror",     {NRET_YARGS,  NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
 
   // SAFECode Intrinsics
-  {"sc.lscheck", {NRET_NARGS, NRET_NARGS, NRET_NARGS, false, false, false}},
-  {"sc.lscheckui", {NRET_NARGS, NRET_NARGS, NRET_NARGS, false, false, false}},
-  {"sc.lscheckalign", {NRET_NARGS, NRET_NARGS, NRET_NARGS, false, false, false}},
-  {"sc.lscheckalignui", {NRET_NARGS, NRET_NARGS, NRET_NARGS, false, false, false}},
-  {"sc.pool_register_stack", {NRET_NARGS, NRET_NARGS, NRET_NARGS, false, false, false}},
-  {"sc.pool_unregister_stack", {NRET_NARGS, NRET_NARGS, NRET_NARGS, false, false, false}},
-  {"sc.pool_register_global", {NRET_NARGS, NRET_NARGS, NRET_NARGS, false, false, false}},
-  {"sc.pool_unregister_global", {NRET_NARGS, NRET_NARGS, NRET_NARGS, false, false, false}},
-  {"sc.pool_register", {NRET_NARGS, NRET_NARGS, NRET_NARGS, false, false, false}},
-  {"sc.pool_unregister", {NRET_NARGS, NRET_NARGS, NRET_NARGS, false, false, false}},
-  {"sc.pool_argvregister", {NRET_NARGS, NRET_NARGS, NRET_NARGS, false, false, false}},
+  {"sc.lscheck", {NRET_NARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
+  {"sc.lscheckui", {NRET_NARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
+  {"sc.lscheckalign", {NRET_NARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
+  {"sc.lscheckalignui", {NRET_NARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
+  {"sc.pool_register_stack", {NRET_NARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
+  {"sc.pool_unregister_stack", {NRET_NARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
+  {"sc.pool_register_global", {NRET_NARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
+  {"sc.pool_unregister_global", {NRET_NARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
+  {"sc.pool_register", {NRET_NARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
+  {"sc.pool_unregister", {NRET_NARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
+  {"sc.pool_argvregister", {NRET_NARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
 
 #if 0
   {"remove",     {false, false, false,  true, false, false, false, false, false}},
   {"unlink",     {false, false, false,  true, false, false, false, false, false}},
   {"rename",     {false, false, false,  true, false, false, false, false, false}},
-  {"memcmp",     {false, false, false,  true, false, false, false, false, false}},
   {"execl",      {false, false, false,  true, false, false, false, false, false}},
   {"execlp",     {false, false, false,  true, false, false, false, false, false}},
   {"execle",     {false, false, false,  true, false, false, false, false, false}},
   {"execv",      {false, false, false,  true, false, false, false, false, false}},
   {"execvp",     {false, false, false,  true, false, false, false, false, false}},
   {"chmod",      {false, false, false,  true, false, false, false, false, false}},
-  {"puts",       {false, false, false,  true, false, false, false, false, false}},
-  {"write",      {false, false, false,  true, false, false, false, false, false}},
-  {"open",       {false, false, false,  true, false, false, false, false, false}},
   {"create",     {false, false, false,  true, false, false, false, false, false}},
   {"truncate",   {false, false, false,  true, false, false, false, false, false}},
   {"chdir",      {false, false, false,  true, false, false, false, false, false}},
@@ -194,21 +192,21 @@ const struct {
   {"wait",       {false, false, false, false,  true, false, false, false, false}},
   {"time",       {false, false, false, false,  true, false, false, false, false}},
   {"getrusage",  {false, false, false, false,  true, false, false, false, false}},
-  {"memmove",    {false,  true, false,  true,  true, false,  true,  true,  true}},
   {"bcopy",      {false, false, false,  true,  true, false,  true, false,  true}},
   {"getcwd",     { true,  true,  true,  true,  true,  true, false,  true,  true}},
 #endif
+
   // C++ functions, as mangled on linux gcc 4.2
   // operator new(unsigned long)
-  {"_Znwm",      {NRET_NARGS, YRET_NARGS, YRET_NARGS,  false, false, false}},
+  {"_Znwm",      {NRET_NARGS, YRET_NARGS, YRET_NARGS, NRET_NARGS, false}},
   // operator new[](unsigned long)
-  {"_Znam",      {NRET_NARGS, YRET_NARGS, YRET_NARGS,  false, false, false}},
+  {"_Znam",      {NRET_NARGS, YRET_NARGS, YRET_NARGS, NRET_NARGS, false}},
   // operator delete(void*)
-  {"_ZdlPv",     {NRET_NARGS, NRET_NARGS, NRET_YNARGS,  false, false, false}},
+  {"_ZdlPv",     {NRET_NARGS, NRET_NARGS, NRET_YNARGS,NRET_NARGS, false}},
   // operator delete[](void*)
-  {"_ZdaPv",     {NRET_NARGS, NRET_NARGS, NRET_YNARGS,  false, false, false}},
+  {"_ZdaPv",     {NRET_NARGS, NRET_NARGS, NRET_YNARGS, NRET_NARGS, false}},
   // Terminate the list of special functions recognized by this pass
-  {0,            {NRET_NARGS, NRET_NARGS, NRET_NARGS, false, false, false}},
+  {0,            {NRET_NARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
 };
 
 //
@@ -316,6 +314,7 @@ StdLibDataStructures::runOnModule (Module &M) {
     if (!I->isDeclaration())
       getOrCreateGraph(&*I);
 
+  //FIXME: Should this happen in a "StdLib" Pass???
   //
   // Erase direct calls to functions that don't return a pointer and are marked
   // with the readnone annotation.
@@ -393,12 +392,12 @@ StdLibDataStructures::runOnModule (Module &M) {
               // appropriate.
               //
               std::vector<DSNodeHandle> toMerge;
-              if (recFuncs[x].action.mergeWithRet)
+              if (recFuncs[x].action.mergeNodes[0])
                 if (isa<PointerType>(CI->getType()))
                   if (Graph->hasNodeForValue(CI))
                 toMerge.push_back(Graph->getNodeForValue(CI));
-              if (recFuncs[x].action.mergeAllArgs || recFuncs[x].action.mergeWithRet)
                 for (unsigned y = 1; y < CI->getNumOperands(); ++y)
+              if (recFuncs[x].action.mergeNodes[y])
                   if (isa<PointerType>(CI->getOperand(y)->getType()))
                     if (Graph->hasNodeForValue(CI->getOperand(y)))
                       toMerge.push_back(Graph->getNodeForValue(CI->getOperand(y)));
@@ -469,12 +468,12 @@ StdLibDataStructures::runOnModule (Module &M) {
                       // appropriate.
                       //
                       std::vector<DSNodeHandle> toMerge;
-                      if (recFuncs[x].action.mergeWithRet)
+                      if (recFuncs[x].action.mergeNodes[0])
                         if (isa<PointerType>(CI->getType()))
                           if (Graph->hasNodeForValue(CI))
                             toMerge.push_back(Graph->getNodeForValue(CI));
-                      if (recFuncs[x].action.mergeAllArgs || recFuncs[x].action.mergeWithRet)
                         for (unsigned y = 1; y < CI->getNumOperands(); ++y)
+                        if (recFuncs[x].action.mergeNodes[y])
                           if (isa<PointerType>(CI->getOperand(y)->getType()))
                             if (Graph->hasNodeForValue(CI->getOperand(y)))
                               toMerge.push_back(Graph->getNodeForValue(CI->getOperand(y)));
