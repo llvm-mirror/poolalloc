@@ -553,7 +553,7 @@ void GraphBuilder::visitGetElementPtrInst(User &GEP) {
   // indexed.
   //
  
-  unsigned Offset = 0;
+  int Offset = 0;
 
   if(TypeInferenceOptimize) {
   // Trying to special case constant index GEPs
@@ -568,7 +568,7 @@ void GraphBuilder::visitGetElementPtrInst(User &GEP) {
             }
             Value.setOffset(Value.getOffset()+Offset);
             DSNode *N = Value.getNode();
-            if((int)Offset < 0)
+            if(((int)Value.getOffset() + Offset) < 0)
               N->foldNodeCompletely();
             setDestTo(GEP, Value);
             return;
@@ -589,7 +589,7 @@ void GraphBuilder::visitGetElementPtrInst(User &GEP) {
             Value.getNode()->growSize(Value.getOffset() + O+1);
           Value.setOffset(Value.getOffset()+O);
           DSNode *N = Value.getNode();
-          if(O < 0)
+          if(((int)Value.getOffset() + O) < 0)
             N->foldNodeCompletely();
           setDestTo(GEP, Value);
           ++NumUglyGep1;
@@ -598,6 +598,7 @@ void GraphBuilder::visitGetElementPtrInst(User &GEP) {
       }
     }
   }
+  
   // FIXME: I am not sure if the code below is completely correct (especially
   //        if we start doing fancy analysis on non-constant array indices).
   //        What if the array is indexed using a larger index than its declared
@@ -711,7 +712,7 @@ void GraphBuilder::visitGetElementPtrInst(User &GEP) {
       !N->isNodeCompletelyFolded() &&
       (N->getSize() != 0 || Offset != 0) &&
       !N->isForwarding()) {
-    if ((Offset >= N->getSize()) || int(Offset) < 0) {
+    if ((Offset >= (int)N->getSize()) || Offset < 0) {
       // Accessing offsets out of node size range
       // This is seen in the "magic" struct in named (from bind), where the
       // fourth field is an array of length 0, presumably used to create struct
