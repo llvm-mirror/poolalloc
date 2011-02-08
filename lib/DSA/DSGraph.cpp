@@ -1364,11 +1364,12 @@ void DSGraph::computeNodeMapping(const DSNodeHandle &NH1,
   // Modify the entry in the node map so that the DSNode from the first
   // DSNodeHandle is mapped to the second DSNodeHandle.
   //
-  assert(((signed int)(NH2.getOffset()-NH1.getOffset())>=0) && " Underflow error ");
+  // FIXME: AA:I am not sure what the right mapping for the
+  // following case is. I believe we do not need to create any 
+  // new mapping.
+  //assert(((signed int)(NH2.getOffset()-NH1.getOffset())>=0) && " Underflow error ");
   if(NH2.getOffset() >= NH1.getOffset()) {
     Entry.setTo(N2, NH2.getOffset()-NH1.getOffset());
-  } else {
-    Entry.setTo(N2, NH1.getOffset());
   }
 
   //
