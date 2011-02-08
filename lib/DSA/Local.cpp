@@ -45,6 +45,8 @@ STATISTIC(NumDirectCall,    "Number of direct calls added");
 STATISTIC(NumIndirectCall,  "Number of indirect calls added");
 STATISTIC(NumAsmCall,       "Number of asm calls collapsed/seen");
 STATISTIC(NumIntrinsicCall, "Number of intrinsics called");
+STATISTIC(NumUglyGep,       "Number of uglygeps");
+STATISTIC(NumUglyGep1,      "Number of uglygeps caught");
 
 RegisterPass<LocalDataStructures>
 X("dsa-local", "Local Data Structure Analysis");
@@ -206,6 +208,53 @@ namespace {
     void mergeFunction(Function* F) { getValueDest(F); }
   };
 
+  static bool handleUglygep(GetElementPtrInst *GEPInst, int *Offset) {
+    int O = 0;
+    llvm::Value* Val = GEPInst->getOperand(1);
+    if(isa<ConstantInt>(Val)) {
+      O = (cast<ConstantInt>(Val))->getSExtValue();
+    } else {
+      std::vector<llvm::Value*> exprs;
+      while(!isa<PHINode>(Val)){
+        exprs.push_back(Val);
+        if(BinaryOperator *BI = dyn_cast<BinaryOperator>(Val)){
+          if(!isa<ConstantInt>(BI->getOperand(1))){
+            return false;
+          }
+          Val = BI->getOperand(0);
+        }else {
+          return false;
+        }
+      }
+      PHINode *phi = cast<PHINode>(Val);
+      if(phi->getNumIncomingValues() > 3){
+        return false;
+      }
+      if(isa<ConstantInt>(phi->getIncomingValue(1)))
+         O = (cast<ConstantInt>(phi->getIncomingValue(1)))->getSExtValue();
+      else if(isa<ConstantInt>(phi->getIncomingValue(0)))
+        O = (cast<ConstantInt>(phi->getIncomingValue(0)))->getSExtValue();
+      else if(isa<ConstantInt>(phi->getIncomingValue(2)))
+        O = (cast<ConstantInt>(phi->getIncomingValue(2)))->getSExtValue();
+      while (!exprs.empty()) {
+        llvm::Value* V = exprs.back();
+        exprs.pop_back();
+        BinaryOperator *BI = cast<BinaryOperator>(V);
+        unsigned O1 = (cast<ConstantInt>(BI->getOperand(1)))->getSExtValue();
+        switch(BI->getOpcode()){
+        case llvm::BinaryOperator::Shl: O = O << O1;break;
+        case llvm::BinaryOperator::Or: O = O | O1;break;
+        case llvm::BinaryOperator::And: O = O & O1;break;
+        case llvm::BinaryOperator::Add: O = O + O1;break;
+        case llvm::BinaryOperator::Sub: O = O - O1;break;
+        case llvm::BinaryOperator::Mul: O = O * O1;break;
+        default: errs() <<"NOT HANDLED : " << BI << "\n";return false;
+        }
+      }
+    }
+    *Offset = O;
+    return true;
+  }
   /// Traverse the whole DSGraph, and propagate the unknown flags through all 
   /// out edges.
   static void propagateUnknownFlag(DSGraph * G) {
@@ -442,7 +491,8 @@ void GraphBuilder::visitInsertValueInst(InsertValueInst& I) {
   Dest.getNode()->setModifiedMarker();
   unsigned Offset = 0;
   const Type* STy = I.getAggregateOperand()->getType();
-  for (llvm::ExtractValueInst::idx_iterator i = I.idx_begin(), e = I.idx_end(); i != e; i++) {
+  llvm::InsertValueInst::idx_iterator i = I.idx_begin(), e = I.idx_end(); 
+  for (; i != e; i++) {
     const StructLayout *SL = TD.getStructLayout(cast<StructType>(STy));
     Offset += SL->getElementOffset(*i);
     STy = (cast<StructType>(STy))->getTypeAtIndex(*i);
@@ -463,7 +513,8 @@ void GraphBuilder::visitExtractValueInst(ExtractValueInst& I) {
   Ptr.getNode()->setReadMarker();
   unsigned Offset = 0;
   const Type* STy = I.getAggregateOperand()->getType();
-  for (llvm::ExtractValueInst::idx_iterator i = I.idx_begin(), e = I.idx_end(); i != e; i++) {
+  llvm::ExtractValueInst::idx_iterator i = I.idx_begin(), e = I.idx_end();
+  for (; i != e; i++) {
     const StructLayout *SL = TD.getStructLayout(cast<StructType>(STy));
     Offset += SL->getElementOffset(*i);
     STy = (cast<StructType>(STy))->getTypeAtIndex(*i);
@@ -505,11 +556,11 @@ void GraphBuilder::visitGetElementPtrInst(User &GEP) {
   unsigned Offset = 0;
 
   if(TypeInferenceOptimize) {
-  // Trying to special case constant index "inbounds" GEPs
+  // Trying to special case constant index GEPs
     if(GetElementPtrInst *GEPInst = dyn_cast<GetElementPtrInst>(&GEP)) {
-      if(GEPInst->isInBounds())
       if(GEPInst->hasAllConstantIndices()){
-        if(GEPInst->getType() == llvm::Type::getInt8PtrTy(GEPInst->getParent()->getParent()->getContext()))
+        if(GEPInst->getType() == 
+           llvm::Type::getInt8PtrTy(GEPInst->getParent()->getParent()->getContext()))
           if(GEPInst->getNumIndices() == 1) {
             Offset = (cast<ConstantInt>(GEPInst->getOperand(1)))->getSExtValue();
             if(Value.getNode()->getSize() <= Value.getOffset() + (Offset+1)) {
@@ -526,7 +577,27 @@ void GraphBuilder::visitGetElementPtrInst(User &GEP) {
     }
   }
 
-
+  if(TypeInferenceOptimize) {
+    if(GetElementPtrInst *GEPInst = dyn_cast<GetElementPtrInst>(&GEP)) {
+      std::string name = GEPInst->getName();
+      if (strncmp(name.c_str(), "uglygep", 7) == 0) {
+        ++NumUglyGep;
+        assert(GEPInst->getNumOperands() == 2);
+        int O;
+        if(handleUglygep(GEPInst, &O)) {
+          if(Value.getNode()->getSize() <= Value.getOffset() + O+1) 
+            Value.getNode()->growSize(Value.getOffset() + O+1);
+          Value.setOffset(Value.getOffset()+O);
+          DSNode *N = Value.getNode();
+          if(O < 0)
+            N->foldNodeCompletely();
+          setDestTo(GEP, Value);
+          ++NumUglyGep1;
+          return;
+        }
+      }
+    }
+  }
   // FIXME: I am not sure if the code below is completely correct (especially
   //        if we start doing fancy analysis on non-constant array indices).
   //        What if the array is indexed using a larger index than its declared
@@ -566,6 +637,11 @@ void GraphBuilder::visitGetElementPtrInst(User &GEP) {
       // indexing into an array.
       Value.getNode()->setArrayMarker();
       const Type *CurTy = ATy->getElementType();
+      if(TypeInferenceOptimize) {
+        //if(const ConstantInt* CUI = dyn_cast<ConstantInt>(I.getOperand()))
+          //if(ATy->getNumElements() > CUI->getZExtValue())
+            //CUI->dump();
+      }
 
       if(!isa<ArrayType>(CurTy) &&
           Value.getNode()->getSize() <= 0) {
@@ -577,7 +653,6 @@ void GraphBuilder::visitGetElementPtrInst(User &GEP) {
         }
         Value.getNode()->growSize(TD.getTypeAllocSize(ETy));
       }
-      // indexing into an array.
 
       // Find if the DSNode belongs to the array
       // If not fold.
@@ -771,7 +846,8 @@ bool GraphBuilder::visitIntrinsic(CallSite CS, Function *F) {
     // Merge the first & second arguments, and mark the memory read and
     // modified.
     DSNodeHandle RetNH = getValueDest(*CS.arg_begin());
-    RetNH.mergeWith(getValueDest(*(CS.arg_begin()+1)));
+    if(!TypeInferenceOptimize)
+      RetNH.mergeWith(getValueDest(*(CS.arg_begin()+1)));
     if (DSNode *N = RetNH.getNode())
       N->setModifiedMarker()->setReadMarker();
     return true;
