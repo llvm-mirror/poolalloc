@@ -177,11 +177,11 @@ bool TDDataStructures::runOnModule(Module &M) {
 
       cloneGlobalsInto(Graph, DSGraph::DontCloneCallNodes |
                         DSGraph::DontCloneAuxCallNodes);
-      // Clean up uninteresting nodes
-      Graph->removeDeadNodes(0);
 
       Graph->computeExternalFlags(DSGraph::DontMarkFormalsExternal);
       Graph->computeIntPtrFlags();
+      // Clean up uninteresting nodes
+      Graph->removeDeadNodes(0);
 
     }
   }
