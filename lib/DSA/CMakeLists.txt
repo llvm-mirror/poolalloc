@@ -1,2 +1,25 @@
-file(GLOB sources "*.cpp")
-add_llvm_library( LLVMDataStructure ${sources} )
+add_llvm_library(LLVMDataStructure 
+  AddressTakenAnalysis.cpp
+  Basic.cpp
+  BottomUpClosure.cpp
+  CallTargets.cpp
+  CompleteBottomUp.cpp
+  DSCallGraph.cpp
+  DSGraph.cpp
+  DSTest.cpp
+  DataStructure.cpp
+  DataStructureAA.cpp
+  DataStructureOpt.cpp
+  DataStructureStats.cpp
+  EntryPointAnalysis.cpp
+  EquivClassGraphs.cpp
+  GraphChecker.cpp
+  Local.cpp
+  Printer.cpp
+  SanityCheck.cpp
+  StdLibPass.cpp
+  Steensgaard.cpp
+  SteensgaardAA.cpp
+  TopDownClosure.cpp
+  TypeSafety.cpp
+  )
