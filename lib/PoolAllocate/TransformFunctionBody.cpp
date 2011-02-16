@@ -71,6 +71,7 @@ namespace {
     void visitMemAlignCall(CallSite CS);
     void visitStrdupCall(CallSite CS);
     void visitRuntimeCheck(CallSite CS);
+    void visitCStdLibCheck(CallSite CS, const unsigned argc);
     void visitFreeCall(CallSite &CS);
     void visitCallSite(CallSite &CS);
     void visitCallInst(CallInst &CI) {
@@ -740,6 +741,49 @@ FuncTransform::visitRuntimeCheck (CallSite CS) {
   }
 }
 
+/**
+ * Visit the call site and replace null pool arguments with the correct ones
+ *
+ * @param       argc       Number of pool arguments to insert
+ */
+void FuncTransform::visitCStdLibCheck(CallSite CS, const unsigned argc) {
+  // Check for the correct number of pool arguments
+  assert ((CS.arg_size() > argc) && "Incorrect number of pool arguments!");
+
+  const Type *Int8Ty = Type::getInt8Ty(CS.getInstruction()->getContext());
+  const Type *VoidPtrTy = PointerType::getUnqual(Int8Ty);
+
+  if (argc == 1) {
+    // Get the pool handle for the pointer argument
+    Value *PH = getPoolHandle(CS.getArgument(1)->stripPointerCasts());
+
+    // Insert the pool handle
+    if (PH) {
+      PH = castTo(PH, VoidPtrTy, PH->getName(), CS.getInstruction());
+      CS.setArgument(0, PH);
+      AddPoolUse(*(CS.getInstruction()), PH, PoolUses);
+    }
+  } else if (argc == 2) {
+    // Get the pool handles for the pointer arguments
+    Value *dstPH = getPoolHandle(CS.getArgument(2)->stripPointerCasts());
+    Value *srcPH = getPoolHandle(CS.getArgument(3)->stripPointerCasts());
+
+    // Insert the destination pool handle
+    if (dstPH) {
+      dstPH = castTo(dstPH, VoidPtrTy, dstPH->getName(), CS.getInstruction());
+      CS.setArgument(0, dstPH);
+      AddPoolUse(*(CS.getInstruction()), dstPH, PoolUses);
+    }
+
+    // Insert the source pool handle
+    if (srcPH) {
+      srcPH = castTo(srcPH, VoidPtrTy, srcPH->getName(), CS.getInstruction());
+      CS.setArgument(1, srcPH);
+      AddPoolUse(*(CS.getInstruction()), srcPH, PoolUses);
+    }
+  }
+}
+
 //
 // Method: visitCallSite()
 //
@@ -826,6 +870,8 @@ void FuncTransform::visitCallSite(CallSite& CS) {
                (CF->getName() == "sc.pool_unregister") ||
                (CF->getName() == "sc.get_actual_val")) {
       visitRuntimeCheck (CS);
+    } else if (CF->getName() == "pool_strcpy") {
+      visitCStdLibCheck(CS, 2);
     } else if (CF->getName() == "pthread_create") {
       thread_creation_point = true;
 
