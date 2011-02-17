@@ -42,7 +42,6 @@ $(PROGRAMS_TO_TEST:%=Output/%.$(TEST).report.txt): \
 Output/%.$(TEST).report.txt: Output/%.base.bc Output/%.LOC.txt $(LOPT)
 	@# Gather data
 	-($(RUNOPT) -dsa-$(PASS) $(ANALYZE_OPTS) $<)> $@.time.1 2>&1
-	-($(RUNOPT) -dsa-$(PASS) -dsa-stdlib-no-fold  $(ANALYZE_OPTS) $<)> $@.time.2 2>&1
 	-($(RUNOPT)  $(MEM) -dsa-$(PASS) -disable-verify  $<)> $@.mem.1 2>&1
 	@# Emit data.
 	@echo "---------------------------------------------------------------" > $@
@@ -68,36 +67,6 @@ Output/%.$(TEST).report.txt: Output/%.base.bc Output/%.LOC.txt $(LOPT)
 	@echo >> $@
 	@/bin/echo -n "SCCSIZE: " >> $@
 	-@grep 'Maximum SCC Size in Call Graph' $@.time.1 >> $@
-	@echo >> $@
-	@/bin/echo -n "ACCESSES TYPED: " >> $@
-	-@grep 'Number of loads/stores which are fully typed' $@.time.1 >> $@
-	@echo >> $@
-	@/bin/echo -n "ACCESSES UNTYPED: " >> $@
-	-@grep 'Number of loads/stores which are untyped' $@.time.1 >> $@
-	@echo >> $@
-	@/bin/echo -n "ACCESSES TYPED1: " >> $@
-	-@grep 'Number of loads/stores which are access a DSNode with 1 type' $@.time.1 >> $@
-	@echo >> $@
-	@/bin/echo -n "ACCESSES TYPED2: " >> $@
-	-@grep 'Number of loads/stores which are access a DSNode with 2 type' $@.time.1 >> $@
-	@echo >> $@
-	@/bin/echo -n "ACCESSES TYPED3: " >> $@
-	-@grep 'Number of loads/stores which are access a DSNode with 3 type' $@.time.1 >> $@
-	@echo >> $@
-	@/bin/echo -n "ACCESSES TYPED4: " >> $@
-	-@grep 'Number of loads/stores which are access a DSNode with >3 type' $@.time.1 >> $@
-	@echo >> $@
-	@/bin/echo -n "ACCESSES I: " >> $@
-	-@grep 'Number of loads/stores which are on incomplete nodes' $@.time.1 >> $@
-	@echo >> $@
-	@/bin/echo -n "ACCESSES E: " >> $@
-	-@grep 'Number of loads/stores which are on external nodes' $@.time.1 >> $@
-	@echo >> $@
-	@/bin/echo -n "ACCESSES U: " >> $@
-	-@grep 'Number of loads/stores which are on unknown nodes' $@.time.1 >> $@
-	@echo >> $@
-	@/bin/echo -n "STD_LIB_FOLD: " >> $@
-	-@grep 'Number of nodes folded in std lib' $@.time.1 >> $@
 	@echo >> $@
 	@# Emit timing data.
 	@/bin/echo -n "TIME: " >> $@
