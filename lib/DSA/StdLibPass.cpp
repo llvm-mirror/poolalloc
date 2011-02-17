@@ -101,6 +101,7 @@ const struct {
   {"gets",       {NRET_NARGS,  YRET_YARGS,  NRET_NARGS, YRET_YNARGS, false}},
   {"fgets",      {NRET_NYARGS, YRET_YNARGS, NRET_NARGS, YRET_YNARGS, false}},
   {"getc",       {NRET_YNARGS, YRET_YNARGS, NRET_NARGS, NRET_NARGS,  false}},
+  {"ungetc",     {NRET_YNARGS, YRET_YARGS,  NRET_NARGS, NRET_NARGS,  false}},
   {"_IO_getc",   {NRET_YNARGS, YRET_YNARGS, NRET_NARGS, NRET_NARGS,  false}},
   {"fgetc",      {NRET_YNARGS, YRET_YNARGS, NRET_NARGS, NRET_NARGS,  false}},
   {"putc",       {NRET_NARGS,  NRET_NARGS,  NRET_NARGS, NRET_NARGS,  false}},
@@ -176,6 +177,7 @@ const struct {
   {"unlink",     {NRET_YARGS,  NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
 
   {"perror",     {NRET_YARGS,  NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
+  {"__errno_location",   {NRET_NARGS,  YRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
 
   // SAFECode Intrinsics
   {"sc.lscheck", {NRET_NARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
