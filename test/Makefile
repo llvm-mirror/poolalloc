@@ -308,6 +308,30 @@ progcputrack::
         done
 	@printf "\a"; sleep 1; printf "\a"; sleep 1; printf "\a"
 
+# Program tests for Types
+progtypes::
+	for dir in $(LARGE_PROBLEM_SIZE_DIRS); do \
+            (cd $$dir; \
+               PROJECT_DIR=$(PROJ_OBJ_ROOT) $(MAKE) -j1 TEST=types \
+                   LARGE_PROBLEM_SIZE=1 report.html) \
+        done
+	for dir in $(NORMAL_PROBLEM_SIZE_DIRS); do \
+	    (cd $$dir; \
+               PROJECT_DIR=$(PROJ_OBJ_ROOT) $(MAKE) -j1 TEST=types \
+                   report.html) \
+        done
+	@for dir in $(LARGE_PROBLEM_SIZE_DIRS); do \
+            (cd $$dir; \
+               PROJECT_DIR=$(PROJ_OBJ_ROOT) $(MAKE) -s -j1 TEST=types \
+                   LARGE_PROBLEM_SIZE=1 report) \
+        done
+	@for dir in $(NORMAL_PROBLEM_SIZE_DIRS); do \
+	    (cd $$dir; \
+               PROJECT_DIR=$(PROJ_OBJ_ROOT) $(MAKE) -s -j1 TEST=types \
+                   report) \
+        done
+	@printf "\a"; sleep 1; printf "\a"; sleep 1; printf "\a"
+
 
 ##############################################################################
 # Targets for running tests and gathering statistics for arbitrary tests
