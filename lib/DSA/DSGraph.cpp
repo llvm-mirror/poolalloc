@@ -59,6 +59,8 @@ namespace {
          cl::init(false));
 }
 
+extern cl::opt<bool> TypeInferenceOptimize;
+
 // Determines if the DSGraph 'should' have a node for a given value.
 static bool shouldHaveNodeForValue(const Value *V) {
   // Peer through casts
@@ -655,12 +657,14 @@ void DSGraph::markIncompleteNodes(unsigned Flags) {
       markIncomplete(*I);
 
   // Mark all global nodes as incomplete that aren't initialized and constant.
-  if ((Flags & DSGraph::IgnoreGlobals) == 0)
+  if ((Flags & DSGraph::IgnoreGlobals) == 0) 
     for (DSScalarMap::global_iterator I = ScalarMap.global_begin(),
         E = ScalarMap.global_end(); I != E; ++I)
-      if (const GlobalVariable *GV = dyn_cast<GlobalVariable>(*I))
-        if (!(GV->hasInitializer() && GV->isConstant()))
-            markIncompleteNode(ScalarMap[GV].getNode());
+      if (const GlobalVariable *GV = dyn_cast<GlobalVariable>(*I)) {
+        if (!(GV->hasInitializer() && GV->isConstant())){
+          markIncompleteNode(ScalarMap[GV].getNode());
+        }
+      }
 
   // Mark any node with the VAStart flag as incomplete.
   if (Flags & DSGraph::MarkVAStart) {
@@ -741,9 +745,14 @@ void DSGraph::computeExternalFlags(unsigned Flags) {
       const Function &F = *FI->first;
       // Mark its arguments, return value (and vanode) as external.
       for (Function::const_arg_iterator I = F.arg_begin(), E = F.arg_end();
-          I != E; ++I)
+          I != E; ++I){
+        if(TypeInferenceOptimize) {
+          if(I->getNameStr() == "argv")
+            continue;
+        }
         if (isa<PointerType>(I->getType()))
           markExternalNode(getNodeForValue(I).getNode(), processedNodes);
+      }
       markExternalNode(FI->second.getNode(), processedNodes);
       markExternalNode(getVANodeFor(F).getNode(), processedNodes);
     }
@@ -791,6 +800,17 @@ void DSGraph::computeExternalFlags(unsigned Flags) {
   for (DSScalarMap::global_iterator I = ScalarMap.global_begin(),
       E = ScalarMap.global_end(); I != E; ++I) {
     if (const GlobalVariable *GV = dyn_cast<GlobalVariable>(*I)) {
+      if(TypeInferenceOptimize) {
+        if(GV->getNameStr() == "stderr"){
+          continue;
+        }
+        if(GV->getNameStr() == "stdout"){
+          continue;
+        }
+        if(GV->getNameStr() == "stdin"){
+          continue;
+        }
+      }
       // If the global is external... mark it as such!
       DSNode * N = ScalarMap[GV].getNode();
       if (!(GV->hasInternalLinkage() || GV->hasPrivateLinkage()) || N->isExternalNode())

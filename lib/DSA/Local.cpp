@@ -45,19 +45,17 @@ STATISTIC(NumDirectCall,    "Number of direct calls added");
 STATISTIC(NumIndirectCall,  "Number of indirect calls added");
 STATISTIC(NumAsmCall,       "Number of asm calls collapsed/seen");
 STATISTIC(NumIntrinsicCall, "Number of intrinsics called");
-STATISTIC(NumUglyGep,       "Number of uglygeps");
-STATISTIC(NumUglyGep1,      "Number of uglygeps caught");
 
 RegisterPass<LocalDataStructures>
 X("dsa-local", "Local Data Structure Analysis");
 
 cl::opt<std::string> hasMagicSections("dsa-magic-sections",
         cl::desc("File with section to global mapping")); //, cl::ReallyHidden);
-static cl::opt<bool> TypeInferenceOptimize("enable-type-inference-opts",
-         cl::desc("Enable Type Inference Optimizations added to DSA."),
-         cl::Hidden,
-         cl::init(false));
 }
+cl::opt<bool> TypeInferenceOptimize("enable-type-inference-opts",
+                                    cl::desc("Enable Type Inference Optimizations added to DSA."),
+                                    cl::Hidden,
+                                    cl::init(false));
 
 namespace {
   //===--------------------------------------------------------------------===//
@@ -208,53 +206,6 @@ namespace {
     void mergeFunction(Function* F) { getValueDest(F); }
   };
 
-  static bool handleUglygep(GetElementPtrInst *GEPInst, int *Offset) {
-    int O = 0;
-    llvm::Value* Val = GEPInst->getOperand(1);
-    if(isa<ConstantInt>(Val)) {
-      O = (cast<ConstantInt>(Val))->getSExtValue();
-    } else {
-      std::vector<llvm::Value*> exprs;
-      while(!isa<PHINode>(Val)){
-        exprs.push_back(Val);
-        if(BinaryOperator *BI = dyn_cast<BinaryOperator>(Val)){
-          if(!isa<ConstantInt>(BI->getOperand(1))){
-            return false;
-          }
-          Val = BI->getOperand(0);
-        }else {
-          return false;
-        }
-      }
-      PHINode *phi = cast<PHINode>(Val);
-      if(phi->getNumIncomingValues() > 3){
-        return false;
-      }
-      if(isa<ConstantInt>(phi->getIncomingValue(1)))
-         O = (cast<ConstantInt>(phi->getIncomingValue(1)))->getSExtValue();
-      else if(isa<ConstantInt>(phi->getIncomingValue(0)))
-        O = (cast<ConstantInt>(phi->getIncomingValue(0)))->getSExtValue();
-      else if(isa<ConstantInt>(phi->getIncomingValue(2)))
-        O = (cast<ConstantInt>(phi->getIncomingValue(2)))->getSExtValue();
-      while (!exprs.empty()) {
-        llvm::Value* V = exprs.back();
-        exprs.pop_back();
-        BinaryOperator *BI = cast<BinaryOperator>(V);
-        unsigned O1 = (cast<ConstantInt>(BI->getOperand(1)))->getSExtValue();
-        switch(BI->getOpcode()){
-        case llvm::BinaryOperator::Shl: O = O << O1;break;
-        case llvm::BinaryOperator::Or: O = O | O1;break;
-        case llvm::BinaryOperator::And: O = O & O1;break;
-        case llvm::BinaryOperator::Add: O = O + O1;break;
-        case llvm::BinaryOperator::Sub: O = O - O1;break;
-        case llvm::BinaryOperator::Mul: O = O * O1;break;
-        default: errs() <<"NOT HANDLED : " << BI << "\n";return false;
-        }
-      }
-    }
-    *Offset = O;
-    return true;
-  }
   /// Traverse the whole DSGraph, and propagate the unknown flags through all 
   /// out edges.
   static void propagateUnknownFlag(DSGraph * G) {
@@ -548,6 +499,8 @@ void GraphBuilder::visitGetElementPtrInst(User &GEP) {
     return;
   }
 
+  if(GEP.use_empty())
+    return;
   //
   // Okay, no easy way out.  Calculate the offset into the object being
   // indexed.
@@ -555,50 +508,6 @@ void GraphBuilder::visitGetElementPtrInst(User &GEP) {
  
   int Offset = 0;
 
-  if(TypeInferenceOptimize) {
-  // Trying to special case constant index GEPs
-    if(GetElementPtrInst *GEPInst = dyn_cast<GetElementPtrInst>(&GEP)) {
-      if(GEPInst->hasAllConstantIndices()){
-        if(GEPInst->getType() == 
-           llvm::Type::getInt8PtrTy(GEPInst->getParent()->getParent()->getContext()))
-          if(GEPInst->getNumIndices() == 1) {
-            Offset = (cast<ConstantInt>(GEPInst->getOperand(1)))->getSExtValue();
-            if(Value.getNode()->getSize() <= Value.getOffset() + (Offset+1)) {
-              Value.getNode()->growSize(Value.getOffset() + Offset + 1);
-            }
-            Value.setOffset(Value.getOffset()+Offset);
-            DSNode *N = Value.getNode();
-            if(((int)Value.getOffset() + Offset) < 0)
-              N->foldNodeCompletely();
-            setDestTo(GEP, Value);
-            return;
-          }
-      }
-    }
-  }
-
-  if(TypeInferenceOptimize) {
-    if(GetElementPtrInst *GEPInst = dyn_cast<GetElementPtrInst>(&GEP)) {
-      std::string name = GEPInst->getName();
-      if (strncmp(name.c_str(), "uglygep", 7) == 0) {
-        ++NumUglyGep;
-        assert(GEPInst->getNumOperands() == 2);
-        int O;
-        if(handleUglygep(GEPInst, &O)) {
-          if(Value.getNode()->getSize() <= Value.getOffset() + O+1) 
-            Value.getNode()->growSize(Value.getOffset() + O+1);
-          Value.setOffset(Value.getOffset()+O);
-          DSNode *N = Value.getNode();
-          if(((int)Value.getOffset() + O) < 0)
-            N->foldNodeCompletely();
-          setDestTo(GEP, Value);
-          ++NumUglyGep1;
-          return;
-        }
-      }
-    }
-  }
-  
   // FIXME: I am not sure if the code below is completely correct (especially
   //        if we start doing fancy analysis on non-constant array indices).
   //        What if the array is indexed using a larger index than its declared
@@ -631,18 +540,20 @@ void GraphBuilder::visitGetElementPtrInst(User &GEP) {
         if (requiredSize > Value.getNode()->getSize())
           Value.getNode()->growSize(requiredSize);
       }
-      
       Offset += (unsigned)TD.getStructLayout(STy)->getElementOffset(FieldNo);
+      if(TypeInferenceOptimize) {
 
+        if(const ArrayType* AT = dyn_cast<ArrayType>(STy->getTypeAtIndex(FieldNo))) {
+          Value.getNode()->mergeTypeInfo(AT, Value.getOffset() + Offset);
+          if((++I) == E) {
+            break;
+          }
+        }
+      }
     } else if(const ArrayType *ATy = dyn_cast<ArrayType>(*I)) {
       // indexing into an array.
       Value.getNode()->setArrayMarker();
       const Type *CurTy = ATy->getElementType();
-      if(TypeInferenceOptimize) {
-        //if(const ConstantInt* CUI = dyn_cast<ConstantInt>(I.getOperand()))
-          //if(ATy->getNumElements() > CUI->getZExtValue())
-            //CUI->dump();
-      }
 
       if(!isa<ArrayType>(CurTy) &&
           Value.getNode()->getSize() <= 0) {
@@ -847,8 +758,7 @@ bool GraphBuilder::visitIntrinsic(CallSite CS, Function *F) {
     // Merge the first & second arguments, and mark the memory read and
     // modified.
     DSNodeHandle RetNH = getValueDest(*CS.arg_begin());
-    if(!TypeInferenceOptimize)
-      RetNH.mergeWith(getValueDest(*(CS.arg_begin()+1)));
+    RetNH.mergeWith(getValueDest(*(CS.arg_begin()+1)));
     if (DSNode *N = RetNH.getNode())
       N->setModifiedMarker()->setReadMarker();
     return true;
@@ -1281,6 +1191,7 @@ bool LocalDataStructures::runOnModule(Module &M) {
   // collecting them in a list, to be used as target for call sites that
   // cant be resolved.
   formGlobalFunctionList();
+  GlobalsGraph->maskIncompleteMarkers();
 
   // Calculate all of the graphs...
   for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I)
@@ -1292,11 +1203,18 @@ bool LocalDataStructures::runOnModule(Module &M) {
       propagateUnknownFlag(G);
       callgraph.insureEntry(I);
       G->buildCallGraph(callgraph, GlobalFunctionList, true);
+      G->maskIncompleteMarkers();
+      G->markIncompleteNodes(DSGraph::MarkFormalArgs
+                                    |DSGraph::IgnoreGlobals);
+      cloneIntoGlobals(G, DSGraph::DontCloneCallNodes |
+                        DSGraph::DontCloneAuxCallNodes |
+                        DSGraph::StripAllocaBit);
       DEBUG(G->AssertGraphOK());
     }
 
   //GlobalsGraph->removeTriviallyDeadNodes();
-  GlobalsGraph->markIncompleteNodes(DSGraph::MarkFormalArgs);
+  GlobalsGraph->markIncompleteNodes(DSGraph::MarkFormalArgs
+                                    |DSGraph::IgnoreGlobals);
   GlobalsGraph->computeExternalFlags(DSGraph::ProcessCallSites);
 
   // Now that we've computed all of the graphs, and merged all of the info into
@@ -1306,6 +1224,16 @@ bool LocalDataStructures::runOnModule(Module &M) {
   formGlobalECs();
 
   propagateUnknownFlag(GlobalsGraph);
+  for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I)
+    if (!I->isDeclaration()) {
+      DSGraph *Graph = getOrCreateGraph(I);
+      Graph->maskIncompleteMarkers();
+      cloneGlobalsInto(Graph, DSGraph::DontCloneCallNodes |
+                        DSGraph::DontCloneAuxCallNodes);
+      Graph->markIncompleteNodes(DSGraph::MarkFormalArgs
+                                 |DSGraph::IgnoreGlobals);
+    }
+
   return false;
 }
 
