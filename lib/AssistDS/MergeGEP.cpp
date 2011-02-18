@@ -35,7 +35,7 @@ namespace {
       bool changed = false;
       bool found;
       do {
-        found = false;
+      found = false;
       for (Module::iterator F = M.begin(); F != M.end(); ++F){
         for (Function::iterator B = F->begin(), FE = F->end(); B != FE; ++B) {      
           for (BasicBlock::iterator I = B->begin(), BE = B->end(); I != BE; I++) {
@@ -44,11 +44,6 @@ namespace {
             GetElementPtrInst *GEP = cast<GetElementPtrInst>(I);
             if(!isa<ArrayType>(GEP->getType()->getElementType()))
               continue;
-            for (gep_type_iterator I = gep_type_begin(GEP), E = gep_type_end(GEP);
-                 I != E; ++I) {
-              if (isa<StructType>(*I)) {
-                gep_type_iterator II = I;
-                if(++II == E){
                   std::vector<GetElementPtrInst*> worklist;
                   for (Value::use_iterator UI = GEP->use_begin(),
                                      UE = GEP->use_end(); UI != UE; ++UI){
@@ -73,9 +68,6 @@ namespace {
                     found = true;
                     changed = true;                    
                   }
-                }
-              }
-            }
           }
         }
       std::vector<GetElementPtrInst*> worklist;
@@ -106,8 +98,6 @@ namespace {
                                                               Indices.end(),
                                                               GEP->getName()+ "mod", 
                                                               GEP);
-        //GEP->dump();
-        //GEPNew->dump();
         GEP->replaceAllUsesWith(GEPNew);
         GEP->eraseFromParent();
         changed = true;                    
