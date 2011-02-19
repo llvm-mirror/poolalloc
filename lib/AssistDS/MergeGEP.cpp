@@ -42,8 +42,8 @@ namespace {
             if(!(isa<GetElementPtrInst>(I)))
               continue;
             GetElementPtrInst *GEP = cast<GetElementPtrInst>(I);
-            if(!isa<ArrayType>(GEP->getType()->getElementType()))
-              continue;
+        //    if(!isa<ArrayType>(GEP->getType()->getElementType()))
+         //     continue;
                   std::vector<GetElementPtrInst*> worklist;
                   for (Value::use_iterator UI = GEP->use_begin(),
                                      UE = GEP->use_end(); UI != UE; ++UI){
