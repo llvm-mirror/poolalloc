@@ -3,7 +3,8 @@
 ; and that it is not inlined
 ; Checking that the X flag is propogated everywhere.
 
-;RUN: dsaopt %s -dsa-stdlib -analyze -verify-flags "@fp:0+IEX"
+;RUN: dsaopt %s -dsa-local -analyze -verify-flags "@fp:0+EX"
+;RUN: dsaopt %s -dsa-stdlib -analyze -verify-flags "@fp:0+EX"
 ;RUN: dsaopt %s -dsa-bu -analyze -verify-flags "@fp:0+EX"
 ;RUN: dsaopt %s -dsa-cbu -analyze -verify-flags "@fp:0+EX"
 ;RUN: dsaopt %s -dsa-eq -analyze -verify-flags "@fp:0+EX"
