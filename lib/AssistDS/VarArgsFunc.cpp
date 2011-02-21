@@ -68,7 +68,7 @@ namespace {
           continue;
         if(F->getReturnType() != CI->getType())
           continue;
-        int arg_count = 1;
+        unsigned arg_count = 1;
         bool change = true;
         for (Function::arg_iterator ii = F->arg_begin(), ee = F->arg_end();ii != ee; ++ii,arg_count++) {
           if(ii->getType() != CI->getOperand(arg_count)->getType()) {
