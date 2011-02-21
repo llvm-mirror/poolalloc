@@ -13,6 +13,9 @@ RELDIR  := $(subst $(PROJ_OBJ_ROOT),,$(PROJ_OBJ_DIR))
 # Pathname to poolalloc object tree
 PADIR   := $(LLVM_OBJ_ROOT)/projects/poolalloc
 
+# Bits of runtime to improve analysis
+PA_PRE_RT := $(PADIR)/$(CONFIGURATION)/lib/libpa_pre_rt.bca
+
 # Pathame to the DSA pass dynamic library
 DSA_SO   := $(PADIR)/$(CONFIGURATION)/lib/libLLVMDataStructure$(SHLIBEXT)
 ASSIST_SO := $(PADIR)/$(CONFIGURATION)/lib/libAssistDS$(SHLIBEXT)
@@ -38,8 +41,16 @@ $(PROGRAMS_TO_TEST:%=Output/%.llvm1.bc): \
 Output/%.llvm1.bc: Output/%.linked1.bc $(LLVM_LDDPROG)
 	-$(RUNTOOLSAFELY) $(LLVMLD) -disable-opt $(SAFE_OPTS) -info-output-file=$(CURDIR)/$@.info -stats -time-passes  $(LLVMLD_FLAGS) $< -lc $(LIBS) -o Output/$*.llvm1
 
+$(PROGRAMS_TO_TEST:%=Output/%.temp1.bc): \
+Output/%.temp1.bc: Output/%.llvm1.bc 
+	-$(RUNTOOLSAFELY) $(LLVMLD) -disable-opt $(SAFE_OPTS) -link-as-library $< $(PA_PRE_RT) -o $@
+
 $(PROGRAMS_TO_TEST:%=Output/%.opt.bc): \
 Output/%.opt.bc: Output/%.llvm1.bc $(LOPT) $(ASSIST_SO)
+	-$(RUNOPT) -load $(ASSIST_SO) -disable-opt -info-output-file=$(CURDIR)/$@.info -instnamer -internalize  -varargsfunc -indclone -funcspec -ipsccp -deadargelim  -simplifygep -die -mergegep -die -globaldce -simplifycfg -deadargelim -arg-simplify -varargsfunc  -deadargelim -globaldce -die -simplifycfg -stats -time-passes $< -f -o $@ 
+
+$(PROGRAMS_TO_TEST:%=Output/%.temp2.bc): \
+Output/%.temp2.bc: Output/%.temp1.bc $(LOPT) $(ASSIST_SO)
 	-$(RUNOPT) -load $(ASSIST_SO) -disable-opt -info-output-file=$(CURDIR)/$@.info -instnamer -internalize  -varargsfunc -indclone -funcspec -ipsccp -deadargelim  -mergegep -die -globaldce -stats -time-passes $< -f -o $@ 
 
 $(PROGRAMS_TO_TEST:%=Output/%.$(TEST).report.txt): \
@@ -108,6 +119,12 @@ Output/%.$(TEST).report.txt: Output/%.opt.bc Output/%.LOC.txt $(LOPT)
 	@/bin/echo -n "STD_LIB_FOLD: " >> $@
 	-@grep 'Number of nodes folded in std lib' $@.time.1 >> $@
 	@echo >> $@
+	@/bin/echo -n "I2PB: " >> $@
+	-@grep 'Number of inttoptr used only in cmp' $@.time.1 >> $@
+	@echo >> $@
+	@/bin/echo -n "I2PS: " >> $@
+	-@grep 'Number of inttoptr from ptrtoint' $@.time.1 >> $@
+	@echo >> $@
 	@# Emit timing data.
 	@/bin/echo -n "TIME: " >> $@
 	-@grep '  Local Data Structure' $@.time.1 >> $@
@@ -127,6 +144,9 @@ Output/%.$(TEST).report.txt: Output/%.opt.bc Output/%.LOC.txt $(LOPT)
 	@echo >> $@
 	@/bin/echo -n "VARARGS_CALLS: " >> $@
 	-@grep 'Number of Calls Simplified' $<.info >> $@
+	@echo >> $@
+	@/bin/echo -n "ARG_SMPL: " >> $@
+	-@grep 'Number of Args changeable' $<.info >> $@
 	@echo >> $@
 	@/bin/echo -n "CALLS1: " >> $@
 	-@grep 'Number of calls that could not be resolved' $@.time.1 >> $@
