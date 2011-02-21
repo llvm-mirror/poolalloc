@@ -85,7 +85,11 @@ const struct {
   {"fstat",      {NRET_YNARGS, NRET_NYARGS, NRET_NARGS, NRET_NARGS, false}},
   {"lstat",      {NRET_YNARGS, NRET_NYARGS, NRET_NARGS, NRET_NARGS, false}},
   
-  {"getenv",     {NRET_YNARGS, YRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
+  {"getenv",     {NRET_YNARGS, YRET_NARGS,  NRET_NARGS, NRET_NARGS,  false}},
+  {"getrusage",  {NRET_YNARGS, YRET_NYARGS, NRET_NARGS, NRET_NARGS,  false}},
+  {"getrlimit",  {NRET_YNARGS, YRET_NYARGS, NRET_NARGS, NRET_NARGS,  false}},
+  {"setrlimit",  {NRET_YARGS,  YRET_NARGS,  NRET_NARGS, NRET_NARGS,  false}},
+  {"getcwd",     {NRET_NYARGS, YRET_YNARGS, NRET_NARGS, YRET_YNARGS, false}},
   
   {"remove",     {NRET_YARGS,  NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
   {"rename",     {NRET_YARGS,  NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
@@ -113,6 +117,7 @@ const struct {
   {"execvp",     {NRET_YARGS,  NRET_NARGS,  NRET_NARGS, NRET_NARGS, false}},
   
   {"time",       {NRET_YARGS,  YRET_NARGS,  NRET_NARGS, NRET_NARGS, false}}, 
+  {"times",      {NRET_YARGS,  YRET_YARGS,  NRET_NARGS, NRET_NARGS, false}}, 
   {"ctime",      {NRET_YARGS,  YRET_NARGS,  NRET_NARGS, NRET_NARGS, false}}, 
   {"asctime",    {NRET_YARGS,  YRET_NARGS,  NRET_NARGS, NRET_NARGS, false}}, 
   {"utime",      {NRET_YARGS,  YRET_NARGS,  NRET_NARGS, NRET_NARGS, false}}, 
@@ -120,7 +125,6 @@ const struct {
   {"gmtime",     {NRET_YARGS,  YRET_NARGS,  NRET_NARGS, NRET_NARGS, false}}, 
   {"ftime",      {NRET_YARGS,  NRET_YARGS,  NRET_NARGS, NRET_NARGS, false}}, 
 
-  //FIXME:add the exec family
   // printf not strictly true, %n could cause a write
   {"printf",     {NRET_YARGS,  NRET_NARGS,  NRET_NARGS, NRET_NARGS,  false}},
   {"fprintf",    {NRET_YARGS,  NRET_YNARGS, NRET_NARGS, NRET_NARGS,  false}},
@@ -178,6 +182,7 @@ const struct {
   {"bcmp",       {NRET_YARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, true}},
   
   {"strerror",   {NRET_YARGS, YRET_NARGS, NRET_NARGS, NRET_NARGS,  true}},
+  {"clearerr",   {NRET_YARGS, NRET_YARGS, NRET_NARGS, NRET_NARGS,  false}},
   {"strstr",     {NRET_YARGS, YRET_NARGS, NRET_NARGS, YRET_YNARGS, true}},
   {"wcsstr",     {NRET_YARGS, YRET_NARGS, NRET_NARGS, YRET_YNARGS, true}},
   {"strspn",     {NRET_YARGS, YRET_NARGS, NRET_NARGS, NRET_NARGS,  true}},
@@ -214,6 +219,7 @@ const struct {
   {"ferror",     {NRET_YARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
   {"fwrite",     {NRET_YARGS, NRET_NYARGS, NRET_NARGS, NRET_NARGS, false}},
   {"fread",      {NRET_NYARGS, NRET_YARGS, NRET_NARGS, NRET_NARGS, false}},
+  {"fdopen",     {NRET_YARGS,  YRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
 
   {"__errno_location",   {NRET_NARGS,  YRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
 
@@ -602,5 +608,9 @@ StdLibDataStructures::runOnModule (Module &M) {
   freopen
   strftime
   strtoul
+  strtol
+  strtoll
+  ctype family
+  open64/fopen64/lseek64
 
    */
