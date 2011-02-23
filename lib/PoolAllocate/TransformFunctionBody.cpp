@@ -870,6 +870,8 @@ void FuncTransform::visitCallSite(CallSite& CS) {
                (CF->getName() == "sc.pool_unregister") ||
                (CF->getName() == "sc.get_actual_val")) {
       visitRuntimeCheck (CS);
+    } else if (CF->getName() == "pool_strlen") {
+      visitCStdLibCheck(CS, 1);
     } else if (CF->getName() == "pool_strcpy") {
       visitCStdLibCheck(CS, 2);
     } else if (CF->getName() == "pthread_create") {
