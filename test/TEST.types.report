@@ -156,7 +156,6 @@ my $USERSYSTTIME = '([0-9.]+)[ 0-9.]+\([^)]+\)[ 0-9.]+\([^)]+\) +';
             ["I", "ACCESSES I: *([0-9]+)"],
             ["E", "ACCESSES E: *([0-9]+)"],
             ["U", "ACCESSES U: *([0-9]+)"],
-            [],
 # Nodes Folded
             [],
             ["VAFUNC", "VARARGS_CALLS: *([0-9]+)"],
