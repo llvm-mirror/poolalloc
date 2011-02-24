@@ -36,40 +36,42 @@ namespace {
         if (!I->isDeclaration() && !I->mayBeOverridden()) {
           //Call Sites
           for(Value::use_iterator ui = I->use_begin(), ue = I->use_end();
-              ui != ue; ++ui) {
-            if (Constant *C = dyn_cast<Constant>(ui)) {
-              if (ConstantExpr *CE = dyn_cast<ConstantExpr>(C)) {
-                if (CE->getOpcode() == Instruction::BitCast) {
-                  if(CE->getOperand(0) == I) {                    
-                    if(const FunctionType *FTy  = dyn_cast<FunctionType>((cast<PointerType>(CE->getType()))->getElementType())) {
-                      if(FTy->isVarArg()) {
+              ui != ue; ++ui) 
+            //Bitcast
+            if (Constant *C = dyn_cast<Constant>(ui)) 
+              if (ConstantExpr *CE = dyn_cast<ConstantExpr>(C)) 
+                if (CE->getOpcode() == Instruction::BitCast) 
+                  if(CE->getOperand(0) == I) 
+                    if(const FunctionType *FTy  = dyn_cast<FunctionType>((cast<PointerType>(CE->getType()))->getElementType())) 
+                      //casting to a varargs funtion
+                      if(FTy->isVarArg()) 
                         for(Value::use_iterator uii = CE->use_begin(), uee = CE->use_end();
-                            uii != uee; ++uii) {
-                          if (CallInst* CI = dyn_cast<CallInst>(uii)) {
-                            if(CI->getCalledValue() == CE) {
-                              worklist.push_back(CI);
-                            }
-                          }
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
+                            uii != uee; ++uii) 
+                          if (CallInst* CI = dyn_cast<CallInst>(uii)) 
+                            if(CI->getCalledValue() == CE) 
+                               worklist.push_back(CI);
         }
       }
+      // process the worklist
+
       while(!worklist.empty()) {
         CallInst *CI = worklist.back();
         worklist.pop_back();
         Function *F = cast<Function>(CI->getCalledValue()->stripPointerCasts());
+        // Only continue, if we are passing the exact number of arguments
         if(F->arg_size() != (CI->getNumOperands()-1))
           continue;
-        if(F->getReturnType() != CI->getType())
+        // Only continue if we are getting the same return type value
+        // Or we can discard the returned value.
+        if(F->getReturnType() != CI->getType()) {
+          if(!CI->use_empty())
           continue;
-        unsigned arg_count = 1;
+        }
+
+        // Check if the parameters passed match the expected types of the 
+        // formal arguments
         bool change = true;
+        unsigned arg_count = 1;
         for (Function::arg_iterator ii = F->arg_begin(), ee = F->arg_end();ii != ee; ++ii,arg_count++) {
           if(ii->getType() != CI->getOperand(arg_count)->getType()) {
             change = false;
@@ -78,7 +80,19 @@ namespace {
         }
         
         if(change) {
-          CI->setCalledFunction(F);
+            // if we want to ignore the returned value, create a new CallInst
+            SmallVector<Value*, 8> Args;
+            for(unsigned j =1;j<CI->getNumOperands();j++) {
+              Args.push_back(CI->getOperand(j));
+            }
+            CallInst *CINew = CallInst::Create(F, Args.begin(), Args.end(), "", CI);
+            if(F->getReturnType() != CI->getType()){ // means no uses
+              CINew->setDoesNotReturn();
+            } else {
+              CI->replaceAllUsesWith(CINew);
+            }
+            CI->eraseFromParent();
+            // else just set the function to call the original function.
           changed = true;
           numSimplified++;
         }
