@@ -48,8 +48,14 @@ static bool isAddressTaken(Value* V) {
         if(isAddressTaken(U))
           return true;
       } else {
-        // FIXME handle bitcasts to see if the resultant value
-        // is ever used in an address taken fashion
+        if (Constant *C = dyn_cast<Constant>(U)) {
+          if (ConstantExpr *CE = dyn_cast<ConstantExpr>(C)) {
+            if (CE->getOpcode() == Instruction::BitCast) {
+                return isAddressTaken(CE);
+            }
+          }
+        }
+        
         return true;
       }
 
