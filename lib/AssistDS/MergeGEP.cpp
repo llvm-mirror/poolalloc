@@ -94,7 +94,7 @@ namespace {
         ConstantExpr *CE = cast<ConstantExpr>(C);
         SmallVector<Value*, 8> Indices;
         Indices.append(CE->op_begin()+1, CE->op_end());
-        Indices.append(GEP1->idx_begin(), GEP1->idx_end());
+        Indices.append(GEP1->idx_begin()+1, GEP1->idx_end());
         GetElementPtrInst *GEPNew = GetElementPtrInst::Create(CE->getOperand(0),
                                                               Indices.begin(),
                                                               Indices.end(),
