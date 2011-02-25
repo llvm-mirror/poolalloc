@@ -6,7 +6,8 @@
 //===----------------------------------------------------------------------===//
 //
 // Recognize common standard c library functions and generate graphs for them
-//
+// FIXME: Move table to separate analysis pass, so that even the Local Pass
+// may query it.
 //===----------------------------------------------------------------------===//
 
 #include "llvm/ADT/Statistic.h"
@@ -209,15 +210,16 @@ const struct {
 
   {"perror",     {NRET_YARGS,  NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
   
-  {"feof",       {NRET_YARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
-  {"fflush",     {NRET_YARGS, NRET_YARGS, NRET_NARGS, NRET_NARGS, false}},
-  {"fpurge",     {NRET_YARGS, NRET_YARGS, NRET_NARGS, NRET_NARGS, false}},
-  {"fclose",     {NRET_YARGS, NRET_YARGS, NRET_NARGS, NRET_NARGS, false}},
-  {"fopen",      {NRET_YARGS, YRET_NARGS, YRET_NARGS, NRET_NARGS, false}},
-  {"ftell",      {NRET_YARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
-  {"fseek",      {NRET_YARGS, NRET_YARGS, NRET_NARGS, NRET_NARGS, true}},
-  {"ferror",     {NRET_YARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
-  {"fwrite",     {NRET_YARGS, NRET_NYARGS, NRET_NARGS, NRET_NARGS, false}},
+  {"feof",       {NRET_YARGS,  NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
+  {"fflush",     {NRET_YARGS,  NRET_YARGS, NRET_NARGS, NRET_NARGS, false}},
+  {"fpurge",     {NRET_YARGS,  NRET_YARGS, NRET_NARGS, NRET_NARGS, false}},
+  {"fclose",     {NRET_YARGS,  NRET_YARGS, NRET_NARGS, NRET_NARGS, false}},
+  {"fopen",      {NRET_YARGS,  YRET_NARGS, YRET_NARGS, NRET_NARGS, false}},
+  {"ftell",      {NRET_YARGS,  NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
+  {"fseek",      {NRET_YARGS,  NRET_YARGS, NRET_NARGS, NRET_NARGS, true}},
+  {"rewind",     {NRET_YARGS,  NRET_YARGS, NRET_NARGS, NRET_NARGS, true}},
+  {"ferror",     {NRET_YARGS,  NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
+  {"fwrite",     {NRET_YARGS,  NRET_NYARGS, NRET_NARGS, NRET_NARGS, false}},
   {"fread",      {NRET_NYARGS, NRET_YARGS, NRET_NARGS, NRET_NARGS, false}},
   {"fdopen",     {NRET_YARGS,  YRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
 
