@@ -77,7 +77,6 @@ struct libAction {
 #define NRET_YNARGS {0,1,0,0,0,0,0,0,0,0}
 #define YRET_YNARGS {1,1,0,0,0,0,0,0,0,0}
 
-
 const struct {
   const char* name;
   libAction action;
@@ -92,79 +91,79 @@ const struct {
   {"setrlimit",  {NRET_YARGS,  YRET_NARGS,  NRET_NARGS, NRET_NARGS,  false}},
   {"getcwd",     {NRET_NYARGS, YRET_YNARGS, NRET_NARGS, YRET_YNARGS, false}},
   
-  {"remove",     {NRET_YARGS,  NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
-  {"rename",     {NRET_YARGS,  NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
-  {"unlink",     {NRET_YARGS,  NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
-  {"fileno",     {NRET_YARGS,  NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
-  {"create",     {NRET_YARGS,  NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
-  {"write",      {NRET_YARGS,  NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
-  {"read",       {NRET_YARGS,  YRET_YARGS,  NRET_NARGS, NRET_NARGS, false}}, 
-  {"truncate",   {NRET_YARGS,  NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
-  {"open",       {NRET_YARGS,  NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
+  {"remove",    {NRET_YARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
+  {"rename",    {NRET_YARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
+  {"unlink",    {NRET_YARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
+  {"fileno",    {NRET_YARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
+  {"create",    {NRET_YARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
+  {"write",     {NRET_YARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
+  {"read",      {NRET_YARGS, YRET_YARGS, NRET_NARGS, NRET_NARGS, false}}, 
+  {"truncate",  {NRET_YARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
+  {"open",      {NRET_YARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
  
-  {"chdir",     {NRET_YARGS,  NRET_NARGS,  NRET_NARGS, NRET_NARGS, false}},
-  {"mkdir",     {NRET_YARGS,  NRET_NARGS,  NRET_NARGS, NRET_NARGS, false}},
-  {"rmdir",     {NRET_YARGS,  NRET_NARGS,  NRET_NARGS, NRET_NARGS, false}},
+  {"chdir",     {NRET_YARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
+  {"mkdir",     {NRET_YARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
+  {"rmdir",     {NRET_YARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
   
-  {"chmod",      {NRET_YARGS,  YRET_NARGS,  NRET_NARGS, NRET_NARGS, false}},
-  {"fchmod",     {NRET_YARGS,  YRET_NARGS,  NRET_NARGS, NRET_NARGS, false}},
+  {"chmod",     {NRET_YARGS, YRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
+  {"fchmod",    {NRET_YARGS, YRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
  
-  {"kill",       {NRET_YARGS,  NRET_NARGS,  NRET_NARGS, NRET_NARGS, false}},
+  {"kill",      {NRET_YARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
   
-  {"execl",     {NRET_YARGS,  NRET_NARGS,  NRET_NARGS, NRET_NARGS, false}},
-  {"execlp",     {NRET_YARGS,  NRET_NARGS,  NRET_NARGS, NRET_NARGS, false}},
-  {"execle",     {NRET_YARGS,  NRET_NARGS,  NRET_NARGS, NRET_NARGS, false}},
-  {"execv",     {NRET_YARGS,  NRET_NARGS,  NRET_NARGS, NRET_NARGS, false}},
-  {"execvp",     {NRET_YARGS,  NRET_NARGS,  NRET_NARGS, NRET_NARGS, false}},
-  
-  {"time",       {NRET_YARGS,  YRET_NARGS,  NRET_NARGS, NRET_NARGS, false}}, 
-  {"times",      {NRET_YARGS,  YRET_YARGS,  NRET_NARGS, NRET_NARGS, false}}, 
-  {"ctime",      {NRET_YARGS,  YRET_NARGS,  NRET_NARGS, NRET_NARGS, false}}, 
-  {"asctime",    {NRET_YARGS,  YRET_NARGS,  NRET_NARGS, NRET_NARGS, false}}, 
-  {"utime",      {NRET_YARGS,  YRET_NARGS,  NRET_NARGS, NRET_NARGS, false}}, 
-  {"localtime",  {NRET_YARGS,  YRET_NARGS,  NRET_NARGS, NRET_NARGS, false}}, 
-  {"gmtime",     {NRET_YARGS,  YRET_NARGS,  NRET_NARGS, NRET_NARGS, false}}, 
-  {"ftime",      {NRET_YARGS,  NRET_YARGS,  NRET_NARGS, NRET_NARGS, false}}, 
+  {"execl",     {NRET_YARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
+  {"execlp",    {NRET_YARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
+  {"execle",    {NRET_YARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
+  {"execv",     {NRET_YARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
+  {"execvp",    {NRET_YARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
+ 
+  {"time",      {NRET_YARGS,  YRET_NARGS, NRET_NARGS, NRET_NARGS, false}}, 
+  {"times",     {NRET_YARGS,  YRET_YARGS, NRET_NARGS, NRET_NARGS, false}}, 
+  {"ctime",     {NRET_YARGS,  YRET_NARGS, NRET_NARGS, NRET_NARGS, false}}, 
+  {"asctime",   {NRET_YARGS,  YRET_NARGS, NRET_NARGS, NRET_NARGS, false}}, 
+  {"utime",     {NRET_YARGS,  YRET_NARGS, NRET_NARGS, NRET_NARGS, false}}, 
+  {"localtime", {NRET_YARGS,  YRET_NARGS, NRET_NARGS, NRET_NARGS, false}}, 
+  {"gmtime",    {NRET_YARGS,  YRET_NARGS, NRET_NARGS, NRET_NARGS, false}}, 
+  {"ftime",     {NRET_YARGS,  NRET_YARGS, NRET_NARGS, NRET_NARGS, false}}, 
 
   // printf not strictly true, %n could cause a write
-  {"printf",     {NRET_YARGS,  NRET_NARGS,  NRET_NARGS, NRET_NARGS,  false}},
-  {"fprintf",    {NRET_YARGS,  NRET_YNARGS, NRET_NARGS, NRET_NARGS,  false}},
-  {"fprintf",    {NRET_YARGS,  NRET_YNARGS, NRET_NARGS, NRET_NARGS,  false}},
-  {"sprintf",    {NRET_YARGS,  NRET_YNARGS, NRET_NARGS, NRET_NARGS,  false}},
-  {"snprintf",   {NRET_YARGS,  NRET_YNARGS, NRET_NARGS, NRET_NARGS,  false}},
-  {"vsnprintf",  {NRET_YARGS,  YRET_YNARGS, NRET_NARGS, NRET_NARGS,  false}},
-  {"sscanf",     {NRET_YARGS,  YRET_NYARGS, NRET_NARGS, NRET_NARGS,  false}},
-  {"scanf",      {NRET_YARGS,  YRET_NYARGS, NRET_NARGS, NRET_NARGS,  false}},
-  {"fscanf",     {NRET_YARGS,  YRET_NYARGS, NRET_NARGS, NRET_NARGS,  false}},
+  {"printf",    {NRET_YARGS,  NRET_NARGS,  NRET_NARGS, NRET_NARGS, false}},
+  {"fprintf",   {NRET_YARGS,  NRET_YNARGS, NRET_NARGS, NRET_NARGS, false}},
+  {"fprintf",   {NRET_YARGS,  NRET_YNARGS, NRET_NARGS, NRET_NARGS, false}},
+  {"sprintf",   {NRET_YARGS,  NRET_YNARGS, NRET_NARGS, NRET_NARGS, false}},
+  {"snprintf",  {NRET_YARGS,  NRET_YNARGS, NRET_NARGS, NRET_NARGS, false}},
+  {"vsnprintf", {NRET_YARGS,  YRET_YNARGS, NRET_NARGS, NRET_NARGS, false}},
+  {"sscanf",    {NRET_YARGS,  YRET_NYARGS, NRET_NARGS, NRET_NARGS, false}},
+  {"scanf",     {NRET_YARGS,  YRET_NYARGS, NRET_NARGS, NRET_NARGS, false}},
+  {"fscanf",    {NRET_YARGS,  YRET_NYARGS, NRET_NARGS, NRET_NARGS, false}},
+
+  {"calloc",    {NRET_NARGS, YRET_NARGS, YRET_NARGS,  NRET_NARGS, false}},
+  {"malloc",    {NRET_NARGS, YRET_NARGS, YRET_NARGS,  NRET_NARGS, false}},
+  {"valloc",    {NRET_NARGS, YRET_NARGS, YRET_NARGS,  NRET_NARGS, false}},
+  {"realloc",   {NRET_NARGS, YRET_NARGS, YRET_YNARGS, YRET_YNARGS,false}},
+  {"free",      {NRET_NARGS, NRET_NARGS, NRET_YNARGS, NRET_NARGS, false}},
  
-  {"calloc",     {NRET_NARGS, YRET_NARGS, YRET_NARGS,  NRET_NARGS, false}},
-  {"malloc",     {NRET_NARGS, YRET_NARGS, YRET_NARGS,  NRET_NARGS, false}},
-  {"valloc",     {NRET_NARGS, YRET_NARGS, YRET_NARGS,  NRET_NARGS, false}},
-  {"realloc",    {NRET_NARGS, YRET_NARGS, YRET_YNARGS, YRET_YNARGS,false}},
-  {"free",       {NRET_NARGS, NRET_NARGS, NRET_YNARGS, NRET_NARGS, false}},
-  
-  {"strdup",     {NRET_YARGS, YRET_NARGS, YRET_NARGS, YRET_YARGS, false}},
-  {"__strdup",   {NRET_YARGS, YRET_NARGS, YRET_NARGS, YRET_YARGS, false}},
-  {"wcsdup",     {NRET_YARGS, YRET_NARGS, YRET_NARGS, YRET_YARGS, false}},
-  
-  {"strlen",     {NRET_YARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
-  {"wcslen",     {NRET_YARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
-  
-  {"atoi",       {NRET_YARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
-  {"atof",       {NRET_YARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
-  {"atol",       {NRET_YARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
-  {"atoll",      {NRET_YARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
-  {"atoq",       {NRET_YARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
-  
-  {"memcmp",     {NRET_YARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
-  {"strcmp",     {NRET_YARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
-  {"wcscmp",     {NRET_YARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
-  {"strncmp",    {NRET_YARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
-  {"wcsncmp",    {NRET_YARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
-  {"strcasecmp", {NRET_YARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
-  {"wcscasecmp", {NRET_YARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
-  {"strncasecmp",{NRET_YARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
-  {"wcsncasecmp",{NRET_YARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
+  {"strdup",    {NRET_YARGS, YRET_NARGS, YRET_NARGS, YRET_YARGS, false}},
+  {"__strdup",  {NRET_YARGS, YRET_NARGS, YRET_NARGS, YRET_YARGS, false}},
+  {"wcsdup",    {NRET_YARGS, YRET_NARGS, YRET_NARGS, YRET_YARGS, false}},
+ 
+  {"strlen",    {NRET_YARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
+  {"wcslen",    {NRET_YARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
+ 
+  {"atoi",      {NRET_YARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
+  {"atof",      {NRET_YARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
+  {"atol",      {NRET_YARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
+  {"atoll",     {NRET_YARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
+  {"atoq",      {NRET_YARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
+ 
+  {"memcmp",      {NRET_YARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
+  {"strcmp",      {NRET_YARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
+  {"wcscmp",      {NRET_YARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
+  {"strncmp",     {NRET_YARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
+  {"wcsncmp",     {NRET_YARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
+  {"strcasecmp",  {NRET_YARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
+  {"wcscasecmp",  {NRET_YARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
+  {"strncasecmp", {NRET_YARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
+  {"wcsncasecmp", {NRET_YARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
   
   {"strcat",     {NRET_YARGS, YRET_YARGS, NRET_NARGS, YRET_YARGS, true}},
   {"strncat",    {NRET_YARGS, YRET_YARGS, NRET_NARGS, YRET_YARGS, true}},
@@ -219,11 +218,11 @@ const struct {
   {"fseek",      {NRET_YARGS,  NRET_YARGS, NRET_NARGS, NRET_NARGS, true}},
   {"rewind",     {NRET_YARGS,  NRET_YARGS, NRET_NARGS, NRET_NARGS, true}},
   {"ferror",     {NRET_YARGS,  NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
-  {"fwrite",     {NRET_YARGS,  NRET_NYARGS, NRET_NARGS, NRET_NARGS, false}},
+  {"fwrite",     {NRET_YARGS,  NRET_NYARGS,NRET_NARGS, NRET_NARGS, false}},
   {"fread",      {NRET_NYARGS, NRET_YARGS, NRET_NARGS, NRET_NARGS, false}},
   {"fdopen",     {NRET_YARGS,  YRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
 
-  {"__errno_location",   {NRET_NARGS,  YRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
+  {"__errno_location", {NRET_NARGS, YRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
 
   {"puts",       {NRET_YARGS,  NRET_NARGS,  NRET_NARGS, NRET_NARGS,  false}},
   {"gets",       {NRET_NARGS,  YRET_YARGS,  NRET_NARGS, YRET_YNARGS, false}},
@@ -377,7 +376,6 @@ StdLibDataStructures::runOnModule (Module &M) {
     if (!I->isDeclaration())
       getOrCreateGraph(&*I);
 
-  //FIXME: Should this happen in a "StdLib" Pass???
   //
   // Erase direct calls to functions that don't return a pointer and are marked
   // with the readnone annotation.
