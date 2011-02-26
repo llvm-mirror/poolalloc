@@ -45,9 +45,13 @@ $(PROGRAMS_TO_TEST:%=Output/%.temp1.bc): \
 Output/%.temp1.bc: Output/%.llvm1.bc 
 	-$(RUNTOOLSAFELY) $(LLVMLD) -disable-opt $(SAFE_OPTS) -link-as-library $< $(PA_PRE_RT) -o $@
 
+$(PROGRAMS_TO_TEST:%=Output/%.opt1.bc): \
+Output/%.opt1.bc: Output/%.llvm1.bc $(LOPT) $(ASSIST_SO)
+	-$(RUNOPT) -load $(ASSIST_SO) -disable-opt -info-output-file=$(CURDIR)/$@.info -instnamer -internalize -varargsfunc -indclone -funcspec -ipsccp -deadargelim  -simplifygep -die -mergegep -mergearrgep -die -globaldce -simplifycfg -deadargelim -arg-simplify -varargsfunc -indclone -funcspec -deadargelim -globaldce -die -simplifycfg -gep-args -deadargelim -die -mergegep -die -globaldce -stats -time-passes $< -f -o $@ 
+
 $(PROGRAMS_TO_TEST:%=Output/%.opt.bc): \
 Output/%.opt.bc: Output/%.llvm1.bc $(LOPT) $(ASSIST_SO)
-	-$(RUNOPT) -load $(ASSIST_SO) -disable-opt -info-output-file=$(CURDIR)/$@.info -instnamer -internalize -varargsfunc -indclone -funcspec -ipsccp -deadargelim  -simplifygep -die -mergegep  -die -globaldce -simplifycfg -deadargelim -arg-simplify -varargsfunc -indclone -funcspec -deadargelim -globaldce -die -simplifycfg -gep-args -deadargelim -die -mergegep -die -globaldce -stats -time-passes $< -f -o $@ 
+	-$(RUNOPT) -load $(ASSIST_SO) -disable-opt -info-output-file=$(CURDIR)/$@.info -instnamer -internalize -varargsfunc -indclone -funcspec -ipsccp -deadargelim  -simplifygep -die -mergegep -die -mergearrgep -die -globaldce -simplifycfg -deadargelim -arg-simplify -die -varargsfunc -die -simplifycfg -globaldce -indclone -funcspec -deadargelim -globaldce -die -simplifycfg -gep-args -deadargelim -die -mergegep -die -mergearrgep -die -globaldce -stats -time-passes $< -f -o $@ 
 
 $(PROGRAMS_TO_TEST:%=Output/%.temp2.bc): \
 Output/%.temp2.bc: Output/%.temp1.bc $(LOPT) $(ASSIST_SO)
@@ -203,6 +207,9 @@ Output/%.$(TEST).report.txt: Output/%.opt.bc Output/%.LOC.txt $(LOPT) Output/%.o
 	@/bin/echo -n "CALLS1: " >> $@
 	-@grep 'Number of calls that could not be resolved' $@.time.1 >> $@
 	@echo >> $@
+	@-if test -f Output/$*.opt.diff-nat; then \
+	  printf "RUN: 1" >> $@;\
+        fi
 
 
 $(PROGRAMS_TO_TEST:%=test.$(TEST).%): \
