@@ -44,67 +44,67 @@ namespace {
             GetElementPtrInst *GEP = cast<GetElementPtrInst>(I);
             if(!isa<ArrayType>(GEP->getType()->getElementType()))
               continue;
-                  std::vector<GetElementPtrInst*> worklist;
-                  for (Value::use_iterator UI = GEP->use_begin(),
-                                     UE = GEP->use_end(); UI != UE; ++UI){
-                    if(!isa<GetElementPtrInst>(UI))
-                      break;
-                    GetElementPtrInst *GEPUse = cast<GetElementPtrInst>(UI);
-                    worklist.push_back(GEPUse);
-                  }
-                  while(!worklist.empty()){
-                    GetElementPtrInst *GEPUse = worklist.back();
-                    worklist.pop_back();
-                    SmallVector<Value*, 8> Indices;
-                    Indices.append(GEP->op_begin()+1, GEP->op_end());
-                    Indices.append(GEPUse->idx_begin()+1, GEPUse->idx_end());
-                    GetElementPtrInst *GEPNew = GetElementPtrInst::Create(GEP->getOperand(0),
-                                                                          Indices.begin(),
-                                                                          Indices.end(),
-                                                                          GEPUse->getName()+ "moda", 
-                                                                          GEPUse);
-                    GEPUse->replaceAllUsesWith(GEPNew);
-                    GEPUse->eraseFromParent();        
-                    found = true;
-                    changed = true;                    
-                  }
+            std::vector<GetElementPtrInst*> worklist;
+            for (Value::use_iterator UI = GEP->use_begin(),
+                 UE = GEP->use_end(); UI != UE; ++UI){
+              if(!isa<GetElementPtrInst>(UI))
+                break;
+              GetElementPtrInst *GEPUse = cast<GetElementPtrInst>(UI);
+              worklist.push_back(GEPUse);
+            }
+            while(!worklist.empty()){
+              GetElementPtrInst *GEPUse = worklist.back();
+              worklist.pop_back();
+              SmallVector<Value*, 8> Indices;
+              Indices.append(GEP->op_begin()+1, GEP->op_end());
+              Indices.append(GEPUse->idx_begin()+1, GEPUse->idx_end());
+              GetElementPtrInst *GEPNew = GetElementPtrInst::Create(GEP->getOperand(0),
+                                                                    Indices.begin(),
+                                                                    Indices.end(),
+                                                                    GEPUse->getName()+ "moda", 
+                                                                    GEPUse);
+              GEPUse->replaceAllUsesWith(GEPNew);
+              GEPUse->eraseFromParent();        
+              found = true;
+              changed = true;                    
+            }
           }
         }
-      std::vector<GetElementPtrInst*> worklist;
-      for (Function::iterator B = F->begin(), FE = F->end(); B != FE; ++B) {      
-        for (BasicBlock::iterator I = B->begin(), BE = B->end(); I != BE; I++) {
-          if(!(isa<GetElementPtrInst>(I)))
-            continue;
-          GetElementPtrInst *GEP1 = cast<GetElementPtrInst>(I);
-          if(!isa<ArrayType>(GEP1->getType()->getElementType()))
+        std::vector<GetElementPtrInst*> worklist;
+        for (Function::iterator B = F->begin(), FE = F->end(); B != FE; ++B) {      
+          for (BasicBlock::iterator I = B->begin(), BE = B->end(); I != BE; I++) {
+            if(!(isa<GetElementPtrInst>(I)))
               continue;
-          if (Constant *C = dyn_cast<Constant>(GEP1->getOperand(0))) {
-            if (ConstantExpr *CE = dyn_cast<ConstantExpr>(C)) {
-              if (CE->getOpcode() == Instruction::GetElementPtr) {
+            GetElementPtrInst *GEP1 = cast<GetElementPtrInst>(I);
+            if(!isa<ArrayType>(GEP1->getType()->getElementType()))
+              continue;
+            if (Constant *C = dyn_cast<Constant>(GEP1->getOperand(0))) {
+              if (ConstantExpr *CE = dyn_cast<ConstantExpr>(C)) {
+                if (CE->getOpcode() == Instruction::GetElementPtr) {
                   worklist.push_back(GEP1);
+                }
               }
             }
           }
         }
-      }
-      while(!worklist.empty()) {
-        GetElementPtrInst *GEP1 = worklist.back();
-        worklist.pop_back();
-        Constant *C = cast<Constant>(GEP1->getOperand(0));
-        ConstantExpr *CE = cast<ConstantExpr>(C);
-        SmallVector<Value*, 8> Indices;
-        Indices.append(CE->op_begin()+1, CE->op_end());
-        Indices.append(GEP1->idx_begin()+1, GEP1->idx_end());
-        GetElementPtrInst *GEPNew = GetElementPtrInst::Create(CE->getOperand(0),
-                                                              Indices.begin(),
-                                                              Indices.end(),
-                                                              GEP1->getName()+ "modb", 
-                                                              GEP1);
-        GEP1->replaceAllUsesWith(GEPNew);
-        GEP1->eraseFromParent();
-        changed = true;                    
-        found = true;
-      }
+        while(!worklist.empty()) {
+          GetElementPtrInst *GEP1 = worklist.back();
+          worklist.pop_back();
+          Constant *C = cast<Constant>(GEP1->getOperand(0));
+          ConstantExpr *CE = cast<ConstantExpr>(C);
+          SmallVector<Value*, 8> Indices;
+          Indices.append(CE->op_begin()+1, CE->op_end());
+          Indices.append(GEP1->idx_begin()+1, GEP1->idx_end());
+          GetElementPtrInst *GEPNew = GetElementPtrInst::Create(CE->getOperand(0),
+                                                                Indices.begin(),
+                                                                Indices.end(),
+                                                                GEP1->getName()+ "modb", 
+                                                                GEP1);
+          GEP1->replaceAllUsesWith(GEPNew);
+          GEP1->eraseFromParent();
+          changed = true;                    
+          found = true;
+        }
       }
       }while(found);
       return changed;
