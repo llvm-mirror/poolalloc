@@ -1,4 +1,4 @@
-//===-- FuncSpec.cpp - Clone Functions With Constant Function Ptr Args ----===//
+//===-- ArgSimplify.cpp - Special case for conditional ptr args ----------===//
 //
 //                     The LLVM Compiler Infrastructure
 //
