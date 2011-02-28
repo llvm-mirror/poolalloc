@@ -51,16 +51,16 @@ bool DSNodeHandle::isForwarding() const {
 DSNode *DSNodeHandle::HandleForwarding() const {
   assert(N->isForwarding() && "Can only be invoked if forwarding!");
   DEBUG(
-        { //assert not looping
-          DSNode* NH = N;
-          svset<DSNode*> seen;
-          while(NH && NH->isForwarding()) {
-            assert(seen.find(NH) == seen.end() && "Loop detected");
-            seen.insert(NH);
-            NH = NH->ForwardNH.N;
-          }
-        }
-        );
+    { //assert not looping
+    DSNode* NH = N;
+    svset<DSNode*> seen;
+    while(NH && NH->isForwarding()) {
+    assert(seen.find(NH) == seen.end() && "Loop detected");
+    seen.insert(NH);
+    NH = NH->ForwardNH.N;
+    }
+    }
+    );
   // Handle node forwarding here!
   DSNode *Next = N->ForwardNH.getNode();  // Cause recursive shrinkage
   Offset += N->ForwardNH.getOffset();
@@ -129,20 +129,20 @@ void DSScalarMap::spliceFrom(DSScalarMap &RHS) {
 //===----------------------------------------------------------------------===//
 
 DSNode::DSNode(DSGraph *G)
-: NumReferrers(0), Size(0), ParentGraph(G), NodeType(0) {
-  // Add the type entry if it is specified...
-  if (G) G->addNode(this);
-  ++NumNodeAllocated;
-}
+  : NumReferrers(0), Size(0), ParentGraph(G), NodeType(0) {
+    // Add the type entry if it is specified...
+    if (G) G->addNode(this);
+    ++NumNodeAllocated;
+  }
 
 // DSNode copy constructor... do not copy over the referrers list!
 DSNode::DSNode(const DSNode &N, DSGraph *G, bool NullLinks)
   : NumReferrers(0), Size(N.Size), ParentGraph(G), TyMap(N.TyMap),
-    Globals(N.Globals), NodeType(N.NodeType) {
-  if (!NullLinks) Links = N.Links;
-  G->addNode(this);
-  ++NumNodeAllocated;
-}
+  Globals(N.Globals), NodeType(N.NodeType) {
+    if (!NullLinks) Links = N.Links;
+    G->addNode(this);
+    ++NumNodeAllocated;
+  }
 
 DSNode::~DSNode() {
   dropAllReferences();
@@ -150,10 +150,10 @@ DSNode::~DSNode() {
 }
 
 void DSNode::assertOK() const {
-//  assert(((Ty && Ty->getTypeID() != Type::VoidTyID) ||
-//         ((!Ty || Ty->getTypeID() == Type::VoidTyID) && (Size == 0 ||
-//         (NodeType & DSNode::ArrayNode)))) &&
-//         "Node not OK!");
+  //  assert(((Ty && Ty->getTypeID() != Type::VoidTyID) ||
+  //         ((!Ty || Ty->getTypeID() == Type::VoidTyID) && (Size == 0 ||
+  //         (NodeType & DSNode::ArrayNode)))) &&
+  //         "Node not OK!");
 
   assert(ParentGraph && "Node has no parent?");
   const DSScalarMap &SM = ParentGraph->getScalarMap();
@@ -233,7 +233,7 @@ void DSNode::removeGlobal(const GlobalValue *GV) {
 void DSNode::foldNodeCompletely() {
   if (isNodeCompletelyFolded()) return;  // If this node is already folded...
 
-//  assert(0 && "Folding is happening");
+  //  assert(0 && "Folding is happening");
 
   ++NumFolds;
 
@@ -303,7 +303,7 @@ void DSNode::addFullFunctionList(std::vector<const Function*> &List) const {
         List.push_back(F);
     } else {
       for (EquivalenceClasses<const GlobalValue*>::member_iterator MI =
-             EC.member_begin(ECI), E = EC.member_end(); MI != E; ++MI)
+           EC.member_begin(ECI), E = EC.member_end(); MI != E; ++MI)
         if (const Function *F = dyn_cast<Function>(*MI))
           List.push_back(F);
     }
@@ -324,7 +324,7 @@ void DSNode::dumpFuncs() {
 ///
 void DSNode::markIntPtrFlags() {
   // check if the types merged have both int and pointer at the same offset,
-  
+
   const TargetData &TD = getParentGraph()->getTargetData();
   // check all offsets for that node.
   for(unsigned offset = 0; offset < getSize() ; offset++) {
@@ -362,7 +362,7 @@ void DSNode::markIntPtrFlags() {
     if(!pointerTy && !integerTy){
       continue;
     }
-   
+
     // If only either integer or pointer was found, we must see if it 
     // overlaps with any other pointer or integer type at an offset that
     // comes later. 
@@ -542,13 +542,13 @@ void DSNode::MergeNodes(DSNodeHandle& CurNodeH, DSNodeHandle& NH) {
     NOffset = NH.getOffset();
     assert(NOffset == 0 && NSize == 1);
   }
-  
+
   // FIXME:Add comments.
   if(NH.getNode()->isArrayNode() && !CurNodeH.getNode()->isArrayNode()) {
     if(NH.getNode()->getSize() != 0 && CurNodeH.getNode()->getSize() != 0) { 
       if((NH.getNode()->getSize() != CurNodeH.getNode()->getSize() &&
-       (NH.getOffset() != 0 || CurNodeH.getOffset() != 0) 
-        && NH.getNode()->getSize() < CurNodeH.getNode()->getSize())) {
+          (NH.getOffset() != 0 || CurNodeH.getOffset() != 0) 
+          && NH.getNode()->getSize() < CurNodeH.getNode()->getSize())) {
         CurNodeH.getNode()->foldNodeCompletely();
         NH.getNode()->foldNodeCompletely();
         NSize = NH.getNode()->getSize();
@@ -559,8 +559,8 @@ void DSNode::MergeNodes(DSNodeHandle& CurNodeH, DSNodeHandle& NH) {
   if(!NH.getNode()->isArrayNode() && CurNodeH.getNode()->isArrayNode()) {
     if(NH.getNode()->getSize() != 0 && CurNodeH.getNode()->getSize() != 0) { 
       if((NH.getNode()->getSize() != CurNodeH.getNode()->getSize() &&
-       (NH.getOffset() != 0 || CurNodeH.getOffset() != 0) 
-        && NH.getNode()->getSize() > CurNodeH.getNode()->getSize())) {
+          (NH.getOffset() != 0 || CurNodeH.getOffset() != 0) 
+          && NH.getNode()->getSize() > CurNodeH.getNode()->getSize())) {
         CurNodeH.getNode()->foldNodeCompletely();
         NH.getNode()->foldNodeCompletely();
         NSize = NH.getNode()->getSize();
@@ -572,13 +572,13 @@ void DSNode::MergeNodes(DSNodeHandle& CurNodeH, DSNodeHandle& NH) {
   if (CurNodeH.getNode()->isArrayNode() && NH.getNode()->isArrayNode()) {
     if(NH.getNode()->getSize() != 0 && CurNodeH.getNode()->getSize() != 0
        && (NH.getNode()->getSize() != CurNodeH.getNode()->getSize())){
-        CurNodeH.getNode()->foldNodeCompletely();
-        NH.getNode()->foldNodeCompletely();
-        NSize = NH.getNode()->getSize();
-        NOffset = NH.getOffset();
+      CurNodeH.getNode()->foldNodeCompletely();
+      NH.getNode()->foldNodeCompletely();
+      NSize = NH.getNode()->getSize();
+      NOffset = NH.getOffset();
     }
   }
- 
+
 
   DSNode *N = NH.getNode();
   if (CurNodeH.getNode() == N || N == 0) return;
@@ -609,7 +609,7 @@ void DSNode::MergeNodes(DSNodeHandle& CurNodeH, DSNodeHandle& NH) {
       // recursive merging, we must make sure to merge in all remaining
       // links at offset zero.
       unsigned MergeOffset = 0;
-       DSNode *CN = CurNodeH.getNode();
+      DSNode *CN = CurNodeH.getNode();
       if (CN->Size != 1)
         MergeOffset = (ii->first + NOffset) % CN->getSize();
       CN->addEdgeTo(MergeOffset, ii->second);
@@ -716,7 +716,7 @@ DSNodeHandle ReachabilityCloner::getClonedNH(const DSNodeHandle &SrcNH) {
     DSNode *NHN = NH.getNode();
     return DSNodeHandle(NHN, NH.getOffset() + SrcNH.getOffset());
   }
-  
+
   // If SrcNH has globals and the destination graph has one of the same globals,
   // merge this node with the destination node, which is much more efficient.
   if (SN->globals_begin() != SN->globals_end()) {
@@ -774,7 +774,7 @@ DSNodeHandle ReachabilityCloner::getClonedNH(const DSNodeHandle &SrcNH) {
     DSNodeHandle &DestGNH = NodeMap[SrcGNH.getNode()];
     assert(DestGNH.getNode() == NH.getNode() &&"Global mapping inconsistent");
     Dest->getNodeForValue(GV).mergeWith(DSNodeHandle(DestGNH.getNode(),
-                                        DestGNH.getOffset()+SrcGNH.getOffset()));
+                                                     DestGNH.getOffset()+SrcGNH.getOffset()));
   }
   NH.getNode()->mergeGlobals(*SN);
 
@@ -831,14 +831,14 @@ void ReachabilityCloner::merge(const DSNodeHandle &NH,
         }
 #endif
       }
-      
-     
+
+
       // FIXME:Add comments.
       if(!DN->isArrayNode() && SN->isArrayNode()) {
         if(DN->getSize() != 0 && SN->getSize() != 0) { 
           if((DN->getSize() != SN->getSize() &&
-            (NH.getOffset() != 0 || SrcNH.getOffset() != 0) 
-            && DN->getSize() > SN->getSize())) {
+              (NH.getOffset() != 0 || SrcNH.getOffset() != 0) 
+              && DN->getSize() > SN->getSize())) {
             DN->foldNodeCompletely();
             DN = NH.getNode();
           }
@@ -847,8 +847,8 @@ void ReachabilityCloner::merge(const DSNodeHandle &NH,
       if(!SN->isArrayNode() && DN->isArrayNode()) {
         if(DN->getSize() != 0 && SN->getSize() != 0) { 
           if((DN->getSize() != SN->getSize() &&
-            (NH.getOffset() != 0 || SrcNH.getOffset() != 0) 
-            && DN->getSize() < SN->getSize())) {
+              (NH.getOffset() != 0 || SrcNH.getOffset() != 0) 
+              && DN->getSize() < SN->getSize())) {
             DN->foldNodeCompletely();
             DN = NH.getNode();
           }
@@ -858,8 +858,8 @@ void ReachabilityCloner::merge(const DSNodeHandle &NH,
       if (SN->isArrayNode() && DN->isArrayNode()) {
         if((SN->getSize() != DN->getSize()) && (SN->getSize() != 0) 
            && DN->getSize() != 0) {
-             DN->foldNodeCompletely();
-             DN = NH.getNode();
+          DN->foldNodeCompletely();
+          DN = NH.getNode();
         }
       }
       if (!DN->isNodeCompletelyFolded() && DN->getSize() < SN->getSize())
@@ -889,13 +889,13 @@ void ReachabilityCloner::merge(const DSNodeHandle &NH,
       // Update the scalar map for the graph we are merging the source node
       // into.
       for (DSNode::globals_iterator I = SN->globals_begin(),
-             E = SN->globals_end(); I != E; ++I) {
+           E = SN->globals_end(); I != E; ++I) {
         const GlobalValue *GV = *I;
         const DSNodeHandle &SrcGNH = Src->getNodeForValue(GV);
         DSNodeHandle &DestGNH = NodeMap[SrcGNH.getNode()];
         assert(DestGNH.getNode()==NH.getNode() &&"Global mapping inconsistent");
         Dest->getNodeForValue(GV).mergeWith(DSNodeHandle(DestGNH.getNode(),
-                                      DestGNH.getOffset()+SrcGNH.getOffset()));
+                                                         DestGNH.getOffset()+SrcGNH.getOffset()));
       }
       NH.getNode()->mergeGlobals(*SN);
     }
@@ -920,14 +920,14 @@ void ReachabilityCloner::merge(const DSNodeHandle &NH,
     // If the source node contained any globals, make sure to create entries
     // in the scalar map for them!
     for (DSNode::globals_iterator I = SN->globals_begin(),
-           E = SN->globals_end(); I != E; ++I) {
+         E = SN->globals_end(); I != E; ++I) {
       const GlobalValue *GV = *I;
       const DSNodeHandle &SrcGNH = Src->getNodeForValue(GV);
       DSNodeHandle &DestGNH = NodeMap[SrcGNH.getNode()];
       assert(DestGNH.getNode()==NH.getNode() &&"Global mapping inconsistent");
       assert(SrcGNH.getNode() == SN && "Global mapping inconsistent");
       Dest->getNodeForValue(GV).mergeWith(DSNodeHandle(DestGNH.getNode(),
-                                    DestGNH.getOffset()+SrcGNH.getOffset()));
+                                                       DestGNH.getOffset()+SrcGNH.getOffset()));
     }
   }
 
@@ -1038,7 +1038,7 @@ const FunctionType *DSCallSite::FunctionTypeOfCallSite(const CallSite & Site) {
   } else {
     CalleeFuncType = dyn_cast<FunctionType>(CalleeType->getElementType());
     assert(CalleeFuncType &&
-        "Call through pointer to non-function?");
+           "Call through pointer to non-function?");
   }
 
   return CalleeFuncType;
@@ -1233,15 +1233,15 @@ static bool CanReachAliveNodes(DSNode *N, DenseSet<const DSNode*> &Alive,
 //Base DataStructures impl:
 ////////////////////////////////////////////////////////////////////////////////
 
-static const Function *getFnForValue(const Value *V) {
-  if (const Instruction *I = dyn_cast<Instruction>(V))
-    return I->getParent()->getParent();
-  else if (const Argument *A = dyn_cast<Argument>(V))
-    return A->getParent();
-  else if (const BasicBlock *BB = dyn_cast<BasicBlock>(V))
-    return BB->getParent();
-  return 0;
-}
+  static const Function *getFnForValue(const Value *V) {
+    if (const Instruction *I = dyn_cast<Instruction>(V))
+      return I->getParent()->getParent();
+    else if (const Argument *A = dyn_cast<Argument>(V))
+      return A->getParent();
+    else if (const BasicBlock *BB = dyn_cast<BasicBlock>(V))
+      return BB->getParent();
+    return 0;
+  }
 
 /// deleteValue/copyValue - Interfaces to update the DSGraphs in the program.
 /// These correspond to the interfaces defined in the AliasAnalysis class.
@@ -1253,7 +1253,7 @@ void DataStructures::deleteValue(Value *V) {
     getDSGraph(*F)->getScalarMap().eraseIfExists(V);
     return;
   }
-  
+
   if (Function *F = dyn_cast<Function>(V)) {
     DSGraph *G = getDSGraph(*F);
     if (G->getReturnNodes().size() == 1) {
@@ -1277,7 +1277,7 @@ void DataStructures::deleteValue(Value *V) {
 
     return;
   }
-  
+
   assert(!isa<GlobalVariable>(V) && "Do not know how to delete GV's yet!");
 
   assert(0 && "Unrecognized value!");
@@ -1291,7 +1291,7 @@ void DataStructures::copyValue(Value *From, Value *To) {
     getDSGraph(*F)->getScalarMap().copyScalarIfExists(From, To);
     return;
   }
-  
+
   if (Function *FromF = dyn_cast<Function>(From)) {
     Function *ToF = cast<Function>(To);
     assert(!DSInfo.count(ToF) && "New Function already exists!");
@@ -1324,12 +1324,12 @@ void DataStructures::copyValue(Value *From, Value *To) {
 
     return;
   }
-  
+
   if (const Function *F = getFnForValue(To)) {
     getDSGraph(*F)->getScalarMap().copyScalarIfExists(From, To);
     return;
   }
-  
+
   errs() << *From;
   errs() << *To;
   assert(0 && "Do not know how to copy this yet!");
@@ -1355,11 +1355,11 @@ DSGraph* DataStructures::getOrCreateGraph(const Function* F) {
     }
     G->setUseAuxCalls();
     G->setGlobalsGraph(GlobalsGraph);
-    
+
     // Note that this graph is the graph for ALL of the function in the SCC, not
     // just F.
     for (DSGraph::retnodes_iterator RI = G->retnodes_begin(),
-           E = G->retnodes_end(); RI != E; ++RI)
+         E = G->retnodes_end(); RI != E; ++RI)
       if (RI->first != F)
         DSInfo[RI->first] = G;
   }
@@ -1395,7 +1395,7 @@ void DataStructures::formGlobalECs() {
   if (!ECGlobals.empty()) {
     DEBUG(errs() << "Eliminating " << ECGlobals.size() << " EC Globals!\n");
     for (DSInfoTy::iterator I = DSInfo.begin(),
-           E = DSInfo.end(); I != E; ++I)
+         E = DSInfo.end(); I != E; ++I)
       eliminateUsesOfECGlobals(*I->second, ECGlobals);
   }
 }
@@ -1409,7 +1409,7 @@ void DataStructures::buildGlobalECs(svset<const GlobalValue*> &ECGlobals) {
   DSScalarMap &SM = GlobalsGraph->getScalarMap();
   EquivalenceClasses<const GlobalValue*> &GlobalECs = SM.getGlobalECs();
   for (DSGraph::node_iterator I = GlobalsGraph->node_begin(), 
-         E = GlobalsGraph->node_end();
+       E = GlobalsGraph->node_end();
        I != E; ++I) {
     if (I->numGlobals() <= 1) continue;
 
@@ -1512,7 +1512,7 @@ void DataStructures::cloneIntoGlobals(DSGraph* Graph, unsigned cloneFlags) {
   // Clone everything reachable from globals in the function graph into the
   // globals graph.
   for (DSScalarMap::global_iterator I = MainSM.global_begin(),
-         E = MainSM.global_end(); I != E; ++I)
+       E = MainSM.global_end(); I != E; ++I)
     RC.getClonedNH(MainSM[*I]);
 }
 
@@ -1530,7 +1530,7 @@ void DataStructures::init(DataStructures* D, bool clone, bool useAuxCalls,
   GlobalECs = D->getGlobalECs();
   GlobalsGraph = new DSGraph(D->getGlobalsGraph(), GlobalECs, *TypeSS,
                              copyGlobalAuxCalls? DSGraph::CloneAuxCallNodes
-					 :DSGraph::DontCloneAuxCallNodes);
+                             :DSGraph::DontCloneAuxCallNodes);
   if (useAuxCalls) GlobalsGraph->setUseAuxCalls();
 
   //
@@ -1573,8 +1573,7 @@ void DataStructures::releaseMemory() {
   // Empty map so next time memory is released, data structures are not
   // re-deleted.
   DSInfo.clear();
-  //FIXME:
-//  callgraph.clear();
+
   delete GlobalsGraph;
   GlobalsGraph = 0;
 }
