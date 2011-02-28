@@ -1,4 +1,4 @@
-//===-- AddressTakenAnalysis.h - Entry point Finding Pass -------------------===//
+//===-- AddressTakenAnalysis.h - Identify address Taken Values-------------===//
 //
 //                     The LLVM Compiler Infrastructure
 //
@@ -41,8 +41,6 @@ public:
 };
 
 }
-
-
 
 #endif	/* _ADDRESSTAKENANALYSIS_H */
 
