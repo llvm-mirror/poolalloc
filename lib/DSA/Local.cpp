@@ -68,7 +68,7 @@ namespace {
   class GraphBuilder : InstVisitor<GraphBuilder> {
     DSGraph &G;
     Function* FB;
-    DataStructures* DS;
+    LocalDataStructures* DS;
     const TargetData& TD;
 
     ////////////////////////////////////////////////////////////////////////////
@@ -135,7 +135,7 @@ namespace {
     void visitVAStartNode(DSNode* N);
 
   public:
-    GraphBuilder(Function &f, DSGraph &g, DataStructures& DSi)
+    GraphBuilder(Function &f, DSGraph &g, LocalDataStructures& DSi)
       : G(g), FB(&f), DS(&DSi), TD(g.getTargetData()) {
       // Create scalar nodes for all pointer arguments...
       for (Function::arg_iterator I = f.arg_begin(), E = f.arg_end();
@@ -499,8 +499,6 @@ void GraphBuilder::visitGetElementPtrInst(User &GEP) {
     return;
   }
 
-  if(GEP.use_empty())
-    return;
   //
   // Okay, no easy way out.  Calculate the offset into the object being
   // indexed.
@@ -571,7 +569,6 @@ void GraphBuilder::visitGetElementPtrInst(User &GEP) {
       if((Value.getOffset() || Offset != 0)
           || (!isa<ArrayType>(CurTy)
          && (Value.getNode()->getSize() != TD.getTypeAllocSize(CurTy)))) {
-
         Value.getNode()->foldNodeCompletely();
         Value.getNode();
         Offset = 0;
@@ -1172,7 +1169,6 @@ bool LocalDataStructures::runOnModule(Module &M) {
           GGB.mergeInGlobalInitializer(I);
       }
     // Add Functions to the globals graph.
-    // FIXME: Write a separate pass to handle address taken property better.
     for (Module::iterator FI = M.begin(), FE = M.end(); FI != FE; ++FI){
       if(addrAnalysis->hasAddressTaken(FI)) {
           GGB.mergeFunction(FI);
