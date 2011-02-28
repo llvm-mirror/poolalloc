@@ -52,6 +52,7 @@ namespace {
 
   class DSGraphStats : public FunctionPass, public InstVisitor<DSGraphStats> {
     void countCallees(const Function &F);
+    const TDDataStructures *DS;
     const DSGraph *TDGraph;
 
     DSNodeHandle getNodeHandleForValue(Value *V);
@@ -96,12 +97,17 @@ static bool isIndirectCallee(Value *V) {
     if (CE->isCast()) 
       return isIndirectCallee(CE->getOperand(0));
 
+  if (GlobalAlias *GA = dyn_cast<GlobalAlias>(V)) {
+    GA->dump();
+    return isIndirectCallee(GA->getAliasee());
+  }
+
   return true;
 }
 
 
 void DSGraphStats::countCallees(const Function& F) {
-  //FIXME:Use callgraph
+  const DSCallGraph callgraph = DS->getCallGraph();
   unsigned numIndirectCalls = 0, totalNumCallees = 0;
 
   for (DSGraph::fc_iterator I = TDGraph->fc_begin(), E = TDGraph->fc_end();
@@ -109,7 +115,7 @@ void DSGraphStats::countCallees(const Function& F) {
     if (isIndirectCallee(I->getCallSite().getCalledValue())) {
       // This is an indirect function call
       std::vector<const Function*> Callees;
-      I->getCalleeNode()->addFullFunctionList(Callees);
+      callgraph.addFullFunctionList(I->getCallSite(), Callees);
 
       if (Callees.size() > 0) {
         totalNumCallees  += Callees.size();
@@ -209,7 +215,8 @@ void DSGraphStats::visitStore(StoreInst &SI) {
 
 
 bool DSGraphStats::runOnFunction(Function& F) {
-  TDGraph = getAnalysis<TDDataStructures>().getDSGraph(F);
+  DS = &getAnalysis<TDDataStructures>();
+  TDGraph = DS->getDSGraph(F);
   countCallees(F);
   visit(F);
   return true;
