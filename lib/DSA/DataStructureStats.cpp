@@ -98,7 +98,6 @@ static bool isIndirectCallee(Value *V) {
       return isIndirectCallee(CE->getOperand(0));
 
   if (GlobalAlias *GA = dyn_cast<GlobalAlias>(V)) {
-    GA->dump();
     return isIndirectCallee(GA->getAliasee());
   }
 
