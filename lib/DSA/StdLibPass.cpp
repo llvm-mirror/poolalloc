@@ -91,6 +91,10 @@ const struct {
   {"setrlimit",  {NRET_YARGS,  YRET_NARGS,  NRET_NARGS, NRET_NARGS,  false}},
   {"getcwd",     {NRET_NYARGS, YRET_YNARGS, NRET_NARGS, YRET_YNARGS, false}},
   
+  {"select",    {NRET_YARGS, YRET_YNARGS, NRET_NARGS, NRET_NARGS, false}},
+  {"_setjmp",   {NRET_YARGS, YRET_YARGS,  NRET_NARGS, NRET_NARGS, false}},
+  {"longjmp",   {NRET_YARGS, NRET_YARGS,  NRET_NARGS, NRET_NARGS, false}},
+  
   {"remove",    {NRET_YARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
   {"rename",    {NRET_YARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
   {"unlink",    {NRET_YARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
@@ -109,6 +113,7 @@ const struct {
   {"fchmod",    {NRET_YARGS, YRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
  
   {"kill",      {NRET_YARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
+  {"pipe",      {NRET_YARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
   
   {"execl",     {NRET_YARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
   {"execlp",    {NRET_YARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
@@ -252,7 +257,6 @@ const struct {
   {"sc.pool_argvregister", {NRET_NARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
 
 #if 0
-  {"pipe",       {false, false, false, false,  true, false, false, false, false}},
   {"wait",       {false, false, false, false,  true, false, false, false, false}},
   {"getrusage",  {false, false, false, false,  true, false, false, false, false}},
   {"getcwd",     { true,  true,  true,  true,  true,  true, false,  true,  true}},
@@ -285,6 +289,14 @@ StdLibDataStructures::eraseCallsTo(Function* F) {
   for (Value::use_iterator ii = F->use_begin(), ee = F->use_end();
        ii != ee; ++ii)
     if (CallInst* CI = dyn_cast<CallInst>(ii)){
+      if (CI->getOperand(0) == F) {
+        DSGraph* Graph = getDSGraph(*CI->getParent()->getParent());
+        //delete the call
+        DEBUG(errs() << "Removing " << F->getNameStr() << " from " 
+	      << CI->getParent()->getParent()->getNameStr() << "\n");
+        Graph->removeFunctionCalls(*F);
+      }
+    }else if (InvokeInst* CI = dyn_cast<InvokeInst>(ii)){
       if (CI->getOperand(0) == F) {
         DSGraph* Graph = getDSGraph(*CI->getParent()->getParent());
         //delete the call
@@ -447,6 +459,77 @@ StdLibDataStructures::runOnModule (Module &M) {
                   }
                 }
 
+              //
+              // Merge the DSNoes for return values and parameters as
+              // appropriate.
+              //
+              std::vector<DSNodeHandle> toMerge;
+              if (recFuncs[x].action.mergeNodes[0])
+                if (isa<PointerType>(CI->getType()))
+                  if (Graph->hasNodeForValue(CI))
+                toMerge.push_back(Graph->getNodeForValue(CI));
+                for (unsigned y = 1; y < CI->getNumOperands(); ++y)
+              if (recFuncs[x].action.mergeNodes[y])
+                  if (isa<PointerType>(CI->getOperand(y)->getType()))
+                    if (Graph->hasNodeForValue(CI->getOperand(y)))
+                      toMerge.push_back(Graph->getNodeForValue(CI->getOperand(y)));
+              for (unsigned y = 1; y < toMerge.size(); ++y)
+                toMerge[0].mergeWith(toMerge[y]);
+
+              //
+              // Collapse (fold) the DSNode of the return value and the actual
+              // arguments if directed to do so.
+              //
+              if (!noStdLibFold && recFuncs[x].action.collapse) {
+                if (isa<PointerType>(CI->getType())){
+                  if (Graph->hasNodeForValue(CI))
+                    Graph->getNodeForValue(CI).getNode()->foldNodeCompletely();
+                  NumNodesFoldedInStdLib++;
+                }
+                for (unsigned y = 1; y < CI->getNumOperands(); ++y){
+                  if (isa<PointerType>(CI->getOperand(y)->getType())){
+                    if (Graph->hasNodeForValue(CI->getOperand(y))){
+                      Graph->getNodeForValue(CI->getOperand(y)).getNode()->foldNodeCompletely();
+                      NumNodesFoldedInStdLib++;
+                    }
+                  }
+                }
+              }
+            }
+          } else if (InvokeInst* CI = dyn_cast<InvokeInst>(ii)){
+            if (CI->getOperand(0) == F) {
+              DSGraph* Graph = getDSGraph(*CI->getParent()->getParent());
+
+              //
+              // Set the read, write, and heap markers on the return value
+              // as appropriate.
+              //
+              if(isa<PointerType>((CI)->getType())){
+                if(Graph->hasNodeForValue(CI)){
+                  if (recFuncs[x].action.read[0])
+                    Graph->getNodeForValue(CI).getNode()->setReadMarker();
+                  if (recFuncs[x].action.write[0])
+                    Graph->getNodeForValue(CI).getNode()->setModifiedMarker();
+                  if (recFuncs[x].action.heap[0])
+                    Graph->getNodeForValue(CI).getNode()->setHeapMarker();
+                }
+              }
+
+              //
+              // Set the read, write, and heap markers on the actual arguments
+              // as appropriate.
+              //
+              for (unsigned y = 1; y < CI->getNumOperands(); ++y)
+                if (isa<PointerType>(CI->getOperand(y)->getType())){
+                  if (Graph->hasNodeForValue(CI->getOperand(y))){
+                    if (recFuncs[x].action.read[y])
+                      Graph->getNodeForValue(CI->getOperand(y)).getNode()->setReadMarker();
+                    if (recFuncs[x].action.write[y])
+                      Graph->getNodeForValue(CI->getOperand(y)).getNode()->setModifiedMarker();
+                    if (recFuncs[x].action.heap[y])
+                      Graph->getNodeForValue(CI->getOperand(y)).getNode()->setHeapMarker();
+                  }
+                }
 
               //
               // Merge the DSNoes for return values and parameters as
@@ -489,6 +572,7 @@ StdLibDataStructures::runOnModule (Module &M) {
               if(CE->isCast()) 
                 for (Value::use_iterator ci = CE->use_begin(), ce = CE->use_end();
                   ci != ce; ++ci) {
+                  
                   if (CallInst* CI = dyn_cast<CallInst>(ci)){
                     if (CI->getOperand(0) == CE) {
                       DSGraph* Graph = getDSGraph(*CI->getParent()->getParent());
@@ -612,5 +696,4 @@ StdLibDataStructures::runOnModule (Module &M) {
   strtoll
   ctype family
   open64/fopen64/lseek64
-
    */
