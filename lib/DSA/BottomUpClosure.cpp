@@ -101,12 +101,12 @@ bool BUDataStructures::runOnModuleInternal(Module& M) {
       DSGraph *Graph  = getOrCreateGraph(F);
       cloneGlobalsInto(Graph, DSGraph::DontCloneCallNodes |
                         DSGraph::DontCloneAuxCallNodes);
-      Graph->buildCallGraph(callgraph, GlobalFunctionList, filterCallees);
       Graph->maskIncompleteMarkers();
       Graph->markIncompleteNodes(DSGraph::MarkFormalArgs |
                                    DSGraph::IgnoreGlobals);
       Graph->computeExternalFlags(DSGraph::DontMarkFormalsExternal);
       Graph->computeIntPtrFlags();
+      Graph->buildCallGraph(callgraph, GlobalFunctionList, filterCallees);
     }
   }
 
