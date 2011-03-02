@@ -41,8 +41,6 @@ static bool isAddressTaken(Value* V) {
     User *U = *I;
     if(isa<StoreInst>(U))
       return true;
-    if(U->use_empty())
-      continue;
     if (!isa<CallInst>(U) && !isa<InvokeInst>(U)) {
       if(isa<GlobalAlias>(U)) {
         if(isAddressTaken(U))
@@ -51,7 +49,7 @@ static bool isAddressTaken(Value* V) {
         if (Constant *C = dyn_cast<Constant>(U)) {
           if (ConstantExpr *CE = dyn_cast<ConstantExpr>(C)) {
             if (CE->getOpcode() == Instruction::BitCast) {
-                return isAddressTaken(CE);
+              return isAddressTaken(CE);
             }
           }
         }
