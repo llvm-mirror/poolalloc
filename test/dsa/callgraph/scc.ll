@@ -6,7 +6,7 @@ target triple = "x86_64-unknown-linux-gnu"
 
 define void @A() nounwind {
 entry:
-  call void (...)* bitcast (void ()* @B to void (...)*)() nounwind
+  call void @B () nounwind
   br label %return
 
 return:                                           ; preds = %entry
@@ -22,20 +22,3 @@ return:                                           ; preds = %entry
   ret void
 }
 
-define void @D() nounwind {
-entry:
-  call void (...)* bitcast (void ()* @C to void (...)*)() nounwind
-  br label %return
-
-return:                                           ; preds = %entry
-  ret void
-}
-
-define void @C() nounwind {
-entry:
-  call void @D() nounwind
-  br label %return
-
-return:                                           ; preds = %entry
-  ret void
-}

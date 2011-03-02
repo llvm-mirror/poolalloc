@@ -6,7 +6,7 @@ target triple = "x86_64-unknown-linux-gnu"
 
 define internal void @A() nounwind {
 entry:
-  call void (...)* bitcast (void ()* @B to void (...)*)() nounwind
+  call void @B() nounwind
   br label %return
 
 return:                                           ; preds = %entry
