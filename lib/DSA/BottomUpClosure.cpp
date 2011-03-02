@@ -31,7 +31,8 @@ namespace {
   STATISTIC (NumCallEdges, "Number of 'actual' call edges");
   STATISTIC (NumIndResolved, "Number of resolved IndCalls");
   STATISTIC (NumIndUnresolved, "Number of unresolved IndCalls");
-  STATISTIC (NumEmptyCalls, "Number of calls we know nothing about");
+  // NumEmptyCalls = NumIndUnresolved + Number of calls to external functions
+  STATISTIC (NumEmptyCalls, "Number of calls we know nothing about"); 
 
   RegisterPass<BUDataStructures>
   X("dsa-bu", "Bottom-up Data Structure Analysis");
@@ -101,12 +102,12 @@ bool BUDataStructures::runOnModuleInternal(Module& M) {
       DSGraph *Graph  = getOrCreateGraph(F);
       cloneGlobalsInto(Graph, DSGraph::DontCloneCallNodes |
                         DSGraph::DontCloneAuxCallNodes);
+      Graph->buildCallGraph(callgraph, GlobalFunctionList, filterCallees);
       Graph->maskIncompleteMarkers();
       Graph->markIncompleteNodes(DSGraph::MarkFormalArgs |
                                    DSGraph::IgnoreGlobals);
       Graph->computeExternalFlags(DSGraph::DontMarkFormalsExternal);
       Graph->computeIntPtrFlags();
-      Graph->buildCallGraph(callgraph, GlobalFunctionList, filterCallees);
     }
   }
 
@@ -120,6 +121,10 @@ bool BUDataStructures::runOnModuleInternal(Module& M) {
   }
 
   NumCallEdges += callgraph.size();
+
+  // Put the call graph in canonical form
+  callgraph.buildSCCs();
+  callgraph.buildRoots();
 
   return false;
 }
@@ -525,6 +530,7 @@ void BUDataStructures::CloneAuxIntoGlobal(DSGraph* G) {
 //
 void BUDataStructures::calculateGraph(DSGraph* Graph) {
   DEBUG(Graph->AssertGraphOK(); Graph->getGlobalsGraph()->AssertGraphOK());
+  Graph->buildCallGraph(callgraph, GlobalFunctionList, filterCallees);
 
   // Move our call site list into TempFCs so that inline call sites go into the
   // new call site list and doesn't invalidate our iterators!
@@ -552,7 +558,7 @@ void BUDataStructures::calculateGraph(DSGraph* Graph) {
 
     if (CalledFuncs.empty()) {
       ++NumEmptyCalls;
-      if (CS.isIndirectCall()) 
+      if (CS.isIndirectCall())
         ++NumIndUnresolved;
       // Remember that we could not resolve this yet!
       AuxCallsList.splice(AuxCallsList.end(), TempFCs, TempFCs.begin());

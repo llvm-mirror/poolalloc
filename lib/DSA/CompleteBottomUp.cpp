@@ -55,8 +55,6 @@ CompleteBUDataStructures::runOnModule (Module &M) {
       getOrCreateGraph(F);
     }
   }
-  callgraph.buildSCCs();
-  callgraph.buildRoots();
 
   buildIndirectFunctionSets();
   formGlobalECs();
