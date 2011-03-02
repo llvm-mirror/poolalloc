@@ -49,6 +49,10 @@ namespace {
          cl::desc("Don't filter call sites based on calling convention."),
          cl::Hidden,
          cl::init(false));
+  static cl::opt<bool> noDSACallNumArgs("dsa-no-filter-numargs",
+         cl::desc("Don't filter call sites based on number of arguments."),
+         cl::Hidden,
+         cl::init(false));
   static cl::opt<bool> noDSACallVA("dsa-no-filter-vararg",
          cl::desc("Don't filter call sites based on vararg presense"),
          cl::Hidden,
@@ -1611,6 +1615,12 @@ llvm::functionIsCallable (CallSite CS, const Function* F) {
       ++Pi;
     }
   }
+  
+  if (!noDSACallNumArgs) {
+    if(CS.arg_size() < F->arg_size()) {
+      return false;
+    }
+  }
 
   //
   // We've done all the checks we've cared to do.  The function F can be called
@@ -1638,7 +1648,7 @@ void DSGraph::buildCallGraph(DSCallGraph& DCG, std::vector<const Function*>& Glo
   //
   // Get the list of unresolved call sites.
   //
-  const std::list<DSCallSite>& Calls = getAuxFunctionCalls();
+  const std::list<DSCallSite>& Calls = getFunctionCalls();
   for (std::list<DSCallSite>::const_iterator ii = Calls.begin(),
                                              ee = Calls.end();
        ii != ee; ++ii) {
