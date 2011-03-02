@@ -983,8 +983,22 @@ void ReachabilityCloner::mergeCallSite(DSCallSite &DestCS,
   for (unsigned a = 0; a != MinArgs; ++a)
     merge(DestCS.getPtrArg(a), SrcCS.getPtrArg(a));
 
-  for (unsigned a = MinArgs, e = SrcCS.getNumPtrArgs(); a != e; ++a)
-    DestCS.addPtrArg(getClonedNH(SrcCS.getPtrArg(a)));
+  for (unsigned a = MinArgs, e = SrcCS.getNumPtrArgs(); a != e; ++a) {
+    // If a call site passes more params, ignore the extra params.
+    // If the called function is varargs, merge the extra params, with
+    // the varargs node.
+    if(DestCS.getVAVal() != NULL) {
+      merge(DestCS.getVAVal(), SrcCS.getPtrArg(a));
+    }
+  }
+
+  for (unsigned a = MinArgs, e = DestCS.getNumPtrArgs(); a!=e; ++a) {
+    // If a call site passes less explicit params, than the function needs
+    // But passes params through a varargs node, merge those in.
+    if(SrcCS.getVAVal() != NULL)  {
+      merge(DestCS.getPtrArg(a), SrcCS.getVAVal());
+    }
+  }
 }
 
 DSCallSite ReachabilityCloner::cloneCallSite(const DSCallSite& SrcCS) {
