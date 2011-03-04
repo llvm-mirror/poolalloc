@@ -269,7 +269,7 @@ void DSNode::foldNodeCompletely() {
 /// all of the field sensitivity that may be present in the node.
 ///
 bool DSNode::isNodeCompletelyFolded() const {
-  return  isCollapsedNode();
+  return isCollapsedNode();
 }
 
 /// addFullGlobalsList - Compute the full set of global values that are

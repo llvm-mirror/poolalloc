@@ -396,6 +396,7 @@ public:
 
   void print(llvm::raw_ostream &O, const DSGraph *G) const;
   void dump() const;
+  void dumpParentGraph() const;
   void dumpFuncs();
 
   void assertOK() const;

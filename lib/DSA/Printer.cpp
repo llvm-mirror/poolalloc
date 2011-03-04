@@ -39,6 +39,7 @@ namespace {
 }
 
 void DSNode::dump() const { print(errs(), 0); }
+void DSNode::dumpParentGraph() const { getParentGraph()->dump(); }
 
 static std::string getCaption(const DSNode *N, const DSGraph *G) {
   std::string empty;
