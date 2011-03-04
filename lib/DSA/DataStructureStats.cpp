@@ -13,6 +13,7 @@
 
 #include "dsa/DataStructure.h"
 #include "dsa/DSGraph.h"
+#include "dsa/TypeSafety.h"
 #include "llvm/Function.h"
 #include "llvm/Instructions.h"
 #include "llvm/Pass.h"
@@ -32,31 +33,31 @@ namespace {
   // and stores are accessing are correct (ie, the node has not been collapsed),
   // increment the appropriate counter.
   STATISTIC (NumTypedMemAccesses,
-                                "Number of loads/stores which are fully typed");
+             "Number of loads/stores which are fully typed");
   STATISTIC (NumUntypedMemAccesses,
-                                "Number of loads/stores which are untyped");
+             "Number of loads/stores which are untyped");
   STATISTIC (NumTypeCount1Accesses,
-                                "Number of loads/stores which are access a DSNode with 1 type");
+             "Number of loads/stores which are access a DSNode with 1 type");
   STATISTIC (NumTypeCount2Accesses,
-                                "Number of loads/stores which are access a DSNode with 2 type");
+             "Number of loads/stores which are access a DSNode with 2 type");
   STATISTIC (NumTypeCount3Accesses,
-                                "Number of loads/stores which are access a DSNode with 3 type");
+             "Number of loads/stores which are access a DSNode with 3 type");
   STATISTIC (NumTypeCount4Accesses,
-                                "Number of loads/stores which are access a DSNode with >3 type");
+             "Number of loads/stores which are access a DSNode with >3 type");
   STATISTIC (NumIncompleteAccesses,
-                                "Number of loads/stores which are on incomplete nodes");
+             "Number of loads/stores which are on incomplete nodes");
   STATISTIC (NumUnknownAccesses,
-                                "Number of loads/stores which are on unknown nodes");
+             "Number of loads/stores which are on unknown nodes");
   STATISTIC (NumExternalAccesses,
-                                "Number of loads/stores which are on external nodes");
+             "Number of loads/stores which are on external nodes");
 
   class DSGraphStats : public FunctionPass, public InstVisitor<DSGraphStats> {
     void countCallees(const Function &F);
     const TDDataStructures *DS;
     const DSGraph *TDGraph;
-
+    dsa::TypeSafety<TDDataStructures> *TS;
     DSNodeHandle getNodeHandleForValue(Value *V);
-    bool isNodeForValueUntyped(Value *V);
+    bool isNodeForValueUntyped(Value *V, const Function *);
   public:
     static char ID;
     DSGraphStats() : FunctionPass((intptr_t)&ID) {}
@@ -68,6 +69,7 @@ namespace {
     void getAnalysisUsage(AnalysisUsage &AU) const {
       AU.setPreservesAll();
       AU.addRequired<TDDataStructures>();
+      AU.addRequired<dsa::TypeSafety<TDDataStructures> >();
     }
 
     void visitLoad(LoadInst &LI);
@@ -100,7 +102,6 @@ static bool isIndirectCallee(Value *V) {
   if (GlobalAlias *GA = dyn_cast<GlobalAlias>(V)) {
     return isIndirectCallee(GA->getAliasee());
   }
-
   return true;
 }
 
@@ -121,8 +122,8 @@ void DSGraphStats::countCallees(const Function& F) {
         ++numIndirectCalls;
       } else {
         DEBUG(errs() << "WARNING: No callee in Function '" 
-	      << F.getNameStr() << "' at call: \n"
-	      << *I->getCallSite().getInstruction());
+              << F.getNameStr() << "' at call: \n"
+              << *I->getCallSite().getInstruction());
       }
     }
 
@@ -131,8 +132,8 @@ void DSGraphStats::countCallees(const Function& F) {
 
   if (numIndirectCalls) {
     DEBUG(errs() << "  In function " << F.getName() << ":  "
-	  << (totalNumCallees / (double) numIndirectCalls)
-	  << " average callees per indirect call\n");
+          << (totalNumCallees / (double) numIndirectCalls)
+          << " average callees per indirect call\n");
   }
 }
 
@@ -142,24 +143,26 @@ DSNodeHandle DSGraphStats::getNodeHandleForValue(Value *V) {
   DSGraph::ScalarMapTy::const_iterator I = ScalarMap.find(V);
   if (I != ScalarMap.end())
     return I->second;
-  
+
   G = TDGraph->getGlobalsGraph();
   const DSGraph::ScalarMapTy &GlobalScalarMap = G->getScalarMap();
   I = GlobalScalarMap.find(V);
   if (I != GlobalScalarMap.end())
     return I->second;
-  
+
   return 0;
 }
 
-bool DSGraphStats::isNodeForValueUntyped(Value *V) {
+bool DSGraphStats::isNodeForValueUntyped(Value *V, const Function *F) {
   DSNodeHandle NH = getNodeHandleForValue(V);
-  if(!NH.getNode())
+  if(!NH.getNode()){
     return true;
+  }
   else {
-    DSNode* N = NH.getNode();
-    if (N->isNodeCompletelyFolded())
+    DSNode *N = NH.getNode();
+    if (N->isNodeCompletelyFolded()){
       return true;
+    }
     if ( N->isExternalNode()){
       ++NumExternalAccesses;
       return true;
@@ -173,30 +176,31 @@ bool DSGraphStats::isNodeForValueUntyped(Value *V) {
       return true;
     }
     // it is a complete node, now check how many types are present
-   int count = 0;
-   unsigned offset = NH.getOffset();
-   if (N->type_begin() != N->type_end())
-    for (DSNode::TyMapTy::const_iterator ii = N->type_begin(),
-        ee = N->type_end(); ii != ee; ++ii) {
-      if(ii->first != offset)
-        continue;
-      count += ii->second->size();
-    }
- 
-   if(count == 1)
+    int count = 0;
+    unsigned offset = NH.getOffset();
+    if (N->type_begin() != N->type_end())
+      for (DSNode::TyMapTy::const_iterator ii = N->type_begin(),
+           ee = N->type_end(); ii != ee; ++ii) {
+        if(ii->first != offset)
+          continue;
+        count += ii->second->size();
+      }
+
+    if(count == 1)
       ++NumTypeCount1Accesses;
     else if(count == 2)
       ++NumTypeCount2Accesses;
     else if(count == 3)
       ++NumTypeCount3Accesses;
-    else 
+    else  
       ++NumTypeCount4Accesses;
+    DEBUG(assert(TS->isTypeSafe(V,F)));
   }
   return false;
 }
 
 void DSGraphStats::visitLoad(LoadInst &LI) {
-  if (isNodeForValueUntyped(LI.getOperand(0))) {
+  if (isNodeForValueUntyped(LI.getOperand(0), LI.getParent()->getParent())) {
     NumUntypedMemAccesses++;
   } else {
     NumTypedMemAccesses++;
@@ -204,7 +208,7 @@ void DSGraphStats::visitLoad(LoadInst &LI) {
 }
 
 void DSGraphStats::visitStore(StoreInst &SI) {
-  if (isNodeForValueUntyped(SI.getOperand(1))) {
+  if (isNodeForValueUntyped(SI.getOperand(1), SI.getParent()->getParent())) {
     NumUntypedMemAccesses++;
   } else {
     NumTypedMemAccesses++;
@@ -215,8 +219,9 @@ void DSGraphStats::visitStore(StoreInst &SI) {
 
 bool DSGraphStats::runOnFunction(Function& F) {
   DS = &getAnalysis<TDDataStructures>();
+  TS = &getAnalysis<dsa::TypeSafety<TDDataStructures> >();
   TDGraph = DS->getDSGraph(F);
   countCallees(F);
   visit(F);
-  return true;
+  return false;
 }
