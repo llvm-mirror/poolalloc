@@ -19,9 +19,13 @@
 
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Module.h"
+#include "llvm/Support/Debug.h"
+#include "llvm/Support/FormattedStream.h"
 
 static RegisterPass<dsa::TypeSafety<EQTDDataStructures> >
-X ("typesafety", "Find type-safe pointers");
+X ("typesafety-eqtd", "Find type-safe pointers");
+static RegisterPass<dsa::TypeSafety<TDDataStructures> >
+Y ("typesafety-td", "Find type-safe pointers");
 
 // Pass Statistics
 namespace {
@@ -55,8 +59,11 @@ TypeSafety<dsa>::getDSNodeHandle (const Value * V, const Function * F) {
   //
   // Lookup the DSNode for the value in the function's DSGraph.
   //
-  DSGraph * TDG = dsaPass->getDSGraph(*F);
-  DSNodeHandle DSH = TDG->getNodeForValue(V);
+  const DSGraph * TDG = dsaPass->getDSGraph(*F);
+  
+  DSNodeHandle DSH;
+  if(TDG->hasNodeForValue(V))
+    DSH = TDG->getNodeForValue(V);
 
   //
   // If the value wasn't found in the function's DSGraph, then maybe we can
@@ -70,8 +77,10 @@ TypeSafety<dsa>::getDSNodeHandle (const Value * V, const Function * F) {
     // represents all globals in that equivalence class, and then look up the
     // DSNode Handle for *that* global.
     //
-    DSGraph * GlobalsGraph = TDG->getGlobalsGraph ();
-    DSH = GlobalsGraph->getNodeForValue(V);
+    const DSGraph * GlobalsGraph = TDG->getGlobalsGraph ();
+    if(GlobalsGraph->hasNodeForValue(V)) {
+      DSH = GlobalsGraph->getNodeForValue(V);
+    }
     if (DSH.isNull()) {
       //
       // DSA does not currently handle global aliases.
@@ -87,7 +96,6 @@ TypeSafety<dsa>::getDSNodeHandle (const Value * V, const Function * F) {
       }
     }
   }
-
   return DSH;
 }
 
@@ -165,6 +173,7 @@ TypeSafety<dsa>::typeFieldsOverlap (const DSNode * N) {
            ne = TypeSet->end(); ni != ne; ++ni) {
         unsigned field_length = TD->getTypeStoreSize (*ni);
         if ((offset + field_length) > next_offset) {
+          DEBUG(errs() << " Found overlap at " << offset << " with " << next_offset << "\n");
           overlaps = true;
           break;
         }
