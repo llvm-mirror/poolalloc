@@ -74,6 +74,8 @@ namespace {
 
     void visitLoad(LoadInst &LI);
     void visitStore(StoreInst &SI);
+    void visitInsertValue(InsertValueInst &I);
+    void visitExtractValue(ExtractValueInst &I);
 
     /// Debugging support methods
     void print(llvm::raw_ostream &O, const Module* = 0) const { }
@@ -215,6 +217,21 @@ void DSGraphStats::visitStore(StoreInst &SI) {
   }
 }
 
+void DSGraphStats::visitInsertValue(InsertValueInst &I) {
+  if (isNodeForValueUntyped(I.getAggregateOperand(), I.getParent()->getParent())) {
+    NumUntypedMemAccesses++;
+  } else {
+    NumTypedMemAccesses++;
+  }
+}
+
+void DSGraphStats::visitExtractValue(ExtractValueInst &I) {
+  if (isNodeForValueUntyped(I.getAggregateOperand(), I.getParent()->getParent())) {
+    NumUntypedMemAccesses++;
+  } else {
+    NumTypedMemAccesses++;
+  }
+}
 
 
 bool DSGraphStats::runOnFunction(Function& F) {
