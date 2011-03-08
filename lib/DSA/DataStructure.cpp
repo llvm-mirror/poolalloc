@@ -272,6 +272,15 @@ bool DSNode::isNodeCompletelyFolded() const {
   return isCollapsedNode();
 }
 
+void DSNode::addValueList(std::vector<const Value*> &List) const {
+  DSScalarMap &SN = getParentGraph()->getScalarMap();
+  for(DSScalarMap::const_iterator I = SN.begin(), E = SN.end(); I!= E; I++) {
+    if(SN[I->first].getNode() == this){
+      //I->first->dump();
+    }
+
+  }
+}
 /// addFullGlobalsList - Compute the full set of global values that are
 /// represented by this node.  Unlike getGlobalsList(), this requires fair
 /// amount of work to compute, so don't treat this method call as free.
@@ -446,13 +455,6 @@ void DSNode::mergeTypeInfo(const DSNode* DN, unsigned Offset) {
     mergeTypeInfo(ii->second, ii->first + Offset);
 }
 
-void DSNode::mergeArrayTypeInfo(const DSNode* DN) {
-  unsigned Offset = 0;
-  while(Offset < getSize()) {
-    mergeTypeInfo(DN, Offset);
-    Offset += DN->getSize();
-  }
-}
 /// addEdgeTo - Add an edge from the current node to the specified node.  This
 /// can cause merging of nodes in the graph.
 ///

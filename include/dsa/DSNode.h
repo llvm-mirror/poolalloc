@@ -241,7 +241,6 @@ public:
   void mergeTypeInfo(const Type *Ty, unsigned Offset);
   void mergeTypeInfo(const TyMapTy::mapped_type TyIt, unsigned Offset);
   void mergeTypeInfo(const DSNode* D, unsigned Offset);
-  void mergeArrayTypeInfo(const DSNode* D);
 
   // Types records might exist without types in them
   bool hasNoType() {
@@ -328,6 +327,9 @@ public:
   globals_iterator globals_begin() const { return Globals.begin(); }
   globals_iterator globals_end() const { return Globals.end(); }
 
+  /// addValueList - Compute a full set of values that are represented by
+  /// this node. High overhead method.
+  void addValueList(std::vector<const Value*> &List) const;
 
   /// maskNodeTypes - Apply a mask to the node types bitfield.
   ///
