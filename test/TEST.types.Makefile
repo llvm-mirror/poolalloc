@@ -32,11 +32,12 @@ ANALYZE_OPTS +=  -instcount -disable-verify
 MEM := -track-memory -time-passes -disable-output
 
 #SAFE_OPTS := -internalize -scalarrepl -deadargelim -globaldce -basiccg -inline 
-SAFE_OPTS := -internalize  -deadargelim -globaldce -basiccg -inline 
+#SAFE_OPTS := -internalize  -deadargelim -globaldce -basiccg -inline 
+SAFE_OPTS := -internalize  -deadargelim -globaldce 
 
 $(PROGRAMS_TO_TEST:%=Output/%.linked1.bc): \
 Output/%.linked1.bc: Output/%.linked.rbc $(LOPT)
-	-$(RUNOPT) -disable-opt $(SAFE_OPTS) -info-output-file=$(CURDIR)/$@.info -stats -time-passes $< -f -o $@ 
+	-$(RUNOPT) -disable-opt $(SAFE_OPTS) -dce -info-output-file=$(CURDIR)/$@.info -stats -time-passes $< -f -o $@ 
 
 $(PROGRAMS_TO_TEST:%=Output/%.llvm1.bc): \
 Output/%.llvm1.bc: Output/%.linked1.bc $(LLVM_LDDPROG)
@@ -51,7 +52,7 @@ Output/%.opt1.bc: Output/%.llvm1.bc $(LOPT) $(ASSIST_SO)
 
 $(PROGRAMS_TO_TEST:%=Output/%.opt.bc): \
 Output/%.opt.bc: Output/%.llvm1.bc $(LOPT) $(ASSIST_SO)
-	-$(RUNOPT) -load $(ASSIST_SO) -disable-opt -info-output-file=$(CURDIR)/$@.info -instnamer -internalize -varargsfunc -indclone -funcspec -ipsccp -deadargelim  -simplifygep -die -mergegep -die -mergearrgep -die -globaldce -simplifycfg -deadargelim -arg-simplify -die -varargsfunc -die -simplifycfg -globaldce -indclone -funcspec -deadargelim -globaldce -die -simplifycfg -gep-args -deadargelim -die -mergefunc -die -mergegep -die -mergearrgep -die -globaldce -int2ptrcmp -die -dce -stats -time-passes $< -f -o $@ 
+	-$(RUNOPT) -load $(ASSIST_SO) -disable-opt -info-output-file=$(CURDIR)/$@.info -instnamer -internalize -simplify-mrv -basiccg -inline -dce -simplify-mrv -dce -varargsfunc -indclone -funcspec -ipsccp -deadargelim  -simplifygep -die -mergegep -die -mergearrgep -die -globaldce -simplifycfg -deadargelim -arg-simplify -die -varargsfunc -die -simplifycfg -globaldce -indclone -funcspec -deadargelim -globaldce -die -simplifycfg -gep-args -deadargelim -die -mergefunc -die -mergegep -die -mergearrgep -die -globaldce -int2ptrcmp -die -dce -simplify-mrv -dce -stats -time-passes $< -f -o $@ 
 
 $(PROGRAMS_TO_TEST:%=Output/%.temp2.bc): \
 Output/%.temp2.bc: Output/%.temp1.bc $(LOPT) $(ASSIST_SO)
@@ -206,6 +207,9 @@ Output/%.$(TEST).report.txt: Output/%.opt.bc Output/%.LOC.txt $(LOPT) Output/%.o
 	@echo >> $@
 	@/bin/echo -n "ARG_SMPL: " >> $@
 	-@grep 'Number of Args changeable' $<.info >> $@
+	@echo >> $@
+	@/bin/echo -n "MRV: " >> $@
+	-@grep 'Number of Instructions Deleted' $<.info >> $@
 	@echo >> $@
 	@/bin/echo -n "INDCALLS: " >> $@
 	-@grep 'Number of unresolved IndCalls' $@.time.1 >> $@
