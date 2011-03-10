@@ -71,22 +71,22 @@ castTo (Value * V, const Type * Ty, std::string Name, Instruction * InsertPt) {
 }
 
 //
-// Function: replacePoolArgument()
+// Function: initialPoolArguments()
 //
 // Description:
-//  This function determines if the specified function has a pool argument that
-//  should be replaced, and if so, returns the index of the argument to
-//  replace.
+//  This function determines if the specified function has inital pool arguments
+//  that should be replaced, and if so, returns the numbers of initial pool arguments
+//  to replace.
 //
 // Inputs:
 //  funcname - A reference to a string containing the name of the function.
 //
 // Return value:
-//  0 - The function does not have any pool arguments to replace.
-//  Otherwise, the index of the single pool argument to replace is returned.
+//  0 - The function does not have any initial pool arguments to replace.
+//  Otherwise, the number of initial pool arguments to replace.
 //
 static unsigned
-replacePoolArgument (const std::string & funcname) {
+initialPoolArguments(const std::string & funcname) {
   if ((funcname == "sc.lscheck") ||
       (funcname == "sc.lscheckui") ||
       (funcname == "sc.lscheckalign") ||
@@ -101,6 +101,21 @@ replacePoolArgument (const std::string & funcname) {
       (funcname == "sc.pool_unregister") ||
       (funcname == "sc.get_actual_val")) {
     return 1;
+  }
+  
+  // CStdLib functions
+
+  else if ( ( funcname == "pool_strlen"  ) ||
+            ( funcname == "pool_strchr"  ) ||
+            ( funcname == "pool_strrchr" ) ) {
+    return 1;
+  }
+  else if ( ( funcname == "pool_strcpy"  ) ||
+            ( funcname == "pool_strncat" ) ||
+            ( funcname == "pool_strcat"  ) ||
+            ( funcname == "pool_strstr"  ) ||
+            ( funcname == "pool_strpbrk" ) ) {
+    return 2;
   }
 
   return 0;
@@ -447,14 +462,16 @@ PoolAllocateSimple::ProcessFunctionBodySimple (Function& F, TargetData & TD) {
 
         //
         // Transform SAFECode run-time checks.  For these calls, all we need to
-        // do is to replace the pool argument with a pointer to the global
+        // do is to replace the initial pool arguments with pointers to the global
         // pool.
         //
         if (CF) {
-          if (unsigned index = replacePoolArgument (CF->getName())) {
+          if (unsigned count = initialPoolArguments (CF->getName())) {
             Type * VoidPtrTy = PointerType::getUnqual(Int8Type);
             Value * Pool = castTo (TheGlobalPool, VoidPtrTy, "pool", ii);
-            CI->setOperand (index, Pool);
+            for (unsigned index = 1; index <= count; index++ ) {
+              CI->setOperand (index, Pool);
+            }
           }
         }
       }

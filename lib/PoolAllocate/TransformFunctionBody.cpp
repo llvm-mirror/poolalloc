@@ -25,7 +25,9 @@
 #include "llvm/Support/InstVisitor.h"
 #include "llvm/Support/FormattedStream.h"
 #include "llvm/Support/Debug.h"
+#include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/VectorExtras.h"
+
 #include <iostream>
 using namespace llvm;
 using namespace PA;
@@ -54,6 +56,7 @@ namespace {
                   std::multimap<AllocaInst*, CallInst*> &poolFrees)
       : PAInfo(P), G(g), FI(fi), 
         PoolUses(poolUses), PoolFrees(poolFrees) {
+      initializeCStdLibPoolArgcs();
     }
 
     template <typename InstType, typename SetType>
@@ -88,6 +91,23 @@ namespace {
   private:
     Instruction *TransformAllocationInstr(Instruction *I, Value *Size);
     Instruction *InsertPoolFreeInstr(Value *V, Instruction *Where);
+
+    // Used for looking up CStdLib function names and their initial pool
+    // argument counts
+    StringMap<unsigned> CStdLibPoolArgcs;
+
+    // Initialize the map from CStdLib function name to initial pool
+    // argument counts.
+    void initializeCStdLibPoolArgcs() {
+      CStdLibPoolArgcs.GetOrCreateValue("pool_strcpy",  2);
+      CStdLibPoolArgcs.GetOrCreateValue("pool_strlen",  1);
+      CStdLibPoolArgcs.GetOrCreateValue("pool_strchr",  1);
+      CStdLibPoolArgcs.GetOrCreateValue("pool_strrchr", 1);
+      CStdLibPoolArgcs.GetOrCreateValue("pool_strcat",  2);
+      CStdLibPoolArgcs.GetOrCreateValue("pool_strncat", 2);
+      CStdLibPoolArgcs.GetOrCreateValue("pool_strstr",  2);
+      CStdLibPoolArgcs.GetOrCreateValue("pool_strpbrk", 2);
+    }
 
     //
     // Method: UpdateNewToOldValueMap()
@@ -799,6 +819,8 @@ void FuncTransform::visitCallSite(CallSite& CS) {
   Instruction *TheCall = CS.getInstruction();
   bool thread_creation_point = false;
 
+  StringMap<unsigned>::const_iterator pool_argc = CStdLibPoolArgcs.end();
+
   //
   // Get the value that is called at this call site.  Strip away any pointer
   // casts that do not change the representation of the data (i.e., are
@@ -870,10 +892,8 @@ void FuncTransform::visitCallSite(CallSite& CS) {
                (CF->getName() == "sc.pool_unregister") ||
                (CF->getName() == "sc.get_actual_val")) {
       visitRuntimeCheck (CS);
-    } else if (CF->getName() == "pool_strlen") {
-      visitCStdLibCheck(CS, 1);
-    } else if (CF->getName() == "pool_strcpy") {
-      visitCStdLibCheck(CS, 2);
+    } else if ((pool_argc = CStdLibPoolArgcs.find(CF->getName())) != CStdLibPoolArgcs.end()) {
+      visitCStdLibCheck(CS, pool_argc->getValue());
     } else if (CF->getName() == "pthread_create") {
       thread_creation_point = true;
 
