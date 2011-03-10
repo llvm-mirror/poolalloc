@@ -96,7 +96,7 @@ namespace {
                   if(LHSI->getOpcode() == Instruction::Or) {
                     if (!ICI->isEquality() || !CI->isNullValue() || !LHSI->hasOneUse())
                       break;
-                    Value *P, *Q, *R, *S;
+                    Value *P, *Q, *R;
                     if (match(LHSI, m_Or(m_PtrToInt(m_Value(P)), m_PtrToInt(m_Value(Q))))) {
                       Value *ICIP = new ICmpInst(ICI, ICI->getPredicate(), P,
                                                         Constant::getNullValue(P->getType()));
