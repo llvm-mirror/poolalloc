@@ -422,7 +422,23 @@ void DSNode::mergeTypeInfo(const Type *NewTy, unsigned Offset) {
   if (Offset + TD.getTypeAllocSize(NewTy) >= getSize())
     growSize(Offset + TD.getTypeAllocSize(NewTy));
 
-  TyMap[Offset] = getParentGraph()->getTypeSS().getOrCreate(TyMap[Offset], NewTy);
+  // Clang generates loads and stores of struct types.
+  // %tmp12 = load %struct.demand* %retval, align 1 
+
+  // In such cases, merge type information for each struct field
+  // individually(at the appropriate offset), instead of the 
+  // struct type.
+  if(NewTy->isStructTy()) {
+    const StructType *STy = cast<StructType>(NewTy);
+    const StructLayout *SL = TD.getStructLayout(cast<StructType>(STy));
+    unsigned count = 0;
+    for(Type::subtype_iterator ii = STy->element_begin(), ee = STy->element_end(); ii!= ee; ++ii, ++count) {
+      unsigned FieldOffset = SL->getElementOffset(count);
+      mergeTypeInfo(*ii, Offset + FieldOffset);
+    }
+  } else {
+    TyMap[Offset] = getParentGraph()->getTypeSS().getOrCreate(TyMap[Offset], NewTy);
+  }
 
   assert(TyMap[Offset]);
 }
