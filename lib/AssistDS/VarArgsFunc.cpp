@@ -42,11 +42,12 @@ namespace {
               if (ConstantExpr *CE = dyn_cast<ConstantExpr>(C)) 
                 if (CE->getOpcode() == Instruction::BitCast) 
                   if(CE->getOperand(0) == I) 
-                    if(const FunctionType *FTy  = dyn_cast<FunctionType>((cast<PointerType>(CE->getType()))->getElementType())) 
+                    if(const FunctionType *FTy  = dyn_cast<FunctionType>
+                       ((cast<PointerType>(CE->getType()))->getElementType())) 
                       //casting to a varargs funtion
                       if(FTy->isVarArg()) 
-                        for(Value::use_iterator uii = CE->use_begin(), uee = CE->use_end();
-                            uii != uee; ++uii) 
+                        for(Value::use_iterator uii = CE->use_begin(),
+                            uee = CE->use_end(); uii != uee; ++uii) 
                           if (CallInst* CI = dyn_cast<CallInst>(uii)) 
                             if(CI->getCalledValue() == CE) 
                                worklist.push_back(CI);

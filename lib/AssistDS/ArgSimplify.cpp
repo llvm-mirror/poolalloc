@@ -6,7 +6,6 @@
 // License. See LICENSE.TXT for details.
 //
 //===----------------------------------------------------------------------===//
-//===----------------------------------------------------------------------===//
 #define DEBUG_TYPE "argsimpl"
 
 #include "llvm/Instructions.h"
@@ -27,26 +26,33 @@ STATISTIC(numTransformable,   "Number of Args changeable");
 
 namespace {
 
-  static void simplify(Function *I, unsigned arg_count, const Type* type) {
+  // F - Function to modify
+  // arg_count - The argument to function I that may be changed
+  // type - Declared type of the argument
 
-    for(Value::use_iterator ui = I->use_begin(), ue = I->use_end();
+  static void simplify(Function *F, unsigned arg_count, const Type* type) {
+
+    // Go through all uses of the function
+    for(Value::use_iterator ui = F->use_begin(), ue = F->use_end();
         ui != ue; ++ui) {
+
       if (Constant *C = dyn_cast<Constant>(ui)) {
         if (ConstantExpr *CE = dyn_cast<ConstantExpr>(C)) {
           if (CE->getOpcode() == Instruction::BitCast) {
-            if(CE->getOperand(0) == I) {                    
+            if(CE->getOperand(0) == F) {                    
               for(Value::use_iterator uii = CE->use_begin(), uee = CE->use_end();
                   uii != uee; ) {
+                // check if it is ever used as a call (bitcast F to ...)()
                 if (CallInst* CI = dyn_cast<CallInst>(uii++)) {
                   if(CI->getCalledValue() == CE) {
                     // if I is ever called as a bitcasted function
-                    if(I->getReturnType() == CI->getType()){
+                    if(F->getReturnType() == CI->getType()){
                       // if the return types match.
-                      if(I->arg_size() == (CI->getNumOperands()-1)){
+                      if(F->arg_size() == (CI->getNumOperands()-1)){
                         // and the numeber of args match too
                         unsigned arg_count1 = 1;
                         bool change = true;
-                        for (Function::arg_iterator ii1 = I->arg_begin(), ee1 = I->arg_end();
+                        for (Function::arg_iterator ii1 = F->arg_begin(), ee1 = F->arg_end();
                              ii1 != ee1; ++ii1,arg_count1++) {
                           if(arg_count1 == (arg_count + 1)) {
                             if(ii1->getType() == CI->getOperand(arg_count1)->getType()){
@@ -73,7 +79,7 @@ namespace {
                           const FunctionType *NewFTy = FunctionType::
                             get(CI->getType(), TP, false);
                           
-                          Module *M = I->getParent();
+                          Module *M = F->getParent();
                           Function *NewF = Function::Create(NewFTy,
                                                             GlobalValue::InternalLinkage,
                                                             "argbounce",
@@ -104,7 +110,7 @@ namespace {
                               Args.push_back(ai);
                           }
                           
-                          CallInst * CallI = CallInst::Create(I,Args.begin(), 
+                          CallInst * CallI = CallInst::Create(F,Args.begin(), 
                                                               Args.end(),"", entryBB);
                           if(CallI->getType()->isVoidTy())
                             ReturnInst::Create(M->getContext(), entryBB);
@@ -124,8 +130,8 @@ namespace {
         }
       }
     }
-
   }
+  
   class ArgSimplify : public ModulePass {
   public:
     static char ID;
@@ -143,12 +149,13 @@ namespace {
             bool change = true;
             for(Value::use_iterator ui = ii->use_begin(), ue = ii->use_end();
                 ui != ue; ++ui) {
+              // check if the argument is used exclusively in ICmp Instructions
               if(!isa<ICmpInst>(ui)){
                 change = false;
                 break;
               }
             }
-            // if this argument is only used in CMP instructions, we can
+            // if this argument is only used in ICMP instructions, we can
             // replace it.
             if(change) {
               simplify(I, ii->getArgNo(), ii->getType()); 
