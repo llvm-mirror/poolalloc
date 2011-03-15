@@ -6,11 +6,15 @@
 // License. See LICENSE.TXT for details.
 //
 //===----------------------------------------------------------------------===//
+// A pass to identify functions that act as wrappers to malloc and other 
+// allocators.
+//===----------------------------------------------------------------------===//
 #define DEBUG_TYPE "allocator-identify"
 
 #include "llvm/Instructions.h"
 #include "llvm/Module.h"
 #include "llvm/Pass.h"
+#include "llvm/Analysis/LoopInfo.h"
 #include "llvm/Transforms/Utils/Cloning.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Support/FormattedStream.h"
@@ -23,15 +27,24 @@
 
 using namespace llvm;
 
+STATISTIC(numAllocators, "Number of malloc-like allocators");
+STATISTIC(numDeallocators, "Number of free-like deallocators");
 
 namespace {
-  static bool flowsFrom(Value *Dest,Value *Src) {
+  class AllocIdentify : public ModulePass {
+
+  bool flowsFrom(Value *Dest,Value *Src) {
     if(Dest == Src)
       return true;
     if(ReturnInst *Ret = dyn_cast<ReturnInst>(Dest)) {    
       return flowsFrom(Ret->getReturnValue(), Src);
     } 
     if(PHINode *PN = dyn_cast<PHINode>(Dest)) {
+      Function *F = PN->getParent()->getParent();
+      LoopInfo &LI = getAnalysis<LoopInfo>(*F);
+      // If this is a loop phi, ignore.
+      if(LI.isLoopHeader(PN->getParent()))
+         return false;
       bool ret = true;
       for (unsigned i = 0, e = PN->getNumIncomingValues(); i != e; ++i) {
         ret = ret && flowsFrom(PN->getIncomingValue(i), Src);
@@ -45,9 +58,9 @@ namespace {
       return true;
     return false;
   }
-  static bool isNotStored(Value *V) {
-    // check that V is not stroed to a location taht is accessible outside this fn
 
+  bool isNotStored(Value *V) {
+    // check that V is not stroed to a location taht is accessible outside this fn
     for(Value::use_iterator ui = V->use_begin(), ue = V->use_end();
         ui != ue; ++ui) {
       if(isa<StoreInst>(ui))
@@ -67,14 +80,14 @@ namespace {
         else 
           return false;
 
-      //ui->dump();
       return false;
     }
     return true;
   }
-  class AllocIdentify : public ModulePass {
+
   protected:
     std::set<std::string> allocators;
+    std::set<std::string> deallocators;
   public:
     static char ID;
     AllocIdentify() : ModulePass(&ID) {}
@@ -84,6 +97,8 @@ namespace {
       allocators.insert("calloc");
       allocators.insert("realloc");
       allocators.insert("memset");
+      deallocators.insert("free");
+      deallocators.insert("cfree");
 
       bool changed;
       do {
@@ -125,15 +140,56 @@ namespace {
               if(isWrapper)
                 isWrapper = isWrapper && isNotStored(CI);
               if(isWrapper) {
-                errs() << WrapperF->getNameStr() << "\n";
                 changed = (allocators.find(WrapperF->getName()) == allocators.end());
-                allocators.insert(WrapperF->getName());
+                if(changed) {
+                  ++numAllocators;
+                  allocators.insert(WrapperF->getName());
+                  DEBUG(errs() << WrapperF->getNameStr() << "\n");
+                }
+              }
+            }
+          }
+        }
+      } while(changed);
+
+      do {
+        changed = false;
+        std::set<std::string> TempDeallocators;
+        TempDeallocators.insert( deallocators.begin(), deallocators.end());
+        std::set<std::string>::iterator it;
+        for(it = TempDeallocators.begin(); it != TempDeallocators.end(); ++it) {
+          Function* F = M.getFunction(*it);
+
+          if(!F)
+            continue;
+          for(Value::use_iterator ui = F->use_begin(), ue = F->use_end();
+              ui != ue; ++ui) {
+            // iterate though all calls to malloc
+            if (CallInst* CI = dyn_cast<CallInst>(ui)) {
+              // The function that calls malloc could be a potential allocator
+              Function *WrapperF = CI->getParent()->getParent();
+
+              if(WrapperF->arg_size() != 1)
+                continue;
+              if(!WrapperF->arg_begin()->getType()->isPointerTy())
+                continue;
+              Argument *arg = dyn_cast<Argument>(WrapperF->arg_begin());
+              if(flowsFrom(CI->getOperand(1), arg)) {
+                changed = (deallocators.find(WrapperF->getName()) == deallocators.end());
+                if(changed) {
+                  ++numDeallocators;
+                  deallocators.insert(WrapperF->getName());
+                  DEBUG(errs() << WrapperF->getNameStr() << "\n");
+                }
               }
             }
           }
         }
       } while(changed);
       return false;
+    }
+    virtual void getAnalysisUsage(AnalysisUsage &AU) const {
+      AU.addRequiredTransitive<LoopInfo>();
     }
   };
 }
