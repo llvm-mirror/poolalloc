@@ -1,4 +1,4 @@
-//===-- VarArgsFunc.cpp - Simplify calls to bitcasted const funcs --------===//
+//===-- AllocatorIdentification.cpp - Identify wrappers to allocators -----===//
 //
 //                     The LLVM Compiler Infrastructure
 //
