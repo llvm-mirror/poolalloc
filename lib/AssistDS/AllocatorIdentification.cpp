@@ -69,16 +69,18 @@ namespace {
         continue;
       if(isa<ReturnInst>(ui))
         continue;
-      if(BitCastInst *BI = dyn_cast<BitCastInst>(ui))
+      if(BitCastInst *BI = dyn_cast<BitCastInst>(ui)) {
         if(isNotStored(BI))
           continue;
         else 
           return false;
-      if(PHINode *PN = dyn_cast<PHINode>(ui))
+      }
+      if(PHINode *PN = dyn_cast<PHINode>(ui)) {
         if(isNotStored(PN))
           continue;
         else 
           return false;
+      }
 
       return false;
     }
