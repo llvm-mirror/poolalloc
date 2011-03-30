@@ -120,7 +120,7 @@ namespace {
               NI = NewF->arg_begin();
               SmallVector<Value*, 8> Ops(CI->op_begin()+1, CI->op_end());
               Instruction *InsertPoint;
-              for (BasicBlock::iterator insrt = NewF->front().begin(); isa<AllocaInst>(InsertPoint = insrt); ++insrt);
+              for (BasicBlock::iterator insrt = NewF->front().begin(); isa<AllocaInst>(InsertPoint = insrt); ++insrt) {;}
                          
               SmallVector<Value*, 8> Indices;
               Indices.append(GEP->op_begin()+1, GEP->op_end());
