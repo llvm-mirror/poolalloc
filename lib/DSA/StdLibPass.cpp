@@ -451,7 +451,7 @@ StdLibDataStructures::runOnModule (Module &M) {
     if(Function* F = M.getFunction(*ai))
     processFunction(x, F);
   }
-  
+
   ai = AllocWrappersAnalysis->dealloc_begin();
   ae = AllocWrappersAnalysis->dealloc_end();
   for (x = 0; recFuncs[x].name; ++x) {
@@ -460,7 +460,6 @@ StdLibDataStructures::runOnModule (Module &M) {
   }
 
   for(;ai != ae; ++ai) {
-    errs() << *ai << "\n";
     if(Function* F = M.getFunction(*ai))
     processFunction(x, F);
   }
