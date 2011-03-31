@@ -431,240 +431,10 @@ StdLibDataStructures::runOnModule (Module &M) {
   //
   // Scan through the function summaries and process functions by summary.
   //
-  for (int x = 0; recFuncs[x].name; ++x)
+  for (int x = 0; recFuncs[x].name; ++x) 
     if (Function* F = M.getFunction(recFuncs[x].name))
       if (F->isDeclaration()) {
-        for (Value::use_iterator ii = F->use_begin(), ee = F->use_end();
-             ii != ee; ++ii)
-          if (CallInst* CI = dyn_cast<CallInst>(ii)){
-            if (CI->getOperand(0) == F) {
-              DSGraph* Graph = getDSGraph(*CI->getParent()->getParent());
-
-              //
-              // Set the read, write, and heap markers on the return value
-              // as appropriate.
-              //
-              if(isa<PointerType>((CI)->getType())){
-                if(Graph->hasNodeForValue(CI)){
-                  if (recFuncs[x].action.read[0])
-                    Graph->getNodeForValue(CI).getNode()->setReadMarker();
-                  if (recFuncs[x].action.write[0])
-                    Graph->getNodeForValue(CI).getNode()->setModifiedMarker();
-                  if (recFuncs[x].action.heap[0])
-                    Graph->getNodeForValue(CI).getNode()->setHeapMarker();
-                }
-              }
-
-              //
-              // Set the read, write, and heap markers on the actual arguments
-              // as appropriate.
-              //
-              for (unsigned y = 1; y < CI->getNumOperands(); ++y)
-                if (isa<PointerType>(CI->getOperand(y)->getType())){
-                  if (Graph->hasNodeForValue(CI->getOperand(y))){
-                    if (recFuncs[x].action.read[y])
-                      Graph->getNodeForValue(CI->getOperand(y)).getNode()->setReadMarker();
-                    if (recFuncs[x].action.write[y])
-                      Graph->getNodeForValue(CI->getOperand(y)).getNode()->setModifiedMarker();
-                    if (recFuncs[x].action.heap[y])
-                      Graph->getNodeForValue(CI->getOperand(y)).getNode()->setHeapMarker();
-                  }
-                }
-
-              //
-              // Merge the DSNoes for return values and parameters as
-              // appropriate.
-              //
-              std::vector<DSNodeHandle> toMerge;
-              if (recFuncs[x].action.mergeNodes[0])
-                if (isa<PointerType>(CI->getType()))
-                  if (Graph->hasNodeForValue(CI))
-                toMerge.push_back(Graph->getNodeForValue(CI));
-                for (unsigned y = 1; y < CI->getNumOperands(); ++y)
-              if (recFuncs[x].action.mergeNodes[y])
-                  if (isa<PointerType>(CI->getOperand(y)->getType()))
-                    if (Graph->hasNodeForValue(CI->getOperand(y)))
-                      toMerge.push_back(Graph->getNodeForValue(CI->getOperand(y)));
-              for (unsigned y = 1; y < toMerge.size(); ++y)
-                toMerge[0].mergeWith(toMerge[y]);
-
-              //
-              // Collapse (fold) the DSNode of the return value and the actual
-              // arguments if directed to do so.
-              //
-              if (!noStdLibFold && recFuncs[x].action.collapse) {
-                if (isa<PointerType>(CI->getType())){
-                  if (Graph->hasNodeForValue(CI))
-                    Graph->getNodeForValue(CI).getNode()->foldNodeCompletely();
-                  NumNodesFoldedInStdLib++;
-                }
-                for (unsigned y = 1; y < CI->getNumOperands(); ++y){
-                  if (isa<PointerType>(CI->getOperand(y)->getType())){
-                    if (Graph->hasNodeForValue(CI->getOperand(y))){
-                      Graph->getNodeForValue(CI->getOperand(y)).getNode()->foldNodeCompletely();
-                      NumNodesFoldedInStdLib++;
-                    }
-                  }
-                }
-              }
-            }
-          } else if (InvokeInst* CI = dyn_cast<InvokeInst>(ii)){
-            if (CI->getOperand(0) == F) {
-              DSGraph* Graph = getDSGraph(*CI->getParent()->getParent());
-
-              //
-              // Set the read, write, and heap markers on the return value
-              // as appropriate.
-              //
-              if(isa<PointerType>((CI)->getType())){
-                if(Graph->hasNodeForValue(CI)){
-                  if (recFuncs[x].action.read[0])
-                    Graph->getNodeForValue(CI).getNode()->setReadMarker();
-                  if (recFuncs[x].action.write[0])
-                    Graph->getNodeForValue(CI).getNode()->setModifiedMarker();
-                  if (recFuncs[x].action.heap[0])
-                    Graph->getNodeForValue(CI).getNode()->setHeapMarker();
-                }
-              }
-
-              //
-              // Set the read, write, and heap markers on the actual arguments
-              // as appropriate.
-              //
-              for (unsigned y = 1; y < CI->getNumOperands(); ++y)
-                if (isa<PointerType>(CI->getOperand(y)->getType())){
-                  if (Graph->hasNodeForValue(CI->getOperand(y))){
-                    if (recFuncs[x].action.read[y])
-                      Graph->getNodeForValue(CI->getOperand(y)).getNode()->setReadMarker();
-                    if (recFuncs[x].action.write[y])
-                      Graph->getNodeForValue(CI->getOperand(y)).getNode()->setModifiedMarker();
-                    if (recFuncs[x].action.heap[y])
-                      Graph->getNodeForValue(CI->getOperand(y)).getNode()->setHeapMarker();
-                  }
-                }
-
-              //
-              // Merge the DSNoes for return values and parameters as
-              // appropriate.
-              //
-              std::vector<DSNodeHandle> toMerge;
-              if (recFuncs[x].action.mergeNodes[0])
-                if (isa<PointerType>(CI->getType()))
-                  if (Graph->hasNodeForValue(CI))
-                toMerge.push_back(Graph->getNodeForValue(CI));
-                for (unsigned y = 1; y < CI->getNumOperands(); ++y)
-              if (recFuncs[x].action.mergeNodes[y])
-                  if (isa<PointerType>(CI->getOperand(y)->getType()))
-                    if (Graph->hasNodeForValue(CI->getOperand(y)))
-                      toMerge.push_back(Graph->getNodeForValue(CI->getOperand(y)));
-              for (unsigned y = 1; y < toMerge.size(); ++y)
-                toMerge[0].mergeWith(toMerge[y]);
-
-              //
-              // Collapse (fold) the DSNode of the return value and the actual
-              // arguments if directed to do so.
-              //
-              if (!noStdLibFold && recFuncs[x].action.collapse) {
-                if (isa<PointerType>(CI->getType())){
-                  if (Graph->hasNodeForValue(CI))
-                    Graph->getNodeForValue(CI).getNode()->foldNodeCompletely();
-                  NumNodesFoldedInStdLib++;
-                }
-                for (unsigned y = 1; y < CI->getNumOperands(); ++y){
-                  if (isa<PointerType>(CI->getOperand(y)->getType())){
-                    if (Graph->hasNodeForValue(CI->getOperand(y))){
-                      Graph->getNodeForValue(CI->getOperand(y)).getNode()->foldNodeCompletely();
-                      NumNodesFoldedInStdLib++;
-                    }
-                  }
-                }
-              }
-            }
-          } else if(ConstantExpr *CE = dyn_cast<ConstantExpr>(ii)) {
-              if(CE->isCast()) 
-                for (Value::use_iterator ci = CE->use_begin(), ce = CE->use_end();
-                  ci != ce; ++ci) {
-                  
-                  if (CallInst* CI = dyn_cast<CallInst>(ci)){
-                    if (CI->getOperand(0) == CE) {
-                      DSGraph* Graph = getDSGraph(*CI->getParent()->getParent());
-
-                      //
-                      // Set the read, write, and heap markers on the return value
-                      // as appropriate.
-                      //
-                     if(isa<PointerType>((CI)->getType())){
-                       if(Graph->hasNodeForValue(CI)){
-                         if (recFuncs[x].action.read[0])
-                           Graph->getNodeForValue(CI).getNode()->setReadMarker();
-                         if (recFuncs[x].action.write[0])
-                           Graph->getNodeForValue(CI).getNode()->setModifiedMarker();
-                         if (recFuncs[x].action.heap[0])
-                           Graph->getNodeForValue(CI).getNode()->setHeapMarker();
-                       }
-                     }
-
-                      //
-                      // Set the read, write, and heap markers on the actual arguments
-                      // as appropriate.
-                      //
-                      for (unsigned y = 1; y < CI->getNumOperands(); ++y)
-                        if (recFuncs[x].action.read[y]){
-                          if (isa<PointerType>(CI->getOperand(y)->getType())){
-                            if (Graph->hasNodeForValue(CI->getOperand(y)))
-                              Graph->getNodeForValue(CI->getOperand(y)).getNode()->setReadMarker();
-                            if (Graph->hasNodeForValue(CI->getOperand(y)))
-                              Graph->getNodeForValue(CI->getOperand(y)).getNode()->setModifiedMarker();
-                            if (Graph->hasNodeForValue(CI->getOperand(y)))
-                              Graph->getNodeForValue(CI->getOperand(y)).getNode()->setHeapMarker();
-                          }
-                        }
-
-                      //
-                      // Merge the DSNoes for return values and parameters as
-                      // appropriate.
-                      //
-                      std::vector<DSNodeHandle> toMerge;
-                      if (recFuncs[x].action.mergeNodes[0])
-                        if (isa<PointerType>(CI->getType()))
-                          if (Graph->hasNodeForValue(CI))
-                            toMerge.push_back(Graph->getNodeForValue(CI));
-                        for (unsigned y = 1; y < CI->getNumOperands(); ++y)
-                        if (recFuncs[x].action.mergeNodes[y])
-                          if (isa<PointerType>(CI->getOperand(y)->getType()))
-                            if (Graph->hasNodeForValue(CI->getOperand(y)))
-                              toMerge.push_back(Graph->getNodeForValue(CI->getOperand(y)));
-                      for (unsigned y = 1; y < toMerge.size(); ++y)
-                        toMerge[0].mergeWith(toMerge[y]);
-        
-                      //
-                      // Collapse (fold) the DSNode of the return value and the actual
-                      // arguments if directed to do so.
-                      //
-                      if (!noStdLibFold && recFuncs[x].action.collapse) {
-                        if (isa<PointerType>(CI->getType())){
-                          if (Graph->hasNodeForValue(CI))
-                            Graph->getNodeForValue(CI).getNode()->foldNodeCompletely();
-                          NumNodesFoldedInStdLib++;
-                        }
-                        for (unsigned y = 1; y < CI->getNumOperands(); ++y)
-                          if (isa<PointerType>(CI->getOperand(y)->getType())){
-                            if (Graph->hasNodeForValue(CI->getOperand(y))){
-                              DSNode * Node=Graph->getNodeForValue(CI->getOperand(y)).getNode();
-                              Node->foldNodeCompletely();
-                              NumNodesFoldedInStdLib++;
-                            }
-                          }
-                      }
-                  }
-                }
-              }
-          }
-
-        //
-        // Pretend that this call site does not call this function anymore.
-        //
-        eraseCallsTo(F);
+        processFunction(x, F);
       }
 
   //
@@ -698,14 +468,248 @@ StdLibDataStructures::runOnModule (Module &M) {
   return false;
 }
 
+
+void StdLibDataStructures::processFunction(int x, Function *F) {
+  for (Value::use_iterator ii = F->use_begin(), ee = F->use_end();
+       ii != ee; ++ii)
+    if (CallInst* CI = dyn_cast<CallInst>(ii)){
+      if (CI->getOperand(0) == F) {
+        DSGraph* Graph = getDSGraph(*CI->getParent()->getParent());
+
+        //
+        // Set the read, write, and heap markers on the return value
+        // as appropriate.
+        //
+        if(isa<PointerType>((CI)->getType())){
+          if(Graph->hasNodeForValue(CI)){
+            if (recFuncs[x].action.read[0])
+              Graph->getNodeForValue(CI).getNode()->setReadMarker();
+            if (recFuncs[x].action.write[0])
+              Graph->getNodeForValue(CI).getNode()->setModifiedMarker();
+            if (recFuncs[x].action.heap[0])
+              Graph->getNodeForValue(CI).getNode()->setHeapMarker();
+          }
+        }
+
+        //
+        // Set the read, write, and heap markers on the actual arguments
+        // as appropriate.
+        //
+        for (unsigned y = 1; y < CI->getNumOperands(); ++y)
+          if (isa<PointerType>(CI->getOperand(y)->getType())){
+            if (Graph->hasNodeForValue(CI->getOperand(y))){
+              if (recFuncs[x].action.read[y])
+                Graph->getNodeForValue(CI->getOperand(y)).getNode()->setReadMarker();
+              if (recFuncs[x].action.write[y])
+                Graph->getNodeForValue(CI->getOperand(y)).getNode()->setModifiedMarker();
+              if (recFuncs[x].action.heap[y])
+                Graph->getNodeForValue(CI->getOperand(y)).getNode()->setHeapMarker();
+            }
+          }
+
+        //
+        // Merge the DSNoes for return values and parameters as
+        // appropriate.
+        //
+        std::vector<DSNodeHandle> toMerge;
+        if (recFuncs[x].action.mergeNodes[0])
+          if (isa<PointerType>(CI->getType()))
+            if (Graph->hasNodeForValue(CI))
+              toMerge.push_back(Graph->getNodeForValue(CI));
+        for (unsigned y = 1; y < CI->getNumOperands(); ++y)
+          if (recFuncs[x].action.mergeNodes[y])
+            if (isa<PointerType>(CI->getOperand(y)->getType()))
+              if (Graph->hasNodeForValue(CI->getOperand(y)))
+                toMerge.push_back(Graph->getNodeForValue(CI->getOperand(y)));
+        for (unsigned y = 1; y < toMerge.size(); ++y)
+          toMerge[0].mergeWith(toMerge[y]);
+
+        //
+        // Collapse (fold) the DSNode of the return value and the actual
+        // arguments if directed to do so.
+        //
+        if (!noStdLibFold && recFuncs[x].action.collapse) {
+          if (isa<PointerType>(CI->getType())){
+            if (Graph->hasNodeForValue(CI))
+              Graph->getNodeForValue(CI).getNode()->foldNodeCompletely();
+            NumNodesFoldedInStdLib++;
+          }
+          for (unsigned y = 1; y < CI->getNumOperands(); ++y){
+            if (isa<PointerType>(CI->getOperand(y)->getType())){
+              if (Graph->hasNodeForValue(CI->getOperand(y))){
+                Graph->getNodeForValue(CI->getOperand(y)).getNode()->foldNodeCompletely();
+                NumNodesFoldedInStdLib++;
+              }
+            }
+          }
+        }
+      }
+    } else if (InvokeInst* CI = dyn_cast<InvokeInst>(ii)){
+      if (CI->getOperand(0) == F) {
+        DSGraph* Graph = getDSGraph(*CI->getParent()->getParent());
+
+        //
+        // Set the read, write, and heap markers on the return value
+        // as appropriate.
+        //
+        if(isa<PointerType>((CI)->getType())){
+          if(Graph->hasNodeForValue(CI)){
+            if (recFuncs[x].action.read[0])
+              Graph->getNodeForValue(CI).getNode()->setReadMarker();
+            if (recFuncs[x].action.write[0])
+              Graph->getNodeForValue(CI).getNode()->setModifiedMarker();
+            if (recFuncs[x].action.heap[0])
+              Graph->getNodeForValue(CI).getNode()->setHeapMarker();
+          }
+        }
+
+        //
+        // Set the read, write, and heap markers on the actual arguments
+        // as appropriate.
+        //
+        for (unsigned y = 1; y < CI->getNumOperands(); ++y)
+          if (isa<PointerType>(CI->getOperand(y)->getType())){
+            if (Graph->hasNodeForValue(CI->getOperand(y))){
+              if (recFuncs[x].action.read[y])
+                Graph->getNodeForValue(CI->getOperand(y)).getNode()->setReadMarker();
+              if (recFuncs[x].action.write[y])
+                Graph->getNodeForValue(CI->getOperand(y)).getNode()->setModifiedMarker();
+              if (recFuncs[x].action.heap[y])
+                Graph->getNodeForValue(CI->getOperand(y)).getNode()->setHeapMarker();
+            }
+          }
+
+        //
+        // Merge the DSNoes for return values and parameters as
+        // appropriate.
+        //
+        std::vector<DSNodeHandle> toMerge;
+        if (recFuncs[x].action.mergeNodes[0])
+          if (isa<PointerType>(CI->getType()))
+            if (Graph->hasNodeForValue(CI))
+              toMerge.push_back(Graph->getNodeForValue(CI));
+        for (unsigned y = 1; y < CI->getNumOperands(); ++y)
+          if (recFuncs[x].action.mergeNodes[y])
+            if (isa<PointerType>(CI->getOperand(y)->getType()))
+              if (Graph->hasNodeForValue(CI->getOperand(y)))
+                toMerge.push_back(Graph->getNodeForValue(CI->getOperand(y)));
+        for (unsigned y = 1; y < toMerge.size(); ++y)
+          toMerge[0].mergeWith(toMerge[y]);
+
+        //
+        // Collapse (fold) the DSNode of the return value and the actual
+        // arguments if directed to do so.
+        //
+        if (!noStdLibFold && recFuncs[x].action.collapse) {
+          if (isa<PointerType>(CI->getType())){
+            if (Graph->hasNodeForValue(CI))
+              Graph->getNodeForValue(CI).getNode()->foldNodeCompletely();
+            NumNodesFoldedInStdLib++;
+          }
+          for (unsigned y = 1; y < CI->getNumOperands(); ++y){
+            if (isa<PointerType>(CI->getOperand(y)->getType())){
+              if (Graph->hasNodeForValue(CI->getOperand(y))){
+                Graph->getNodeForValue(CI->getOperand(y)).getNode()->foldNodeCompletely();
+                NumNodesFoldedInStdLib++;
+              }
+            }
+          }
+        }
+      }
+    } else if(ConstantExpr *CE = dyn_cast<ConstantExpr>(ii)) {
+      if(CE->isCast()) 
+        for (Value::use_iterator ci = CE->use_begin(), ce = CE->use_end();
+             ci != ce; ++ci) {
+
+          if (CallInst* CI = dyn_cast<CallInst>(ci)){
+            if (CI->getOperand(0) == CE) {
+              DSGraph* Graph = getDSGraph(*CI->getParent()->getParent());
+
+              //
+              // Set the read, write, and heap markers on the return value
+              // as appropriate.
+              //
+              if(isa<PointerType>((CI)->getType())){
+                if(Graph->hasNodeForValue(CI)){
+                  if (recFuncs[x].action.read[0])
+                    Graph->getNodeForValue(CI).getNode()->setReadMarker();
+                  if (recFuncs[x].action.write[0])
+                    Graph->getNodeForValue(CI).getNode()->setModifiedMarker();
+                  if (recFuncs[x].action.heap[0])
+                    Graph->getNodeForValue(CI).getNode()->setHeapMarker();
+                }
+              }
+
+              //
+              // Set the read, write, and heap markers on the actual arguments
+              // as appropriate.
+              //
+              for (unsigned y = 1; y < CI->getNumOperands(); ++y)
+                if (recFuncs[x].action.read[y]){
+                  if (isa<PointerType>(CI->getOperand(y)->getType())){
+                    if (Graph->hasNodeForValue(CI->getOperand(y)))
+                      Graph->getNodeForValue(CI->getOperand(y)).getNode()->setReadMarker();
+                    if (Graph->hasNodeForValue(CI->getOperand(y)))
+                      Graph->getNodeForValue(CI->getOperand(y)).getNode()->setModifiedMarker();
+                    if (Graph->hasNodeForValue(CI->getOperand(y)))
+                      Graph->getNodeForValue(CI->getOperand(y)).getNode()->setHeapMarker();
+                  }
+                }
+
+              //
+              // Merge the DSNoes for return values and parameters as
+              // appropriate.
+              //
+              std::vector<DSNodeHandle> toMerge;
+              if (recFuncs[x].action.mergeNodes[0])
+                if (isa<PointerType>(CI->getType()))
+                  if (Graph->hasNodeForValue(CI))
+                    toMerge.push_back(Graph->getNodeForValue(CI));
+              for (unsigned y = 1; y < CI->getNumOperands(); ++y)
+                if (recFuncs[x].action.mergeNodes[y])
+                  if (isa<PointerType>(CI->getOperand(y)->getType()))
+                    if (Graph->hasNodeForValue(CI->getOperand(y)))
+                      toMerge.push_back(Graph->getNodeForValue(CI->getOperand(y)));
+              for (unsigned y = 1; y < toMerge.size(); ++y)
+                toMerge[0].mergeWith(toMerge[y]);
+
+              //
+              // Collapse (fold) the DSNode of the return value and the actual
+              // arguments if directed to do so.
+              //
+              if (!noStdLibFold && recFuncs[x].action.collapse) {
+                if (isa<PointerType>(CI->getType())){
+                  if (Graph->hasNodeForValue(CI))
+                    Graph->getNodeForValue(CI).getNode()->foldNodeCompletely();
+                  NumNodesFoldedInStdLib++;
+                }
+                for (unsigned y = 1; y < CI->getNumOperands(); ++y)
+                  if (isa<PointerType>(CI->getOperand(y)->getType())){
+                    if (Graph->hasNodeForValue(CI->getOperand(y))){
+                      DSNode * Node=Graph->getNodeForValue(CI->getOperand(y)).getNode();
+                      Node->foldNodeCompletely();
+                      NumNodesFoldedInStdLib++;
+                    }
+                  }
+              }
+            }
+          }
+        }
+    }
+
+  //
+  // Pretend that this call site does not call this function anymore.
+  //
+  eraseCallsTo(F);
+}
 /*
 
-  functions to add
-  freopen
-  strftime
-  strtoul
-  strtol
-  strtoll
-  ctype family
-  open64/fopen64/lseek64
-   */
+   functions to add
+   freopen
+   strftime
+   strtoul
+   strtol
+   strtoll
+   ctype family
+   open64/fopen64/lseek64
+ */
