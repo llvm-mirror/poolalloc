@@ -443,7 +443,7 @@ StdLibDataStructures::runOnModule (Module &M) {
   std::set<std::string>::iterator ae = AllocWrappersAnalysis->alloc_end();
   int x;
   for (x = 0; recFuncs[x].name; ++x) {
-    if(recFuncs[x].name == "malloc")
+    if(recFuncs[x].name == std::string("malloc"))
       break;
   }
 
@@ -455,7 +455,7 @@ StdLibDataStructures::runOnModule (Module &M) {
   ai = AllocWrappersAnalysis->dealloc_begin();
   ae = AllocWrappersAnalysis->dealloc_end();
   for (x = 0; recFuncs[x].name; ++x) {
-    if(recFuncs[x].name == "free")
+    if(recFuncs[x].name == std::string("free"))
       break;
   }
 
