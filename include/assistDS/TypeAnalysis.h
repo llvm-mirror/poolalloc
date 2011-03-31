@@ -28,14 +28,17 @@ namespace llvm {
   public:
     static char ID;
     TypeAnalysis() : ModulePass(&ID) {}
-    virtual ~TypeAnalysis();
     virtual bool runOnModule(Module& M);
-    virtual void getAnalysisUsage(llvm::AnalysisUsage &Info) const;
+    virtual void getAnalysisUsage(AnalysisUsage &Info) const;
 
     const Type *getType(LoadInst *);
     const Type *getType(StoreInst *);
     const Type *getType(ExtractValueInst *);
     const Type *getType(InsertValueInst *);
+    bool isCopyingLoad(LoadInst *);
+    bool isCopyingLoad(ExtractValueInst *);
+    bool isCopyingStore(StoreInst *);
+    bool isCopyingStore(InsertValueInst *);
   };
 }
 
