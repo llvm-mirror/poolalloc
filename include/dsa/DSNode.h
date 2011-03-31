@@ -14,16 +14,18 @@
 #ifndef LLVM_ANALYSIS_DSNODE_H
 #define LLVM_ANALYSIS_DSNODE_H
 
-#include "dsa/DSSupport.h"
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/ilist_node.h"
-
-#include <map>
-#include <set>
+#include "llvm/Support/Debug.h"
+#include "llvm/Support/raw_ostream.h"
 #include "dsa/svset.h"
 #include "dsa/super_set.h"
 #include "dsa/keyiterator.h"
 #include "dsa/DSGraph.h"
+#include "dsa/DSSupport.h"
+
+#include <map>
+#include <set>
 
 namespace llvm {
 
@@ -237,7 +239,6 @@ public:
   /// completely (and return true) if the information is incompatible with what
   /// is already known.
   ///
-  /// FIXME: description
   void mergeTypeInfo(const Type *Ty, unsigned Offset);
   void mergeTypeInfo(const TyMapTy::mapped_type TyIt, unsigned Offset);
   void mergeTypeInfo(const DSNode* D, unsigned Offset);
@@ -495,21 +496,21 @@ inline void DSNodeHandle::setLink(unsigned Off, const DSNodeHandle &NH) {
 /// addEdgeTo - Add an edge from the current node to the specified node.  This
 /// can cause merging of nodes in the graph.
 ///
-inline void DSNodeHandle::addEdgeTo(unsigned Off, const DSNodeHandle &Node) {
+inline void DSNodeHandle::addEdgeTo(unsigned Off, const DSNodeHandle &NH) {
   assert(N && "DSNodeHandle does not point to a node yet!");
-  getNode()->addEdgeTo(Off+Offset, Node);
+  getNode()->addEdgeTo(Off+Offset, NH);
 }
 
 /// mergeWith - Merge the logical node pointed to by 'this' with the node
 /// pointed to by 'N'.
 ///
-inline void DSNodeHandle::mergeWith(const DSNodeHandle &Node) const {
+inline void DSNodeHandle::mergeWith(const DSNodeHandle &NH) const {
   if (!isNull())
-    getNode()->mergeWith(Node, Offset);
+    getNode()->mergeWith(NH, Offset);
   else {   // No node to merge with, so just point to Node
     Offset = 0;
-    DSNode *NN = Node.getNode();
-    setTo(NN, Node.getOffset());
+    DSNode *N = NH.getNode();
+    setTo(N, NH.getOffset());
   }
 }
 
