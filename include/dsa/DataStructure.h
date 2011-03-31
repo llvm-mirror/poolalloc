@@ -23,6 +23,7 @@
 #include "dsa/svset.h"
 #include "dsa/super_set.h"
 #include "dsa/AddressTakenAnalysis.h"
+#include "dsa/AllocatorIdentification.h"
 
 #include <map>
 
@@ -197,6 +198,8 @@ public:
 class StdLibDataStructures : public DataStructures {
   void eraseCallsTo(Function* F);
   void processRuntimeCheck (Module & M, std::string name, unsigned arg);
+  void processFunction(int x, Function *F);
+  AllocIdentify *AllocWrappersAnalysis;
 public:
   static char ID;
   StdLibDataStructures() : DataStructures((intptr_t)&ID, "stdlib.") {}
@@ -208,6 +211,7 @@ public:
   ///
   virtual void getAnalysisUsage(AnalysisUsage &AU) const {
     AU.addRequired<LocalDataStructures>();
+    AU.addRequired<AllocIdentify>();
     AU.setPreservesAll();
   }
 };

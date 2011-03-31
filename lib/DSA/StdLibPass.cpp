@@ -12,6 +12,7 @@
 
 #include "llvm/ADT/Statistic.h"
 #include "dsa/DataStructure.h"
+#include "dsa/AllocatorIdentification.h"
 #include "dsa/DSGraph.h"
 #include "llvm/Constants.h"
 #include "llvm/DerivedTypes.h"
@@ -392,6 +393,7 @@ StdLibDataStructures::runOnModule (Module &M) {
   // Get the results from the local pass.
   //
   init (&getAnalysis<LocalDataStructures>(), true, true, false, false);
+  AllocWrappersAnalysis = &getAnalysis<AllocIdentify>();
 
   //
   // Fetch the DSGraphs for all defined functions within the module.
@@ -436,6 +438,32 @@ StdLibDataStructures::runOnModule (Module &M) {
       if (F->isDeclaration()) {
         processFunction(x, F);
       }
+
+  std::set<std::string>::iterator ai = AllocWrappersAnalysis->alloc_begin();
+  std::set<std::string>::iterator ae = AllocWrappersAnalysis->alloc_end();
+  int x;
+  for (x = 0; recFuncs[x].name; ++x) {
+    if(recFuncs[x].name == "malloc")
+      break;
+  }
+
+  for(;ai != ae; ++ai) {
+    if(Function* F = M.getFunction(*ai))
+    processFunction(x, F);
+  }
+  
+  ai = AllocWrappersAnalysis->dealloc_begin();
+  ae = AllocWrappersAnalysis->dealloc_end();
+  for (x = 0; recFuncs[x].name; ++x) {
+    if(recFuncs[x].name == "free")
+      break;
+  }
+
+  for(;ai != ae; ++ai) {
+    errs() << *ai << "\n";
+    if(Function* F = M.getFunction(*ai))
+    processFunction(x, F);
+  }
 
   //
   // Merge return values and checked pointer values for SAFECode run-time
