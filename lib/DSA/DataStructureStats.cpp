@@ -36,6 +36,8 @@ namespace {
              "Number of loads/stores which are fully typed");
   STATISTIC (NumUntypedMemAccesses,
              "Number of loads/stores which are untyped");
+  STATISTIC (NumTypeCount0Accesses,
+             "Number of loads/stores which are access a DSNode with 0 type");
   STATISTIC (NumTypeCount1Accesses,
              "Number of loads/stores which are access a DSNode with 1 type");
   STATISTIC (NumTypeCount2Accesses,
@@ -50,14 +52,17 @@ namespace {
              "Number of loads/stores which are on unknown nodes");
   STATISTIC (NumExternalAccesses,
              "Number of loads/stores which are on external nodes");
+  STATISTIC (NumFoldedAccess,
+             "Number of loads/stores which are on folded nodes");
 
   class DSGraphStats : public FunctionPass, public InstVisitor<DSGraphStats> {
     void countCallees(const Function &F);
     const TDDataStructures *DS;
+    const TargetData *TD;
     const DSGraph *TDGraph;
     dsa::TypeSafety<TDDataStructures> *TS;
     DSNodeHandle getNodeHandleForValue(Value *V);
-    bool isNodeForValueUntyped(Value *V, const Function *);
+    bool isNodeForValueUntyped(Value *V, unsigned offset, const Function *);
   public:
     static char ID;
     DSGraphStats() : FunctionPass((intptr_t)&ID) {}
@@ -69,6 +74,7 @@ namespace {
     void getAnalysisUsage(AnalysisUsage &AU) const {
       AU.setPreservesAll();
       AU.addRequired<TDDataStructures>();
+      AU.addRequired<TargetData>();
       AU.addRequired<dsa::TypeSafety<TDDataStructures> >();
     }
 
@@ -155,7 +161,7 @@ DSNodeHandle DSGraphStats::getNodeHandleForValue(Value *V) {
   return 0;
 }
 
-bool DSGraphStats::isNodeForValueUntyped(Value *V, const Function *F) {
+bool DSGraphStats::isNodeForValueUntyped(Value *V, unsigned Offset, const Function *F) {
   DSNodeHandle NH = getNodeHandleForValue(V);
   if(!NH.getNode()){
     return true;
@@ -163,6 +169,7 @@ bool DSGraphStats::isNodeForValueUntyped(Value *V, const Function *F) {
   else {
     DSNode *N = NH.getNode();
     if (N->isNodeCompletelyFolded()){
+      ++NumFoldedAccess;
       return true;
     }
     if ( N->isExternalNode()){
@@ -179,7 +186,7 @@ bool DSGraphStats::isNodeForValueUntyped(Value *V, const Function *F) {
     }
     // it is a complete node, now check how many types are present
     int count = 0;
-    unsigned offset = NH.getOffset();
+    unsigned offset = NH.getOffset() + Offset;
     if (N->type_begin() != N->type_end())
       for (DSNode::TyMapTy::const_iterator ii = N->type_begin(),
            ee = N->type_end(); ii != ee; ++ii) {
@@ -188,13 +195,15 @@ bool DSGraphStats::isNodeForValueUntyped(Value *V, const Function *F) {
         count += ii->second->size();
       }
 
-    if(count == 1)
+    if (count ==0)
+      ++NumTypeCount0Accesses;
+    else if(count == 1)
       ++NumTypeCount1Accesses;
     else if(count == 2)
       ++NumTypeCount2Accesses;
     else if(count == 3)
       ++NumTypeCount3Accesses;
-    else  
+    else
       ++NumTypeCount4Accesses;
     DEBUG(assert(TS->isTypeSafe(V,F)));
   }
@@ -202,7 +211,7 @@ bool DSGraphStats::isNodeForValueUntyped(Value *V, const Function *F) {
 }
 
 void DSGraphStats::visitLoad(LoadInst &LI) {
-  if (isNodeForValueUntyped(LI.getOperand(0), LI.getParent()->getParent())) {
+  if (isNodeForValueUntyped(LI.getOperand(0), 0,LI.getParent()->getParent())) {
     NumUntypedMemAccesses++;
   } else {
     NumTypedMemAccesses++;
@@ -210,7 +219,7 @@ void DSGraphStats::visitLoad(LoadInst &LI) {
 }
 
 void DSGraphStats::visitStore(StoreInst &SI) {
-  if (isNodeForValueUntyped(SI.getOperand(1), SI.getParent()->getParent())) {
+  if (isNodeForValueUntyped(SI.getOperand(1), 0,SI.getParent()->getParent())) {
     NumUntypedMemAccesses++;
   } else {
     NumTypedMemAccesses++;
@@ -218,7 +227,15 @@ void DSGraphStats::visitStore(StoreInst &SI) {
 }
 
 void DSGraphStats::visitInsertValue(InsertValueInst &I) {
-  if (isNodeForValueUntyped(I.getAggregateOperand(), I.getParent()->getParent())) {
+  unsigned Offset = 0;
+  const Type* STy = I.getAggregateOperand()->getType();
+  llvm::InsertValueInst::idx_iterator i = I.idx_begin(), e = I.idx_end(); 
+  for (; i != e; i++) {
+    const StructLayout *SL = TD->getStructLayout(cast<StructType>(STy));
+    Offset += SL->getElementOffset(*i);
+    STy = (cast<StructType>(STy))->getTypeAtIndex(*i);
+  }
+  if (isNodeForValueUntyped(&I, Offset, I.getParent()->getParent())) {
     NumUntypedMemAccesses++;
   } else {
     NumTypedMemAccesses++;
@@ -226,16 +243,24 @@ void DSGraphStats::visitInsertValue(InsertValueInst &I) {
 }
 
 void DSGraphStats::visitExtractValue(ExtractValueInst &I) {
-  if (isNodeForValueUntyped(I.getAggregateOperand(), I.getParent()->getParent())) {
+  unsigned Offset = 0;
+  const Type* STy = I.getAggregateOperand()->getType();
+  llvm::ExtractValueInst::idx_iterator i = I.idx_begin(), e = I.idx_end();
+  for (; i != e; i++) {
+    const StructLayout *SL = TD->getStructLayout(cast<StructType>(STy));
+    Offset += SL->getElementOffset(*i);
+    STy = (cast<StructType>(STy))->getTypeAtIndex(*i);
+  }
+  if (isNodeForValueUntyped(I.getAggregateOperand(), Offset, I.getParent()->getParent())) {
     NumUntypedMemAccesses++;
   } else {
     NumTypedMemAccesses++;
   }
 }
 
-
 bool DSGraphStats::runOnFunction(Function& F) {
   DS = &getAnalysis<TDDataStructures>();
+  TD = &getAnalysis<TargetData>();
   TS = &getAnalysis<dsa::TypeSafety<TDDataStructures> >();
   TDGraph = DS->getDSGraph(F);
   countCallees(F);
