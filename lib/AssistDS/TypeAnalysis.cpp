@@ -45,45 +45,56 @@ TypeAnalysis::getType(ExtractValueInst *I){
 }
 bool
 TypeAnalysis::isCopyingLoad(LoadInst *LI){
-  if(LI->getNumUses() == 1)
+  if(LI->getNumUses() == 1) {
     if(StoreInst *SI = dyn_cast<StoreInst>(LI->use_begin())) {
-      if(SI->getOperand(0) == LI)
+      if(SI->getOperand(0) == LI) {
         return true;
+      }
     } else if(InsertValueInst *IV = dyn_cast<InsertValueInst>(LI->use_begin())) {
-      if(IV->getInsertedValueOperand() == LI)
+      if(IV->getInsertedValueOperand() == LI) {
         return true;
+      }
     }
+  }
   return false;
 }
 bool 
 TypeAnalysis::isCopyingLoad(ExtractValueInst * EI) {
-  if(EI->getNumUses() == 1)
+  if(EI->getNumUses() == 1) {
     if(StoreInst *SI = dyn_cast<StoreInst>(EI->use_begin())) {
-      if(SI->getOperand(0) == EI)
+      if(SI->getOperand(0) == EI) {
         return true;
+      }
     } else if(InsertValueInst *IV = dyn_cast<InsertValueInst>(EI->use_begin())) {
-      if(IV->getInsertedValueOperand() == EI)
+      if(IV->getInsertedValueOperand() == EI) {
         return true;
+      }
     }
+  }
   return false;
 }
 bool 
 TypeAnalysis::isCopyingStore(StoreInst *SI) {
-  if(SI->getOperand(0)->getNumUses() == 1)
-    if(isa<LoadInst>(SI->getOperand(0)))
+  if(SI->getOperand(0)->getNumUses() == 1) {
+    if(isa<LoadInst>(SI->getOperand(0))) {
       return true;
-    else if(isa<ExtractValueInst>(SI->getOperand(0)))
+    }
+    else if(isa<ExtractValueInst>(SI->getOperand(0))) {
       return true;
-  
+    }
+  }
   return false;
 }
 bool 
 TypeAnalysis::isCopyingStore(InsertValueInst *IVI) {
-  if(IVI->getInsertedValueOperand()->getNumUses() == 1) 
-    if(isa<LoadInst>(IVI->getInsertedValueOperand()))
+  if(IVI->getInsertedValueOperand()->getNumUses() == 1) {
+    if(isa<LoadInst>(IVI->getInsertedValueOperand())) {
       return true;
-    else if(isa<ExtractValueInst>(IVI->getInsertedValueOperand()))
+    }
+    else if(isa<ExtractValueInst>(IVI->getInsertedValueOperand())) {
       return true;
+    }
+  }
 
   return false;
 }
