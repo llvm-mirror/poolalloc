@@ -24,6 +24,11 @@ using namespace llvm;
 char TypeChecks::ID = 0;
 static RegisterPass<TypeChecks> TC("typechecks", "Insert runtime type checks", false, true);
 
+static const Type *VoidTy = 0;
+static const Type *Int8Ty = 0;
+static const Type *Int32Ty = 0;
+static const PointerType *VoidPtrTy = 0;
+
 // Incorporate one type and all of its subtypes into the collection of used types.
 void TypeChecks::IncorporateType(const Type *Ty) {
   // If Ty doesn't already exist in the used types map, add it now. Otherwise, return.
@@ -56,8 +61,13 @@ void TypeChecks::IncorporateValue(const Value *V) {
 }
 
 bool TypeChecks::runOnModule(Module &M) {
-  // Flags whether we modified the module.
-  bool modified = false;
+  bool modified = false; // Flags whether we modified the module.
+  bool firstSI = true;
+
+  VoidTy = IntegerType::getVoidTy(M.getContext());
+  Int8Ty = IntegerType::getInt8Ty(M.getContext());
+  Int32Ty = IntegerType::getInt32Ty(M.getContext());
+  VoidPtrTy = PointerType::getUnqual(Int8Ty);
 
   UsedTypes.clear(); // Reset if run multiple times.
   maxType = 1;
@@ -84,7 +94,20 @@ bool TypeChecks::runOnModule(Module &M) {
       }
 
       if (StoreInst *SI = dyn_cast<StoreInst>(&I)) {
+        if (firstSI) {
+          modified |= initShadow(M, *SI);
+          firstSI = false;
+        }
+
         modified |= visitStoreInst(M, *SI);
+      } else if (LoadInst *LI = dyn_cast<LoadInst>(&I)) {
+        // Unlikely, but just in case
+        if (firstSI) {
+          modified |= initShadowLI(M, *LI);
+          firstSI = false;
+        }
+
+        modified |= visitLoadInst(M, *LI);
       }
     }
   }
@@ -113,20 +136,60 @@ void TypeChecks::print(raw_ostream &OS, const Module *M) const {
   OS << "\nNumber of types: " << maxType << '\n';
 }
 
+// Initialize the shadow memory which contains the 1:1 mapping.
+bool TypeChecks::initShadow(Module &M, StoreInst &SI) {
+  // Create the call to the runtime initialization function and place it before the store instruction.
+  Constant *F = M.getOrInsertFunction("shadowInit", VoidTy, NULL);
+  CallInst::Create(F, "", &SI);
+
+  return true;
+}
+
+// Initialize the shadow memory which contains the 1:1 mapping.
+bool TypeChecks::initShadowLI(Module &M, LoadInst &LI) {
+  // Create the call to the runtime initialization function and place it before the load instruction.
+  Constant *F = M.getOrInsertFunction("shadowInit", VoidTy, NULL);
+  CallInst::Create(F, "", &LI);
+
+  return true;
+}
+
+// Initialize the shadow memory which contains the 1:1 mapping.
+bool TypeChecks::unmapShadow(Module &M, Instruction &I) {
+  // Create the call to the runtime shadow memory unmap function and place it before any exiting instruction.
+  Constant *F = M.getOrInsertFunction("shadowUnmap", VoidTy, NULL);
+  CallInst::Create(F, "", &I);
+
+  return true;
+}
+
+// Insert runtime checks before all load instructions.
+bool TypeChecks::visitLoadInst(Module &M, LoadInst &LI) {
+  // Cast the pointer operand to i8* for the runtime function.
+  CastInst *BCI = BitCastInst::CreatePointerCast(LI.getPointerOperand(), VoidPtrTy, "", &LI);
+
+  std::vector<Value *> Args;
+  Args.push_back(BCI);
+  Args.push_back(ConstantInt::get(Int32Ty, UsedTypes[LI.getType()]));
+
+  // Create the call to the runtime check and place it before the load instruction.
+  Constant *F = M.getOrInsertFunction("trackLoadInst", Int32Ty, VoidPtrTy, Int32Ty, NULL);
+  CallInst::Create(F, Args.begin(), Args.end(), "", &LI);
+
+  return true;
+}
+
 // Insert runtime checks before all store instructions.
 bool TypeChecks::visitStoreInst(Module &M, StoreInst &SI) {
-  const Type *Int8Ty = IntegerType::getInt8Ty(M.getContext());
-  const Type *Int32Ty = IntegerType::getInt32Ty(M.getContext());
-  PointerType *VoidPtrTy = PointerType::getUnqual(Int8Ty);
-
+  // Cast the pointer operand to i8* for the runtime function.
   CastInst *BCI = BitCastInst::CreatePointerCast(SI.getPointerOperand(), VoidPtrTy, "", &SI);
 
   std::vector<Value *> Args;
   Args.push_back(BCI);
   Args.push_back(ConstantInt::get(Int32Ty, UsedTypes[SI.getOperand(0)->getType()])); // SI.getValueOperand()
 
-  // Create the call to the runtime check, and place it before the store instruction.
-  Constant *F = M.getOrInsertFunction("trackStoreInst", Int8Ty, VoidPtrTy, Int32Ty, NULL);
+  // Create the call to the runtime check and place it before the store instruction.
+  Constant *F = M.getOrInsertFunction("trackStoreInst", Int32Ty, VoidPtrTy, Int32Ty, NULL);
   CallInst::Create(F, Args.begin(), Args.end(), "", &SI);
 
   return true;

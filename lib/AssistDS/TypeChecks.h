@@ -45,6 +45,10 @@ public:
   virtual void getAnalysisUsage(AnalysisUsage &AU) const {
   }
 
+  bool initShadow(Module &M, StoreInst &SI);
+  bool initShadowLI(Module &M, LoadInst &LI);
+  bool unmapShadow(Module &M, Instruction &I);
+  bool visitLoadInst(Module &M, LoadInst &LI);
   bool visitStoreInst(Module &M, StoreInst &SI);
 
   // Return the map containing all of the types used in the module.
