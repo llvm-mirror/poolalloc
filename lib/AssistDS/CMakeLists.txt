@@ -1,6 +1,16 @@
 add_llvm_library(AssistDS
+  ArgCast.cpp
+  ArgSimplify.cpp
   Devirt.cpp
   FuncSpec.cpp
   IndCloner.cpp
+  Int2PtrCmp.cpp
+  MergeArrayIndexGEP.cpp
+  MergeGEP.cpp
   SVADevirt.cpp
+  SimplifyGEP.cpp
+  SimplifyMRV.cpp
+  TestGEP.cpp
+  TypeAnalysis.cpp
+  VarArgsFunc.cpp
 )
