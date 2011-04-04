@@ -87,9 +87,7 @@ namespace {
               Args.push_back(CI->getOperand(j));
             }
             CallInst *CINew = CallInst::Create(F, Args.begin(), Args.end(), "", CI);
-            if(F->getReturnType() != CI->getType()){ // means no uses
-              CINew->setDoesNotReturn();
-            } else {
+            if(F->getReturnType() == CI->getType()){ // else means no uses
               CI->replaceAllUsesWith(CINew);
             }
             CI->eraseFromParent();
