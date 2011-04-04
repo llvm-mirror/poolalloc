@@ -80,6 +80,7 @@ namespace {
 class NodeValue {
   // Containing Function, if applicable.
   Function *F;
+  Module *ParentM;
   // Value in that graph's scalarmap that we base off of
   // (note that the NH we have below could be indexed a few times
   // from this value, only corresponds directly if no offsets)
@@ -188,6 +189,7 @@ class NodeValue {
 
       // First, find the function
       F = M->getFunction(func);
+      ParentM = const_cast<Module*>(M);
       assert(F && "Unable to find function specified!");
 
       // Now we try to find the value...
@@ -229,6 +231,7 @@ public:
   // are a bit confusing in the context of offsets.  Make this not lame.
   Value    * getValue()     { return V;                           }
   Function * getFunction()  { return F;                           }
+  Module * getParentModule()  { return ParentM;                           }
 
   /// Helper to fetch the node from the nodehandle
   DSNode * getNode() {
@@ -273,7 +276,7 @@ static void printAllValuesForNode(llvm::raw_ostream &O, NodeValue &NV) {
 // (meant to be called as a helper)
 static void printTypesForNode(llvm::raw_ostream &O, NodeValue &NV) {
   DSNode *N = NV.getNode();
-  Module *M = NV.getFunction()->getParent();
+  Module *M = NV.getParentModule();
 
   if (N->isNodeCompletelyFolded()) {
     O << "Folded";
