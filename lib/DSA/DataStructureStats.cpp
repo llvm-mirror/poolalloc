@@ -26,8 +26,10 @@
 using namespace llvm;
 
 namespace {
-  STATISTIC (TotalNumCallees, "Total number of callee functions at all indirect call sites");
-  STATISTIC (NumIndirectCalls, "Total number of indirect call sites in the program");
+  STATISTIC (TotalNumCallees, 
+             "Total number of callee functions at all indirect call sites");
+  STATISTIC (NumIndirectCalls, 
+             "Total number of indirect call sites in the program");
 
   // Typed/Untyped memory accesses: If DSA can infer that the types the loads
   // and stores are accessing are correct (ie, the node has not been collapsed),
@@ -130,7 +132,7 @@ void DSGraphStats::countCallees(const Function& F) {
         ++numIndirectCalls;
       } else {
         DEBUG(errs() << "WARNING: No callee in Function '" 
-              << F.getNameStr() << "' at call: \n"
+              << F.getNameStr() << " at call: \n"
               << *I->getCallSite().getInstruction());
       }
     }
