@@ -121,6 +121,9 @@ namespace {
   };
 }
 
+// Pass ID variable
 char FuncSpec::ID = 0;
+
+// Register the pass
 static RegisterPass<FuncSpec>
 X("funcspec", "Specialize for Function Pointers");
