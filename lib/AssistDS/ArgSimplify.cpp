@@ -93,14 +93,16 @@ namespace {
                           Value *CastedVal;
                           BasicBlock* entryBB = BasicBlock::
                             Create (M->getContext(), "entry", NewF);
-                        
-                          if(type->isIntegerTy()){
-                            CastedVal = new PtrToIntInst(fargs.at(arg_count), 
+                       
+                          const Type *FromTy = fargs.at(arg_count)->getType();
+                          if(FromTy->isPointerTy()) {
+                            CastedVal = CastInst::CreatePointerCast(fargs.at(arg_count), 
                                                          type, "castd", entryBB);
                           } else {
-                            CastedVal = new BitCastInst(fargs.at(arg_count), 
-                                                        type, "castd", entryBB);
+                            CastedVal = CastInst::CreateIntegerCast(fargs.at(arg_count), 
+                                                                    type, false, "casted", entryBB);
                           }
+
                           SmallVector<Value*, 8> Args;
                           for(Function::arg_iterator ai = NewF->arg_begin(),
                               ae= NewF->arg_end(); ai != ae; ++ai) {
@@ -109,14 +111,14 @@ namespace {
                             else 
                               Args.push_back(ai);
                           }
-                          
+
                           CallInst * CallI = CallInst::Create(F,Args.begin(), 
                                                               Args.end(),"", entryBB);
                           if(CallI->getType()->isVoidTy())
                             ReturnInst::Create(M->getContext(), entryBB);
                           else 
                             ReturnInst::Create(M->getContext(), CallI, entryBB);
-                          
+
                           CI->setCalledFunction(NewF);
                           numTransformable++;
                         }
@@ -131,14 +133,14 @@ namespace {
       }
     }
   }
-  
+
   class ArgSimplify : public ModulePass {
   public:
     static char ID;
     ArgSimplify() : ModulePass(&ID) {}
 
     bool runOnModule(Module& M) {
-    
+
       for (Module::iterator I = M.begin(); I != M.end(); ++I) 
         if (!I->isDeclaration() && !I->mayBeOverridden()) {
           if(I->getNameStr() == "main")
@@ -162,7 +164,7 @@ namespace {
             }
           }
         }
-      
+
 
       return true;
     }
