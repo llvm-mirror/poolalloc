@@ -62,7 +62,6 @@ void TypeChecks::IncorporateValue(const Value *V) {
 
 bool TypeChecks::runOnModule(Module &M) {
   bool modified = false; // Flags whether we modified the module.
-  bool firstSI = true;
 
   VoidTy = IntegerType::getVoidTy(M.getContext());
   Int8Ty = IntegerType::getInt8Ty(M.getContext());
@@ -80,6 +79,14 @@ bool TypeChecks::runOnModule(Module &M) {
     }
   }
 
+  // Insert the shadow initialization function at the entry to main.
+  Function *MainF = M.getFunction("main");
+  if (MainF == 0 || MainF->isDeclaration())
+    return false;
+
+  inst_iterator MainI = inst_begin(MainF);
+  modified |= initShadow(M, *MainI);
+
   for (Module::iterator MI = M.begin(), ME = M.end(); MI != ME; ++MI) {
     IncorporateType(MI->getType());
     Function &F = *MI;
@@ -94,19 +101,8 @@ bool TypeChecks::runOnModule(Module &M) {
       }
 
       if (StoreInst *SI = dyn_cast<StoreInst>(&I)) {
-        if (firstSI) {
-          modified |= initShadow(M, *SI);
-          firstSI = false;
-        }
-
         modified |= visitStoreInst(M, *SI);
       } else if (LoadInst *LI = dyn_cast<LoadInst>(&I)) {
-        // Unlikely, but just in case
-        if (firstSI) {
-          modified |= initShadowLI(M, *LI);
-          firstSI = false;
-        }
-
         modified |= visitLoadInst(M, *LI);
       }
     }
@@ -137,19 +133,10 @@ void TypeChecks::print(raw_ostream &OS, const Module *M) const {
 }
 
 // Initialize the shadow memory which contains the 1:1 mapping.
-bool TypeChecks::initShadow(Module &M, StoreInst &SI) {
+bool TypeChecks::initShadow(Module &M, Instruction &I) {
   // Create the call to the runtime initialization function and place it before the store instruction.
   Constant *F = M.getOrInsertFunction("shadowInit", VoidTy, NULL);
-  CallInst::Create(F, "", &SI);
-
-  return true;
-}
-
-// Initialize the shadow memory which contains the 1:1 mapping.
-bool TypeChecks::initShadowLI(Module &M, LoadInst &LI) {
-  // Create the call to the runtime initialization function and place it before the load instruction.
-  Constant *F = M.getOrInsertFunction("shadowInit", VoidTy, NULL);
-  CallInst::Create(F, "", &LI);
+  CallInst::Create(F, "", &I);
 
   return true;
 }
