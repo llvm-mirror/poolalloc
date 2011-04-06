@@ -103,21 +103,6 @@ initialPoolArguments(const std::string & funcname) {
     return 1;
   }
   
-  // CStdLib functions
-
-  else if ( ( funcname == "pool_strlen"  ) ||
-            ( funcname == "pool_strchr"  ) ||
-            ( funcname == "pool_strrchr" ) ) {
-    return 1;
-  }
-  else if ( ( funcname == "pool_strcpy"  ) ||
-            ( funcname == "pool_strncat" ) ||
-            ( funcname == "pool_strcat"  ) ||
-            ( funcname == "pool_strstr"  ) ||
-            ( funcname == "pool_strpbrk" ) ) {
-    return 2;
-  }
-
   return 0;
 }
 
@@ -466,12 +451,13 @@ PoolAllocateSimple::ProcessFunctionBodySimple (Function& F, TargetData & TD) {
         // pool.
         //
         if (CF) {
-          if (unsigned count = initialPoolArguments (CF->getName())) {
+          unsigned count;
+          if ((count = initialPoolArguments(CF->getName())) || \
+                (count = getCStdLibPoolArguments(CF->getName()))) {
             Type * VoidPtrTy = PointerType::getUnqual(Int8Type);
             Value * Pool = castTo (TheGlobalPool, VoidPtrTy, "pool", ii);
-            for (unsigned index = 1; index <= count; index++ ) {
+            for (unsigned index = 1; index <= count; index++ )
               CI->setOperand (index, Pool);
-            }
           }
         }
       }

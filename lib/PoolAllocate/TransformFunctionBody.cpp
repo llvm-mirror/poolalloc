@@ -56,7 +56,6 @@ namespace {
                   std::multimap<AllocaInst*, CallInst*> &poolFrees)
       : PAInfo(P), G(g), FI(fi), 
         PoolUses(poolUses), PoolFrees(poolFrees) {
-      initializeCStdLibPoolArgcs();
     }
 
     template <typename InstType, typename SetType>
@@ -91,23 +90,6 @@ namespace {
   private:
     Instruction *TransformAllocationInstr(Instruction *I, Value *Size);
     Instruction *InsertPoolFreeInstr(Value *V, Instruction *Where);
-
-    // Used for looking up CStdLib function names and their initial pool
-    // argument counts
-    StringMap<unsigned> CStdLibPoolArgcs;
-
-    // Initialize the map from CStdLib function name to initial pool
-    // argument counts.
-    void initializeCStdLibPoolArgcs() {
-      CStdLibPoolArgcs.GetOrCreateValue("pool_strcpy",  2);
-      CStdLibPoolArgcs.GetOrCreateValue("pool_strlen",  1);
-      CStdLibPoolArgcs.GetOrCreateValue("pool_strchr",  1);
-      CStdLibPoolArgcs.GetOrCreateValue("pool_strrchr", 1);
-      CStdLibPoolArgcs.GetOrCreateValue("pool_strcat",  2);
-      CStdLibPoolArgcs.GetOrCreateValue("pool_strncat", 2);
-      CStdLibPoolArgcs.GetOrCreateValue("pool_strstr",  2);
-      CStdLibPoolArgcs.GetOrCreateValue("pool_strpbrk", 2);
-    }
 
     //
     // Method: UpdateNewToOldValueMap()
@@ -818,8 +800,7 @@ void FuncTransform::visitCallSite(CallSite& CS) {
   const Function *CF = CS.getCalledFunction();
   Instruction *TheCall = CS.getInstruction();
   bool thread_creation_point = false;
-
-  StringMap<unsigned>::const_iterator pool_argc = CStdLibPoolArgcs.end();
+  unsigned argc;
 
   //
   // Get the value that is called at this call site.  Strip away any pointer
@@ -892,8 +873,8 @@ void FuncTransform::visitCallSite(CallSite& CS) {
                (CF->getName() == "sc.pool_unregister") ||
                (CF->getName() == "sc.get_actual_val")) {
       visitRuntimeCheck (CS);
-    } else if ((pool_argc = CStdLibPoolArgcs.find(CF->getName())) != CStdLibPoolArgcs.end()) {
-      visitCStdLibCheck(CS, pool_argc->getValue());
+    } else if ((argc = PAInfo.getCStdLibPoolArguments(CF->getName())) > 0) {
+      visitCStdLibCheck(CS, argc);
     } else if (CF->getName() == "pthread_create") {
       thread_creation_point = true;
 

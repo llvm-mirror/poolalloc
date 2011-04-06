@@ -27,6 +27,7 @@
 #include "llvm/ADT/VectorExtras.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/DenseSet.h"
+#include "llvm/ADT/StringMap.h"
 #include "llvm/Support/CommandLine.h"
 
 #include "dsa/DataStructure.h"
@@ -208,6 +209,10 @@ class PoolAllocate : public PoolAllocateGroup {
   
   // Map a cloned function to its original function
   std::map<const Function*, Function*> CloneToOrigMap;
+
+  // Map a CStdLib function name to its pool argument count.
+  StringMap<unsigned> CStdLibPoolArgs;
+
 public:
 
   Constant *PoolInit, *PoolDestroy, *PoolAlloc, *PoolRealloc, *PoolMemAlign, *PoolThreadWrapper;
@@ -242,6 +247,8 @@ protected:
 		  SAFECodeEnabled = SAFECode |  PA::PA_SAFECODE;
 		  lie_preserve_passes = SAFECodeEnabled ? LIE_PRESERVE_ALL : LIE_PRESERVE_DSA;
 		  dsa_pass_to_use = SAFECodeEnabled ? PASS_EQTD : PASS_BUEQ;
+
+      InitializeCStdLibPoolArgs();
       }
 
   /*TODO: finish removing the SAFECode flag*/
@@ -264,6 +271,8 @@ protected:
   			  dsa_pass_to_use = SAFECodeEnabled ? PASS_EQTD : PASS_BUEQ;
   		  else
   			  dsa_pass_to_use = dsa_pass_to_use_;
+
+        InitializeCStdLibPoolArgs();
         }
 
   virtual bool runOnModule(Module &M);
@@ -417,6 +426,9 @@ protected:
       return I->second;
   }
 
+  // Get the initial pool argument count for a CStdLib function.
+  unsigned getCStdLibPoolArguments(StringRef funcname);
+
 protected:
   
   /// AddPoolPrototypes - Add prototypes for the pool functions to the
@@ -426,6 +438,9 @@ protected:
   void AddPoolPrototypes(Module*);
 
  private:
+
+  /// Initialiaze the pool argument counts.
+  void InitializeCStdLibPoolArgs();
 
   /// MicroOptimizePoolCalls - Apply any microoptimizations to calls to pool
   /// allocation function calls that we can.

@@ -1563,3 +1563,31 @@ void PoolAllocate::InitializeAndDestroyPools(Function &F,
   }
 }
 
+// Builds the StringMap that holds information about the pool
+// argument counts of C standard library functions.
+void PoolAllocate::InitializeCStdLibPoolArgs()
+{
+  CStdLibPoolArgs.GetOrCreateValue("pool_strcpy",   2);
+  CStdLibPoolArgs.GetOrCreateValue("pool_strlen",   1);
+  CStdLibPoolArgs.GetOrCreateValue("pool_strchr",   1);
+  CStdLibPoolArgs.GetOrCreateValue("pool_strrchr",  1);
+  CStdLibPoolArgs.GetOrCreateValue("pool_strcat",   2);
+  CStdLibPoolArgs.GetOrCreateValue("pool_strncat",  2);
+  CStdLibPoolArgs.GetOrCreateValue("pool_strstr",   2);
+  CStdLibPoolArgs.GetOrCreateValue("pool_strpbrk",  2);
+  //CStdLibPoolArgs.GetOrCreateValue("pool_strtok",   2);
+  //CStdLibPoolArgs.GetOrCreateValue("pool_strtok_r", 2);
+  //CStdLibPoolArgs.GetOrCreateValue("pool_strspn",   2);
+  //CStdLibPoolArgs.GetOrCreateValue("pool_strcspn",  2);
+}
+
+// Return the number of initial pool arguments for the specified CStdLib
+// function, or 0 if it is not found in the table.
+unsigned PoolAllocate::getCStdLibPoolArguments(StringRef funcname)
+{
+  StringMap<unsigned>::const_iterator argc = CStdLibPoolArgs.find(funcname);
+  if (argc != CStdLibPoolArgs.end())
+    return argc->getValue();
+  else
+    return 0;
+}
