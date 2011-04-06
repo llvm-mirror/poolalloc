@@ -12,7 +12,7 @@
 //===----------------------------------------------------------------------===//
 
 
-#define DEBUG_TYPE "simplifygep"
+#define DEBUG_TYPE "simplify-gep"
 
 #include "llvm/Instructions.h"
 #include "llvm/Module.h"
@@ -30,6 +30,21 @@
 using namespace llvm;
 
 namespace {
+    //
+    // Method: preprocess()
+    //
+    // Description:
+    //  %p = bitcast %p1 to T1
+    //  gep(%p) ...
+    // ->
+    //  gep (bitcast %p1 to T1), ...
+    //
+    // Inputs:
+    //  M - A reference to the LLVM module to process
+    //
+    // Outputs:
+    //  M - The transformed LLVM module.
+    //
   static void preprocess(Module& M) {
     for (Module::iterator F = M.begin(); F != M.end(); ++F){
       for (Function::iterator B = F->begin(), FE = F->end(); B != FE; ++B) {      
@@ -219,4 +234,4 @@ char SimplifyGEP::ID = 0;
 
 // Register the pass
 static RegisterPass<SimplifyGEP>
-X("simplifygep", "Simplify GEPs");
+X("simplify-gep", "Simplify GEPs");
