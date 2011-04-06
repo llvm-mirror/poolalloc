@@ -137,12 +137,15 @@ namespace {
                                                               FormalType, false, "", CI);
                 Args.push_back(CastI);
               } else {
-                //  Use ZExt in default case.
-                //  TODO: is this correct?
+                // Use ZExt in default case.
+                // Derived from InstCombine. Also, the only reason this should happen
+                // is mismatched prototypes.
+                // Seen in case of integer constants which get interpreted as i32, 
+                // even if being used as i64.
+                // TODO: is this correct?
                 CastInst *CastI = CastInst::CreateIntegerCast(CI->getOperand(i+1), 
                                                               FormalType, false, "", CI);
                 Args.push_back(CastI);
-                break;
               } 
             } 
           } else {
