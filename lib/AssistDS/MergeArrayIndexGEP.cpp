@@ -35,15 +35,58 @@ namespace {
       for (Module::iterator F = M.begin(); F != M.end(); ++F){
         for (Function::iterator B = F->begin(), FE = F->end(); B != FE; ++B) {      
           for (BasicBlock::iterator I = B->begin(), BE = B->end(); I != BE;) {
-            GetElementPtrInst *GEP = dyn_cast<GetElementPtrInst>(I);
-            I++;
+            GetElementPtrInst *GEP = dyn_cast<GetElementPtrInst>(I++);
             if(GEP == NULL)
               continue;
             simplifyGEP(GEP);
           }
         }
       }
+      bool changed;
+      do {
+        changed = false;
+        for (Module::iterator F = M.begin(); F != M.end(); ++F) {
+          for (Function::iterator B = F->begin(), FE = F->end(); B != FE; ++B) {      
+            for (BasicBlock::iterator I = B->begin(), BE = B->end(); I != BE;) {
+              GetElementPtrInst *GEP = dyn_cast<GetElementPtrInst>(I++);
+              if(GEP == NULL)
+                continue;
+              if(!isa<ArrayType>(GEP->getType()->getElementType()))
+                continue;
+              changed |= mergeUseGEPs(GEP);
+
+            }
+          }
+        }
+      } while(changed);
       return true;
+    }
+    static bool mergeUseGEPs(GetElementPtrInst *GEP) {
+      bool changed = false;
+      std::vector<GetElementPtrInst*> worklist;
+      for (Value::use_iterator UI = GEP->use_begin(),
+           UE = GEP->use_end(); UI != UE; ++UI){
+        if(!isa<GetElementPtrInst>(UI))
+          break;
+        GetElementPtrInst *GEPUse = cast<GetElementPtrInst>(UI);
+        worklist.push_back(GEPUse);
+      }
+      while(!worklist.empty()) {
+        GetElementPtrInst *GEPUse = worklist.back();
+        worklist.pop_back();
+        SmallVector<Value*, 8> Indices;
+        Indices.append(GEP->op_begin()+1, GEP->op_end());
+        Indices.append(GEPUse->idx_begin()+1, GEPUse->idx_end());
+        GetElementPtrInst *GEPNew = GetElementPtrInst::Create(GEP->getOperand(0),
+                                                              Indices.begin(),
+                                                              Indices.end(),
+                                                              GEPUse->getName()+ "mod", 
+                                                              GEPUse);
+        GEPUse->replaceAllUsesWith(GEPNew);
+        GEPUse->eraseFromParent();        
+        changed = true;
+      }
+      return changed;
     }
     static void simplifyGEP(GetElementPtrInst *GEP) {
       Value *PtrOp = GEP->getOperand(0);
@@ -114,8 +157,6 @@ namespace {
           GEP->eraseFromParent();
         }
       }
-
-
     }
   };
 }
