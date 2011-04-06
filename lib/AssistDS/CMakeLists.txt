@@ -6,7 +6,6 @@ add_llvm_library(AssistDS
   IndCloner.cpp
   Int2PtrCmp.cpp
   MergeArrayIndexGEP.cpp
-  MergeGEP.cpp
   SVADevirt.cpp
   SimplifyGEP.cpp
   SimplifyMRV.cpp
