@@ -98,6 +98,37 @@ TypeAnalysis::isCopyingStore(InsertValueInst *IVI) {
 
   return false;
 }
+
+Value *
+TypeAnalysis::getStoreSource(StoreInst *SI) {
+  if(LoadInst *LI = dyn_cast<LoadInst>(SI->getOperand(0))) {
+    return LI->getOperand(0);
+  }
+  return NULL;
+}
+
+Value *
+TypeAnalysis::getStoreSource(InsertValueInst *IVI) {
+  if(LoadInst *LI = dyn_cast<LoadInst>(IVI->getInsertedValueOperand())) {
+    return LI->getOperand(0);
+  }
+  else if(ExtractValueInst *EVI = dyn_cast<ExtractValueInst>(IVI->getInsertedValueOperand())) {
+    // TODO: create a GEPInst instead
+    /*SmallVector<Constant*, 8> Indices;
+    Indices.reserve(EVI->getNumIndices());
+
+    for (unsigned i = 1, e = EVI->getNumOperands(); i != e; ++i) {
+      Constant *Val = EVI->getOperand(i);
+      Indices.push_back(Val);
+    }
+
+    Value *GEPExpr = ConstantExpr::getGetElementPtr(EVI, &Indices[0], EVI->getNumIndices(), true);
+    return GEPExpr;*/
+    return NULL;
+  }
+  return NULL;
+}
+
 void 
 TypeAnalysis::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.setPreservesAll();
