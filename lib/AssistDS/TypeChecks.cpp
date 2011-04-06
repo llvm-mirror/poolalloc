@@ -157,10 +157,10 @@ bool TypeChecks::visitLoadInst(Module &M, LoadInst &LI) {
 
   std::vector<Value *> Args;
   Args.push_back(BCI);
-  Args.push_back(ConstantInt::get(Int32Ty, UsedTypes[LI.getType()]));
+  Args.push_back(ConstantInt::get(Int8Ty, UsedTypes[LI.getType()]));
 
   // Create the call to the runtime check and place it before the load instruction.
-  Constant *F = M.getOrInsertFunction("trackLoadInst", Int32Ty, VoidPtrTy, Int32Ty, NULL);
+  Constant *F = M.getOrInsertFunction("trackLoadInst", VoidTy, VoidPtrTy, Int8Ty, NULL);
   CallInst::Create(F, Args.begin(), Args.end(), "", &LI);
 
   return true;
@@ -173,10 +173,10 @@ bool TypeChecks::visitStoreInst(Module &M, StoreInst &SI) {
 
   std::vector<Value *> Args;
   Args.push_back(BCI);
-  Args.push_back(ConstantInt::get(Int32Ty, UsedTypes[SI.getOperand(0)->getType()])); // SI.getValueOperand()
+  Args.push_back(ConstantInt::get(Int8Ty, UsedTypes[SI.getOperand(0)->getType()])); // SI.getValueOperand()
 
   // Create the call to the runtime check and place it before the store instruction.
-  Constant *F = M.getOrInsertFunction("trackStoreInst", Int32Ty, VoidPtrTy, Int32Ty, NULL);
+  Constant *F = M.getOrInsertFunction("trackStoreInst", VoidTy, VoidPtrTy, Int8Ty, NULL);
   CallInst::Create(F, Args.begin(), Args.end(), "", &SI);
 
   return true;
