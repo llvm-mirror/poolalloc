@@ -1,4 +1,4 @@
-//===-- MergeGEP.cpp - Merge GEPs for indexing in arrays ------------ ----===//
+//===-- MergeArrayIndexGEP.cpp - Merge GEPs for indexing in arrays --------===//
 //
 //                     The LLVM Compiler Infrastructure
 //
@@ -6,10 +6,11 @@
 // License. See LICENSE.TXT for details.
 //
 //===----------------------------------------------------------------------===//
-//
 // 
+// Merge chained GEPs; Specially useful for arrays inside structs
+//
 //===----------------------------------------------------------------------===//
-#define DEBUG_TYPE "mergearraygep"
+#define DEBUG_TYPE "merge-gep"
 
 #include "llvm/Instructions.h"
 #include "llvm/Module.h"
@@ -21,73 +22,63 @@
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Support/FormattedStream.h"
 #include "llvm/Support/Debug.h"
+
 #include <vector>
+// Pass statistics
+STATISTIC(numMerged, "Number of GEPs merged");
 
 using namespace llvm;
-
 
 namespace {
   class MergeArrayGEP : public ModulePass {
   public:
     static char ID;
     MergeArrayGEP() : ModulePass(&ID) {}
+    //
+    // Method: runOnModule()
+    //
+    // Description:
+    //  Entry point for this LLVM pass.
+    //  Merge chained GEPs into a single GEP
+    //
+    // Inputs:
+    //  M - A reference to the LLVM module to transform
+    //
+    // Outputs:
+    //  M - The transformed LLVM module.
+    //
+    // Return value:
+    //  true  - The module was modified.
+    //  false - The module was not modified.
+    //
     bool runOnModule(Module& M) {
-      for (Module::iterator F = M.begin(); F != M.end(); ++F){
-        for (Function::iterator B = F->begin(), FE = F->end(); B != FE; ++B) {      
-          for (BasicBlock::iterator I = B->begin(), BE = B->end(); I != BE;) {
-            GetElementPtrInst *GEP = dyn_cast<GetElementPtrInst>(I++);
-            if(GEP == NULL)
-              continue;
-            simplifyGEP(GEP);
-          }
-        }
-      }
       bool changed;
       do {
         changed = false;
-        for (Module::iterator F = M.begin(); F != M.end(); ++F) {
+        for (Module::iterator F = M.begin(); F != M.end(); ++F){
           for (Function::iterator B = F->begin(), FE = F->end(); B != FE; ++B) {      
             for (BasicBlock::iterator I = B->begin(), BE = B->end(); I != BE;) {
               GetElementPtrInst *GEP = dyn_cast<GetElementPtrInst>(I++);
               if(GEP == NULL)
                 continue;
-              if(!isa<ArrayType>(GEP->getType()->getElementType()))
-                continue;
-              changed |= mergeUseGEPs(GEP);
-
+              simplifyGEP(GEP);
             }
           }
         }
       } while(changed);
       return true;
     }
-    static bool mergeUseGEPs(GetElementPtrInst *GEP) {
-      bool changed = false;
-      std::vector<GetElementPtrInst*> worklist;
-      for (Value::use_iterator UI = GEP->use_begin(),
-           UE = GEP->use_end(); UI != UE; ++UI){
-        if(!isa<GetElementPtrInst>(UI))
-          break;
-        GetElementPtrInst *GEPUse = cast<GetElementPtrInst>(UI);
-        worklist.push_back(GEPUse);
-      }
-      while(!worklist.empty()) {
-        GetElementPtrInst *GEPUse = worklist.back();
-        worklist.pop_back();
-        SmallVector<Value*, 8> Indices;
-        Indices.append(GEP->op_begin()+1, GEP->op_end());
-        Indices.append(GEPUse->idx_begin()+1, GEPUse->idx_end());
-        GetElementPtrInst *GEPNew = GetElementPtrInst::Create(GEP->getOperand(0),
-                                                              Indices.begin(),
-                                                              Indices.end(),
-                                                              GEPUse->getName()+ "mod", 
-                                                              GEPUse);
-        GEPUse->replaceAllUsesWith(GEPNew);
-        GEPUse->eraseFromParent();        
-        changed = true;
-      }
-      return changed;
-    }
+    
+    //
+    // Method: simplifyGEP()
+    //
+    // Description:
+    //  Check if this GEP's pointer argument is a GEP(Inst/ConstExpr)
+    //  If so check if we can merge the two GEPs into a single GEP
+    //
+    // Inputs:
+    //  GEP - A pointer to the GEP to simplify
+    //
     static void simplifyGEP(GetElementPtrInst *GEP) {
       Value *PtrOp = GEP->getOperand(0);
       if (GEPOperator *Src = dyn_cast<GEPOperator>(PtrOp)) {
@@ -127,13 +118,16 @@ namespace {
             // normalized.
             if (SO1->getType() != GO1->getType())
               return;
-            Sum = llvm::BinaryOperator::Create(BinaryOperator::Add,SO1, GO1, PtrOp->getName()+".sum",GEP);
+            Sum = llvm::BinaryOperator::Create(BinaryOperator::Add,
+                                               SO1, GO1, 
+                                               PtrOp->getName()+".sum",GEP);
           }
 
           // Update the GEP in place if possible.
           if (Src->getNumOperands() == 2) {
             GEP->setOperand(0, Src->getOperand(0));
             GEP->setOperand(1, Sum);
+            numMerged++;
             return;
           }
           Indices.append(Src->op_begin()+1, Src->op_end()-1);
@@ -153,6 +147,7 @@ namespace {
                                               Indices.end(), GEP->getName(), GEP) :
             GetElementPtrInst::Create(Src->getOperand(0), Indices.begin(),
                                       Indices.end(), GEP->getName(), GEP);
+          numMerged++;
           GEP->replaceAllUsesWith(GEPNew);
           GEP->eraseFromParent();
         }
@@ -161,6 +156,9 @@ namespace {
   };
 }
 
+// Pass ID variable
 char MergeArrayGEP::ID = 0;
+
+// Register the pass
 static RegisterPass<MergeArrayGEP>
 X("mergearrgep", "Merge GEPs for arrays indexing");
