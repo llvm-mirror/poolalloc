@@ -113,18 +113,16 @@ TypeAnalysis::getStoreSource(InsertValueInst *IVI) {
     return LI->getOperand(0);
   }
   else if(ExtractValueInst *EVI = dyn_cast<ExtractValueInst>(IVI->getInsertedValueOperand())) {
-    // TODO: create a GEPInst instead
-    /*SmallVector<Constant*, 8> Indices;
+    SmallVector<Value*, 8> Indices;
     Indices.reserve(EVI->getNumIndices());
 
     for (unsigned i = 1, e = EVI->getNumOperands(); i != e; ++i) {
-      Constant *Val = EVI->getOperand(i);
+      Value *Val = EVI->getOperand(i);
       Indices.push_back(Val);
     }
-
-    Value *GEPExpr = ConstantExpr::getGetElementPtr(EVI, &Indices[0], EVI->getNumIndices(), true);
-    return GEPExpr;*/
-    return NULL;
+    GetElementPtrInst *GEPInst =
+                      GetElementPtrInst::Create(EVI->getOperand(0), &Indices[0],&Indices[0] + EVI->getNumIndices(), "", EVI);
+    return GEPInst;
   }
   return NULL;
 }

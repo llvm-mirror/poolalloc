@@ -39,6 +39,8 @@ namespace llvm {
     bool isCopyingLoad(ExtractValueInst *);
     bool isCopyingStore(StoreInst *);
     bool isCopyingStore(InsertValueInst *);
+    Value *getStoreSource(StoreInst *SI);
+    Value *getStoreSource(InsertValueInst *IVI);
   };
 }
 
