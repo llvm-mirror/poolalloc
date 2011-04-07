@@ -33,14 +33,9 @@ namespace llvm {
 
     const Type *getType(LoadInst *);
     const Type *getType(StoreInst *);
-    const Type *getType(ExtractValueInst *);
-    const Type *getType(InsertValueInst *);
     bool isCopyingLoad(LoadInst *);
-    bool isCopyingLoad(ExtractValueInst *);
     bool isCopyingStore(StoreInst *);
-    bool isCopyingStore(InsertValueInst *);
     Value *getStoreSource(StoreInst *SI);
-    Value *getStoreSource(InsertValueInst *IVI);
   };
 }
 
