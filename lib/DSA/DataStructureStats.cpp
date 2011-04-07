@@ -82,8 +82,6 @@ namespace {
 
     void visitLoad(LoadInst &LI);
     void visitStore(StoreInst &SI);
-    void visitInsertValue(InsertValueInst &I);
-    void visitExtractValue(ExtractValueInst &I);
 
     /// Debugging support methods
     void print(llvm::raw_ostream &O, const Module* = 0) const { }
@@ -222,38 +220,6 @@ void DSGraphStats::visitLoad(LoadInst &LI) {
 
 void DSGraphStats::visitStore(StoreInst &SI) {
   if (isNodeForValueUntyped(SI.getOperand(1), 0,SI.getParent()->getParent())) {
-    NumUntypedMemAccesses++;
-  } else {
-    NumTypedMemAccesses++;
-  }
-}
-
-void DSGraphStats::visitInsertValue(InsertValueInst &I) {
-  unsigned Offset = 0;
-  const Type* STy = I.getAggregateOperand()->getType();
-  llvm::InsertValueInst::idx_iterator i = I.idx_begin(), e = I.idx_end(); 
-  for (; i != e; i++) {
-    const StructLayout *SL = TD->getStructLayout(cast<StructType>(STy));
-    Offset += SL->getElementOffset(*i);
-    STy = (cast<StructType>(STy))->getTypeAtIndex(*i);
-  }
-  if (isNodeForValueUntyped(&I, Offset, I.getParent()->getParent())) {
-    NumUntypedMemAccesses++;
-  } else {
-    NumTypedMemAccesses++;
-  }
-}
-
-void DSGraphStats::visitExtractValue(ExtractValueInst &I) {
-  unsigned Offset = 0;
-  const Type* STy = I.getAggregateOperand()->getType();
-  llvm::ExtractValueInst::idx_iterator i = I.idx_begin(), e = I.idx_end();
-  for (; i != e; i++) {
-    const StructLayout *SL = TD->getStructLayout(cast<StructType>(STy));
-    Offset += SL->getElementOffset(*i);
-    STy = (cast<StructType>(STy))->getTypeAtIndex(*i);
-  }
-  if (isNodeForValueUntyped(I.getAggregateOperand(), Offset, I.getParent()->getParent())) {
     NumUntypedMemAccesses++;
   } else {
     NumTypedMemAccesses++;
