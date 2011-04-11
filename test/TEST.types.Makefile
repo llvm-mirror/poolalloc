@@ -49,7 +49,7 @@ Output/%.temp1.bc: Output/%.llvm1.bc
 
 $(PROGRAMS_TO_TEST:%=Output/%.opt.bc): \
 Output/%.opt.bc: Output/%.llvm1.bc $(LOPT) $(ASSIST_SO)
-	-$(RUNOPT) -load $(ASSIST_SO) -disable-opt -info-output-file=$(CURDIR)/$@.info -instnamer -internalize -mem2reg -dce -simplify-mrv -basiccg -inline -dce -simplify-mrv -dce -varargsfunc -indclone -funcspec -ipsccp -deadargelim  -simplify-gep -die -die -mergearrgep -die -globaldce -simplifycfg -deadargelim -arg-simplify -die -varargsfunc -die -simplifycfg -globaldce -indclone -funcspec -deadargelim -globaldce -die -simplifycfg -gep-args -deadargelim -die -mergefunc -die -die -mergearrgep -die -globaldce -int2ptrcmp -die -dce -simplify-mrv -dce -inline -mem2reg -dce -arg-cast -dce -type-analysis  -stats -time-passes $< -f -o $@ 
+	-$(RUNOPT) -load $(ASSIST_SO) -disable-opt -info-output-file=$(CURDIR)/$@.info -instnamer -internalize -mem2reg -dce  -basiccg -inline -dce -dce -varargsfunc -indclone -funcspec -ipsccp -deadargelim  -simplify-gep -die -die -mergearrgep -die -globaldce -simplifycfg -deadargelim -arg-simplify -die -varargsfunc -die -simplifycfg -globaldce -indclone -funcspec -deadargelim -globaldce -die -simplifycfg -gep-args -deadargelim -die -mergefunc -die -die -mergearrgep -die -globaldce -int2ptrcmp -die -dce  -dce -inline -mem2reg -dce -arg-cast -dce -stats -time-passes -struct-arg -simplify-ev -simplify-iv -dce $< -f -o $@ 
 
 $(PROGRAMS_TO_TEST:%=Output/%.temp2.bc): \
 Output/%.temp2.bc: Output/%.temp1.bc $(LOPT) $(ASSIST_SO)
@@ -214,7 +214,7 @@ Output/%.$(TEST).report.txt: Output/%.opt.bc Output/%.LOC.txt $(LOPT) Output/%.o
 	@/bin/echo -n "ARG_SMPL: " >> $@
 	-@grep 'Number of Args changeable' $<.info >> $@
 	@echo >> $@
-	@/bin/echo -n "MRV: " >> $@
+	@/bin/echo -n "EV: " >> $@
 	-@grep 'Number of Instructions Deleted' $<.info >> $@
 	@echo >> $@
 	@/bin/echo -n "ALLOC: " >> $@

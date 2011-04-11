@@ -8,7 +8,8 @@ add_llvm_library(AssistDS
   MergeArrayIndexGEP.cpp
   SVADevirt.cpp
   SimplifyGEP.cpp
-  SimplifyMRV.cpp
+  SimplifyEV.cpp
+  SimplifyIV.cpp
   TestGEP.cpp
   TypeAnalysis.cpp
   VarArgsFunc.cpp

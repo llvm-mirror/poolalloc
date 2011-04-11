@@ -7,7 +7,8 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// Replace insert value by storess where possible
+// Simplify insertvalue
+// Replace insertvalue by storess where possible
 //
 //===----------------------------------------------------------------------===//
 #define DEBUG_TYPE "simplify-iv"
