@@ -1568,6 +1568,7 @@ void PoolAllocate::InitializeAndDestroyPools(Function &F,
 void PoolAllocate::InitializeCStdLibPoolArgs()
 {
   CStdLibPoolArgs.GetOrCreateValue("pool_strcpy",   2);
+  CStdLibPoolArgs.GetOrCreateValue("pool_strncpy",   2);
   CStdLibPoolArgs.GetOrCreateValue("pool_strlen",   1);
   CStdLibPoolArgs.GetOrCreateValue("pool_strchr",   1);
   CStdLibPoolArgs.GetOrCreateValue("pool_strrchr",  1);
@@ -1575,6 +1576,16 @@ void PoolAllocate::InitializeCStdLibPoolArgs()
   CStdLibPoolArgs.GetOrCreateValue("pool_strncat",  2);
   CStdLibPoolArgs.GetOrCreateValue("pool_strstr",   2);
   CStdLibPoolArgs.GetOrCreateValue("pool_strpbrk",  2);
+
+  CStdLibPoolArgs.GetOrCreateValue("pool_strcmp",  2);
+  CStdLibPoolArgs.GetOrCreateValue("pool_strncmp",   2);
+  CStdLibPoolArgs.GetOrCreateValue("pool_memcmp",  2);
+  CStdLibPoolArgs.GetOrCreateValue("pool_strcasecmp",  2);
+  CStdLibPoolArgs.GetOrCreateValue("pool_strncasecmp",   2);
+  CStdLibPoolArgs.GetOrCreateValue("pool_strspn",  2);
+  CStdLibPoolArgs.GetOrCreateValue("pool_strcspn",  2);
+  CStdLibPoolArgs.GetOrCreateValue("pool_memccpy",  2);
+  CStdLibPoolArgs.GetOrCreateValue("pool_memchr",  1);
   //CStdLibPoolArgs.GetOrCreateValue("pool_strtok",   2);
   //CStdLibPoolArgs.GetOrCreateValue("pool_strtok_r", 2);
   //CStdLibPoolArgs.GetOrCreateValue("pool_strspn",   2);
