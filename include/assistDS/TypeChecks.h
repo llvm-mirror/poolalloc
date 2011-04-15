@@ -48,6 +48,7 @@ public:
   bool initShadow(Module &M, Instruction &I);
   bool unmapShadow(Module &M, Instruction &I);
   bool visitLoadInst(Module &M, LoadInst &LI);
+  bool visitGlobal(Module &M, GlobalVariable &GV, Instruction &I);
   bool visitStoreInst(Module &M, StoreInst &SI);
 
   // Return the map containing all of the types used in the module.

@@ -87,6 +87,16 @@ bool TypeChecks::runOnModule(Module &M) {
   inst_iterator MainI = inst_begin(MainF);
   modified |= initShadow(M, *MainI);
 
+  // record all globals
+  for (Module::global_iterator I = M.global_begin(), E = M.global_end();
+       I != E; ++I) {
+    if(!I->getNumUses() == 1)
+      continue;
+    if(!I->hasInitializer())
+      continue;
+    modified |= visitGlobal(M, *I, *MainI);
+  }
+
   for (Module::iterator MI = M.begin(), ME = M.end(); MI != ME; ++MI) {
     IncorporateType(MI->getType());
     Function &F = *MI;
@@ -99,7 +109,6 @@ bool TypeChecks::runOnModule(Module &M) {
       for (User::op_iterator OI = I.op_begin(), OE = I.op_end(); OI != OE; ++OI) {
         IncorporateValue(*OI); // Insert instruction operand types.
       }
-
       if (StoreInst *SI = dyn_cast<StoreInst>(&I)) {
         modified |= visitStoreInst(M, *SI);
       } else if (LoadInst *LI = dyn_cast<LoadInst>(&I)) {
@@ -150,6 +159,18 @@ bool TypeChecks::unmapShadow(Module &M, Instruction &I) {
   return true;
 }
 
+bool TypeChecks::visitGlobal(Module &M, GlobalVariable &GV, Instruction &I) {
+  
+  CastInst *BCI = BitCastInst::CreatePointerCast(&GV, VoidPtrTy, "", &I);
+  std::vector<Value *> Args;
+  Args.push_back(BCI);
+  const PointerType *PTy = GV.getType();
+  Args.push_back(ConstantInt::get(Int8Ty, UsedTypes[PTy->getElementType()]));
+  Constant *F = M.getOrInsertFunction("trackStoreInst", VoidTy, VoidPtrTy, Int8Ty, NULL);
+  CallInst::Create(F, Args.begin(), Args.end(), "", &I);
+
+  return true;
+}
 // Insert runtime checks before all load instructions.
 bool TypeChecks::visitLoadInst(Module &M, LoadInst &LI) {
   // Cast the pointer operand to i8* for the runtime function.
