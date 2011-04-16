@@ -64,64 +64,62 @@ namespace {
       while(!worklistR.empty()) {
         Function *F = worklistR.back();
         worklistR.pop_back();
-        const Type *NewReturnType = F->getReturnType()->getPointerTo();
+        const Type *NewArgType = F->getReturnType()->getPointerTo();
 
         // Construct the new Type
         std::vector<const Type*>TP;
+        TP.push_back(NewArgType);
         for (Function::arg_iterator ii = F->arg_begin(), ee = F->arg_end();
              ii != ee; ++ii) {
           TP.push_back(ii->getType());
         }
 
-        const FunctionType *NFTy = FunctionType::get(NewReturnType, TP, false);
+        const FunctionType *NFTy = FunctionType::get(F->getReturnType(), TP, false);
 
         // Create the new function body and insert it into the module.
         Function *NF = Function::Create(NFTy, F->getLinkage(), F->getName(), &M);
         NF->copyAttributesFrom(F);
+        DenseMap<const Value*, Value*> ValueMap;
         Function::arg_iterator NI = NF->arg_begin();
+        NI->setName("ret");
+        ++NI;
         for (Function::arg_iterator II = F->arg_begin(); II != F->arg_end(); ++II, ++NI) {
-          II->replaceAllUsesWith(NI);
+          //II->replaceAllUsesWith(NI);
+          ValueMap[II] = NI;
           NI->setName(II->getName());
         }
-        NF->getBasicBlockList().splice(NF->begin(), F->getBasicBlockList());
-        Instruction *InsertPoint;
-        for (BasicBlock::iterator insrt = NF->front().begin(); isa<AllocaInst>(InsertPoint = insrt); ++insrt) {;}
-
-        Function* MallocF = M.getFunction ("malloc");
-        const Type* IntPtrT = Type::getInt64Ty(M.getContext());
-
-        const Type *BPTy = Type::getInt8PtrTy(M.getContext());
-        Value *MallocFunc = MallocF;
-        Constant *Size;
-        if (!MallocFunc) {
-          // prototype malloc as "void *malloc(size_t)"
-          Size = ConstantInt::get (IntPtrT, 123, true);
-          MallocFunc = M.getOrInsertFunction("malloc", BPTy, IntPtrT, NULL);
-        } else {
-          Size = ConstantInt::get (MallocF->arg_begin()->getType(), 123, true);
+        // Perform the cloning.
+        SmallVector<ReturnInst*,100> Returns;
+        CloneFunctionInto(NF, F, ValueMap, Returns);
+        std::vector<Value*> fargs;
+        for(Function::arg_iterator ai = NF->arg_begin(), 
+            ae= NF->arg_end(); ai != ae; ++ai) {
+          fargs.push_back(ai);
         }
-        CallInst *MCall = CallInst::Create(MallocFunc,Size,  "ret_ptr", InsertPoint);
-        Instruction *Result = new BitCastInst(MCall, NewReturnType, "", InsertPoint);
+       NF->setAlignment(F->getAlignment());
         for (Function::iterator B = NF->begin(), FE = NF->end(); B != FE; ++B) {      
           for (BasicBlock::iterator I = B->begin(), BE = B->end(); I != BE;) {
             ReturnInst * RI = dyn_cast<ReturnInst>(I++);
             if(!RI)
               continue;
-            new StoreInst(RI->getOperand(0), Result, RI);
-            ReturnInst::Create(M.getContext(), Result, RI);
-            RI->eraseFromParent();
+            new StoreInst(RI->getOperand(0), fargs.at(0), RI);
+            //ReturnInst::Create(M.getContext(), fargs, RI);
+            //RI->eraseFromParent();
           }
         }
 
         for(Value::use_iterator ui = F->use_begin(), ue = F->use_end();
             ui != ue; ) {
           CallInst *CI = dyn_cast<CallInst>(ui++);
+          AllocaInst *AllocaNew = new AllocaInst(F->getReturnType(), 0, "", CI);
           SmallVector<Value*, 8> Args;
+          
+          Args.push_back(AllocaNew);
           for(unsigned j =1;j<CI->getNumOperands();j++) {
             Args.push_back(CI->getOperand(j));
           }
-          CallInst *CINew = CallInst::Create(NF, Args.begin(), Args.end(), "", CI);
-          LoadInst *LI = new LoadInst(CINew, "", CI);
+          CallInst::Create(NF, Args.begin(), Args.end(), "", CI);
+          LoadInst *LI = new LoadInst(AllocaNew, "", CI);
           CI->replaceAllUsesWith(LI);
           CI->eraseFromParent();
         }
