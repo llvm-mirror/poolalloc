@@ -63,6 +63,9 @@ void TypeChecks::IncorporateValue(const Value *V) {
 bool TypeChecks::runOnModule(Module &M) {
   bool modified = false; // Flags whether we modified the module.
 
+  TD = &getAnalysis<TargetData>();
+  TypeAnalysis &TA = getAnalysis<TypeAnalysis>();
+
   VoidTy = IntegerType::getVoidTy(M.getContext());
   Int8Ty = IntegerType::getInt8Ty(M.getContext());
   Int32Ty = IntegerType::getInt32Ty(M.getContext());
@@ -109,10 +112,20 @@ bool TypeChecks::runOnModule(Module &M) {
       for (User::op_iterator OI = I.op_begin(), OE = I.op_end(); OI != OE; ++OI) {
         IncorporateValue(*OI); // Insert instruction operand types.
       }
+
       if (StoreInst *SI = dyn_cast<StoreInst>(&I)) {
-        modified |= visitStoreInst(M, *SI);
+        if (TA.isCopyingStore(SI)) {
+          Value *SS = TA.getStoreSource(SI);
+          if (SS != NULL) {
+            modified |= visitCopyingStoreInst(M, *SI, SS);
+          }
+        } else {
+          modified |= visitStoreInst(M, *SI);
+        }
       } else if (LoadInst *LI = dyn_cast<LoadInst>(&I)) {
-        modified |= visitLoadInst(M, *LI);
+        if (!TA.isCopyingLoad(LI)) {
+          modified |= visitLoadInst(M, *LI);
+        }
       }
     }
   }
@@ -195,6 +208,22 @@ bool TypeChecks::visitStoreInst(Module &M, StoreInst &SI) {
   std::vector<Value *> Args;
   Args.push_back(BCI);
   Args.push_back(ConstantInt::get(Int8Ty, UsedTypes[SI.getOperand(0)->getType()])); // SI.getValueOperand()
+
+  // Create the call to the runtime check and place it before the store instruction.
+  Constant *F = M.getOrInsertFunction("trackStoreInst", VoidTy, VoidPtrTy, Int8Ty, NULL);
+  CallInst::Create(F, Args.begin(), Args.end(), "", &SI);
+
+  return true;
+}
+
+// Insert runtime checks before copying store instructions.
+bool TypeChecks::visitCopyingStoreInst(Module &M, StoreInst &SI, Value *SS) {
+  // Cast the pointer operand to i8* for the runtime function.
+  CastInst *BCI = BitCastInst::CreatePointerCast(SI.getPointerOperand(), VoidPtrTy, "", &SI);
+
+  std::vector<Value *> Args;
+  Args.push_back(BCI);
+  Args.push_back(ConstantInt::get(Int8Ty, UsedTypes[SS->getType()]));
 
   // Create the call to the runtime check and place it before the store instruction.
   Constant *F = M.getOrInsertFunction("trackStoreInst", VoidTy, VoidPtrTy, Int8Ty, NULL);
