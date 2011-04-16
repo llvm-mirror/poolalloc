@@ -26,6 +26,7 @@ RUNOPT := $(RUNTOOLSAFELY) $(LLVM_OBJ_ROOT)/projects/poolalloc/$(CONFIGURATION)/
 # PASS - The dsgraph pass to run: ds, bu, td
 PASS := td
 
+TYPE_RT_O := $(PADIR)/$(CONFIGURATION)/lib/libtypechecks_rt.a
 ANALYZE_OPTS := -stats -time-passes -disable-output -dsstats
 #ANALYZE_OPTS := -stats -time-passes -dsstats 
 ANALYZE_OPTS +=  -instcount -disable-verify 
@@ -49,11 +50,7 @@ Output/%.temp1.bc: Output/%.llvm1.bc
 
 $(PROGRAMS_TO_TEST:%=Output/%.opt.bc): \
 Output/%.opt.bc: Output/%.llvm1.bc $(LOPT) $(ASSIST_SO)
-	-$(RUNOPT) -load $(ASSIST_SO) -disable-opt -info-output-file=$(CURDIR)/$@.info -instnamer -internalize -mem2reg -dce  -basiccg -inline -dce -dce -varargsfunc -indclone -funcspec -ipsccp -deadargelim  -simplify-gep -die -die -mergearrgep -die -globaldce -simplifycfg -deadargelim -arg-simplify -die -varargsfunc -die -simplifycfg -globaldce -indclone -funcspec -deadargelim -globaldce -die -simplifycfg -gep-args -deadargelim -die -mergefunc -die -die -mergearrgep -die -globaldce -int2ptrcmp -die -dce  -dce -inline -mem2reg -dce -arg-cast -dce -struct-ret -simplify-ev -simplify-iv -dce -stats -time-passes $< -f -o $@ 
-
-$(PROGRAMS_TO_TEST:%=Output/%.temp2.bc): \
-Output/%.temp2.bc: Output/%.temp1.bc $(LOPT) $(ASSIST_SO)
-	-$(RUNOPT) -load $(ASSIST_SO) -disable-opt -info-output-file=$(CURDIR)/$@.info -instnamer -internalize -varargsfunc -indclone -funcspec -ipsccp -deadargelim  -mergegep -die -globaldce -stats -time-passes $< -f -o $@ 
+	-$(RUNOPT) -load $(ASSIST_SO) -disable-opt -info-output-file=$(CURDIR)/$@.info -instnamer -internalize -mem2reg -dce  -basiccg -inline -dce -dce -varargsfunc -indclone -funcspec -ipsccp -deadargelim  -simplify-gep -die -die -mergearrgep -die -globaldce -simplifycfg -deadargelim -arg-simplify -die -varargsfunc -die -simplifycfg -globaldce -indclone -funcspec -deadargelim -globaldce -die -simplifycfg -gep-args -deadargelim -die -mergefunc -die -die -mergearrgep -die -globaldce -int2ptrcmp -die -dce  -dce -inline -mem2reg -dce -arg-cast -dce -struct-ret -deadargelim -simplify-ev -simplify-iv -dce -ld-args -gep-args -deadargelim -mergefunc -globaldce -dce -typechecks -stats -time-passes $< -f -o $@ 
 
 $(PROGRAMS_TO_TEST:%=Output/%.opt.s): \
 Output/%.opt.s: Output/%.opt.bc $(LLC)
@@ -63,8 +60,8 @@ Output/%.llvm1.s: Output/%.llvm1.bc $(LLC)
 	-$(LLC) -f $< -o $@
 
 $(PROGRAMS_TO_TEST:%=Output/%.opt): \
-Output/%.opt: Output/%.opt.s 
-	-$(CC) $(CFLAGS) $<  $(LLCLIBS) $(LDFLAGS) -o $@
+Output/%.opt: Output/%.opt.s $(TYPE_RT_O)
+	-$(CC) $(CFLAGS) $<  $(LLCLIBS) $(TYPE_RT_O) $(LDFLAGS) -o $@
 $(PROGRAMS_TO_TEST:%=Output/%.llvm1): \
 Output/%.llvm1: Output/%.llvm1.s 
 	-$(CC) $(CFLAGS) $<  $(LLCLIBS) $(LDFLAGS) -o $@
