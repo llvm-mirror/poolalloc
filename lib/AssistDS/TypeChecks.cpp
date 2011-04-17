@@ -16,6 +16,7 @@
 #include "llvm/DerivedTypes.h"
 #include "llvm/Module.h"
 #include "llvm/Assembly/Writer.h"
+#include "llvm/Support/Debug.h"
 #include "llvm/Support/InstIterator.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -173,17 +174,18 @@ bool TypeChecks::unmapShadow(Module &M, Instruction &I) {
 }
 
 bool TypeChecks::visitGlobal(Module &M, GlobalVariable &GV, Instruction &I) {
-  
   CastInst *BCI = BitCastInst::CreatePointerCast(&GV, VoidPtrTy, "", &I);
   std::vector<Value *> Args;
   Args.push_back(BCI);
   const PointerType *PTy = GV.getType();
   Args.push_back(ConstantInt::get(Int8Ty, UsedTypes[PTy->getElementType()]));
-  Constant *F = M.getOrInsertFunction("trackStoreInst", VoidTy, VoidPtrTy, Int8Ty, NULL);
+  Args.push_back(ConstantInt::get(Int8Ty, TD->getTypeStoreSize(PTy->getElementType())));
+  Constant *F = M.getOrInsertFunction("trackGlobal", VoidTy, VoidPtrTy, Int8Ty, Int8Ty, NULL);
   CallInst::Create(F, Args.begin(), Args.end(), "", &I);
 
   return true;
 }
+
 // Insert runtime checks before all load instructions.
 bool TypeChecks::visitLoadInst(Module &M, LoadInst &LI) {
   // Cast the pointer operand to i8* for the runtime function.
@@ -192,9 +194,10 @@ bool TypeChecks::visitLoadInst(Module &M, LoadInst &LI) {
   std::vector<Value *> Args;
   Args.push_back(BCI);
   Args.push_back(ConstantInt::get(Int8Ty, UsedTypes[LI.getType()]));
+  Args.push_back(ConstantInt::get(Int8Ty, TD->getTypeStoreSize(LI.getType())));
 
   // Create the call to the runtime check and place it before the load instruction.
-  Constant *F = M.getOrInsertFunction("trackLoadInst", VoidTy, VoidPtrTy, Int8Ty, NULL);
+  Constant *F = M.getOrInsertFunction("trackLoadInst", VoidTy, VoidPtrTy, Int8Ty, Int8Ty, NULL);
   CallInst::Create(F, Args.begin(), Args.end(), "", &LI);
 
   return true;
@@ -208,9 +211,10 @@ bool TypeChecks::visitStoreInst(Module &M, StoreInst &SI) {
   std::vector<Value *> Args;
   Args.push_back(BCI);
   Args.push_back(ConstantInt::get(Int8Ty, UsedTypes[SI.getOperand(0)->getType()])); // SI.getValueOperand()
+  Args.push_back(ConstantInt::get(Int8Ty, TD->getTypeStoreSize(SI.getOperand(0)->getType())));
 
   // Create the call to the runtime check and place it before the store instruction.
-  Constant *F = M.getOrInsertFunction("trackStoreInst", VoidTy, VoidPtrTy, Int8Ty, NULL);
+  Constant *F = M.getOrInsertFunction("trackStoreInst", VoidTy, VoidPtrTy, Int8Ty, Int8Ty, NULL);
   CallInst::Create(F, Args.begin(), Args.end(), "", &SI);
 
   return true;
@@ -227,7 +231,7 @@ bool TypeChecks::visitCopyingStoreInst(Module &M, StoreInst &SI, Value *SS) {
   Args.push_back(BCI_Src);
   Args.push_back(ConstantInt::get(Int8Ty, TD->getTypeStoreSize(SI.getOperand(0)->getType())));
 
-  // Create the call to the runtime check and place it before the store instruction.
+  // Create the call to the runtime check and place it before the copying store instruction.
   Constant *F = M.getOrInsertFunction("copyTypeInfo", VoidTy, VoidPtrTy, VoidPtrTy, Int8Ty, NULL);
   CallInst::Create(F, Args.begin(), Args.end(), "", &SI);
 
