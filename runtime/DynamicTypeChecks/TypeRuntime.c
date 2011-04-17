@@ -1,4 +1,5 @@
 #include <assert.h>
+#include <string.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <sys/mman.h>
@@ -60,8 +61,18 @@ void trackStoreInst(void *ptr, uint8_t typeNumber) {
 	uintptr_t p = (uintptr_t)ptr;
 	p &= 0xFFFFFFFF;
 	shadow_begin[p] = typeNumber;
-
 #if DEBUG
 	printf("Store: %p, %p = %u\n", ptr, (void *)p, typeNumber);
 #endif
+}
+
+/**
+ * Copy size bits of metadata from src ptr to dest ptr.
+ */
+void copyTypeInfo(void *dstptr, void *srcptr, uint8_t size) {
+	uintptr_t d = (uintptr_t)dstptr;
+	uintptr_t s = (uintptr_t)srcptr;
+	d &= 0xFFFFFFFF;
+	s &= 0xFFFFFFFF;
+        memcpy(&shadow_begin[d], &shadow_begin[s], size);
 }

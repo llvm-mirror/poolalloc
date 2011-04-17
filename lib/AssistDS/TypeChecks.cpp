@@ -220,13 +220,15 @@ bool TypeChecks::visitStoreInst(Module &M, StoreInst &SI) {
 bool TypeChecks::visitCopyingStoreInst(Module &M, StoreInst &SI, Value *SS) {
   // Cast the pointer operand to i8* for the runtime function.
   CastInst *BCI = BitCastInst::CreatePointerCast(SI.getPointerOperand(), VoidPtrTy, "", &SI);
+  CastInst *BCI_Src = BitCastInst::CreatePointerCast(SS, VoidPtrTy, "", &SI);
 
   std::vector<Value *> Args;
   Args.push_back(BCI);
-  Args.push_back(ConstantInt::get(Int8Ty, UsedTypes[SS->getType()]));
+  Args.push_back(BCI_Src);
+  Args.push_back(ConstantInt::get(Int8Ty, TD->getTypeStoreSize(SS->getType())));
 
   // Create the call to the runtime check and place it before the store instruction.
-  Constant *F = M.getOrInsertFunction("trackStoreInst", VoidTy, VoidPtrTy, Int8Ty, NULL);
+  Constant *F = M.getOrInsertFunction("copyTypeInfo", VoidTy, VoidPtrTy, VoidPtrTy, Int8Ty, NULL);
   CallInst::Create(F, Args.begin(), Args.end(), "", &SI);
 
   return true;
