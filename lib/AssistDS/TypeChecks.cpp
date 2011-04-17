@@ -225,7 +225,7 @@ bool TypeChecks::visitCopyingStoreInst(Module &M, StoreInst &SI, Value *SS) {
   std::vector<Value *> Args;
   Args.push_back(BCI);
   Args.push_back(BCI_Src);
-  Args.push_back(ConstantInt::get(Int8Ty, TD->getTypeStoreSize(SS->getType())));
+  Args.push_back(ConstantInt::get(Int8Ty, TD->getTypeStoreSize(SI.getOperand(0)->getType())));
 
   // Create the call to the runtime check and place it before the store instruction.
   Constant *F = M.getOrInsertFunction("copyTypeInfo", VoidTy, VoidPtrTy, VoidPtrTy, Int8Ty, NULL);
