@@ -51,6 +51,18 @@ void trackGlobal(void *ptr, uint8_t typeNumber, uint8_t size) {
 	printf("Global: %p, %p = %u | %u bytes\n", ptr, (void *)p, typeNumber, size);
 #endif
 }
+/**
+ * Record the type stored at ptr(of size size) and replicate it
+ */
+void trackGlobalArray(void *ptr, uint32_t size, uint32_t count) {
+  unsigned i;
+  uintptr_t p = (uintptr_t)ptr;
+  uint8_t typeNumber = shadow_begin[p & 0xFFFFFFFF];
+  for(i =1; i<count;i++) {
+    p += size;
+    shadow_begin[p & 0xFFFFFFFF] = typeNumber;
+  }
+}
 
 /**
  * Check the loaded type against the type recorded in the shadow memory.

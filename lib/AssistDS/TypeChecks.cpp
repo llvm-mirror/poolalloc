@@ -98,7 +98,7 @@ bool TypeChecks::runOnModule(Module &M) {
       continue;
     if(!I->hasInitializer())
       continue;
-    modified |= visitGlobal(M, *I, *MainI);
+    modified |= visitGlobal(M, *I, I->getInitializer(), *MainI, 0);
   }
 
   for (Module::iterator MI = M.begin(), ME = M.end(); MI != ME; ++MI) {
@@ -173,15 +173,87 @@ bool TypeChecks::unmapShadow(Module &M, Instruction &I) {
   return true;
 }
 
-bool TypeChecks::visitGlobal(Module &M, GlobalVariable &GV, Instruction &I) {
-  CastInst *BCI = BitCastInst::CreatePointerCast(&GV, VoidPtrTy, "", &I);
-  std::vector<Value *> Args;
-  Args.push_back(BCI);
-  const PointerType *PTy = GV.getType();
-  Args.push_back(ConstantInt::get(Int8Ty, UsedTypes[PTy->getElementType()]));
-  Args.push_back(ConstantInt::get(Int8Ty, TD->getTypeStoreSize(PTy->getElementType())));
-  Constant *F = M.getOrInsertFunction("trackGlobal", VoidTy, VoidPtrTy, Int8Ty, Int8Ty, NULL);
-  CallInst::Create(F, Args.begin(), Args.end(), "", &I);
+bool TypeChecks::visitGlobal(Module &M, GlobalVariable &GV, 
+                             Constant *C, Instruction &I, unsigned offset) {
+//void trackStoreArray(void *ptr, uint8_t size, uint32_t count) {
+  if(ConstantArray *CA = dyn_cast<ConstantArray>(C)) {
+    const Type * ElementType = CA->getType()->getElementType();
+    unsigned int t = TD->getTypeStoreSize(ElementType);
+    visitGlobal(M, GV, CA->getOperand(0), I, offset);
+    CastInst *BCI = BitCastInst::CreatePointerCast(&GV, VoidPtrTy, "", &I);
+    std::vector<Value *> Args;
+    Args.push_back(BCI);
+    Args.push_back(ConstantInt::get(Int32Ty, t));
+    Args.push_back(ConstantInt::get(Int32Ty, CA->getNumOperands()));
+    Constant *F = M.getOrInsertFunction("trackGlobalArray", VoidTy, VoidPtrTy, Int32Ty, Int32Ty, NULL);
+    CallInst::Create(F, Args.begin(), Args.end(), "", &I);
+
+    //for (unsigned i = 0, e = CA->getNumOperands(); i != e; ++i) {
+      //offset += t;
+    //}
+  }
+  else if(ConstantStruct *CS = dyn_cast<ConstantStruct>(C)) {
+    const StructLayout *SL = TD->getStructLayout(cast<StructType>(CS->getType()));
+    for (unsigned i = 0, e = CS->getNumOperands(); i != e; ++i) {
+      if (SL->getElementOffset(i) < SL->getSizeInBytes()) {
+        Constant * ConstElement = cast<Constant>(CS->getOperand(i));
+        unsigned field_offset = offset + (unsigned)SL->getElementOffset(i);
+        visitGlobal(M, GV, ConstElement, I, field_offset);
+      }
+    }
+  } else if(ConstantAggregateZero *CAZ = dyn_cast<ConstantAggregateZero>(C)) {
+    const Type *Ty = CAZ->getType();
+    if(const ArrayType * ATy = dyn_cast<ArrayType>(Ty)) {
+      const Type * ElementType = ATy->getElementType();
+      unsigned int t = TD->getTypeStoreSize(ElementType);
+      visitGlobal(M, GV, Constant::getNullValue(ElementType), I, offset);
+      CastInst *BCI = BitCastInst::CreatePointerCast(&GV, VoidPtrTy, "", &I);
+      std::vector<Value *> Args;
+      Args.push_back(BCI);
+      Args.push_back(ConstantInt::get(Int32Ty, t));
+      Args.push_back(ConstantInt::get(Int32Ty, ATy->getNumElements()));
+      Constant *F = M.getOrInsertFunction("trackGlobalArray", VoidTy, VoidPtrTy, Int32Ty, Int32Ty, NULL);
+      CallInst::Create(F, Args.begin(), Args.end(), "", &I);
+      //for (unsigned i = 0, e = ATy->getNumElements(); i != e; ++i) {
+        //offset += t;
+      //}
+    } else if(const StructType *STy = dyn_cast<StructType>(Ty)) {
+      const StructLayout *SL = TD->getStructLayout(STy);
+      for (unsigned i = 0, e = STy->getNumElements(); i != e; ++i) {
+        if (SL->getElementOffset(i) < SL->getSizeInBytes()) {
+          unsigned field_offset = offset + (unsigned)SL->getElementOffset(i);
+          visitGlobal(M, GV, Constant::getNullValue(STy->getElementType(i)), I, field_offset);
+        }
+      }
+    } else {
+      CastInst *BCI = BitCastInst::CreatePointerCast(&GV, VoidPtrTy, "", &I);
+      SmallVector<Value*, 8> Indices;
+      Indices.push_back(ConstantInt::get(Int32Ty, offset));
+      GetElementPtrInst *GEP = GetElementPtrInst::CreateInBounds(BCI, Indices.begin(),
+                                                                 Indices.end(),"", &I) ;
+
+      std::vector<Value *> Args;
+      Args.push_back(GEP);
+      Args.push_back(ConstantInt::get(Int8Ty, UsedTypes[CAZ->getType()]));
+      Args.push_back(ConstantInt::get(Int8Ty, TD->getTypeStoreSize(CAZ->getType())));
+      Constant *F = M.getOrInsertFunction("trackGlobal", VoidTy, VoidPtrTy, Int8Ty, Int8Ty, NULL);
+      CallInst::Create(F, Args.begin(), Args.end(), "", &I);
+    }
+  }
+  else {
+    CastInst *BCI = BitCastInst::CreatePointerCast(&GV, VoidPtrTy, "", &I);
+    SmallVector<Value*, 8> Indices;
+    Indices.push_back(ConstantInt::get(Int32Ty, offset));
+    GetElementPtrInst *GEP = GetElementPtrInst::CreateInBounds(BCI, Indices.begin(),
+                                                               Indices.end(),"", &I) ;
+
+    std::vector<Value *> Args;
+    Args.push_back(GEP);
+    Args.push_back(ConstantInt::get(Int8Ty, UsedTypes[C->getType()]));
+    Args.push_back(ConstantInt::get(Int8Ty, TD->getTypeStoreSize(C->getType())));
+    Constant *F = M.getOrInsertFunction("trackGlobal", VoidTy, VoidPtrTy, Int8Ty, Int8Ty, NULL);
+    CallInst::Create(F, Args.begin(), Args.end(), "", &I);
+  }
 
   return true;
 }
@@ -229,10 +301,10 @@ bool TypeChecks::visitCopyingStoreInst(Module &M, StoreInst &SI, Value *SS) {
   std::vector<Value *> Args;
   Args.push_back(BCI);
   Args.push_back(BCI_Src);
-  Args.push_back(ConstantInt::get(Int8Ty, TD->getTypeStoreSize(SI.getOperand(0)->getType())));
+  Args.push_back(ConstantInt::get(Int32Ty, TD->getTypeStoreSize(SI.getOperand(0)->getType())));
 
   // Create the call to the runtime check and place it before the copying store instruction.
-  Constant *F = M.getOrInsertFunction("copyTypeInfo", VoidTy, VoidPtrTy, VoidPtrTy, Int8Ty, NULL);
+  Constant *F = M.getOrInsertFunction("copyTypeInfo", VoidTy, VoidPtrTy, VoidPtrTy, Int32Ty, NULL);
   CallInst::Create(F, Args.begin(), Args.end(), "", &SI);
 
   return true;

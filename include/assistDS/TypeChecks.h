@@ -56,7 +56,7 @@ public:
   bool initShadow(Module &M, Instruction &I);
   bool unmapShadow(Module &M, Instruction &I);
   bool visitLoadInst(Module &M, LoadInst &LI);
-  bool visitGlobal(Module &M, GlobalVariable &GV, Instruction &I);
+  bool visitGlobal(Module &M, GlobalVariable &GV, Constant *C, Instruction &I, unsigned offset);
   bool visitStoreInst(Module &M, StoreInst &SI);
   bool visitCopyingStoreInst(Module &M, StoreInst &SI, Value *SS);
 
