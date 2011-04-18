@@ -74,7 +74,7 @@ namespace {
           TP.push_back(ii->getType());
         }
 
-        const FunctionType *NFTy = FunctionType::get(F->getReturnType(), TP, false);
+        const FunctionType *NFTy = FunctionType::get(F->getReturnType(), TP, F->isVarArg());
 
         // Create the new function body and insert it into the module.
         Function *NF = Function::Create(NFTy, F->getLinkage(), F->getName(), &M);
@@ -111,6 +111,10 @@ namespace {
         for(Value::use_iterator ui = F->use_begin(), ue = F->use_end();
             ui != ue; ) {
           CallInst *CI = dyn_cast<CallInst>(ui++);
+          if(!CI)
+            continue;
+          if(CI->getCalledFunction() != F)
+            continue;
           AllocaInst *AllocaNew = new AllocaInst(F->getReturnType(), 0, "", CI);
           SmallVector<Value*, 8> Args;
           
@@ -123,7 +127,8 @@ namespace {
           CI->replaceAllUsesWith(LI);
           CI->eraseFromParent();
         }
-        F->eraseFromParent();
+        if(F->use_empty())
+          F->eraseFromParent();
       }
       return true;
     }
