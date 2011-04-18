@@ -50,7 +50,7 @@ Output/%.temp1.bc: Output/%.llvm1.bc
 
 $(PROGRAMS_TO_TEST:%=Output/%.opt.bc): \
 Output/%.opt.bc: Output/%.llvm1.bc $(LOPT) $(ASSIST_SO)
-	-$(RUNOPT) -load $(ASSIST_SO) -disable-opt -info-output-file=$(CURDIR)/$@.info -instnamer -internalize -mem2reg -dce  -basiccg -inline -dce -dce -varargsfunc -indclone -funcspec -ipsccp -deadargelim  -simplify-gep -die -die -mergearrgep -die -globaldce -simplifycfg -deadargelim -arg-simplify -die -varargsfunc -die -simplifycfg -globaldce -indclone -funcspec -deadargelim -globaldce -die -simplifycfg -gep-args -deadargelim -die -mergefunc -die -die -mergearrgep -die -globaldce -int2ptrcmp -die -dce  -dce -inline -mem2reg -dce -arg-cast -dce -struct-ret -deadargelim -simplify-ev -simplify-iv -dce -ld-args -gep-args -deadargelim -mergefunc -globaldce -dce -typechecks -stats -time-passes $< -f -o $@ 
+	-$(RUNOPT) -load $(ASSIST_SO) -disable-opt -info-output-file=$(CURDIR)/$@.info -instnamer -internalize -mem2reg -dce  -basiccg -inline -dce -dce -varargsfunc -indclone -funcspec -ipsccp -deadargelim  -simplify-gep -die -die -mergearrgep -die -globaldce -simplifycfg -deadargelim -arg-simplify -die -varargsfunc -die -simplifycfg -globaldce -indclone -funcspec -deadargelim -globaldce -die -simplifycfg -gep-args -deadargelim -die -mergefunc -die -die -mergearrgep -die -globaldce -int2ptrcmp -die -dce  -dce -inline -mem2reg -dce -arg-cast -dce -struct-ret -deadargelim -simplify-ev -simplify-iv -dce -ld-args -gep-args -deadargelim -mergefunc -globaldce -dce -typechecks -ipsccp -dce -stats -time-passes $< -f -o $@ 
 
 $(PROGRAMS_TO_TEST:%=Output/%.opt.s): \
 Output/%.opt.s: Output/%.opt.bc $(LLC)
