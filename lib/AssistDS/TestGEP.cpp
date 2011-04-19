@@ -26,13 +26,11 @@
 #include <map>
 
 using namespace llvm;
-STATISTIC(numSimplified, "Number of Calls Simplified");
+STATISTIC(numSimplified, "Number of Calls Modified");
 
 
 namespace {
   class GEPArgs : public ModulePass {
-  private:
-      std::map<std::pair<Function *, const FunctionType*>, Function*>  fnCache;
   public:
     static char ID;
     GEPArgs() : ModulePass(&ID) {}
@@ -52,20 +50,24 @@ namespace {
             const PointerType *PTy = cast<PointerType>(GEP->getPointerOperand()->getType());
             if(!PTy->getElementType()->isStructTy())
               continue;
-            
             for (Value::use_iterator UI = GEP->use_begin(),UE = GEP->use_end(); UI != UE; ) {
               // check if GEP is used in a Call Inst
               CallInst *CI = dyn_cast<CallInst>(UI++);
               if(!CI) 
                 continue;
-              
+
+              if(CI->hasByValArgument())
+                continue;
               // if the GEP calls a function, that is externally defined,
               // or might be changed, ignore this call site.
               Function *F = CI->getCalledFunction();
-              
+
               if (!F || (F->isDeclaration() || F->mayBeOverridden())) 
                 continue;
-              
+              if(F->hasStructRetAttr())
+                continue;
+              if(F->isVarArg())
+                continue;
 
               // find the argument we must replace
               unsigned argNum = 1;
@@ -78,24 +80,20 @@ namespace {
               std::vector<const Type*>TP;
               TP.push_back(GEP->getPointerOperand()->getType());
               for(unsigned c = 1; c < CI->getNumOperands();c++) {
-                  TP.push_back(CI->getOperand(c)->getType());
+                TP.push_back(CI->getOperand(c)->getType());
               }
 
               //return type is same as that of original instruction
               const FunctionType *NewFTy = FunctionType::get(CI->getType(), TP, false);
               Function *NewF;
-              if(fnCache.find(std::make_pair(F, NewFTy)) != fnCache.end()){
-                NewF = fnCache[std::make_pair(F, NewFTy)];
-              }
-              else {
-                numSimplified++;
-                if(numSimplified >2000)
-                  return true;
+              numSimplified++;
+              if(numSimplified > 25) //26
+                return true;
 
               NewF = Function::Create(NewFTy,
-                                                GlobalValue::InternalLinkage,
-                                                F->getNameStr() + ".TEST",
-                                                &M);
+                                      GlobalValue::InternalLinkage,
+                                      F->getNameStr() + ".TEST",
+                                      &M);
 
               Function::arg_iterator NI = NewF->arg_begin();
               NI->setName("Sarg");
@@ -116,25 +114,26 @@ namespace {
                 fargs.push_back(ai);
               }
 
+              NewF->setAlignment(F->getAlignment());
               //Get the point to insert the GEP instr.
               NI = NewF->arg_begin();
               SmallVector<Value*, 8> Ops(CI->op_begin()+1, CI->op_end());
               Instruction *InsertPoint;
               for (BasicBlock::iterator insrt = NewF->front().begin(); isa<AllocaInst>(InsertPoint = insrt); ++insrt) {;}
-                         
+
               SmallVector<Value*, 8> Indices;
               Indices.append(GEP->op_begin()+1, GEP->op_end());
               GetElementPtrInst *GEP_new = GetElementPtrInst::Create(cast<Value>(NI), Indices.begin(), Indices.end(), "", InsertPoint);
               fargs.at(argNum)->replaceAllUsesWith(GEP_new);
-              fnCache[std::make_pair(F, NewFTy)]= NewF;
-              }
 
               SmallVector<Value*, 8> Args;
               Args.push_back(GEP->getPointerOperand());
               for(unsigned j =1;j<CI->getNumOperands();j++) {
-                  Args.push_back(CI->getOperand(j));
+                Args.push_back(CI->getOperand(j));
               }
               CallInst *CallI = CallInst::Create(NewF,Args.begin(), Args.end(),"", CI);
+              CallI->setCallingConv(CI->getCallingConv());
+              CallI->setAttributes(CI->getAttributes());
               CI->replaceAllUsesWith(CallI);
               CI->eraseFromParent();
             }
