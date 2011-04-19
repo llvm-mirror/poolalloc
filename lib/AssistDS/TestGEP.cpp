@@ -133,7 +133,6 @@ namespace {
               }
               CallInst *CallI = CallInst::Create(NewF,Args.begin(), Args.end(),"", CI);
               CallI->setCallingConv(CI->getCallingConv());
-              CallI->setAttributes(CI->getAttributes());
               CI->replaceAllUsesWith(CallI);
               CI->eraseFromParent();
             }
