@@ -259,8 +259,6 @@ const struct {
 
 #if 0
   {"wait",       {false, false, false, false,  true, false, false, false, false}},
-  {"getrusage",  {false, false, false, false,  true, false, false, false, false}},
-  {"getcwd",     { true,  true,  true,  true,  true,  true, false,  true,  true}},
 #endif
 
   // C++ functions, as mangled on linux gcc 4.2
@@ -287,6 +285,20 @@ const struct {
   // Terminate the list of special functions recognized by this pass
   {0,            {NRET_NARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
 };
+
+/*
+   Functions to add
+   freopen
+   strftime
+   strtoul
+   strtol
+   strtoll
+   ctype family
+   setbuf
+   setvbuf
+   __strpbrk_c3
+   open64/fopen64/lseek64
+ */
 
 //
 // Method: eraseCallsTo()
@@ -729,14 +741,3 @@ void StdLibDataStructures::processFunction(int x, Function *F) {
   //
   eraseCallsTo(F);
 }
-/*
-
-   functions to add
-   freopen
-   strftime
-   strtoul
-   strtol
-   strtoll
-   ctype family
-   open64/fopen64/lseek64
- */
