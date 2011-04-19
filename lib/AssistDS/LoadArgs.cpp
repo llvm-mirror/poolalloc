@@ -60,7 +60,7 @@ namespace {
                 continue;
               if(F->hasStructRetAttr())
                 continue;
-              if(F->getFunctionType()->isVarArg())
+              if(F->isVarArg())
                 continue;
 
               // find the argument we must replace
