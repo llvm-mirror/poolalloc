@@ -56,9 +56,11 @@ public:
   bool initShadow(Module &M, Instruction &I);
   bool unmapShadow(Module &M, Instruction &I);
   bool visitLoadInst(Module &M, LoadInst &LI);
-  bool visitGlobal(Module &M, GlobalVariable &GV, Constant *C, Instruction &I, unsigned offset);
+  bool visitGlobal(Module &M, GlobalVariable &GV, 
+                   Constant *C, Instruction &I, unsigned offset);
   bool visitStoreInst(Module &M, StoreInst &SI);
   bool visitCopyingStoreInst(Module &M, StoreInst &SI, Value *SS);
+  bool visitInputFunctionValue(Module &M, Value *V, CallInst *CI);
 
   // Return the map containing all of the types used in the module.
   const std::map<const Type *, unsigned int> &getTypes() const {

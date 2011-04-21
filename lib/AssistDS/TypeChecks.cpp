@@ -25,6 +25,7 @@ using namespace llvm;
 char TypeChecks::ID = 0;
 static RegisterPass<TypeChecks> TC("typechecks", "Insert runtime type checks", false, true);
 
+static int tagCounter = 0;
 static const Type *VoidTy = 0;
 static const Type *Int8Ty = 0;
 static const Type *Int32Ty = 0;
@@ -175,7 +176,6 @@ bool TypeChecks::unmapShadow(Module &M, Instruction &I) {
 
 bool TypeChecks::visitGlobal(Module &M, GlobalVariable &GV, 
                              Constant *C, Instruction &I, unsigned offset) {
-//void trackStoreArray(void *ptr, uint8_t size, uint32_t count) {
   if(ConstantArray *CA = dyn_cast<ConstantArray>(C)) {
     const Type * ElementType = CA->getType()->getElementType();
     unsigned int t = TD->getTypeStoreSize(ElementType);
@@ -185,7 +185,8 @@ bool TypeChecks::visitGlobal(Module &M, GlobalVariable &GV,
     Args.push_back(BCI);
     Args.push_back(ConstantInt::get(Int32Ty, t));
     Args.push_back(ConstantInt::get(Int32Ty, CA->getNumOperands()));
-    Constant *F = M.getOrInsertFunction("trackGlobalArray", VoidTy, VoidPtrTy, Int32Ty, Int32Ty, NULL);
+    Args.push_back(ConstantInt::get(Int32Ty, tagCounter++));
+    Constant *F = M.getOrInsertFunction("trackGlobalArray", VoidTy, VoidPtrTy, Int32Ty, Int32Ty, Int32Ty, NULL);
     CallInst::Create(F, Args.begin(), Args.end(), "", &I);
 
     //for (unsigned i = 0, e = CA->getNumOperands(); i != e; ++i) {
@@ -212,7 +213,8 @@ bool TypeChecks::visitGlobal(Module &M, GlobalVariable &GV,
       Args.push_back(BCI);
       Args.push_back(ConstantInt::get(Int32Ty, t));
       Args.push_back(ConstantInt::get(Int32Ty, ATy->getNumElements()));
-      Constant *F = M.getOrInsertFunction("trackGlobalArray", VoidTy, VoidPtrTy, Int32Ty, Int32Ty, NULL);
+      Args.push_back(ConstantInt::get(Int32Ty, tagCounter++));
+      Constant *F = M.getOrInsertFunction("trackGlobalArray", VoidTy, VoidPtrTy, Int32Ty, Int32Ty, Int32Ty, NULL);
       CallInst::Create(F, Args.begin(), Args.end(), "", &I);
       //for (unsigned i = 0, e = ATy->getNumElements(); i != e; ++i) {
         //offset += t;
@@ -236,7 +238,8 @@ bool TypeChecks::visitGlobal(Module &M, GlobalVariable &GV,
       Args.push_back(GEP);
       Args.push_back(ConstantInt::get(Int8Ty, UsedTypes[CAZ->getType()]));
       Args.push_back(ConstantInt::get(Int8Ty, TD->getTypeStoreSize(CAZ->getType())));
-      Constant *F = M.getOrInsertFunction("trackGlobal", VoidTy, VoidPtrTy, Int8Ty, Int8Ty, NULL);
+      Args.push_back(ConstantInt::get(Int32Ty, tagCounter++));
+      Constant *F = M.getOrInsertFunction("trackGlobal", VoidTy, VoidPtrTy, Int8Ty, Int8Ty, Int32Ty, NULL);
       CallInst::Create(F, Args.begin(), Args.end(), "", &I);
     }
   }
@@ -251,7 +254,8 @@ bool TypeChecks::visitGlobal(Module &M, GlobalVariable &GV,
     Args.push_back(GEP);
     Args.push_back(ConstantInt::get(Int8Ty, UsedTypes[C->getType()]));
     Args.push_back(ConstantInt::get(Int8Ty, TD->getTypeStoreSize(C->getType())));
-    Constant *F = M.getOrInsertFunction("trackGlobal", VoidTy, VoidPtrTy, Int8Ty, Int8Ty, NULL);
+    Args.push_back(ConstantInt::get(Int32Ty, tagCounter++));
+    Constant *F = M.getOrInsertFunction("trackGlobal", VoidTy, VoidPtrTy, Int8Ty, Int8Ty, Int32Ty, NULL);
     CallInst::Create(F, Args.begin(), Args.end(), "", &I);
   }
 
@@ -267,9 +271,11 @@ bool TypeChecks::visitLoadInst(Module &M, LoadInst &LI) {
   Args.push_back(BCI);
   Args.push_back(ConstantInt::get(Int8Ty, UsedTypes[LI.getType()]));
   Args.push_back(ConstantInt::get(Int8Ty, TD->getTypeStoreSize(LI.getType())));
+  Args.push_back(ConstantInt::get(Int32Ty, tagCounter++));
+  
 
   // Create the call to the runtime check and place it before the load instruction.
-  Constant *F = M.getOrInsertFunction("trackLoadInst", VoidTy, VoidPtrTy, Int8Ty, Int8Ty, NULL);
+  Constant *F = M.getOrInsertFunction("trackLoadInst", VoidTy, VoidPtrTy, Int8Ty, Int8Ty, Int32Ty, NULL);
   CallInst::Create(F, Args.begin(), Args.end(), "", &LI);
 
   return true;
@@ -284,9 +290,10 @@ bool TypeChecks::visitStoreInst(Module &M, StoreInst &SI) {
   Args.push_back(BCI);
   Args.push_back(ConstantInt::get(Int8Ty, UsedTypes[SI.getOperand(0)->getType()])); // SI.getValueOperand()
   Args.push_back(ConstantInt::get(Int8Ty, TD->getTypeStoreSize(SI.getOperand(0)->getType())));
+  Args.push_back(ConstantInt::get(Int32Ty, tagCounter++));
 
   // Create the call to the runtime check and place it before the store instruction.
-  Constant *F = M.getOrInsertFunction("trackStoreInst", VoidTy, VoidPtrTy, Int8Ty, Int8Ty, NULL);
+  Constant *F = M.getOrInsertFunction("trackStoreInst", VoidTy, VoidPtrTy, Int8Ty, Int8Ty, Int32Ty, NULL);
   CallInst::Create(F, Args.begin(), Args.end(), "", &SI);
 
   return true;
@@ -302,9 +309,10 @@ bool TypeChecks::visitCopyingStoreInst(Module &M, StoreInst &SI, Value *SS) {
   Args.push_back(BCI);
   Args.push_back(BCI_Src);
   Args.push_back(ConstantInt::get(Int32Ty, TD->getTypeStoreSize(SI.getOperand(0)->getType())));
+  Args.push_back(ConstantInt::get(Int32Ty, tagCounter++));
 
   // Create the call to the runtime check and place it before the copying store instruction.
-  Constant *F = M.getOrInsertFunction("copyTypeInfo", VoidTy, VoidPtrTy, VoidPtrTy, Int32Ty, NULL);
+  Constant *F = M.getOrInsertFunction("copyTypeInfo", VoidTy, VoidPtrTy, VoidPtrTy, Int32Ty, Int32Ty, NULL);
   CallInst::Create(F, Args.begin(), Args.end(), "", &SI);
 
   return true;

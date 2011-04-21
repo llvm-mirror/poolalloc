@@ -41,12 +41,11 @@ void shadowUnmap() {
 /**
  * Record the global type and address in the shadow memory.
  */
-void trackGlobal(void *ptr, uint8_t typeNumber, uint8_t size) {
+void trackGlobal(void *ptr, uint8_t typeNumber, uint8_t size, uint32_t tag) {
 	uintptr_t p = (uintptr_t)ptr;
 	p &= 0xFFFFFFFF;
 	shadow_begin[p] = typeNumber;
 	memset(&shadow_begin[p + 1], 0, size - 1);
-
 #if DEBUG
 	printf("Global: %p, %p = %u | %u bytes\n", ptr, (void *)p, typeNumber, size);
 #endif
@@ -54,26 +53,26 @@ void trackGlobal(void *ptr, uint8_t typeNumber, uint8_t size) {
 /**
  * Record the type stored at ptr(of size size) and replicate it
  */
-void trackGlobalArray(void *ptr, uint32_t size, uint32_t count) {
+void trackGlobalArray(void *ptr, uint32_t size, uint32_t count, uint32_t tag) {
   unsigned i;
   uintptr_t p = (uintptr_t)ptr;
-  uint8_t typeNumber = shadow_begin[p & 0xFFFFFFFF];
+  uintptr_t p1 = (uintptr_t)ptr;
   for(i =1; i<count;i++) {
     p += size;
-    shadow_begin[p & 0xFFFFFFFF] = typeNumber;
+    memcpy(&shadow_begin[p & 0xFFFFFFFF], &shadow_begin[p1 & 0xFFFFFFFF] , size);
   }
 }
 
 /**
  * Check the loaded type against the type recorded in the shadow memory.
  */
-void trackLoadInst(void *ptr, uint8_t typeNumber, uint8_t size) {
+void trackLoadInst(void *ptr, uint8_t typeNumber, uint8_t size, uint32_t tag) {
 	uint8_t i = 1;
 	uintptr_t p = (uintptr_t)ptr;
 	p &= 0xFFFFFFFF;
 
 	if (typeNumber != shadow_begin[p]) {
-		printf("Type mismatch: detecting %u, expecting %u!\n", typeNumber, shadow_begin[p]);
+		printf("Type mismatch: detecting %p %u, expecting %u! %u \n", ptr, typeNumber, shadow_begin[p], tag);
 		i = size;
 	}
 
@@ -92,24 +91,26 @@ void trackLoadInst(void *ptr, uint8_t typeNumber, uint8_t size) {
 /**
  * Record the stored type and address in the shadow memory.
  */
-void trackStoreInst(void *ptr, uint8_t typeNumber, uint8_t size) {
+void trackStoreInst(void *ptr, uint8_t typeNumber, uint8_t size, uint32_t tag) {
 	uintptr_t p = (uintptr_t)ptr;
 	p &= 0xFFFFFFFF;
 	shadow_begin[p] = typeNumber;
 	memset(&shadow_begin[p + 1], 0, size - 1);
-
 #if DEBUG
-	printf("Store: %p, %p = %u | %u bytes\n", ptr, (void *)p, typeNumber, size);
+	printf("Store: %p, %p = %u | %u %d bytes\n", ptr, (void *)p, typeNumber, size, tag);
 #endif
 }
 
 /**
  * Copy size bits of metadata from src ptr to dest ptr.
  */
-void copyTypeInfo(void *dstptr, void *srcptr, uint8_t size) {
+void copyTypeInfo(void *dstptr, void *srcptr, uint8_t size, uint32_t tag) {
 	uintptr_t d = (uintptr_t)dstptr;
 	uintptr_t s = (uintptr_t)srcptr;
 	d &= 0xFFFFFFFF;
 	s &= 0xFFFFFFFF;
 	memcpy(&shadow_begin[d], &shadow_begin[s], size);
+#if DEBUG
+	printf("Copy: %p, %p = %u | %u %d bytes\n", dstptr, (void *)d, shadow_begin[s], size, tag);
+#endif
 }
