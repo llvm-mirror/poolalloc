@@ -775,10 +775,26 @@ bool GraphBuilder::visitIntrinsic(CallSite CS, Function *F) {
   }
 
   case Intrinsic::eh_selector: {
-    DSNode * Node = createNode();
-    Node->setIncompleteMarker();
-    Node->foldNodeCompletely();
-    setDestTo (*(CS.getInstruction()), Node);
+    for (CallSite::arg_iterator I = CS.arg_begin(), E = CS.arg_end();
+           I != E; ++I) {
+    if (isa<PointerType>((*I)->getType())) {
+        DSNodeHandle Ptr = getValueDest(*I);
+        if(Ptr.getNode()) {
+          Ptr.getNode()->setReadMarker();
+          Ptr.getNode()->setIncompleteMarker();
+        }
+      }
+    }
+    //DSNode * Node = createNode();
+    //Node->setIncompleteMarker();
+    //Node->foldNodeCompletely();
+    //setDestTo (*(CS.getInstruction()), Node);
+    return true;
+  }
+  case Intrinsic::eh_typeid_for: {
+    DSNodeHandle Ptr = getValueDest(*CS.arg_begin());
+    Ptr.getNode()->setReadMarker();
+    Ptr.getNode()->setIncompleteMarker();
     return true;
   }
 
@@ -810,8 +826,8 @@ bool GraphBuilder::visitIntrinsic(CallSite CS, Function *F) {
       if (isa<PointerType>(F->getReturnType()))
         setDestTo(*CS.getInstruction(), getValueDest(*(CS.arg_begin() + 1)));
     }
-   
-              
+
+
 
   case Intrinsic::prefetch:
     return true;
@@ -819,11 +835,13 @@ bool GraphBuilder::visitIntrinsic(CallSite CS, Function *F) {
   case Intrinsic::objectsize:
     return true;
 
-  //
-  // The return address aliases with the stack, is type-unknown, and should
-  // have the unknown flag set since we don't know where it goes.
-  //
-  case Intrinsic::returnaddress: {
+    //
+    // The return address/frame address aliases with the stack, 
+    // is type-unknown, and should
+    // have the unknown flag set since we don't know where it goes.
+    //
+  case Intrinsic::returnaddress:
+  case Intrinsic::frameaddress: {
     DSNode * Node = createNode();
     Node->setAllocaMarker()->setIncompleteMarker()->setUnknownMarker();
     Node->foldNodeCompletely();
@@ -898,7 +916,7 @@ void GraphBuilder::visitCallSite(CallSite CS) {
   // of getNodeForValue to get the DSNodes for the arguments.  Since we're in
   // local it's possible that we need to create a DSNode for the argument, as
   // opposed to getNodeForValue which simply retrieves the existing node.
-  
+
 
   //Get the FunctionType for the called function
   const FunctionType *CalleeFuncType = DSCallSite::FunctionTypeOfCallSite(CS);
@@ -907,16 +925,16 @@ void GraphBuilder::visitCallSite(CallSite CS) {
   // Sanity check--this really, really shouldn't happen
   if (!CalleeFuncType->isVarArg())
     assert(CS.arg_size() == static_cast<unsigned>(NumFixedArgs) &&
-        "Too many arguments/incorrect function signature!");
+           "Too many arguments/incorrect function signature!");
 
   std::vector<DSNodeHandle> Args;
   Args.reserve(CS.arg_end()-CS.arg_begin());
   DSNodeHandle VarArgNH;
 
   // Calculate the arguments vector...
-    // Add all fixed pointer arguments, then merge the rest together
+  // Add all fixed pointer arguments, then merge the rest together
   for (CallSite::arg_iterator I = CS.arg_begin(), E = CS.arg_end();
-      I != E; ++I)
+       I != E; ++I)
     if (isa<PointerType>((*I)->getType())) {
       DSNodeHandle ArgNode = getValueDest(*I);
       if (I - CS.arg_begin() < NumFixedArgs) {
@@ -1018,8 +1036,8 @@ GraphBuilder::MergeConstantInitIntoNode(DSNodeHandle &NH,
     //NHN->mergeTypeInfo(Ty, NH.getOffset());
 
     const StructLayout *SL = TD.getStructLayout(cast<StructType>(Ty));
-   
-     for (unsigned i = 0, e = CS->getNumOperands(); i != e; ++i) {
+
+    for (unsigned i = 0, e = CS->getNumOperands(); i != e; ++i) {
       DSNode *NHN = NH.getNode();
       if (SL->getElementOffset(i) < SL->getSizeInBytes()) {
         //
@@ -1081,8 +1099,8 @@ void GraphBuilder::mergeInGlobalInitializer(GlobalVariable *GV) {
   // Ensure that the DSNode is large enough to hold the new constant that we'll
   // be adding to it.
   //
- const Type * ElementType = GV->getType()->getElementType();
- while(const ArrayType *ATy = dyn_cast<ArrayType>(ElementType)) {
+  const Type * ElementType = GV->getType()->getElementType();
+  while(const ArrayType *ATy = dyn_cast<ArrayType>(ElementType)) {
     ElementType = ATy->getElementType();
   }
   if(!NH.getNode()->isNodeCompletelyFolded()) {
@@ -1119,11 +1137,11 @@ void handleMagicSections(DSGraph* GlobalsGraph, Module& M) {
       msf >> section;
       svset<Value*> inSection;
       for (Module::iterator MI = M.begin(), ME = M.end();
-              MI != ME; ++MI)
+           MI != ME; ++MI)
         if (MI->hasSection() && MI->getSection() == section)
           inSection.insert(MI);
       for (Module::global_iterator MI = M.global_begin(), ME = M.global_end();
-              MI != ME; ++MI)
+           MI != ME; ++MI)
         if (MI->hasSection() && MI->getSection() == section)
           inSection.insert(MI);
 
@@ -1134,9 +1152,9 @@ void handleMagicSections(DSGraph* GlobalsGraph, Module& M) {
         if (V) {
           DSNodeHandle& DHV = GlobalsGraph->getNodeForValue(V);
           for (svset<Value*>::iterator SI = inSection.begin(),
-                  SE = inSection.end(); SI != SE; ++SI) {
+               SE = inSection.end(); SI != SE; ++SI) {
             DEBUG(errs() << "Merging " << V->getNameStr() << " with "
-                    << (*SI)->getNameStr() << "\n");
+                  << (*SI)->getNameStr() << "\n");
             GlobalsGraph->getNodeForValue(*SI).mergeWith(DHV);
           }
         }
@@ -1145,7 +1163,7 @@ void handleMagicSections(DSGraph* GlobalsGraph, Module& M) {
     }
   } else {
     errs() << "Failed to open magic sections file:" << hasMagicSections <<
-            "\n";
+      "\n";
   }
 }
 
@@ -1171,18 +1189,18 @@ bool LocalDataStructures::runOnModule(Module &M) {
     // Add Functions to the globals graph.
     for (Module::iterator FI = M.begin(), FE = M.end(); FI != FE; ++FI){
       if(addrAnalysis->hasAddressTaken(FI)) {
-          GGB.mergeFunction(FI);
+        GGB.mergeFunction(FI);
       }
     }
   }
-  
+
   if (hasMagicSections.size())
     handleMagicSections(GlobalsGraph, M);
 
   // Next step, iterate through the nodes in the globals graph, unioning
   // together the globals into equivalence classes.
   formGlobalECs();
-  
+
   // Iterate through the address taken functions in the globals graph,
   // collecting them in a list, to be used as target for call sites that
   // cant be resolved.
@@ -1201,10 +1219,10 @@ bool LocalDataStructures::runOnModule(Module &M) {
       G->buildCallGraph(callgraph, GlobalFunctionList, true);
       G->maskIncompleteMarkers();
       G->markIncompleteNodes(DSGraph::MarkFormalArgs
-                                    |DSGraph::IgnoreGlobals);
+                             |DSGraph::IgnoreGlobals);
       cloneIntoGlobals(G, DSGraph::DontCloneCallNodes |
-                        DSGraph::DontCloneAuxCallNodes |
-                        DSGraph::StripAllocaBit);
+                       DSGraph::DontCloneAuxCallNodes |
+                       DSGraph::StripAllocaBit);
       DEBUG(G->AssertGraphOK());
     }
 
@@ -1225,7 +1243,7 @@ bool LocalDataStructures::runOnModule(Module &M) {
       DSGraph *Graph = getOrCreateGraph(I);
       Graph->maskIncompleteMarkers();
       cloneGlobalsInto(Graph, DSGraph::DontCloneCallNodes |
-                        DSGraph::DontCloneAuxCallNodes);
+                       DSGraph::DontCloneAuxCallNodes);
       Graph->markIncompleteNodes(DSGraph::MarkFormalArgs
                                  |DSGraph::IgnoreGlobals);
     }
