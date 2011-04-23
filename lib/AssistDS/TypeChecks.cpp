@@ -176,10 +176,16 @@ bool TypeChecks::unmapShadow(Module &M, Instruction &I) {
 
 bool TypeChecks::visitGlobal(Module &M, GlobalVariable &GV, 
                              Constant *C, Instruction &I, unsigned offset) {
+  
   if(ConstantArray *CA = dyn_cast<ConstantArray>(C)) {
     const Type * ElementType = CA->getType()->getElementType();
     unsigned int t = TD->getTypeStoreSize(ElementType);
+    // Create the type entry for the first element
+    // using recursive creation till we get to the base types
     visitGlobal(M, GV, CA->getOperand(0), I, offset);
+
+    // Copy the type metadata for the first element
+    // over for the rest of the elements.
     CastInst *BCI = BitCastInst::CreatePointerCast(&GV, VoidPtrTy, "", &I);
     std::vector<Value *> Args;
     Args.push_back(BCI);
@@ -188,12 +194,10 @@ bool TypeChecks::visitGlobal(Module &M, GlobalVariable &GV,
     Args.push_back(ConstantInt::get(Int32Ty, tagCounter++));
     Constant *F = M.getOrInsertFunction("trackGlobalArray", VoidTy, VoidPtrTy, Int32Ty, Int32Ty, Int32Ty, NULL);
     CallInst::Create(F, Args.begin(), Args.end(), "", &I);
-
-    //for (unsigned i = 0, e = CA->getNumOperands(); i != e; ++i) {
-      //offset += t;
-    //}
   }
   else if(ConstantStruct *CS = dyn_cast<ConstantStruct>(C)) {
+    // Create metadata for each field of the struct
+    // at the correct offset.
     const StructLayout *SL = TD->getStructLayout(cast<StructType>(CS->getType()));
     for (unsigned i = 0, e = CS->getNumOperands(); i != e; ++i) {
       if (SL->getElementOffset(i) < SL->getSizeInBytes()) {
@@ -203,6 +207,8 @@ bool TypeChecks::visitGlobal(Module &M, GlobalVariable &GV,
       }
     }
   } else if(ConstantAggregateZero *CAZ = dyn_cast<ConstantAggregateZero>(C)) {
+    // Similiar to having an initializer with all values NULL
+    // Must set metadata, similiar to the previous 2 cases.
     const Type *Ty = CAZ->getType();
     if(const ArrayType * ATy = dyn_cast<ArrayType>(Ty)) {
       const Type * ElementType = ATy->getElementType();
@@ -216,9 +222,6 @@ bool TypeChecks::visitGlobal(Module &M, GlobalVariable &GV,
       Args.push_back(ConstantInt::get(Int32Ty, tagCounter++));
       Constant *F = M.getOrInsertFunction("trackGlobalArray", VoidTy, VoidPtrTy, Int32Ty, Int32Ty, Int32Ty, NULL);
       CallInst::Create(F, Args.begin(), Args.end(), "", &I);
-      //for (unsigned i = 0, e = ATy->getNumElements(); i != e; ++i) {
-        //offset += t;
-      //}
     } else if(const StructType *STy = dyn_cast<StructType>(Ty)) {
       const StructLayout *SL = TD->getStructLayout(STy);
       for (unsigned i = 0, e = STy->getNumElements(); i != e; ++i) {
@@ -228,6 +231,7 @@ bool TypeChecks::visitGlobal(Module &M, GlobalVariable &GV,
         }
       }
     } else {
+      // Zeroinitializer of a primitive type
       CastInst *BCI = BitCastInst::CreatePointerCast(&GV, VoidPtrTy, "", &I);
       SmallVector<Value*, 8> Indices;
       Indices.push_back(ConstantInt::get(Int32Ty, offset));
@@ -244,6 +248,7 @@ bool TypeChecks::visitGlobal(Module &M, GlobalVariable &GV,
     }
   }
   else {
+    // Primitive type value
     CastInst *BCI = BitCastInst::CreatePointerCast(&GV, VoidPtrTy, "", &I);
     SmallVector<Value*, 8> Indices;
     Indices.push_back(ConstantInt::get(Int32Ty, offset));
@@ -302,11 +307,11 @@ bool TypeChecks::visitStoreInst(Module &M, StoreInst &SI) {
 // Insert runtime checks before copying store instructions.
 bool TypeChecks::visitCopyingStoreInst(Module &M, StoreInst &SI, Value *SS) {
   // Cast the pointer operand to i8* for the runtime function.
-  CastInst *BCI = BitCastInst::CreatePointerCast(SI.getPointerOperand(), VoidPtrTy, "", &SI);
+  CastInst *BCI_Dest = BitCastInst::CreatePointerCast(SI.getPointerOperand(), VoidPtrTy, "", &SI);
   CastInst *BCI_Src = BitCastInst::CreatePointerCast(SS, VoidPtrTy, "", &SI);
 
   std::vector<Value *> Args;
-  Args.push_back(BCI);
+  Args.push_back(BCI_Dest);
   Args.push_back(BCI_Src);
   Args.push_back(ConstantInt::get(Int32Ty, TD->getTypeStoreSize(SI.getOperand(0)->getType())));
   Args.push_back(ConstantInt::get(Int32Ty, tagCounter++));
