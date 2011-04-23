@@ -785,10 +785,6 @@ bool GraphBuilder::visitIntrinsic(CallSite CS, Function *F) {
         }
       }
     }
-    //DSNode * Node = createNode();
-    //Node->setIncompleteMarker();
-    //Node->foldNodeCompletely();
-    //setDestTo (*(CS.getInstruction()), Node);
     return true;
   }
   case Intrinsic::eh_typeid_for: {
