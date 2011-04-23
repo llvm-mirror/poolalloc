@@ -286,7 +286,6 @@ bool TypeChecks::visitCallSite(Module &M, CallSite CS) {
   // Special case handling of certain libc allocation functions here.
   if (Function *F = dyn_cast<Function>(Callee))
     if (F->isIntrinsic()) {
-      CS.getInstruction()->dump();
       switch(F->getIntrinsicID()) {
       case Intrinsic::memcpy: 
       case Intrinsic::memmove: 
@@ -306,7 +305,21 @@ bool TypeChecks::visitCallSite(Module &M, CallSite CS) {
       case Intrinsic::memset:
         break;
       }
+    } else if(F->getNameStr() == "realloc") {
+      CastInst *BCI_Src = BitCastInst::CreatePointerCast(I->getOperand(1), VoidPtrTy);
+      CastInst *BCI_Dest = BitCastInst::CreatePointerCast(I, VoidPtrTy);
+      BCI_Src->insertAfter(I);
+      BCI_Dest->insertAfter(BCI_Src);
+      std::vector<Value *> Args;
+      Args.push_back(BCI_Dest);
+      Args.push_back(BCI_Src);
+      Args.push_back(I->getOperand(2));
+      Args.push_back(ConstantInt::get(Int32Ty, tagCounter++));
+      Constant *F = M.getOrInsertFunction("copyTypeInfo", VoidTy, VoidPtrTy, VoidPtrTy, I->getOperand(2)->getType(), Int32Ty, NULL);
+      CallInst *CI = CallInst::Create(F, Args.begin(), Args.end());
+      CI->insertAfter(BCI_Dest);
     }
+
 
   return true;
 }
