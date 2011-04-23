@@ -19,6 +19,7 @@
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/InstIterator.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/Intrinsics.h"
 
 using namespace llvm;
 
@@ -29,6 +30,7 @@ static int tagCounter = 0;
 static const Type *VoidTy = 0;
 static const Type *Int8Ty = 0;
 static const Type *Int32Ty = 0;
+static const Type *Int64Ty = 0;
 static const PointerType *VoidPtrTy = 0;
 
 // Incorporate one type and all of its subtypes into the collection of used types.
@@ -71,6 +73,7 @@ bool TypeChecks::runOnModule(Module &M) {
   VoidTy = IntegerType::getVoidTy(M.getContext());
   Int8Ty = IntegerType::getInt8Ty(M.getContext());
   Int32Ty = IntegerType::getInt32Ty(M.getContext());
+  Int64Ty = IntegerType::getInt64Ty(M.getContext());
   VoidPtrTy = PointerType::getUnqual(Int8Ty);
 
   UsedTypes.clear(); // Reset if run multiple times.
@@ -128,6 +131,8 @@ bool TypeChecks::runOnModule(Module &M) {
         if (!TA.isCopyingLoad(LI)) {
           modified |= visitLoadInst(M, *LI);
         }
+      } else if (CallInst *CI = dyn_cast<CallInst>(&I)) {
+        modified |= visitCallInst(M, *CI);
       }
     }
   }
@@ -266,6 +271,45 @@ bool TypeChecks::visitGlobal(Module &M, GlobalVariable &GV,
 
   return true;
 }
+// Insert runtime checks for certain call instructions
+bool TypeChecks::visitCallInst(Module &M, CallInst &CI) {
+  return visitCallSite(M, &CI);
+}
+
+bool TypeChecks::visitCallSite(Module &M, CallSite CS) {
+  //
+  // Get the called value.  Strip off any casts which are lossless.
+  //
+  Value *Callee = CS.getCalledValue()->stripPointerCasts();
+  Instruction *I = CS.getInstruction();
+
+  // Special case handling of certain libc allocation functions here.
+  if (Function *F = dyn_cast<Function>(Callee))
+    if (F->isIntrinsic()) {
+      CS.getInstruction()->dump();
+      switch(F->getIntrinsicID()) {
+      case Intrinsic::memcpy: 
+        {
+          CastInst *BCI_Src = BitCastInst::CreatePointerCast(I->getOperand(2), VoidPtrTy, "", I);
+          CastInst *BCI_Dest = BitCastInst::CreatePointerCast(I->getOperand(1), VoidPtrTy, "", I);
+          std::vector<Value *> Args;
+          Args.push_back(BCI_Dest);
+          Args.push_back(BCI_Src);
+          Args.push_back(I->getOperand(3));
+          Args.push_back(ConstantInt::get(Int32Ty, tagCounter++));
+          Constant *F = M.getOrInsertFunction("copyTypeInfo", VoidTy, VoidPtrTy, VoidPtrTy, I->getOperand(3)->getType(), Int32Ty, NULL);
+          CallInst::Create(F, Args.begin(), Args.end(), "", I);
+          break;
+        }
+
+      case Intrinsic::memmove: 
+      case Intrinsic::memset:
+        break;
+      }
+    }
+
+  return true;
+}
 
 // Insert runtime checks before all load instructions.
 bool TypeChecks::visitLoadInst(Module &M, LoadInst &LI) {
@@ -277,7 +321,7 @@ bool TypeChecks::visitLoadInst(Module &M, LoadInst &LI) {
   Args.push_back(ConstantInt::get(Int8Ty, UsedTypes[LI.getType()]));
   Args.push_back(ConstantInt::get(Int8Ty, TD->getTypeStoreSize(LI.getType())));
   Args.push_back(ConstantInt::get(Int32Ty, tagCounter++));
-  
+
 
   // Create the call to the runtime check and place it before the load instruction.
   Constant *F = M.getOrInsertFunction("trackLoadInst", VoidTy, VoidPtrTy, Int8Ty, Int8Ty, Int32Ty, NULL);
@@ -313,11 +357,11 @@ bool TypeChecks::visitCopyingStoreInst(Module &M, StoreInst &SI, Value *SS) {
   std::vector<Value *> Args;
   Args.push_back(BCI_Dest);
   Args.push_back(BCI_Src);
-  Args.push_back(ConstantInt::get(Int32Ty, TD->getTypeStoreSize(SI.getOperand(0)->getType())));
+  Args.push_back(ConstantInt::get(Int64Ty, TD->getTypeStoreSize(SI.getOperand(0)->getType())));
   Args.push_back(ConstantInt::get(Int32Ty, tagCounter++));
 
   // Create the call to the runtime check and place it before the copying store instruction.
-  Constant *F = M.getOrInsertFunction("copyTypeInfo", VoidTy, VoidPtrTy, VoidPtrTy, Int32Ty, Int32Ty, NULL);
+  Constant *F = M.getOrInsertFunction("copyTypeInfo", VoidTy, VoidPtrTy, VoidPtrTy, Int64Ty, Int32Ty, NULL);
   CallInst::Create(F, Args.begin(), Args.end(), "", &SI);
 
   return true;

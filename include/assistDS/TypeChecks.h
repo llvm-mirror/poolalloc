@@ -19,6 +19,7 @@
 #include "llvm/Instructions.h"
 #include "llvm/Pass.h"
 #include "llvm/Target/TargetData.h"
+#include "llvm/Support/CallSite.h"
 
 #include <map>
 
@@ -55,6 +56,8 @@ public:
 
   bool initShadow(Module &M, Instruction &I);
   bool unmapShadow(Module &M, Instruction &I);
+  bool visitCallInst(Module &M, CallInst &CI);
+  bool visitCallSite(Module &M, CallSite CS);
   bool visitLoadInst(Module &M, LoadInst &LI);
   bool visitGlobal(Module &M, GlobalVariable &GV, 
                    Constant *C, Instruction &I, unsigned offset);

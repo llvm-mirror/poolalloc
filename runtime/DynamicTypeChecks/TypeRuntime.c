@@ -104,7 +104,7 @@ void trackStoreInst(void *ptr, uint8_t typeNumber, uint8_t size, uint32_t tag) {
 /**
  * Copy size bits of metadata from src ptr to dest ptr.
  */
-void copyTypeInfo(void *dstptr, void *srcptr, uint8_t size, uint32_t tag) {
+void copyTypeInfo(void *dstptr, void *srcptr, uint64_t size, uint32_t tag) {
 	uintptr_t d = (uintptr_t)dstptr;
 	uintptr_t s = (uintptr_t)srcptr;
 	d &= 0xFFFFFFFF;
