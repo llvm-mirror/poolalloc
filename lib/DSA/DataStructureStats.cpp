@@ -54,6 +54,8 @@ namespace {
              "Number of loads/stores which are on unknown nodes");
   STATISTIC (NumExternalAccesses,
              "Number of loads/stores which are on external nodes");
+  STATISTIC (NumI2PAccesses,
+             "Number of loads/stores which are on inttoptr nodes");
   STATISTIC (NumFoldedAccess,
              "Number of loads/stores which are on folded nodes");
 
@@ -182,6 +184,10 @@ bool DSGraphStats::isNodeForValueUntyped(Value *V, unsigned Offset, const Functi
     }
     if (N->isUnknownNode()){
       ++NumUnknownAccesses;
+      return true;
+    }
+    if (N->isIntToPtrNode()){
+      ++NumI2PAccesses;
       return true;
     }
     // it is a complete node, now check how many types are present
