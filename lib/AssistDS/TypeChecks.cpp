@@ -289,6 +289,7 @@ bool TypeChecks::visitCallSite(Module &M, CallSite CS) {
       CS.getInstruction()->dump();
       switch(F->getIntrinsicID()) {
       case Intrinsic::memcpy: 
+      case Intrinsic::memmove: 
         {
           CastInst *BCI_Src = BitCastInst::CreatePointerCast(I->getOperand(2), VoidPtrTy, "", I);
           CastInst *BCI_Dest = BitCastInst::CreatePointerCast(I->getOperand(1), VoidPtrTy, "", I);
@@ -302,7 +303,6 @@ bool TypeChecks::visitCallSite(Module &M, CallSite CS) {
           break;
         }
 
-      case Intrinsic::memmove: 
       case Intrinsic::memset:
         break;
       }
