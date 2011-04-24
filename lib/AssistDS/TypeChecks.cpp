@@ -312,7 +312,7 @@ bool TypeChecks::visitCallSite(Module &M, CallSite CS) {
         CallInst::Create(F, Args.begin(), Args.end(), "", I);
         break;
       }
-    } else if(F->getNameStr() == "realloc") {
+    } else if(F->getNameStr() ==  std::string("realloc")) {
       CastInst *BCI_Src = BitCastInst::CreatePointerCast(I->getOperand(1), VoidPtrTy);
       CastInst *BCI_Dest = BitCastInst::CreatePointerCast(I, VoidPtrTy);
       BCI_Src->insertAfter(I);
