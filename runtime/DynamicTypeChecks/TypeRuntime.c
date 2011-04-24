@@ -19,35 +19,35 @@ uint8_t *shadow_begin;
  * Initialize the shadow memory which records the 1:1 mapping of addresses to types.
  */
 void shadowInit() {
-	shadow_begin = (uint8_t *)mmap(0, SIZE, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON | MAP_NORESERVE, -1, 0);
+  shadow_begin = (uint8_t *)mmap(0, SIZE, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON | MAP_NORESERVE, -1, 0);
 
-	if (shadow_begin == MAP_FAILED) {
-		fprintf(stderr, "Failed to map the shadow memory!\n");
-		fflush(stderr);
-		assert(0 && "MAP_FAILED");
-	}
+  if (shadow_begin == MAP_FAILED) {
+    fprintf(stderr, "Failed to map the shadow memory!\n");
+    fflush(stderr);
+    assert(0 && "MAP_FAILED");
+  }
 }
 
 /**
  * Unmap the shadow memory which records the 1:1 mapping of addresses to types.
  */
 void shadowUnmap() {
-	if (munmap(shadow_begin, SIZE) == -1) {
-		fprintf(stderr, "Failed to unmap the shadow memory!\n");
-		fflush(stderr);
-	}
+  if (munmap(shadow_begin, SIZE) == -1) {
+    fprintf(stderr, "Failed to unmap the shadow memory!\n");
+    fflush(stderr);
+  }
 }
 
 /**
  * Record the global type and address in the shadow memory.
  */
 void trackGlobal(void *ptr, uint8_t typeNumber, uint8_t size, uint32_t tag) {
-	uintptr_t p = (uintptr_t)ptr;
-	p &= 0xFFFFFFFF;
-	shadow_begin[p] = typeNumber;
-	memset(&shadow_begin[p + 1], 0, size - 1);
+  uintptr_t p = (uintptr_t)ptr;
+  p &= 0xFFFFFFFF;
+  shadow_begin[p] = typeNumber;
+  memset(&shadow_begin[p + 1], 0, size - 1);
 #if DEBUG
-	printf("Global: %p, %p = %u | %u bytes\n", ptr, (void *)p, typeNumber, size);
+  printf("Global: %p, %p = %u | %u bytes\n", ptr, (void *)p, typeNumber, size);
 #endif
 }
 /**
@@ -64,53 +64,76 @@ void trackGlobalArray(void *ptr, uint32_t size, uint32_t count, uint32_t tag) {
 }
 
 /**
- * Check the loaded type against the type recorded in the shadow memory.
+ * Record the stored type and address in the shadow memory.
  */
-void trackLoadInst(void *ptr, uint8_t typeNumber, uint8_t size, uint32_t tag) {
-	uint8_t i = 1;
-	uintptr_t p = (uintptr_t)ptr;
-	p &= 0xFFFFFFFF;
-
-	if (typeNumber != shadow_begin[p]) {
-		printf("Type mismatch: detecting %p %u, expecting %u! %u \n", ptr, typeNumber, shadow_begin[p], tag);
-		i = size;
-	}
-
-	for (; i < size; ++i) {
-		if (0 != shadow_begin[p + i]) {
-			printf("Type mismatch: detecting %u, expecting %u (0 != %u)!\n", typeNumber, shadow_begin[p], shadow_begin[p + i]);
-			break;
-		}
-	}
-
+void trackStoreInst(void *ptr, uint8_t typeNumber, uint64_t size, uint32_t tag) {
+  uintptr_t p = (uintptr_t)ptr;
+  p &= 0xFFFFFFFF;
+  shadow_begin[p] = typeNumber;
+  memset(&shadow_begin[p + 1], 0, size - 1);
 #if DEBUG
-	printf("Load: %p, %p = actual: %u, expect: %u | %u bytes\n", ptr, (void *)p, typeNumber, shadow_begin[p], size);
+  printf("Store: %p, %p = %u | %u %d bytes\n", ptr, (void *)p, typeNumber, size, tag);
 #endif
 }
 
 /**
- * Record the stored type and address in the shadow memory.
+ * Check the loaded type against the type recorded in the shadow memory.
  */
-void trackStoreInst(void *ptr, uint8_t typeNumber, uint8_t size, uint32_t tag) {
-	uintptr_t p = (uintptr_t)ptr;
-	p &= 0xFFFFFFFF;
-	shadow_begin[p] = typeNumber;
-	memset(&shadow_begin[p + 1], 0, size - 1);
+void trackLoadInst(void *ptr, uint8_t typeNumber, uint64_t size, uint32_t tag) {
+  uint8_t i = 1;
+  uintptr_t p = (uintptr_t)ptr;
+  p &= 0xFFFFFFFF;
+
+  /* Check if this an initialized but untyped memory.*/
+  if (shadow_begin[p] != 0xFF) {
+    if (typeNumber != shadow_begin[p]) {
+      printf("Type mismatch: detecting %p %u, expecting %u! %u \n", ptr, typeNumber, shadow_begin[p], tag);
+      i = size;
+    }
+
+    for (; i < size; ++i) {
+      if (0 != shadow_begin[p + i]) {
+        printf("Type mismatch: detecting %u, expecting %u (0 != %u)!\n", typeNumber, shadow_begin[p], shadow_begin[p + i]);
+        break;
+      }
+    }
+  } else {
+    /* If so, set type to the type being read.
+        Check that none of the bytes are typed.*/
+    for (; i < size; ++i) {
+      if (0xFF != shadow_begin[p + i]) {
+        printf("Type mismatch: detecting %u, expecting %u (0 != %u)!\n", typeNumber, shadow_begin[p], shadow_begin[p + i]);
+        break;
+      }
+    }
+    trackStoreInst(ptr, typeNumber, size, tag);
+  }
+
 #if DEBUG
-	printf("Store: %p, %p = %u | %u %d bytes\n", ptr, (void *)p, typeNumber, size, tag);
+  printf("Load: %p, %p = actual: %u, expect: %u | %u bytes\n", ptr, (void *)p, typeNumber, shadow_begin[p], size);
 #endif
+}
+
+/**
+ *  For memset type instructions, that set values. 
+ *  0xFF type indicates that any type can be read, 
+ */
+void trackInitInst(void *ptr, uint64_t size, uint32_t tag) {
+  uintptr_t p = (uintptr_t)ptr;
+  p &= 0xFFFFFFFF;
+  memset(&shadow_begin[p], 0xFF, size);
 }
 
 /**
  * Copy size bits of metadata from src ptr to dest ptr.
  */
 void copyTypeInfo(void *dstptr, void *srcptr, uint64_t size, uint32_t tag) {
-	uintptr_t d = (uintptr_t)dstptr;
-	uintptr_t s = (uintptr_t)srcptr;
-	d &= 0xFFFFFFFF;
-	s &= 0xFFFFFFFF;
-	memcpy(&shadow_begin[d], &shadow_begin[s], size);
+  uintptr_t d = (uintptr_t)dstptr;
+  uintptr_t s = (uintptr_t)srcptr;
+  d &= 0xFFFFFFFF;
+  s &= 0xFFFFFFFF;
+  memcpy(&shadow_begin[d], &shadow_begin[s], size);
 #if DEBUG
-	printf("Copy: %p, %p = %u | %u %d bytes\n", dstptr, (void *)d, shadow_begin[s], size, tag);
+  printf("Copy: %p, %p = %u | %u %d bytes\n", dstptr, (void *)d, shadow_begin[s], size, tag);
 #endif
 }
