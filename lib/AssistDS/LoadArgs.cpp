@@ -41,8 +41,6 @@ namespace {
               continue;
             // we are only interested in GEPs
             LoadInst *LI = cast<LoadInst>(I);
-            if(LI->getType()->isPointerTy())
-              continue;
             // If the GEP is not doing structure indexing, dont care.
             for (Value::use_iterator UI = LI->use_begin(),UE = LI->use_end(); UI != UE; ) {
               // check if GEP is used in a Call Inst
@@ -52,6 +50,30 @@ namespace {
 
               if(CI->hasByValArgument())
                 continue;
+
+              // It should be in the same basic block
+              if(LI->getParent() != CI->getParent())
+                continue;
+
+              // Also check that there is no store after the load.
+              // TODO: Check if the load/store do not alias.
+              BasicBlock::iterator bii = LI->getParent()->begin();
+              Instruction *BII = bii;
+              while(BII != LI) {
+                ++bii;
+                BII = bii;
+              }
+              while(BII != CI) {
+                if(isa<StoreInst>(BII))
+                  break;
+                ++bii;
+                BII = bii;
+              }
+              if(isa<StoreInst>(bii)){
+                continue;
+              }
+
+
               // if the GEP calls a function, that is externally defined,
               // or might be changed, ignore this call site.
               Function *F = CI->getCalledFunction();
@@ -69,17 +91,8 @@ namespace {
                 if(LI == CI->getOperand(argNum))
                   break;
 
-              unsigned i = 1;
-              Function::arg_iterator II = F->arg_begin();
-              for (; i!= argNum; ++II, ++i) {
-                ;
-              }
               if(F->paramHasAttr(argNum, Attribute::SExt) ||
                  F->paramHasAttr(argNum, Attribute::ZExt)) 
-                continue;
-              if(II->getNumUses() !=1)
-                continue;
-              if(!isa<StoreInst>(II->use_begin()))
                 continue;
               // Construct the new Type
               // Appends the struct Type at the beginning
@@ -93,7 +106,7 @@ namespace {
               const FunctionType *NewFTy = FunctionType::get(CI->getType(), TP, false);
               Function *NewF;
               numSimplified++;
-              if(numSimplified > 26) //26
+              if(numSimplified > 50) //26
                 return true;
 
               NewF = Function::Create(NewFTy,
@@ -135,7 +148,7 @@ namespace {
                 Args.push_back(CI->getOperand(j));
               }
               CallInst *CallI = CallInst::Create(NewF,Args.begin(), Args.end(),"", CI);
-              CallI->setCallingConv(CI->getCallingConv());
+              CallI->setCallingConv(CI->getCallingConv()); 
               CI->replaceAllUsesWith(CallI);
               CI->eraseFromParent();
             }
