@@ -431,14 +431,14 @@ TOOLS= $(DSAOPT) $(PAOPT) $(ADSAOPT)
 #wrapper script for 'opt' so we can avoid manually loading the dsa lib
 $(DSAOPT):
 	@mkdir -p `dirname $@`
-	@echo "#!/bin/sh" >> $@.tmp
+	@echo "#!/bin/sh" > $@.tmp
 	@echo 'opt -load $(DSA_SO) $$@' >> $@.tmp
 	@chmod +x $@.tmp
 	@mv $@.tmp $@
 
 $(ADSAOPT):
 	@mkdir -p `dirname $@`
-	@echo "#!/bin/sh" >> $@.tmp
+	@echo "#!/bin/sh" > $@.tmp
 	@echo 'opt -load $(DSA_SO) -load $(ADSA_SO) $$@' >> $@.tmp
 	@chmod +x $@.tmp
 	@mv $@.tmp $@
@@ -446,7 +446,7 @@ $(ADSAOPT):
 #wrapper script for 'opt' that loads dsa and poolalloc
 $(PAOPT):
 	@mkdir -p `dirname $@`
-	@echo "#!/bin/sh" >> $@.tmp
+	@echo "#!/bin/sh" > $@.tmp
 	@echo 'opt -load $(DSA_SO) -load $(PA_SO) $$@' >> $@.tmp
 	@chmod +x $@.tmp
 	@mv $@.tmp $@
