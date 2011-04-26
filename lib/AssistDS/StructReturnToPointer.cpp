@@ -78,7 +78,6 @@ namespace {
 
         // Create the new function body and insert it into the module.
         Function *NF = Function::Create(NFTy, F->getLinkage(), F->getName(), &M);
-        NF->copyAttributesFrom(F);
         DenseMap<const Value*, Value*> ValueMap;
         Function::arg_iterator NI = NF->arg_begin();
         NI->setName("ret");
@@ -96,7 +95,7 @@ namespace {
             ae= NF->arg_end(); ai != ae; ++ai) {
           fargs.push_back(ai);
         }
-       NF->setAlignment(F->getAlignment());
+        NF->setAlignment(F->getAlignment());
         for (Function::iterator B = NF->begin(), FE = NF->end(); B != FE; ++B) {      
           for (BasicBlock::iterator I = B->begin(), BE = B->end(); I != BE;) {
             ReturnInst * RI = dyn_cast<ReturnInst>(I++);
@@ -115,9 +114,11 @@ namespace {
             continue;
           if(CI->getCalledFunction() != F)
             continue;
+          if(CI->hasByValArgument())
+            continue;
           AllocaInst *AllocaNew = new AllocaInst(F->getReturnType(), 0, "", CI);
           SmallVector<Value*, 8> Args;
-          
+
           Args.push_back(AllocaNew);
           for(unsigned j =1;j<CI->getNumOperands();j++) {
             Args.push_back(CI->getOperand(j));
