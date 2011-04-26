@@ -194,10 +194,10 @@ bool TypeChecks::visitGlobal(Module &M, GlobalVariable &GV,
     CastInst *BCI = BitCastInst::CreatePointerCast(&GV, VoidPtrTy, "", &I);
     std::vector<Value *> Args;
     Args.push_back(BCI);
-    Args.push_back(ConstantInt::get(Int32Ty, t));
-    Args.push_back(ConstantInt::get(Int32Ty, CA->getNumOperands()));
+    Args.push_back(ConstantInt::get(Int64Ty, t));
+    Args.push_back(ConstantInt::get(Int64Ty, CA->getNumOperands()));
     Args.push_back(ConstantInt::get(Int32Ty, tagCounter++));
-    Constant *F = M.getOrInsertFunction("trackGlobalArray", VoidTy, VoidPtrTy, Int32Ty, Int32Ty, Int32Ty, NULL);
+    Constant *F = M.getOrInsertFunction("trackGlobalArray", VoidTy, VoidPtrTy, Int64Ty, Int64Ty, Int32Ty, NULL);
     CallInst::Create(F, Args.begin(), Args.end(), "", &I);
   }
   else if(ConstantStruct *CS = dyn_cast<ConstantStruct>(C)) {
@@ -222,10 +222,10 @@ bool TypeChecks::visitGlobal(Module &M, GlobalVariable &GV,
       CastInst *BCI = BitCastInst::CreatePointerCast(&GV, VoidPtrTy, "", &I);
       std::vector<Value *> Args;
       Args.push_back(BCI);
-      Args.push_back(ConstantInt::get(Int32Ty, t));
-      Args.push_back(ConstantInt::get(Int32Ty, ATy->getNumElements()));
+      Args.push_back(ConstantInt::get(Int64Ty, t));
+      Args.push_back(ConstantInt::get(Int64Ty, ATy->getNumElements()));
       Args.push_back(ConstantInt::get(Int32Ty, tagCounter++));
-      Constant *F = M.getOrInsertFunction("trackGlobalArray", VoidTy, VoidPtrTy, Int32Ty, Int32Ty, Int32Ty, NULL);
+      Constant *F = M.getOrInsertFunction("trackGlobalArray", VoidTy, VoidPtrTy, Int64Ty, Int64Ty, Int32Ty, NULL);
       CallInst::Create(F, Args.begin(), Args.end(), "", &I);
     } else if(const StructType *STy = dyn_cast<StructType>(Ty)) {
       const StructLayout *SL = TD->getStructLayout(STy);
@@ -312,6 +312,26 @@ bool TypeChecks::visitCallSite(Module &M, CallSite CS) {
         CallInst::Create(F, Args.begin(), Args.end(), "", I);
         break;
       }
+    } else if(F->getNameStr() == std::string("calloc")) {
+      CastInst *BCI = BitCastInst::CreatePointerCast(I, VoidPtrTy);
+      BCI->insertAfter(I);
+      std::vector<Value *> Args;
+      Args.push_back(BCI);
+      Args.push_back(I->getOperand(2));
+      Args.push_back(ConstantInt::get(Int32Ty, tagCounter++));
+      Constant *F = M.getOrInsertFunction("trackInitInst", VoidTy, VoidPtrTy,I->getOperand(2)->getType(), Int32Ty, NULL);
+      CallInst *CI = CallInst::Create(F, Args.begin(), Args.end());
+      CI->insertAfter(BCI);
+      std::vector<Value *> Args1;
+      Args1.push_back(BCI);
+      Args1.push_back(I->getOperand(2));
+      Args1.push_back(I->getOperand(1));
+      Args1.push_back(ConstantInt::get(Int32Ty, tagCounter++));
+      F = M.getOrInsertFunction("trackGlobalArray", VoidTy, VoidPtrTy, I->getOperand(2)->getType(), I->getOperand(1)->getType(), Int32Ty, NULL);
+      CallInst *CI_Arr = CallInst::Create(F, Args1.begin(), Args1.end());
+      CI_Arr->insertAfter(CI);
+
+
     } else if(F->getNameStr() ==  std::string("realloc")) {
       CastInst *BCI_Src = BitCastInst::CreatePointerCast(I->getOperand(1), VoidPtrTy);
       CastInst *BCI_Dest = BitCastInst::CreatePointerCast(I, VoidPtrTy);
@@ -325,9 +345,49 @@ bool TypeChecks::visitCallSite(Module &M, CallSite CS) {
       Constant *F = M.getOrInsertFunction("copyTypeInfo", VoidTy, VoidPtrTy, VoidPtrTy, I->getOperand(2)->getType(), Int32Ty, NULL);
       CallInst *CI = CallInst::Create(F, Args.begin(), Args.end());
       CI->insertAfter(BCI_Dest);
+    } else if(F->getNameStr() == std::string("fgets")) {
+      CastInst *BCI = BitCastInst::CreatePointerCast(I->getOperand(1), VoidPtrTy, "", I);
+      std::vector<Value *> Args;
+      Args.push_back(BCI);
+      Args.push_back(I->getOperand(2));
+      Args.push_back(ConstantInt::get(Int32Ty, tagCounter++));
+      Constant *F = M.getOrInsertFunction("trackInitInst", VoidTy, VoidPtrTy, I->getOperand(2)->getType(), Int32Ty, NULL);
+      CallInst::Create(F, Args.begin(), Args.end(), "", I);
+    } else if(F->getNameStr() == std::string("sscanf")) {
+      // FIXME: Need to look at the format string and check
+      unsigned i = 3;
+      while(i < I->getNumOperands()) {
+        visitInputFunctionValue(M, I->getOperand(i), I);
+        i++;
+      }
+    } else if(F->getNameStr() == std::string("fscanf")) {
+      unsigned i = 3;
+      while(i < I->getNumOperands()) {
+        visitInputFunctionValue(M, I->getOperand(i), I);
+        i++;
+      }
     }
   }
 
+
+  return true;
+}
+bool TypeChecks::visitInputFunctionValue(Module &M, Value *V, Instruction *CI) {
+  // Cast the pointer operand to i8* for the runtime function.
+  CastInst *BCI = BitCastInst::CreatePointerCast(V, VoidPtrTy, "", CI);
+  const PointerType *PTy = dyn_cast<PointerType>(V->getType());
+  if(!PTy)
+    return false;
+
+  std::vector<Value *> Args;
+  Args.push_back(BCI);
+  Args.push_back(ConstantInt::get(Int8Ty, UsedTypes[PTy->getElementType()])); // SI.getValueOperand()
+  Args.push_back(ConstantInt::get(Int64Ty, TD->getTypeStoreSize(PTy->getElementType())));
+  Args.push_back(ConstantInt::get(Int32Ty, tagCounter++));
+
+  // Create the call to the runtime check and place it before the store instruction.
+  Constant *F = M.getOrInsertFunction("trackStoreInst", VoidTy, VoidPtrTy, Int8Ty, Int64Ty, Int32Ty, NULL);
+  CallInst::Create(F, Args.begin(), Args.end(), "", CI);
 
   return true;
 }

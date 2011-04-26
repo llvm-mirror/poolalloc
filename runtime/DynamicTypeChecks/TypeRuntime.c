@@ -41,7 +41,7 @@ void shadowUnmap() {
 /**
  * Record the global type and address in the shadow memory.
  */
-void trackGlobal(void *ptr, uint8_t typeNumber, uint8_t size, uint32_t tag) {
+void trackGlobal(void *ptr, uint8_t typeNumber, uint64_t size, uint32_t tag) {
   uintptr_t p = (uintptr_t)ptr;
   p &= 0xFFFFFFFF;
   shadow_begin[p] = typeNumber;
@@ -53,7 +53,7 @@ void trackGlobal(void *ptr, uint8_t typeNumber, uint8_t size, uint32_t tag) {
 /**
  * Record the type stored at ptr(of size size) and replicate it
  */
-void trackGlobalArray(void *ptr, uint32_t size, uint32_t count, uint32_t tag) {
+void trackGlobalArray(void *ptr, uint64_t size, uint64_t count, uint32_t tag) {
   unsigned i;
   uintptr_t p = (uintptr_t)ptr;
   uintptr_t p1 = (uintptr_t)ptr;
