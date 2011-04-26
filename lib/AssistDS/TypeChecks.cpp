@@ -284,7 +284,7 @@ bool TypeChecks::visitCallSite(Module &M, CallSite CS) {
   Instruction *I = CS.getInstruction();
 
   // Special case handling of certain libc allocation functions here.
-  if (Function *F = dyn_cast<Function>(Callee))
+  if (Function *F = dyn_cast<Function>(Callee)) {
     if (F->isIntrinsic()) {
       switch(F->getIntrinsicID()) {
       case Intrinsic::memcpy: 
@@ -326,6 +326,7 @@ bool TypeChecks::visitCallSite(Module &M, CallSite CS) {
       CallInst *CI = CallInst::Create(F, Args.begin(), Args.end());
       CI->insertAfter(BCI_Dest);
     }
+  }
 
 
   return true;
