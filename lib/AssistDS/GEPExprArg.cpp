@@ -56,18 +56,22 @@ namespace {
               continue;
 
             // find the argument we must replace
+            Function::arg_iterator ai = F->arg_begin(), ae = F->arg_end();
             unsigned argNum = 1;
-            for(; argNum < CI->getNumOperands();argNum++) {
+            for(; argNum < CI->getNumOperands();argNum++, ++ai) {
+              if(ai->use_empty())
+                continue;
               if (isa<GEPOperator>(CI->getOperand(argNum)))
                 break;
             }
-            
-            if(argNum == CI->getNumOperands())
+
+            // if no argument was a GEP operator to be changed 
+            if(ai == ae)
               continue;
+
             GEPOperator *GEP = dyn_cast<GEPOperator>(CI->getOperand(argNum));
             if(!GEP->hasAllConstantIndices())
               continue;
-
 
             // Construct the new Type
             // Appends the struct Type at the beginning
@@ -81,7 +85,7 @@ namespace {
             const FunctionType *NewFTy = FunctionType::get(CI->getType(), TP, false);
             Function *NewF;
             numSimplified++;
-            if(numSimplified > 25) //26
+            if(numSimplified > 1000) 
               return true;
 
             NewF = Function::Create(NewFTy,
@@ -119,6 +123,11 @@ namespace {
             Indices.append(GEP->op_begin()+1, GEP->op_end());
             GetElementPtrInst *GEP_new = GetElementPtrInst::Create(cast<Value>(NI), Indices.begin(), Indices.end(), "", InsertPoint);
             fargs.at(argNum)->replaceAllUsesWith(GEP_new);
+            unsigned j = argNum + 1;
+            for(; j < CI->getNumOperands();j++) {
+              if(CI->getOperand(j) == GEP)
+                fargs.at(j)->replaceAllUsesWith(GEP_new);
+            }
 
             SmallVector<Value*, 8> Args;
             Args.push_back(GEP->getPointerOperand());
