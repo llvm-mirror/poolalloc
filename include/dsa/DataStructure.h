@@ -18,6 +18,7 @@
 #include "llvm/Target/TargetData.h"
 #include "llvm/Support/CallSite.h"
 #include "llvm/ADT/EquivalenceClasses.h"
+#include "llvm/ADT/DenseSet.h"
 
 #include "dsa/DSCallGraph.h"
 #include "dsa/svset.h"
@@ -380,10 +381,10 @@ public:
 
 private:
   void markReachableFunctionsExternallyAccessible(DSNode *N,
-                                                  svset<DSNode*> &Visited);
+                                                  DenseSet<DSNode*> &Visited);
 
   void InlineCallersIntoGraph(DSGraph* G);
-  void ComputePostOrder(const Function &F, svset<DSGraph*> &Visited,
+  void ComputePostOrder(const Function &F, DenseSet<DSGraph*> &Visited,
                         std::vector<DSGraph*> &PostOrder);
 };
 

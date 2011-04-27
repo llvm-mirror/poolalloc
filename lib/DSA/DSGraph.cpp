@@ -681,7 +681,7 @@ void DSGraph::markIncompleteNodes(unsigned Flags) {
 
 // markExternalNode -- Marks the specified node, and all that's reachable from it,
 // as external.  Uses 'processedNodes' to track recursion.
-static void markExternalNode(DSNode *N, svset<DSNode *> & processedNodes) {
+static void markExternalNode(DSNode *N, DenseSet<DSNode *> & processedNodes) {
   // Stop recursion if no node, or if node already processed
   if (N == 0 || processedNodes.count(N) ) return;
 
@@ -699,7 +699,7 @@ static void markExternalNode(DSNode *N, svset<DSNode *> & processedNodes) {
 }
 
 // markExternal --marks the specified callsite external, using 'processedNodes' to track recursion.
-static void markExternal(const DSCallSite &Call, svset<DSNode *> & processedNodes) {
+static void markExternal(const DSCallSite &Call, DenseSet<DSNode *> & processedNodes) {
   markExternalNode(Call.getRetVal().getNode(), processedNodes);
 
   markExternalNode(Call.getVAVal().getNode(), processedNodes);
@@ -711,7 +711,7 @@ static void markExternal(const DSCallSite &Call, svset<DSNode *> & processedNode
 
 // propagateExternal -- Walk the given DSGraph making sure that within this graph
 // everything reachable from an already-external node is also marked External.
-static void propagateExternal(DSGraph * G, svset<DSNode *> & processedNodes) {
+static void propagateExternal(DSGraph * G, DenseSet<DSNode *> & processedNodes) {
   DSGraph::node_iterator I = G->node_begin(),
                          E = G->node_end();
   for ( ; I != E; ++I ) {
@@ -731,7 +731,7 @@ void DSGraph::computeIntPtrFlags() {
 // computeExternalFlags -- mark all reachable from external as external
 void DSGraph::computeExternalFlags(unsigned Flags) {
 
-  svset<DSNode *> processedNodes;
+  DenseSet<DSNode *> processedNodes;
 
   // Reset if indicated
   if (Flags & ResetExternal) {
