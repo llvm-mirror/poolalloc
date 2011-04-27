@@ -156,13 +156,16 @@ namespace llvm {
 /// the DSNode handles for the function arguments.
 ///
 class DSCallSite {
+public:
+  typedef std::set<CallSite> MappedSites_t;
+private:
   CallSite        Site;               // Actual call site
   const Function *CalleeF;            // The function called (direct call)
   DSNodeHandle    CalleeN;            // The function node called (indirect call)
   DSNodeHandle    RetVal;             // Returned value
   DSNodeHandle    VarArgVal;          // Merged var-arg val
   std::vector<DSNodeHandle> CallArgs; // The pointer arguments
-  std::vector<CallSite> MappedSites;  // The merged callsites
+  MappedSites_t MappedSites;          // The merged callsites
 
   static void InitNH(DSNodeHandle &NH, const DSNodeHandle &Src,
                      const std::map<const DSNode*, DSNode*> &NodeMap) {
@@ -226,9 +229,7 @@ public:
     CallArgs.resize(FromCall.CallArgs.size());
     for (unsigned i = 0, e = FromCall.CallArgs.size(); i != e; ++i)
       InitNH(CallArgs[i], FromCall.CallArgs[i], NodeMap);
-    MappedSites.resize(FromCall.MappedSites.size());
-    for (unsigned i = 0, e = FromCall.MappedSites.size(); i != e; ++i)
-      MappedSites[i] = FromCall.MappedSites[i];
+    MappedSites = FromCall.MappedSites;
   }
 
   const DSCallSite &operator=(const DSCallSite &RHS) {
@@ -278,14 +279,9 @@ public:
     return CallArgs[i];
   }
   
-  CallSite &getMappedCallSite(unsigned i) {
-    assert(i < MappedSites.size() && "Argument to getMappedCallSite is out of range!");
-    return MappedSites[i];
-  }
-  const CallSite &getMappedCallSite(unsigned i) const {
-    assert(i < MappedSites.size() && "Argument to getMappedCallSite is out of range!");
-    return MappedSites[i];
-  }
+
+  const MappedSites_t::iterator ms_begin() const { return MappedSites.begin(); }
+  const MappedSites_t::iterator ms_end() const { return MappedSites.end(); }
 
   void addPtrArg(const DSNodeHandle &NH) {
     CallArgs.push_back(NH);
@@ -318,9 +314,8 @@ public:
     for (unsigned a = MinArgs, e = CS.getNumPtrArgs(); a != e; ++a)
       CallArgs.push_back(CS.getPtrArg(a));
 
-    MappedSites.push_back(CS.getCallSite());
-    for (unsigned a = 0, e = CS.MappedSites.size(); a != e; ++a)
-      MappedSites.push_back(CS.MappedSites[a]);
+    MappedSites.insert(CS.getCallSite());
+    MappedSites.insert(CS.ms_begin(), CS.ms_end());
   }
 
   /// markReachableNodes - This method recursively traverses the specified

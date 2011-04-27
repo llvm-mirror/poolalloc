@@ -1650,8 +1650,8 @@ void DSGraph::buildCallGraph(DSCallGraph& DCG, std::vector<const Function*>& Glo
   //
   const std::list<DSCallSite>& Calls = getFunctionCalls();
   for (std::list<DSCallSite>::const_iterator ii = Calls.begin(),
-                                             ee = Calls.end();
-       ii != ee; ++ii) {
+      ee = Calls.end();
+      ii != ee; ++ii) {
     //
     // Direct calls are easy.  We know to where they go.
     //
@@ -1685,18 +1685,20 @@ void DSGraph::buildCallGraph(DSCallGraph& DCG, std::vector<const Function*>& Glo
           DCG.insert(CS, *Fi);
         else
           ++NumFiltered;
-     for (unsigned i = 0; i < ii->getNumMappedSites(); i++) {
-       CallSite MCS = ii->getMappedCallSite(i);
-       for (std::vector<const Function*>::iterator Fi = MaybeTargets.begin(),
+      for (DSCallSite::MappedSites_t::iterator I = ii->ms_begin(),
+           E = ii->ms_end(); I != E; ++I) {
+        CallSite MCS = *I;
+        for (std::vector<const Function*>::iterator Fi = MaybeTargets.begin(),
              Fe = MaybeTargets.end(); Fi != Fe; ++Fi)
           if (!filter || functionIsCallable(MCS, *Fi))
             DCG.insert(MCS, *Fi);
           else
             ++NumFiltered;
-       }
+      }
     }
   }
 }
+
 void DSGraph::buildCompleteCallGraph(DSCallGraph& DCG, 
                                      std::vector<const Function*>& GlobalFunctionList, bool filter) const {
   //
@@ -1724,10 +1726,12 @@ void DSGraph::buildCompleteCallGraph(DSCallGraph& DCG,
         DCG.insert(CS, *Fi);
       else
         ++NumFiltered;
-    for (unsigned i = 0; i < ii->getNumMappedSites(); i++) {
-      CallSite MCS = ii->getMappedCallSite(i);
+
+    for (DSCallSite::MappedSites_t::iterator I = ii->ms_begin(),
+         E = ii->ms_end(); I != E; ++I) {
+      CallSite MCS = *I;
       for (std::vector<const Function*>::iterator Fi = MaybeTargets.begin(),
-            Fe = MaybeTargets.end(); Fi != Fe; ++Fi){
+           Fe = MaybeTargets.end(); Fi != Fe; ++Fi) {
         if (!filter || functionIsCallable(MCS, *Fi))
           DCG.insert(MCS, *Fi);
         else
