@@ -15,18 +15,19 @@
 #define DEBUG_TYPE "dsa-local"
 #include "dsa/DataStructure.h"
 #include "dsa/DSGraph.h"
+#include "llvm/Use.h"
+#include "llvm/InlineAsm.h"
 #include "llvm/Constants.h"
+#include "llvm/Intrinsics.h"
 #include "llvm/DerivedTypes.h"
 #include "llvm/Instructions.h"
-#include "llvm/Intrinsics.h"
-#include "llvm/InlineAsm.h"
 #include "llvm/Support/GetElementPtrTypeIterator.h"
 #include "llvm/Support/InstVisitor.h"
-#include "llvm/Target/TargetData.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/FormattedStream.h"
 #include "llvm/Support/Timer.h"
+#include "llvm/Target/TargetData.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/Triple.h"
@@ -420,7 +421,6 @@ void GraphBuilder::visitPtrToIntInst(PtrToIntInst& I) {
 
 
 void GraphBuilder::visitBitCastInst(BitCastInst &I) {
-  
   if (!isa<PointerType>(I.getType())) return; // Only pointers
   DSNodeHandle Ptr = getValueDest(I.getOperand(0));
   if (Ptr.isNull()) return;
@@ -503,7 +503,7 @@ void GraphBuilder::visitGetElementPtrInst(User &GEP) {
   // Okay, no easy way out.  Calculate the offset into the object being
   // indexed.
   //
- 
+
   int Offset = 0;
 
   // FIXME: I am not sure if the code below is completely correct (especially
@@ -511,7 +511,7 @@ void GraphBuilder::visitGetElementPtrInst(User &GEP) {
   //        What if the array is indexed using a larger index than its declared
   //        size?  Does the LLVM verifier catch such issues?
   //
-  
+
   //
   // Determine the offset (in bytes) between the result of the GEP and the
   // GEP's pointer operand.
@@ -540,7 +540,6 @@ void GraphBuilder::visitGetElementPtrInst(User &GEP) {
       }
       Offset += (unsigned)TD.getStructLayout(STy)->getElementOffset(FieldNo);
       if(TypeInferenceOptimize) {
-
         if(const ArrayType* AT = dyn_cast<ArrayType>(STy->getTypeAtIndex(FieldNo))) {
           Value.getNode()->mergeTypeInfo(AT, Value.getOffset() + Offset);
           if((++I) == E) {
@@ -570,7 +569,7 @@ void GraphBuilder::visitGetElementPtrInst(User &GEP) {
       const Type *CurTy = ATy->getElementType();
 
       if(!isa<ArrayType>(CurTy) &&
-          Value.getNode()->getSize() <= 0) {
+         Value.getNode()->getSize() <= 0) {
         Value.getNode()->growSize(TD.getTypeAllocSize(CurTy));
       } else if(isa<ArrayType>(CurTy) && Value.getNode()->getSize() <= 0){
         const Type *ETy = (cast<ArrayType>(CurTy))->getElementType();
@@ -583,7 +582,7 @@ void GraphBuilder::visitGetElementPtrInst(User &GEP) {
       // Find if the DSNode belongs to the array
       // If not fold.
       if((Value.getOffset() || Offset != 0)
-          || (!isa<ArrayType>(CurTy)
+         || (!isa<ArrayType>(CurTy)
          && (Value.getNode()->getSize() != TD.getTypeAllocSize(CurTy)))) {
         Value.getNode()->foldNodeCompletely();
         Value.getNode();
@@ -605,7 +604,7 @@ void GraphBuilder::visitGetElementPtrInst(User &GEP) {
       if (!isa<Constant>(I.getOperand()) ||
           !cast<Constant>(I.getOperand())->isNullValue()) {
         Value.getNode()->setArrayMarker();
-        
+
 
         if(!isa<ArrayType>(CurTy) && Value.getNode()->getSize() <= 0){
           Value.getNode()->growSize(TD.getTypeAllocSize(CurTy));
