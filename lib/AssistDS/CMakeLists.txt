@@ -12,7 +12,6 @@ add_llvm_library(AssistDS
   SimplifyGEP.cpp
   SimplifyInsertValue.cpp
   StructReturnToPointer.cpp
-  TestGEP.cpp
   TypeAnalysis.cpp
   TypeChecks.cpp
   VarArgsFunc.cpp
