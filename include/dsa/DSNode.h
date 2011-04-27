@@ -206,6 +206,8 @@ public:
     assert(!isCollapsedNode() && "Growing a collapsed node");
     Size = NSize;
   }
+  
+  void growSizeForType(const Type *Ty, unsigned Offset);
 
   /// hasLink - Return true if this memory object has a link in slot LinkNo
   ///

@@ -402,15 +402,11 @@ void DSNode::markIntPtrFlags() {
   }
 }
 
-/// mergeTypeInfo - This method merges the specified type into the current node
-/// at the specified offset.  This may update the current node's type record if
-/// this gives more information to the node, it may do nothing to the node if
-/// this information is already known, or it may merge the node completely (and
-/// return true) if the information is incompatible with what is already known.
-///
-/// This method returns true if the node is completely folded, otherwise false.
-///
-void DSNode::mergeTypeInfo(const Type *NewTy, unsigned Offset) {
+/// growSizeForType - This method increases the size of the node 
+/// to accomodate NewTy at the given offset. This is useful for
+/// updating the size of a DSNode, without actually inferring a 
+/// Type.
+void DSNode::growSizeForType(const Type *NewTy, unsigned Offset) {
 
   if (!NewTy || NewTy->isVoidTy()) return;
 
@@ -422,6 +418,20 @@ void DSNode::mergeTypeInfo(const Type *NewTy, unsigned Offset) {
   if (Offset + TD.getTypeAllocSize(NewTy) >= getSize())
     growSize(Offset + TD.getTypeAllocSize(NewTy));
 
+}
+
+/// mergeTypeInfo - This method merges the specified type into the current node
+/// at the specified offset.  This may update the current node's type record if
+/// this gives more information to the node, it may do nothing to the node if
+/// this information is already known, or it may merge the node completely (and
+/// return true) if the information is incompatible with what is already known.
+///
+/// This method returns true if the node is completely folded, otherwise false.
+///
+void DSNode::mergeTypeInfo(const Type *NewTy, unsigned Offset) {
+
+  growSizeForType(NewTy, Offset);
+
   // Clang generates loads and stores of struct types.
   // %tmp12 = load %struct.demand* %retval, align 1 
 
@@ -429,6 +439,7 @@ void DSNode::mergeTypeInfo(const Type *NewTy, unsigned Offset) {
   // individually(at the appropriate offset), instead of the 
   // struct type.
   if(NewTy->isStructTy()) {
+    const TargetData &TD = getParentGraph()->getTargetData();
     const StructType *STy = cast<StructType>(NewTy);
     const StructLayout *SL = TD.getStructLayout(cast<StructType>(STy));
     unsigned count = 0;
@@ -653,7 +664,6 @@ void DSNode::MergeNodes(DSNodeHandle& CurNodeH, DSNodeHandle& NH) {
 /// point to this node).
 ///
 void DSNode::mergeWith(const DSNodeHandle &NH, unsigned Offset) {
-  //DOUT << "mergeWith: " << this << " becomes " << NH.getNode() << "\n";
   DSNode *N = NH.getNode();
   if (N == this && NH.getOffset() == Offset)
     return;  // Noop
