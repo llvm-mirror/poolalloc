@@ -429,6 +429,8 @@ void DSNode::growSizeForType(const Type *NewTy, unsigned Offset) {
 /// This method returns true if the node is completely folded, otherwise false.
 ///
 void DSNode::mergeTypeInfo(const Type *NewTy, unsigned Offset) {
+  if (!NewTy || NewTy->isVoidTy()) return;
+  if (isCollapsedNode()) return;
 
   growSizeForType(NewTy, Offset);
 
