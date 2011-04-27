@@ -1,11 +1,13 @@
 ; ModuleID = 'union.bc'
+; Makes use of unions. Also tests that we do not infer types for loads/stores when we use the type inference opts.
+; Works only with type inference opts, as unions are interpreted with array inside the struct.
 target datalayout = "e-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:64:64-f32:32:32-f64:64:64-v64:64:64-v128:128:128-a0:0:64-s0:64:64-f80:128:128-n8:16:32:64"
 target triple = "x86_64-unknown-linux-gnu"
 
-;RUN: dsaopt %s -dsa-local -analyze -check-same-node=func:tmp:0,func:c:0,func:s1:0
-;RUN: dsaopt %s -dsa-local -analyze -check-same-node=func:s1:8,func:x:8
-;RUN: dsaopt %s -dsa-local -analyze -check-type=func:s1,0:float|i32|i32*::8:i32*
-;RUN: dsaopt %s -dsa-local -analyze -check-type=func:x,0:float::8:i32*
+;RUN: adsaopt %s -mem2reg -mergearrgep -dce -o tt.bc
+;RUN: dsaopt tt.bc -dsa-local -analyze -enable-type-inference-opts -check-same-node=func:s1:8,func:x:8
+;RUN: dsaopt tt.bc -dsa-local -analyze -enable-type-inference-opts -check-type=func:s1,0:i32*
+;RUN: dsaopt tt.bc -dsa-local -analyze -enable-type-inference-opts -check-type=func:x,VOID
 
 %struct.StructType = type { float, i32* }
 %union.UnionType = type { %struct.StructType, [96 x i32] }
