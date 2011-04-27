@@ -3,6 +3,11 @@ target datalayout = "e-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:64:64-f3
 target triple = "x86_64-unknown-linux-gnu"
 
 ;RUN: dsaopt %s -dsa-local -analyze -check-type=main:s,0:float|double::4:float::8:float
+;RUN: dsaopt %s -dsa-local -enable-type-inference-opts -analyze -check-type=main:s,0:float|double::4:float::8:float
+;RUN: adsaopt %s -ld-args -deadargelim -dce -o t.bc
+;RUN: dsaopt t.bc -dsa-local -enable-type-inference-opts -analyze -check-type=main:s,0:float::4:float::8:float
+;RUN: adsaopt %s -ld-args -gep-expr-arg -deadargelim -dce -o t.bc
+;RUN: dsaopt t.bc -dsa-local -enable-type-inference-opts -analyze -check-type=main:s,0:float::4:float::8:float
 
 ; Function foo, actually accepts an object of struct S. But as
 ; per calling conventions, the value is passed in registers, after

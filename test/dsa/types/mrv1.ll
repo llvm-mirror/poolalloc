@@ -6,6 +6,13 @@ target triple = "x86_64-unknown-linux-gnu"
 
 ;RUN: dsaopt %s -dsa-local -analyze -check-type=main:s,0:float|double::4:float::8:float
 ;RUN: dsaopt %s -dsa-local -analyze -check-type=main:s1,0:float::4:float::8:float
+;RUN: dsaopt %s -dsa-local -enable-type-inference-opts -analyze -check-type=main:s1,VOID
+;RUN: adsaopt %s -ld-args -deadargelim -dce -o t.bc
+;RUN: dsaopt t.bc -dsa-local -enable-type-inference-opts -analyze -check-type=main:s,0:float::4:float::8:float
+;RUN: dsaopt t.bc -dsa-local -enable-type-inference-opts -analyze -check-type=main:s1,VOID
+;RUN: adsaopt %s -ld-args -gep-expr-arg -deadargelim -dce -o t.bc
+;RUN: dsaopt t.bc -dsa-local -enable-type-inference-opts -analyze -check-type=main:s,0:float::4:float::8:float
+;RUN: dsaopt t.bc -dsa-local -enable-type-inference-opts -analyze -check-type=main:s1,VOID
 
 %0 = type { double, float }
 %struct.S = type { float, float, float }
