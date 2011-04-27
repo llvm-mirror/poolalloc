@@ -27,6 +27,7 @@ RUNOPT := $(RUNTOOLSAFELY) $(LLVM_OBJ_ROOT)/projects/poolalloc/$(CONFIGURATION)/
 PASS := td
 
 TYPE_RT_O := $(PADIR)/$(CONFIGURATION)/lib/libtypechecks_rt.a
+DYNCOUNT_RT_O := $(PADIR)/$(CONFIGURATION)/lib/libcount.a
 ANALYZE_OPTS := -stats -time-passes -disable-output -dsstats
 #ANALYZE_OPTS := -stats -time-passes -dsstats 
 ANALYZE_OPTS +=  -instcount -disable-verify 
@@ -50,21 +51,51 @@ Output/%.temp1.bc: Output/%.llvm1.bc
 
 $(PROGRAMS_TO_TEST:%=Output/%.opt.bc): \
 Output/%.opt.bc: Output/%.llvm1.bc $(LOPT) $(ASSIST_SO)
-	-$(RUNOPT) -load $(ASSIST_SO) -disable-opt -info-output-file=$(CURDIR)/$@.info -instnamer -internalize -mem2reg -dce  -basiccg -inline -dce -dce -varargsfunc -indclone -funcspec -ipsccp -deadargelim  -simplify-gep -die -die -mergearrgep -die -globaldce -simplifycfg -deadargelim -arg-simplify -die -varargsfunc -die -simplifycfg -globaldce -indclone -funcspec -deadargelim -globaldce -die -simplifycfg -gep-args -deadargelim -die -mergefunc -die -die -mergearrgep -die -globaldce -int2ptrcmp -die -dce  -dce -inline -mem2reg -dce -arg-cast -dce -struct-ret -deadargelim -simplify-ev -simplify-iv -dce -ld-args -gep-args -deadargelim -mergefunc -globaldce -dce -typechecks -ipsccp -dce -stats -time-passes $< -f -o $@ 
+	-$(RUNOPT) -load $(ASSIST_SO) -disable-opt -info-output-file=$(CURDIR)/$@.info -instnamer -internalize -mem2reg -dce  -basiccg -inline -dce -varargsfunc -indclone -funcspec -ipsccp -deadargelim  -simplify-gep -die -die -mergearrgep -die -globaldce -simplifycfg -deadargelim -arg-simplify -die -varargsfunc -die -simplifycfg -globaldce -indclone -funcspec -deadargelim -globaldce -die -simplifycfg -gep-expr-arg -deadargelim -die -mergefunc -die -die -mergearrgep -die -globaldce -int2ptrcmp -die -dce  -inline -mem2reg -dce -arg-cast -dce -struct-ret -deadargelim -simplify-ev -simplify-iv -dce -ld-args -gep-expr-arg -deadargelim -mergefunc -dce -stats -time-passes $< -f -o $@ 
 
+$(PROGRAMS_TO_TEST:%=Output/%.count.bc): \
+Output/%.count.bc: Output/%.opt.bc $(LOPT) $(ASSIST_SO)
+	-$(RUNOPT) -enable-type-inference-opts -dsa-stdlib-no-fold -dyncount -disable-opt -info-output-file=$(CURDIR)/$@.info $< -f -o $@ 
+
+$(PROGRAMS_TO_TEST:%=Output/%.count1.bc): \
+Output/%.count1.bc: Output/%.opt.bc $(LOPT) $(ASSIST_SO)
+	-$(RUNOPT) -dyncount -disable-opt -info-output-file=$(CURDIR)/$@.info $< -f -o $@ 
+
+$(PROGRAMS_TO_TEST:%=Output/%.tc.bc): \
+Output/%.tc.bc: Output/%.opt.bc $(LOPT) $(ASSIST_SO)
+	-$(RUNOPT) -load $(ASSIST_SO) -typechecks -dce -ipsccp -info-output-file=$(CURDIR)/$@.info $< -f -o $@ 
+
+$(PROGRAMS_TO_TEST:%=Output/%.count.s): \
+Output/%.count.s: Output/%.count.bc $(LLC)
+	-$(LLC) -f $< -o $@
+$(PROGRAMS_TO_TEST:%=Output/%.count1.s): \
+Output/%.count1.s: Output/%.count1.bc $(LLC)
+	-$(LLC) -f $< -o $@
 $(PROGRAMS_TO_TEST:%=Output/%.opt.s): \
 Output/%.opt.s: Output/%.opt.bc $(LLC)
 	-$(LLC) -f $< -o $@
 $(PROGRAMS_TO_TEST:%=Output/%.llvm1.s): \
 Output/%.llvm1.s: Output/%.llvm1.bc $(LLC)
 	-$(LLC) -f $< -o $@
+$(PROGRAMS_TO_TEST:%=Output/%.tc.s): \
+Output/%.tc.s: Output/%.tc.bc $(LLC)
+	-$(LLC) -f $< -o $@
 
 $(PROGRAMS_TO_TEST:%=Output/%.opt): \
-Output/%.opt: Output/%.opt.s $(TYPE_RT_O)
+Output/%.opt: Output/%.opt.s
+	-$(CC) $(CFLAGS) $<  $(LLCLIBS) $(LDFLAGS) -o $@
+$(PROGRAMS_TO_TEST:%=Output/%.tc): \
+Output/%.tc: Output/%.tc.s $(TYPE_RT_O)
 	-$(CC) $(CFLAGS) $<  $(LLCLIBS) $(TYPE_RT_O) $(LDFLAGS) -o $@
 $(PROGRAMS_TO_TEST:%=Output/%.llvm1): \
 Output/%.llvm1: Output/%.llvm1.s 
 	-$(CC) $(CFLAGS) $<  $(LLCLIBS) $(LDFLAGS) -o $@
+$(PROGRAMS_TO_TEST:%=Output/%.count): \
+Output/%.count: Output/%.count.s 
+	-$(CC) $(CFLAGS) $<  $(LLCLIBS) $(DYNCOUNT_RT_O) $(LDFLAGS) -o $@
+$(PROGRAMS_TO_TEST:%=Output/%.count1): \
+Output/%.count1: Output/%.count1.s 
+	-$(CC) $(CFLAGS) $<  $(LLCLIBS) $(DYNCOUNT_RT_O) $(LDFLAGS) -o $@
 
 ifndef PROGRAMS_HAVE_CUSTOM_RUN_RULES
 
@@ -73,6 +104,17 @@ Output/%.opt.out: Output/%.opt
 	-$(RUNSAFELY) $(STDIN_FILENAME) $@ $< $(RUN_OPTIONS)
 $(PROGRAMS_TO_TEST:%=Output/%.llvm1.out): \
 Output/%.llvm1.out: Output/%.llvm1
+	-$(RUNSAFELY) $(STDIN_FILENAME) $@ $< $(RUN_OPTIONS)
+$(PROGRAMS_TO_TEST:%=Output/%.count1.out): \
+Output/%.count1.out: Output/%.count1
+	-$(RUNSAFELY) $(STDIN_FILENAME) $@ $< $(RUN_OPTIONS)
+	-cp lsstats lsstats1
+$(PROGRAMS_TO_TEST:%=Output/%.count.out): \
+Output/%.count.out: Output/%.count
+	-$(RUNSAFELY) $(STDIN_FILENAME) $@ $< $(RUN_OPTIONS)
+	-cp lsstats lsstats2
+$(PROGRAMS_TO_TEST:%=Output/%.tc.out): \
+Output/%.tc.out: Output/%.tc
 	-$(RUNSAFELY) $(STDIN_FILENAME) $@ $< $(RUN_OPTIONS)
 
 else
@@ -88,8 +130,31 @@ Output/%.llvm1.out: Output/%.llvm1
 	-$(SPEC_SANDBOX) llvm1-$(RUN_TYPE) $@ $(REF_IN_DIR) \
              $(RUNSAFELY) $(STDIN_FILENAME) $(STDOUT_FILENAME) \
                   ../../$< $(RUN_OPTIONS)
-	-(cd Output/opt-$(RUN_TYPE); cat $(LOCAL_OUTPUTS)) > $@
-	-cp Output/opt-$(RUN_TYPE)/$(STDOUT_FILENAME).time $@.time
+	-(cd Output/llvm1-$(RUN_TYPE); cat $(LOCAL_OUTPUTS)) > $@
+	-cp Output/llvm1-$(RUN_TYPE)/$(STDOUT_FILENAME).time $@.time
+$(PROGRAMS_TO_TEST:%=Output/%.tc.out): \
+Output/%.tc.out: Output/%.tc
+	-$(SPEC_SANDBOX) tc-$(RUN_TYPE) $@ $(REF_IN_DIR) \
+             $(RUNSAFELY) $(STDIN_FILENAME) $(STDOUT_FILENAME) \
+                  ../../$< $(RUN_OPTIONS)
+	-(cd Output/tc-$(RUN_TYPE); cat $(LOCAL_OUTPUTS)) > $@
+	-cp Output/tc-$(RUN_TYPE)/$(STDOUT_FILENAME).time $@.time
+$(PROGRAMS_TO_TEST:%=Output/%.count.out): \
+Output/%.count.out: Output/%.count
+	-$(SPEC_SANDBOX) count-$(RUN_TYPE) $@ $(REF_IN_DIR) \
+             $(RUNSAFELY) $(STDIN_FILENAME) $(STDOUT_FILENAME) \
+                  ../../$< $(RUN_OPTIONS)
+	-(cd Output/count-$(RUN_TYPE); cat $(LOCAL_OUTPUTS)) > $@
+	-cp Output/count-$(RUN_TYPE)/$(STDOUT_FILENAME).time $@.time
+	-cp Output/count-$(RUN_TYPE)/lsstats lsstats2
+$(PROGRAMS_TO_TEST:%=Output/%.count1.out): \
+Output/%.count1.out: Output/%.count1
+	-$(SPEC_SANDBOX) count1-$(RUN_TYPE) $@ $(REF_IN_DIR) \
+             $(RUNSAFELY) $(STDIN_FILENAME) $(STDOUT_FILENAME) \
+                  ../../$< $(RUN_OPTIONS)
+	-(cd Output/count1-$(RUN_TYPE); cat $(LOCAL_OUTPUTS)) > $@
+	-cp Output/count1-$(RUN_TYPE)/$(STDOUT_FILENAME).time $@.time
+	-cp Output/count1-$(RUN_TYPE)/lsstats lsstats1
 
 endif
 
@@ -97,15 +162,28 @@ $(PROGRAMS_TO_TEST:%=Output/%.opt.diff-nat): \
 Output/%.opt.diff-nat: Output/%.out-nat Output/%.opt.out
 	@cp Output/$*.out-nat Output/$*.opt.out-nat
 	-$(DIFFPROG) nat $*.opt $(HIDEDIFF)
+$(PROGRAMS_TO_TEST:%=Output/%.tc.diff-nat): \
+Output/%.tc.diff-nat: Output/%.out-nat Output/%.tc.out
+	@cp Output/$*.out-nat Output/$*.tc.out-nat
+	-$(DIFFPROG) nat $*.tc $(HIDEDIFF)
 
 $(PROGRAMS_TO_TEST:%=Output/%.llvm1.diff-nat): \
 Output/%.llvm1.diff-nat: Output/%.out-nat Output/%.llvm1.out
 	@cp Output/$*.out-nat Output/$*.llvm1.out-nat
-	-$(DIFFPROG) nat $*.opt $(HIDEDIFF)
+	-$(DIFFPROG) nat $*.llvm1 $(HIDEDIFF)
+
+$(PROGRAMS_TO_TEST:%=Output/%.count.diff-nat): \
+Output/%.count.diff-nat: Output/%.out-nat Output/%.count.out
+	@cp Output/$*.out-nat Output/$*.count.out-nat
+	-$(DIFFPROG) nat $*.count $(HIDEDIFF)
+$(PROGRAMS_TO_TEST:%=Output/%.count1.diff-nat): \
+Output/%.count1.diff-nat: Output/%.out-nat Output/%.count1.out
+	@cp Output/$*.out-nat Output/$*.count1.out-nat
+	-$(DIFFPROG) nat $*.count1 $(HIDEDIFF)
 
 
 $(PROGRAMS_TO_TEST:%=Output/%.$(TEST).report.txt): \
-Output/%.$(TEST).report.txt: Output/%.opt.bc Output/%.LOC.txt $(LOPT) Output/%.out-nat Output/%.opt.diff-nat
+Output/%.$(TEST).report.txt: Output/%.opt.bc Output/%.LOC.txt $(LOPT) Output/%.out-nat Output/%.opt.diff-nat Output/%.count.diff-nat Output/%.count1.diff-nat
 	@# Gather data
 	-($(RUNOPT)  -dsa-$(PASS) -enable-type-inference-opts -dsa-stdlib-no-fold $(ANALYZE_OPTS) $<)> $@.time.1 2>&1
 	-($(RUNOPT)  -dsa-$(PASS)  $(ANALYZE_OPTS) $<)> $@.time.2 2>&1
@@ -176,8 +254,8 @@ Output/%.$(TEST).report.txt: Output/%.opt.bc Output/%.LOC.txt $(LOPT) Output/%.o
 	@/bin/echo -n "ACCESSES U: " >> $@
 	-@grep 'Number of loads/stores which are on unknown nodes' $@.time.1 >> $@
 	@echo >> $@
-	@/bin/echo -n "STD_LIB_FOLD: " >> $@
-	-@grep 'Number of nodes folded in std lib' $@.time.1 >> $@
+	@/bin/echo -n "ACCESSES I2P: " >> $@
+	-@grep 'Number of loads/stores which are on inttoptr nodes' $@.time.1 >> $@
 	@echo >> $@
 	@/bin/echo -n "I2PB: " >> $@
 	-@grep 'Number of inttoptr used only in cmp' $@.time.1 >> $@
@@ -226,6 +304,18 @@ Output/%.$(TEST).report.txt: Output/%.opt.bc Output/%.LOC.txt $(LOPT) Output/%.o
 	@/bin/echo -n "INDCALLS: " >> $@
 	-@grep 'Number of unresolved IndCalls' $@.time.1 >> $@
 	@echo >> $@
+	@/bin/echo -n "DTOTALO: " >> $@
+	-@grep 'Total' lsstats2 >> $@
+	@echo >> $@
+	@/bin/echo -n "DSAFEO: " >> $@
+	-@grep 'Safe' lsstats2 >> $@
+	@echo >> $@
+	@/bin/echo -n "DTOTAL: " >> $@
+	-@grep 'Total' lsstats1 >> $@
+	@echo >> $@
+	@/bin/echo -n "DSAFE: " >> $@
+	-@grep 'Safe' lsstats1 >> $@
+	@echo >> $@
 
 
 $(PROGRAMS_TO_TEST:%=test.$(TEST).%): \
@@ -238,5 +328,5 @@ test.$(TEST).%: Output/%.$(TEST).report.txt
 # Define REPORT_DEPENDENCIES so that the report is regenerated if analyze or
 # dummylib is updated.
 #
-REPORT_DEPENDENCIES := $(DUMMYLIB) $(LOPT)
+REPORT_DEPENDENCIES := $(DUMMYLIB) $(LOPT) $(ASSIST_SO)
 

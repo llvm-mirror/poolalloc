@@ -15,7 +15,7 @@ sub Ratio {
   my ($Cols, $Col) = @_;
   if ($Cols->[$Col-2] ne "*" and
       $Cols->[$Col-2] != "0") {
-    return $Cols->[$Col-1]/$Cols->[$Col-2];
+    return sprintf("%4.1f%%", 100*($Cols->[$Col-1]/$Cols->[$Col-2]));
   } else {
     return "n/a";
   }
@@ -159,6 +159,7 @@ my $USERSYSTTIME = '([0-9.]+)[ 0-9.]+\([^)]+\)[ 0-9.]+\([^)]+\) +';
             ["E", "ACCESSES E: *([0-9]+)"],
             ["F", "ACCESSES F: *([0-9]+)"],
             ["U", "ACCESSES U: *([0-9]+)"],
+            ["I2P", "ACCESSES I2P: *([0-9]+)"],
 # Nodes Folded
             [],
             ["VAFUNC", "VARARGS_CALLS: *([0-9]+)"],
@@ -166,7 +167,6 @@ my $USERSYSTTIME = '([0-9.]+)[ 0-9.]+\([^)]+\)[ 0-9.]+\([^)]+\) +';
             ["ARGSMPL", "ARG_SMPL: *([0-9]+)"],
             ["FUNCSPEC", "CLONED_FUNCSPEC: *([0-9]+)"],
             ["INDCLONE", "CLONED_INDCLONE: *([0-9]+)"],
-            ["StdLibFold", "STD_LIB_FOLD: *([0-9]+)"],
             ["I2PB", "I2PB: *([0-9]+)"],
             ["I2PS", "I2PS: *([0-9]+)"],
             ["EV", "EV: *([0-9]+)"],
@@ -174,4 +174,12 @@ my $USERSYSTTIME = '([0-9.]+)[ 0-9.]+\([^)]+\)[ 0-9.]+\([^)]+\) +';
             ["DE", "DEALLOC: *([0-9]+)"],
             ["CAST", "CAST: *([0-9]+)"],
             ["Calls", "INDCALLS: *([0-9]+)"],
+            [],
+            ["DTotal", "DTOTAL: *([0-9]+)"],
+            ["DSafe", "DSAFE: *([0-9]+)"],
+            ["DTS %" , sub { return Ratio(@_); }],
+            [],
+            ["DTotalO", "DTOTALO: *([0-9]+)"],
+            ["DSafeO", "DSAFEO: *([0-9]+)"],
+            ["DTS %" , sub { return Ratio(@_); }],
            );
