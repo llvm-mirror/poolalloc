@@ -42,6 +42,8 @@ static bool isAddressTaken(Value* V) {
     if(isa<StoreInst>(U))
       return true;
     if (!isa<CallInst>(U) && !isa<InvokeInst>(U)) {
+      if(U->use_empty())
+        continue;
       if(isa<GlobalAlias>(U)) {
         if(isAddressTaken(U))
           return true;
@@ -53,7 +55,6 @@ static bool isAddressTaken(Value* V) {
             }
           }
         }
-        
         return true;
       }
 
