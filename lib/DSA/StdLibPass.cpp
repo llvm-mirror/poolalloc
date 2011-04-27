@@ -31,6 +31,7 @@ using namespace llvm;
 
 static RegisterPass<StdLibDataStructures>
 X("dsa-stdlib", "Standard Library Local Data Structure Analysis");
+
 STATISTIC(NumNodesFoldedInStdLib,    "Number of nodes folded in std lib");
 
 char StdLibDataStructures::ID;
@@ -39,6 +40,10 @@ char StdLibDataStructures::ID;
 namespace {
   static cl::opt<bool> noStdLibFold("dsa-stdlib-no-fold",
          cl::desc("Don't fold nodes in std-lib."),
+         cl::Hidden,
+         cl::init(false));
+  static cl::opt<bool> DisableStdLib("disable-dsa-stdlib",
+         cl::desc("Don't use DSA's stdlib pass."),
          cl::Hidden,
          cl::init(false));
 }
@@ -442,48 +447,51 @@ StdLibDataStructures::runOnModule (Module &M) {
         eraseCallsTo(I);
     }
 
-  //
-  // Scan through the function summaries and process functions by summary.
-  //
-  for (int x = 0; recFuncs[x].name; ++x) 
-    if (Function* F = M.getFunction(recFuncs[x].name))
-      if (F->isDeclaration()) {
+  if(!DisableStdLib) {
+
+    //
+    // Scan through the function summaries and process functions by summary.
+    //
+    for (int x = 0; recFuncs[x].name; ++x) 
+      if (Function* F = M.getFunction(recFuncs[x].name))
+        if (F->isDeclaration()) {
+          processFunction(x, F);
+        }
+
+    std::set<std::string>::iterator ai = AllocWrappersAnalysis->alloc_begin();
+    std::set<std::string>::iterator ae = AllocWrappersAnalysis->alloc_end();
+    int x;
+    for (x = 0; recFuncs[x].name; ++x) {
+      if(recFuncs[x].name == std::string("malloc"))
+        break;
+    }
+
+    for(;ai != ae; ++ai) {
+      if(Function* F = M.getFunction(*ai))
         processFunction(x, F);
-      }
+    }
 
-  std::set<std::string>::iterator ai = AllocWrappersAnalysis->alloc_begin();
-  std::set<std::string>::iterator ae = AllocWrappersAnalysis->alloc_end();
-  int x;
-  for (x = 0; recFuncs[x].name; ++x) {
-    if(recFuncs[x].name == std::string("malloc"))
-      break;
+    ai = AllocWrappersAnalysis->dealloc_begin();
+    ae = AllocWrappersAnalysis->dealloc_end();
+    for (x = 0; recFuncs[x].name; ++x) {
+      if(recFuncs[x].name == std::string("free"))
+        break;
+    }
+
+    for(;ai != ae; ++ai) {
+      if(Function* F = M.getFunction(*ai))
+        processFunction(x, F);
+    }
+
+    //
+    // Merge return values and checked pointer values for SAFECode run-time
+    // checks.
+    //
+    processRuntimeCheck (M, "sc.boundscheck", 3);
+    processRuntimeCheck (M, "sc.boundscheckui", 3);
+    processRuntimeCheck (M, "sc.exactcheck2", 2);
+    processRuntimeCheck (M, "sc.get_actual_val", 2);
   }
-
-  for(;ai != ae; ++ai) {
-    if(Function* F = M.getFunction(*ai))
-    processFunction(x, F);
-  }
-
-  ai = AllocWrappersAnalysis->dealloc_begin();
-  ae = AllocWrappersAnalysis->dealloc_end();
-  for (x = 0; recFuncs[x].name; ++x) {
-    if(recFuncs[x].name == std::string("free"))
-      break;
-  }
-
-  for(;ai != ae; ++ai) {
-    if(Function* F = M.getFunction(*ai))
-    processFunction(x, F);
-  }
-
-  //
-  // Merge return values and checked pointer values for SAFECode run-time
-  // checks.
-  //
-  processRuntimeCheck (M, "sc.boundscheck", 3);
-  processRuntimeCheck (M, "sc.boundscheckui", 3);
-  processRuntimeCheck (M, "sc.exactcheck2", 2);
-  processRuntimeCheck (M, "sc.get_actual_val", 2);
 
   //
   // In the Local DSA Pass, we marked nodes passed to/returned from 'StdLib'
