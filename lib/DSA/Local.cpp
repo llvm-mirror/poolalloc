@@ -546,6 +546,22 @@ void GraphBuilder::visitGetElementPtrInst(User &GEP) {
           if((++I) == E) {
             break;
           }
+          // Check if we are still indexing into an array.
+          // We only record the topmost array type of any nested array.
+          // Keep skipping indexes till we reach a non-array type.
+          // J is the type of the next index.
+          // Uncomment the line below to get all the nested types.
+          gep_type_iterator J = I;
+          while(isa<ArrayType>(*(++J))) {
+            //      Value.getNode()->mergeTypeInfo(AT1, Value.getOffset() + Offset);
+            if((++I) == E) {
+              break;
+            }
+            J = I;
+          }
+          if((I) == E) {
+            break;
+          }
         }
       }
     } else if(const ArrayType *ATy = dyn_cast<ArrayType>(*I)) {

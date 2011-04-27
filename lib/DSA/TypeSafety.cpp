@@ -17,10 +17,12 @@
 
 #include "dsa/TypeSafety.h"
 
-#include "llvm/ADT/Statistic.h"
 #include "llvm/Module.h"
+#include "llvm/DerivedTypes.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/FormattedStream.h"
+#include "llvm/Support/CommandLine.h"
+#include "llvm/ADT/Statistic.h"
 
 static RegisterPass<dsa::TypeSafety<EQTDDataStructures> >
 X ("typesafety-eqtd", "Find type-safe pointers");
@@ -31,6 +33,7 @@ Y ("typesafety-td", "Find type-safe pointers");
 namespace {
   //STATISTIC (TypeSafeNodes, "Type-safe DSNodes");
 }
+extern cl::opt<bool> TypeInferenceOptimize;
 
 namespace dsa {
 
@@ -109,8 +112,9 @@ TypeSafety<dsa>::isTypeSafe (const Value * V, const Function * F) {
   //
   // If there is no DSNode, claim that it is not type safe.
   //
-  if (DH.isNull())
+  if (DH.isNull()) {
     return false;
+  }
 
   //
   // See if the DSNode is one that we think is type-safe.
@@ -173,9 +177,23 @@ TypeSafety<dsa>::typeFieldsOverlap (const DSNode * N) {
            ne = TypeSet->end(); ni != ne; ++ni) {
         unsigned field_length = TD->getTypeStoreSize (*ni);
         if ((offset + field_length) > next_offset) {
-          DEBUG(errs() << " Found overlap at " << offset << " with " << next_offset << "\n");
           overlaps = true;
-          break;
+          if(TypeInferenceOptimize) {
+            if(const ArrayType *AT = dyn_cast<ArrayType>(*ni)) {
+              const Type *ElemTy = AT->getElementType();
+              while(const ArrayType *AT1 = dyn_cast<ArrayType>(ElemTy))
+                ElemTy = AT1->getElementType();
+              if(next_offset < (TD->getTypeStoreSize(ElemTy) + offset)) {
+                const StructType *ST = dyn_cast<StructType>(ElemTy);
+                assert(ST && "Array Not of struct type ???? ");
+                overlaps = false;
+              }
+            }
+          }
+          if(overlaps) {
+            DEBUG(errs() << " Found overlap at " << offset << " with " << next_offset << "\n");
+            break;
+          }
         }
       }
     }
