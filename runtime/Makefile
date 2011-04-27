@@ -6,6 +6,6 @@ LEVEL=..
 #
 # List all of the subdirectories that we will compile.
 #
-DIRS=FreeListAllocator FL2Allocator PreRT DynamicTypeChecks
+DIRS=FreeListAllocator FL2Allocator PreRT DynamicTypeChecks DynCount
 
 include $(LEVEL)/Makefile.common
