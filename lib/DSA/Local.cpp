@@ -46,6 +46,7 @@ STATISTIC(NumDirectCall,    "Number of direct calls added");
 STATISTIC(NumIndirectCall,  "Number of indirect calls added");
 STATISTIC(NumAsmCall,       "Number of asm calls collapsed/seen");
 STATISTIC(NumIntrinsicCall, "Number of intrinsics called");
+STATISTIC(IgnoredInst,       "Number of instructions ignored");
 
 RegisterPass<LocalDataStructures>
 X("dsa-local", "Local Data Structure Analysis");
@@ -366,10 +367,20 @@ void GraphBuilder::visitLoadInst(LoadInst &LI) {
   Ptr.getNode()->setReadMarker();
 
   // Ensure a typerecord exists...
-  Ptr.getNode()->mergeTypeInfo(LI.getType(), Ptr.getOffset());
+  Ptr.getNode()->growSizeForType(LI.getType(), Ptr.getOffset());
 
   if (isa<PointerType>(LI.getType()))
     setDestTo(LI, getLink(Ptr));
+
+  // check that it is the inserted value
+  if(TypeInferenceOptimize)
+    if(LI.getNumUses() == 1) 
+      if(StoreInst *SI = dyn_cast<StoreInst>(LI.use_begin()))
+        if(SI->getOperand(0) == &LI) {
+        ++IgnoredInst;
+        return;
+      }
+  Ptr.getNode()->mergeTypeInfo(LI.getType(), Ptr.getOffset());
 }
 
 void GraphBuilder::visitStoreInst(StoreInst &SI) {
@@ -381,11 +392,19 @@ void GraphBuilder::visitStoreInst(StoreInst &SI) {
   Dest.getNode()->setModifiedMarker();
 
   // Ensure a type-record exists...
-  Dest.getNode()->mergeTypeInfo(StoredTy, Dest.getOffset());
+  Dest.getNode()->growSizeForType(StoredTy, Dest.getOffset());
 
   // Avoid adding edges from null, or processing non-"pointer" stores
   if (isa<PointerType>(StoredTy))
     Dest.addEdgeTo(getValueDest(SI.getOperand(0)));
+
+  if(TypeInferenceOptimize)
+    if(SI.getOperand(0)->getNumUses() == 1)
+      if(isa<LoadInst>(SI.getOperand(0))){
+        ++IgnoredInst;
+        return;
+      }
+  Dest.getNode()->mergeTypeInfo(StoredTy, Dest.getOffset());
 }
 
 void GraphBuilder::visitReturnInst(ReturnInst &RI) {
@@ -470,7 +489,7 @@ void GraphBuilder::visitExtractValueInst(ExtractValueInst& I) {
     Offset += SL->getElementOffset(*i);
     STy = (cast<StructType>(STy))->getTypeAtIndex(*i);
   }
-  
+
   // Ensure a typerecord exists...
   Ptr.getNode()->mergeTypeInfo(I.getType(), Offset);
 
@@ -494,7 +513,7 @@ void GraphBuilder::visitGetElementPtrInst(User &GEP) {
   //
 
   if (!Value.isNull() &&
-                   Value.getNode()->isNodeCompletelyFolded()) {
+      Value.getNode()->isNodeCompletelyFolded()) {
     setDestTo(GEP, Value);
     return;
   }
