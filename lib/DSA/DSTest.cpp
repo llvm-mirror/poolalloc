@@ -281,7 +281,6 @@ static void printTypesForNode(llvm::raw_ostream &O, NodeValue &NV) {
   if (N->isNodeCompletelyFolded()) {
     O << "Folded";
   }
-
   // Go through all the types, and just dump them.
   // FIXME: Lifted from Printer.cpp, probably should be shared
   bool firstType = true;
@@ -472,10 +471,12 @@ static bool checkTypes(llvm::raw_ostream &O, const Module *M,
       NodeValue NV(*I, M, DS);
       std::string *type = new std::string();
       llvm::raw_string_ostream *test= new llvm::raw_string_ostream(*type);
-
       printTypesForNode(*test, NV);
+      std::string type1 = test->str();
+      type1.erase(remove_if(type1.begin(), type1.end(), isspace), type1.end());
+      typeRef.erase(remove_if(typeRef.begin(), typeRef.end(), isspace), typeRef.end());
 
-      if(test->str()!=typeRef) {
+      if(type1 != typeRef) {
         errs() << "ERROR: Testing for type :   \t" <<
           typeRef  << "\n";
         errs() << "       But found this type :\t" <<

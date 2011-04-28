@@ -4,7 +4,7 @@ target triple = "x86_64-unknown-linux-gnu"
 ;RUN: dsaopt %s -dsa-local -analyze -check-type=func:obj,FoldedVOID
 ;RUN: dsaopt %s -dsa-local -analyze -enable-type-inference-opts -check-type=func:obj,FoldedVOID
 ;RUN: adsaopt %s -mem2reg -simplify-gep -mergearrgep -dce -o t.bc
-;RUN: dsaopt t.bc -dsa-local -analyze -enable-type-inference-opts -check-type=func:obj,0:i32|[10 x i32]::40:i16|[10 x i16]::60:i32|[10 x i32]
+;RUN: dsaopt t.bc -dsa-local -analyze -enable-type-inference-opts -check-type=func:obj,0:i32|\\\[10xi32\\\]::40:i16|\\\[10xi16\\\]::60:i32|\\\[10xi32\\\]
 
 %struct.StructType1 = type { [10 x i32], [10 x i16], [10 x i32] }
 %struct.StructType2 = type { [10 x i32], [10 x i32], [10 x i32] }

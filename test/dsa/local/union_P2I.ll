@@ -3,7 +3,7 @@
 ;RUN: dsaopt %s -dsa-local -analyze -check-same-node=main:ptr:0,main:obj:0
 ;RUN: dsaopt %s -dsa-local -analyze -check-type=main:obj,FoldedVOID
 ;RUN: adsaopt %s -simplify-gep -mergearrgep -o t.bc
-;RUN: dsaopt t.bc -dsa-local -enable-type-inference-opts -analyze -check-type=main:obj,0:i32|[100 x %struct.StructType]
+;RUN: dsaopt t.bc -dsa-local -enable-type-inference-opts -analyze -check-type=main:obj,0:i32|\\\[100x%\struct.StructType\\\]
 
 
 ; ModuleID = 'union_P2.bc'
