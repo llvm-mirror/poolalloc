@@ -46,7 +46,9 @@ STATISTIC(NumDirectCall,    "Number of direct calls added");
 STATISTIC(NumIndirectCall,  "Number of indirect calls added");
 STATISTIC(NumAsmCall,       "Number of asm calls collapsed/seen");
 STATISTIC(NumIntrinsicCall, "Number of intrinsics called");
-STATISTIC(IgnoredInst,       "Number of instructions ignored");
+STATISTIC(NumBoringIntToPtr, "Number of inttoptr used only in cmp");
+//STATISTIC(NumSimpleIntToPtr, "Number of inttoptr from ptrtoint");
+STATISTIC(NumIgnoredInst,       "Number of instructions ignored");
 
 RegisterPass<LocalDataStructures>
 X("dsa-local", "Local Data Structure Analysis");
@@ -377,7 +379,7 @@ void GraphBuilder::visitLoadInst(LoadInst &LI) {
     if(LI.getNumUses() == 1) 
       if(StoreInst *SI = dyn_cast<StoreInst>(LI.use_begin()))
         if(SI->getOperand(0) == &LI) {
-        ++IgnoredInst;
+        ++NumIgnoredInst;
         return;
       }
   Ptr.getNode()->mergeTypeInfo(LI.getType(), Ptr.getOffset());
@@ -401,7 +403,7 @@ void GraphBuilder::visitStoreInst(StoreInst &SI) {
   if(TypeInferenceOptimize)
     if(SI.getOperand(0)->getNumUses() == 1)
       if(isa<LoadInst>(SI.getOperand(0))){
-        ++IgnoredInst;
+        ++NumIgnoredInst;
         return;
       }
   Dest.getNode()->mergeTypeInfo(StoredTy, Dest.getOffset());
@@ -430,11 +432,50 @@ void GraphBuilder::visitVAArgInst(VAArgInst &I) {
 }
 
 void GraphBuilder::visitIntToPtrInst(IntToPtrInst &I) {
-  setDestTo(I, createNode()->setUnknownMarker()->setIntToPtrMarker()); 
+  DSNode *N = createNode();
+  if(TypeInferenceOptimize) {
+    if(I.getNumUses() == 1) {
+      if(isa<ICmpInst>(I.use_begin())) {
+        NumBoringIntToPtr++;
+        return;
+      }
+    }
+  } else {
+    N->setIntToPtrMarker();
+    N->setUnknownMarker();
+  }
+  setDestTo(I, N); 
 }
 
 void GraphBuilder::visitPtrToIntInst(PtrToIntInst& I) {
-  if (DSNode* N = getValueDest(I.getOperand(0)).getNode())
+  DSNode* N = getValueDest(I.getOperand(0)).getNode();
+  if(TypeInferenceOptimize) {
+    if(I.getNumUses() == 1) {
+      if(isa<ICmpInst>(I.use_begin())) {
+        NumBoringIntToPtr++;
+        return;
+      }
+    }
+  }
+  if(TypeInferenceOptimize) {
+    if(I.getNumUses() == 1) {
+      Value *V = dyn_cast<Value>(I.use_begin());
+      while(V && V->getNumUses() == 1) {
+        if(isa<LoadInst>(V))
+          break;
+        if(isa<StoreInst>(V))
+          break;
+        if(isa<CallInst>(V))
+          break;
+        V = dyn_cast<Value>(V->use_begin());
+      }
+      if(isa<BranchInst>(V)){
+        NumBoringIntToPtr++;
+        return;
+      }
+    }
+  }
+  if(N)
     N->setPtrToIntMarker();
 }
 
@@ -602,7 +643,7 @@ void GraphBuilder::visitGetElementPtrInst(User &GEP) {
       // If not fold.
       if((Value.getOffset() || Offset != 0)
          || (!isa<ArrayType>(CurTy)
-         && (Value.getNode()->getSize() != TD.getTypeAllocSize(CurTy)))) {
+             && (Value.getNode()->getSize() != TD.getTypeAllocSize(CurTy)))) {
         Value.getNode()->foldNodeCompletely();
         Value.getNode();
         Offset = 0;
@@ -636,7 +677,7 @@ void GraphBuilder::visitGetElementPtrInst(User &GEP) {
         }
         if(Value.getOffset() || Offset != 0
            || (!isa<ArrayType>(CurTy)
-           && (Value.getNode()->getSize() != TD.getTypeAllocSize(CurTy)))) {
+               && (Value.getNode()->getSize() != TD.getTypeAllocSize(CurTy)))) {
           Value.getNode()->foldNodeCompletely();
           Value.getNode();
           Offset = 0;
@@ -714,33 +755,33 @@ void GraphBuilder::visitVAStartNode(DSNode* N) {
   // For the architectures we support, build dsnodes that match
   // how we know va_list is used.
   switch (Arch) {
-    case Triple::x86:
-      // On x86, we have:
-      // va_list as a pointer to an array of pointers to the variable arguments
-      if (N->getSize() < 1)
-        N->growSize(1);
-      N->setLink(0, VAArray);
-      break;
-    case Triple::x86_64:
-      // On x86_64, we have va_list as a struct {i32, i32, i8*, i8* }
-      // The first i8* is where arguments generally go, but the second i8* can
-      // be used also to pass arguments by register.
-      // We model this by having both the i8*'s point to an array of pointers
-      // to the arguments.
-      if (N->getSize() < 24)
-        N->growSize(24); //sizeof the va_list struct mentioned above
-      N->setLink(8,VAArray); //first i8*
-      N->setLink(16,VAArray); //second i8*
-      break;
-    default:
-      // FIXME: For now we abort if we don't know how to handle this arch
-      // Either add support for other architectures, or at least mark the
-      // nodes unknown/incomplete or whichever results in the correct
-      // conservative behavior in the general case
-      assert(0 && "VAstart not supported on this architecture!");
-      //XXX: This might be good enough in those cases that we don't know
-      //what the arch does
-      N->setIncompleteMarker()->setUnknownMarker()->foldNodeCompletely();
+  case Triple::x86:
+    // On x86, we have:
+    // va_list as a pointer to an array of pointers to the variable arguments
+    if (N->getSize() < 1)
+      N->growSize(1);
+    N->setLink(0, VAArray);
+    break;
+  case Triple::x86_64:
+    // On x86_64, we have va_list as a struct {i32, i32, i8*, i8* }
+    // The first i8* is where arguments generally go, but the second i8* can
+    // be used also to pass arguments by register.
+    // We model this by having both the i8*'s point to an array of pointers
+    // to the arguments.
+    if (N->getSize() < 24)
+      N->growSize(24); //sizeof the va_list struct mentioned above
+    N->setLink(8,VAArray); //first i8*
+    N->setLink(16,VAArray); //second i8*
+    break;
+  default:
+    // FIXME: For now we abort if we don't know how to handle this arch
+    // Either add support for other architectures, or at least mark the
+    // nodes unknown/incomplete or whichever results in the correct
+    // conservative behavior in the general case
+    assert(0 && "VAstart not supported on this architecture!");
+    //XXX: This might be good enough in those cases that we don't know
+    //what the arch does
+    N->setIncompleteMarker()->setUnknownMarker()->foldNodeCompletely();
   }
 
   // XXX: We used to set the alloca marker for the DSNode passed to va_start.
@@ -777,9 +818,9 @@ bool GraphBuilder::visitIntrinsic(CallSite CS, Function *F) {
   }
   case Intrinsic::stackrestore:
     getValueDest(CS.getInstruction()).getNode()->setAllocaMarker()
-                                               ->setIncompleteMarker()
-                                               ->setUnknownMarker()
-                                               ->foldNodeCompletely();
+      ->setIncompleteMarker()
+      ->setUnknownMarker()
+      ->foldNodeCompletely();
     return true;
   case Intrinsic::vaend:
   case Intrinsic::memory_barrier:
@@ -810,8 +851,8 @@ bool GraphBuilder::visitIntrinsic(CallSite CS, Function *F) {
 
   case Intrinsic::eh_selector: {
     for (CallSite::arg_iterator I = CS.arg_begin(), E = CS.arg_end();
-           I != E; ++I) {
-    if (isa<PointerType>((*I)->getType())) {
+         I != E; ++I) {
+      if (isa<PointerType>((*I)->getType())) {
         DSNodeHandle Ptr = getValueDest(*I);
         if(Ptr.getNode()) {
           Ptr.getNode()->setReadMarker();
