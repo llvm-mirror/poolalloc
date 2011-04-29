@@ -837,7 +837,8 @@ void FuncTransform::visitCallSite(CallSite& CS) {
   // If this function is one of the memory manipulating functions built into
   // libc, emulate it with pool calls as appropriate.
   if (CF && CF->isDeclaration()) {
-    if (CF->getName() == "free") {
+    if (CF->getName() == "free" ||
+        CF->getName() == "cfree") {
       visitFreeCall(CS);
       return;
     } else if (CF->getName() == "malloc") {
