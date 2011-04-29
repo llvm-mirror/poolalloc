@@ -305,6 +305,58 @@ PoolAllocateSimple::ProcessFunctionBodySimple (Function& F, TargetData & TD) {
 
           // Update def-use info
           CI->replaceAllUsesWith(Casted);
+        } else if (CF && (CF->isDeclaration()) && (CF->getName() == "memalign")) {
+          DSNode * Node = CombinedDSGraph->getNodeForValue(CI).getNode();
+          FInfo.PoolDescriptors.insert(std::make_pair(Node,TheGlobalPool));
+
+          // Mark the call to memalign as an instruction to delete
+          toDelete.push_back(CI);
+
+          // Insertion point - Instruction before which all our instructions go
+          Instruction *InsertPt = CI;
+          Value *Size        = CS.getArgument(0);
+          Value *Align       = CS.getArgument(1);
+          
+          // Ensure the size and pointer arguments are of the correct type
+          if (Size->getType() != Int32Type)
+            Size = CastInst::CreateIntegerCast (Size,
+                                                Int32Type,
+                                                false,
+                                                Size->getName(),
+                                                InsertPt);
+          if (Align->getType() != Int32Type)
+            Align = CastInst::CreateIntegerCast (Align,
+                                                Int32Type,
+                                                false,
+                                                Align->getName(),
+                                                InsertPt);
+          //
+          // Remember the name of the old instruction and then clear it.  This
+          // allows us to give the name to the new call to poolmemalign().
+          //
+          std::string Name = CI->getName(); CI->setName("");
+          
+          //
+          // Insert the call to poolalloc()
+          //
+          Value* Opts[3] = {TheGlobalPool, Align, Size};
+          Instruction *V = CallInst::Create (PoolMemAlign,
+                                             Opts,
+                                             Opts + 3,
+                                             Name,
+                                             InsertPt);
+
+          //
+          // Update the DSGraph.
+          //
+          CombinedDSGraph->getScalarMap().replaceScalar (CI, V);
+
+          Instruction *Casted = V;
+          if (V->getType() != CI->getType())
+            Casted = CastInst::CreatePointerCast (V, CI->getType(), V->getName(), InsertPt);
+
+          // Update def-use info
+          CI->replaceAllUsesWith(Casted);
         } else if (CF && (CF->isDeclaration()) && (CF->getName() == "realloc")) {
           // Associate the global pool decriptor with the DSNode
           DSNode * Node = CombinedDSGraph->getNodeForValue(CI).getNode();
