@@ -85,6 +85,7 @@ struct libAction {
 #define YRET_NNYARGS  {1,0,0,1,1,1,1,1,1,1}
 #define NRET_NNYARGS  {0,0,0,1,1,1,1,1,1,1}
 #define YRET_NNYNARGS {1,0,0,1,0,0,0,0,0,0}
+#define NRET_NNNYARGS {0,0,0,0,1,1,1,1,1,1}
 
 const struct {
   const char* name;
@@ -265,28 +266,31 @@ const struct {
   {"sc.pool_unregister", {NRET_NARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
   {"sc.pool_argvregister", {NRET_NARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
 
-  // CStdLib Runtime Checks
-  {"pool_strncpy",    {NRET_NNYARGS, YRET_NNYARGS, NRET_NARGS, YRET_NNYARGS,  true}},
-  {"pool_strcpy",     {NRET_NNYARGS, YRET_NNYARGS, NRET_NARGS, YRET_NNYARGS,  true}},
-  {"pool_stpcpy",     {NRET_NNYARGS, YRET_NNYARGS, NRET_NARGS, YRET_NNYARGS,  true}},
-  {"pool_strchr",     {NRET_NYARGS,  YRET_NARGS,   NRET_NARGS, YRET_NYARGS,   true}},
-  {"pool_strrchr",    {NRET_NYARGS,  YRET_NARGS,   NRET_NARGS, YRET_NYARGS,   true}},
-  {"pool_strcat",     {NRET_NNYARGS, YRET_NNYARGS, NRET_NARGS, YRET_NNYARGS,  true}},
-  {"pool_strncat",    {NRET_NNYARGS, YRET_NNYARGS, NRET_NARGS, YRET_NNYARGS,  true}},
-  {"pool_strstr",     {NRET_NNYARGS, YRET_NARGS,   NRET_NARGS, YRET_NNYNARGS, true}},
-  {"pool_strpbrk",    {NRET_NNYARGS, YRET_NARGS,   NRET_NARGS, YRET_NNYNARGS, true}},
-  {"pool_strspn",     {NRET_NYARGS,  YRET_NARGS,   NRET_NARGS, NRET_NARGS,    true}},
-  {"pool_strcspn",    {NRET_NYARGS,  YRET_NARGS,   NRET_NARGS, NRET_NARGS,    true}},
-  {"pool_memccpy",    {NRET_NNYARGS, YRET_NNYARGS, NRET_NARGS, YRET_NNYARGS,  true}},
-  {"pool_memchr",     {NRET_NYARGS,  YRET_NARGS,   NRET_NARGS, YRET_NYARGS,   true}},
-  {"pool_strcmp",     {NRET_NNYARGS, NRET_NARGS,   NRET_NARGS, NRET_NARGS,   false}},
-  {"pool_strncmp",    {NRET_NNYARGS, NRET_NARGS,   NRET_NARGS, NRET_NARGS,   false}},
-  {"pool_strlen",     {NRET_NYARGS,  NRET_NARGS,   NRET_NARGS, NRET_NARGS,   false}},
-  {"pool_strnlen",    {NRET_NYARGS,  NRET_NARGS,   NRET_NARGS, NRET_NARGS,   false}},
-  {"pool_memcmp",     {NRET_NNYARGS, NRET_NARGS,   NRET_NARGS, NRET_NARGS,   false}},
-  {"pool_strcasecmp", {NRET_NNYARGS, NRET_NARGS,   NRET_NARGS, NRET_NARGS,   false}},
-  {"pool_strncasecmp",{NRET_NNYARGS, NRET_NARGS,   NRET_NARGS, NRET_NARGS,   false}},
-
+  // CStdLib Runtime Wrapper Functions
+  {"pool_strncpy",    {NRET_NNYARGS, YRET_NNYARGS,  NRET_NARGS, YRET_NNYARGS,  true}},
+  {"pool_strcpy",     {NRET_NNYARGS, YRET_NNYARGS,  NRET_NARGS, YRET_NNYARGS,  true}},
+  {"pool_stpcpy",     {NRET_NNYARGS, YRET_NNYARGS,  NRET_NARGS, YRET_NNYARGS,  true}},
+  {"pool_strchr",     {NRET_NYARGS,  YRET_NARGS,    NRET_NARGS, YRET_NYARGS,   true}},
+  {"pool_strrchr",    {NRET_NYARGS,  YRET_NARGS,    NRET_NARGS, YRET_NYARGS,   true}},
+  {"pool_strcat",     {NRET_NNYARGS, YRET_NNYARGS,  NRET_NARGS, YRET_NNYARGS,  true}},
+  {"pool_strncat",    {NRET_NNYARGS, YRET_NNYARGS,  NRET_NARGS, YRET_NNYARGS,  true}},
+  {"pool_strstr",     {NRET_NNYARGS, YRET_NARGS,    NRET_NARGS, YRET_NNYNARGS, true}},
+  {"pool_strpbrk",    {NRET_NNYARGS, YRET_NARGS,    NRET_NARGS, YRET_NNYNARGS, true}},
+  {"pool_strspn",     {NRET_NYARGS,  YRET_NARGS,    NRET_NARGS, NRET_NARGS,    true}},
+  {"pool_strcspn",    {NRET_NYARGS,  YRET_NARGS,    NRET_NARGS, NRET_NARGS,    true}},
+  {"pool_memccpy",    {NRET_NNYARGS, YRET_NNYARGS,  NRET_NARGS, YRET_NNYARGS,  true}},
+  {"pool_memchr",     {NRET_NYARGS,  YRET_NARGS,    NRET_NARGS, YRET_NYARGS,   true}},
+  {"pool_strcmp",     {NRET_NNYARGS, NRET_NARGS,    NRET_NARGS, NRET_NARGS,   false}},
+  {"pool_strncmp",    {NRET_NNYARGS, NRET_NARGS,    NRET_NARGS, NRET_NARGS,   false}},
+  {"pool_strlen",     {NRET_NYARGS,  NRET_NARGS,    NRET_NARGS, NRET_NARGS,   false}},
+  {"pool_strnlen",    {NRET_NYARGS,  NRET_NARGS,    NRET_NARGS, NRET_NARGS,   false}},
+  {"pool_memcmp",     {NRET_NNYARGS, NRET_NARGS,    NRET_NARGS, NRET_NARGS,   false}},
+  {"pool_strcasecmp", {NRET_NNYARGS, NRET_NARGS,    NRET_NARGS, NRET_NARGS,   false}},
+  {"pool_strncasecmp",{NRET_NNYARGS, NRET_NARGS,    NRET_NARGS, NRET_NARGS,   false}},
+  {"pool_bcopy",      {NRET_NYARGS,  NRET_NNNYARGS, NRET_NARGS, NRET_NNYARGS,  true}},
+  {"pool_bcmp",       {NRET_YARGS,   NRET_NARGS,    NRET_NARGS, NRET_NARGS,    true}},
+  {"pool_index",      {NRET_NYARGS,  YRET_NARGS,    NRET_NARGS, YRET_NYARGS,   true}},
+  {"pool_rindex",     {NRET_NYARGS,  YRET_NARGS,    NRET_NARGS, YRET_NYARGS,   true}},
 
 #if 0
   {"wait",       {false, false, false, false,  true, false, false, false, false}},

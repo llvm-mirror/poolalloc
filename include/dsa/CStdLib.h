@@ -40,6 +40,10 @@ namespace llvm {
     { "pool_strcspn",     2 },
     { "pool_memccpy",     2 },
     { "pool_memchr",      1 },
+    { "pool_bcmp",        1 },
+    { "pool_bcopy",       2 },
+    { "pool_index",       1 },
+    { "pool_rindex",      1 },
     {  0,                 0 }
   };
 
