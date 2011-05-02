@@ -287,8 +287,8 @@ const struct {
   {"pool_memcmp",     {NRET_NNYARGS, NRET_NARGS,    NRET_NARGS, NRET_NARGS,   false}},
   {"pool_strcasecmp", {NRET_NNYARGS, NRET_NARGS,    NRET_NARGS, NRET_NARGS,   false}},
   {"pool_strncasecmp",{NRET_NNYARGS, NRET_NARGS,    NRET_NARGS, NRET_NARGS,   false}},
-  {"pool_bcopy",      {NRET_NYARGS,  NRET_NNNYARGS, NRET_NARGS, NRET_NNYARGS,  true}},
-  {"pool_bcmp",       {NRET_YARGS,   NRET_NARGS,    NRET_NARGS, NRET_NARGS,    true}},
+  {"pool_bcopy",      {NRET_NNYARGS, NRET_NNNYARGS, NRET_NARGS, NRET_NNYARGS,  true}},
+  {"pool_bcmp",       {NRET_NNYARGS, NRET_NARGS,    NRET_NARGS, NRET_NARGS,    true}},
   {"pool_index",      {NRET_NYARGS,  YRET_NARGS,    NRET_NARGS, YRET_NYARGS,   true}},
   {"pool_rindex",     {NRET_NYARGS,  YRET_NARGS,    NRET_NARGS, YRET_NYARGS,   true}},
 
