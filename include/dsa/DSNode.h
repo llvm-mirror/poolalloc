@@ -103,8 +103,11 @@ public:
     ArrayNode       = 1 << 9,   // This node is treated like an array
     CollapsedNode   = 1 << 10,  // This node is collapsed
     ExternalNode    = 1 << 11,  // This node comes from an external source
-    IntToPtrNode    = 1 << 12,   // This node comes from an int cast
-    PtrToIntNode    = 1 << 13,  // This node escapes to an int cast
+    IntToPtrNode    = 1 << 12,  // This node comes from an int cast
+                                // and is used in pointer operations
+                                // like geps, loads, stores
+    PtrToIntNode    = 1 << 13,  // This node escapes to an int cast 
+                                // and DSA does not track it further.
     VAStartNode     = 1 << 14,  // This node is from a vastart call
 
     //#ifndef NDEBUG

@@ -433,12 +433,10 @@ void GraphBuilder::visitVAArgInst(VAArgInst &I) {
 
 void GraphBuilder::visitIntToPtrInst(IntToPtrInst &I) {
   DSNode *N = createNode();
-  if(TypeInferenceOptimize) {
-    if(I.getNumUses() == 1) {
-      if(isa<ICmpInst>(I.use_begin())) {
-        NumBoringIntToPtr++;
-        return;
-      }
+  if(I.getNumUses() == 1) {
+    if(isa<ICmpInst>(I.use_begin())) {
+      NumBoringIntToPtr++;
+      return;
     }
   } else {
     N->setIntToPtrMarker();
@@ -449,30 +447,26 @@ void GraphBuilder::visitIntToPtrInst(IntToPtrInst &I) {
 
 void GraphBuilder::visitPtrToIntInst(PtrToIntInst& I) {
   DSNode* N = getValueDest(I.getOperand(0)).getNode();
-  if(TypeInferenceOptimize) {
-    if(I.getNumUses() == 1) {
-      if(isa<ICmpInst>(I.use_begin())) {
-        NumBoringIntToPtr++;
-        return;
-      }
+  if(I.getNumUses() == 1) {
+    if(isa<ICmpInst>(I.use_begin())) {
+      NumBoringIntToPtr++;
+      return;
     }
   }
-  if(TypeInferenceOptimize) {
-    if(I.getNumUses() == 1) {
-      Value *V = dyn_cast<Value>(I.use_begin());
-      while(V && V->getNumUses() == 1) {
-        if(isa<LoadInst>(V))
-          break;
-        if(isa<StoreInst>(V))
-          break;
-        if(isa<CallInst>(V))
-          break;
-        V = dyn_cast<Value>(V->use_begin());
-      }
-      if(isa<BranchInst>(V)){
-        NumBoringIntToPtr++;
-        return;
-      }
+  if(I.getNumUses() == 1) {
+    Value *V = dyn_cast<Value>(I.use_begin());
+    while(V && V->getNumUses() == 1) {
+      if(isa<LoadInst>(V))
+        break;
+      if(isa<StoreInst>(V))
+        break;
+      if(isa<CallInst>(V))
+        break;
+      V = dyn_cast<Value>(V->use_begin());
+    }
+    if(isa<BranchInst>(V)){
+      NumBoringIntToPtr++;
+      return;
     }
   }
   if(N)
