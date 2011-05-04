@@ -270,8 +270,12 @@ const struct {
   {"pool_strncpy",    {NRET_NNYARGS, YRET_NNYARGS,  NRET_NARGS, YRET_NNYARGS,  true}},
   {"pool_strcpy",     {NRET_NNYARGS, YRET_NNYARGS,  NRET_NARGS, YRET_NNYARGS,  true}},
   {"pool_stpcpy",     {NRET_NNYARGS, YRET_NNYARGS,  NRET_NARGS, YRET_NNYARGS,  true}},
+  // strchr and index have same functionality
   {"pool_strchr",     {NRET_NYARGS,  YRET_NARGS,    NRET_NARGS, YRET_NYARGS,   true}},
+  {"pool_index",      {NRET_NYARGS,  YRET_NARGS,    NRET_NARGS, YRET_NYARGS,   true}},
+  // strrchr and rindex have same functionality
   {"pool_strrchr",    {NRET_NYARGS,  YRET_NARGS,    NRET_NARGS, YRET_NYARGS,   true}},
+  {"pool_rindex",     {NRET_NYARGS,  YRET_NARGS,    NRET_NARGS, YRET_NYARGS,   true}},
   {"pool_strcat",     {NRET_NNYARGS, YRET_NNYARGS,  NRET_NARGS, YRET_NNYARGS,  true}},
   {"pool_strncat",    {NRET_NNYARGS, YRET_NNYARGS,  NRET_NARGS, YRET_NNYARGS,  true}},
   {"pool_strstr",     {NRET_NNYARGS, YRET_NARGS,    NRET_NARGS, YRET_NNYNARGS, true}},
@@ -289,8 +293,6 @@ const struct {
   {"pool_strncasecmp",{NRET_NNYARGS, NRET_NARGS,    NRET_NARGS, NRET_NARGS,   false}},
   {"pool_bcopy",      {NRET_NNYARGS, NRET_NNNYARGS, NRET_NARGS, NRET_NNYARGS,  true}},
   {"pool_bcmp",       {NRET_NNYARGS, NRET_NARGS,    NRET_NARGS, NRET_NARGS,    true}},
-  {"pool_index",      {NRET_NYARGS,  YRET_NARGS,    NRET_NARGS, YRET_NYARGS,   true}},
-  {"pool_rindex",     {NRET_NYARGS,  YRET_NARGS,    NRET_NARGS, YRET_NYARGS,   true}},
 
 #if 0
   {"wait",       {false, false, false, false,  true, false, false, false, false}},
