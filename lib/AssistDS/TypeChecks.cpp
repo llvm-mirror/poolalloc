@@ -13,6 +13,7 @@
 
 #include "assistDS/TypeChecks.h"
 #include "llvm/Constants.h"
+#include "llvm/Transforms/Utils/Cloning.h"
 #include "llvm/DerivedTypes.h"
 #include "llvm/Module.h"
 #include "llvm/Assembly/Writer.h"
@@ -108,9 +109,11 @@ bool TypeChecks::runOnModule(Module &M) {
     modified |= visitGlobal(M, *I, I->getInitializer(), *MainI, 0);
   }
 
+  std::vector<Function *> toProcess;
   for (Module::iterator MI = M.begin(), ME = M.end(); MI != ME; ++MI) {
     IncorporateType(MI->getType());
     Function &F = *MI;
+    toProcess.push_back(&F);
 
     // Loop over all of the instructions in the function, 
     // adding their return type as well as the types of their operands.
@@ -138,7 +141,6 @@ bool TypeChecks::runOnModule(Module &M) {
       } else if (CallInst *CI = dyn_cast<CallInst>(&I)) {
         modified |= visitCallInst(M, *CI);
       } else if (InvokeInst *II = dyn_cast<InvokeInst>(&I)) {
-        II->dump();
         modified |= visitInvokeInst(M, *II);
       }
     }
@@ -146,70 +148,259 @@ bool TypeChecks::runOnModule(Module &M) {
 
   // Record types for byval arguments.
 
-  // Split fn into 2 clones. One internal, such that
-  // we can find all call sites to it, and also pass in the
-  // original ptr/metadata.
-  // One that sets it just to initialized memory
-  // so that it can be called from external code.
-  for (Module::iterator MI = M.begin(), ME = M.end(); MI != ME; ++MI) {
-    Function &F = *MI;
-    typedef SmallVector<Value *, 4> RegisteredArgTy;
-    RegisteredArgTy registeredArguments;
-    for (Function::arg_iterator I = F.arg_begin(), E = F.arg_end(); I != E; ++I) {
-      if (I->hasByValAttr()) {
-        assert (isa<PointerType>(I->getType()));
-        const PointerType * PT = cast<PointerType>(I->getType());
-        const Type * ET = PT->getElementType();
-        Value * AllocSize = ConstantInt::get(Int64Ty, TD->getTypeAllocSize(ET));
-        Instruction * InsertBefore = &(F.getEntryBlock().front());
-        CastInst *BCI = BitCastInst::CreatePointerCast(I, VoidPtrTy, "", InsertBefore);
-        std::vector<Value *> Args;
-        Args.push_back(BCI);
-        Args.push_back(AllocSize);
-        Args.push_back(ConstantInt::get(Int32Ty, tagCounter++));
-        Constant *F = M.getOrInsertFunction("trackInitInst", VoidTy, VoidPtrTy, Int64Ty, Int32Ty, NULL);
-        CallInst::Create(F, Args.begin(), Args.end(), "", InsertBefore);
-        registeredArguments.push_back(&*I);
-      }
-    }
-    //
-    // Find all basic blocks which terminate the function.
-    //
-    std::set<BasicBlock *> exitBlocks;
-    for (inst_iterator I = inst_begin(&F), E = inst_end(&F); I != E; ++I) {
-      if (isa<ReturnInst>(*I) || isa<UnwindInst>(*I)) {
-        exitBlocks.insert(I->getParent());
-      }
-    }
-
-    //
-    // At each function exit, insert code to deregister all byval arguments.
-    //
-    for (std::set<BasicBlock*>::const_iterator BI = exitBlocks.begin(),
-         BE = exitBlocks.end();
-         BI != BE; ++BI) {
-      for (RegisteredArgTy::const_iterator I = registeredArguments.begin(),
-           E = registeredArguments.end();
-           I != E; ++I) {
-        SmallVector<Value *, 2> args;
-        Instruction * Pt = &((*BI)->back());
-        const PointerType * PT = cast<PointerType>((*I)->getType());
-        const Type * ET = PT->getElementType();
-        Value * AllocSize = ConstantInt::get(Int64Ty, TD->getTypeAllocSize(ET));
-        CastInst *BCI = BitCastInst::CreatePointerCast(*I, VoidPtrTy, "", Pt);
-        std::vector<Value *> Args;
-        Args.push_back(BCI);
-        Args.push_back(AllocSize);
-        Args.push_back(ConstantInt::get(Int32Ty, tagCounter++));
-        Constant *F = M.getOrInsertFunction("trackUnInitInst", VoidTy, VoidPtrTy, Int64Ty, Int32Ty, NULL);
-        CallInst::Create(F, Args.begin(), Args.end(), "", Pt);
-      }
-    }
+  while(!toProcess.empty()) {
+    Function *F = toProcess.back();
+    toProcess.pop_back();
+    if(F->isDeclaration())
+      continue;
+    modified |= visitByValFunction(M, *F);
   }
 
   return modified;
 }
 
+bool
+TypeChecks::visitByValFunction(Module &M, Function &F) {
+
+  bool hasByValArg = false;
+  for (Function::arg_iterator I = F.arg_begin(), E = F.arg_end(); I != E; ++I) {
+    if (I->hasByValAttr()) {
+      hasByValArg = true;
+      break;
+    }
+  }
+  if(!hasByValArg)
+    return false;
+
+  // For internal functions
+  //   Replace with a cloned function with extra arguments
+  //   That takes as argument the original pointers without a byval parameter too
+  //   Use them to copy the metadata over to the byval arguments
+  //   Also update all the call sites.
+
+  // For external functions
+  //  Create an internal clone (treated same as internal functions)
+  //  Modify the original function
+  //  To assume that the metadata for the byval arguments is TOP 
+  
+  if(F.hasInternalLinkage()) {
+    visitInternalFunction(M, F);
+  } else {
+    // create internal clone
+    Function *F_clone = CloneFunction(&F);
+    F_clone->setName(F.getNameStr() + "internal");
+    F.setLinkage(GlobalValue::InternalLinkage);
+    F.getParent()->getFunctionList().push_back(F_clone);
+    visitInternalFunction(M, *F_clone);
+    visitExternalFunction(M, F);
+  }
+  return true;
+}
+
+bool TypeChecks::visitInternalFunction(Module &M, Function &F) {
+
+  // Create a list of the argument types in the new function.
+  std::vector<const Type*>TP;
+  for (Function::arg_iterator I = F.arg_begin(), E = F.arg_end(); I != E; ++I) {
+    TP.push_back(I->getType());
+    // for every byval argument, add a new argument that indicates the source of
+    // the metadata. It is of the same type as the byval argument.
+    if (I->hasByValAttr())
+      TP.push_back(I->getType());
+  }
+  // Create the new function prototype
+  const FunctionType *NewFTy = FunctionType::get(F.getReturnType(), TP, false);
+  Function *NewF = Function::Create(NewFTy,
+                                    GlobalValue::InternalLinkage,
+                                    F.getNameStr() + ".INT",
+                                    &M);
+
+  Function::arg_iterator NI = NewF->arg_begin();
+  DenseMap<const Value*, Value*> ValueMap;
+  for (Function::arg_iterator II = F.arg_begin(); NI != NewF->arg_end(); ++II, ++NI) {
+    // Each new argument maps to the argument in the old function
+    // For these arguments, also copy over the attributes
+    ValueMap[II] = NI;
+    NI->setName(II->getName());
+    NI->addAttr(F.getAttributes().getParamAttributes(II->getArgNo() + 1));
+    // If we have encountered a byval argument in the old function
+    // We must skip over the next argument in the new function, as that is 
+    // the newly added source argument.
+    if(II->hasByValAttr()) {
+      NI++;
+      // Give this new argument some name, for clarity
+      NI->setName("src");
+    }
+  }
+  // Copy over the attributes for the function.
+  NewF->setAttributes(NewF->getAttributes()
+                      .addAttr(0, F.getAttributes().getRetAttributes()));
+  NewF->setAttributes(NewF->getAttributes().addAttr(~0, F.getAttributes().getFnAttributes()));
+
+  // Perform the cloning.
+  SmallVector<ReturnInst*,100> Returns;
+  CloneFunctionInto(NewF, &F, ValueMap, Returns);
+ 
+  // Add calls to the runtime to copy metadata from source to the byval argument pointer. 
+  typedef SmallVector<Value *, 4> RegisteredArgTy;
+  // Keep track of the byval arguments.
+  RegisteredArgTy registeredArguments;
+  for (Function::arg_iterator I = NewF->arg_begin(), E = NewF->arg_end(); I != E; ++I) {
+    if (I->hasByValAttr()) {
+      registeredArguments.push_back(&*I);
+      assert (isa<PointerType>(I->getType()));
+      const PointerType * PT = cast<PointerType>(I->getType());
+      const Type * ET = PT->getElementType();
+      Value * AllocSize = ConstantInt::get(Int64Ty, TD->getTypeAllocSize(ET));
+      Instruction * InsertBefore = &(NewF->getEntryBlock().front());
+      // If I is the byval argument, the next argument is the source
+      CastInst *BCI_Dest = BitCastInst::CreatePointerCast(I, VoidPtrTy, "", InsertBefore);
+      CastInst *BCI_Src = BitCastInst::CreatePointerCast(++I, VoidPtrTy, "", InsertBefore);
+      std::vector<Value *> Args;
+      Args.push_back(BCI_Dest);
+      Args.push_back(BCI_Src);
+      Args.push_back(AllocSize);
+      Args.push_back(ConstantInt::get(Int32Ty, tagCounter++));
+      Constant *F = M.getOrInsertFunction("copyTypeInfo", VoidTy, VoidPtrTy, VoidPtrTy, Int64Ty, Int32Ty, NULL);
+      CallInst::Create(F, Args.begin(), Args.end(), "", InsertBefore);
+    }
+  }
+  
+  // Find all basic blocks which terminate the function.
+  std::set<BasicBlock *> exitBlocks;
+  for (inst_iterator I = inst_begin(NewF), E = inst_end(NewF); I != E; ++I) {
+    if (isa<ReturnInst>(*I) || isa<UnwindInst>(*I)) {
+      exitBlocks.insert(I->getParent());
+    }
+  }
+
+  // At each function exit, insert code to set the metadata as uninitialized.
+  for (std::set<BasicBlock*>::const_iterator BI = exitBlocks.begin(),
+       BE = exitBlocks.end();
+       BI != BE; ++BI) {
+    for (RegisteredArgTy::const_iterator I = registeredArguments.begin(),
+         E = registeredArguments.end();
+         I != E; ++I) {
+      SmallVector<Value *, 2> args;
+      Instruction * Pt = &((*BI)->back());
+      const PointerType * PT = cast<PointerType>((*I)->getType());
+      const Type * ET = PT->getElementType();
+      Value * AllocSize = ConstantInt::get(Int64Ty, TD->getTypeAllocSize(ET));
+      CastInst *BCI = BitCastInst::CreatePointerCast(*I, VoidPtrTy, "", Pt);
+      std::vector<Value *> Args;
+      Args.push_back(BCI);
+      Args.push_back(AllocSize);
+      Args.push_back(ConstantInt::get(Int32Ty, tagCounter++));
+      Constant *F = M.getOrInsertFunction("trackUnInitInst", VoidTy, VoidPtrTy, Int64Ty, Int32Ty, NULL);
+      CallInst::Create(F, Args.begin(), Args.end(), "", Pt);
+    }
+  }
+
+  // Update the call sites
+  for(Value::use_iterator ui = F.use_begin(), ue = F.use_end();
+      ui != ue;)  {
+    // Check that F is the called value
+    if(CallInst *CI = dyn_cast<CallInst>(ui++)) {
+      if(CI->getCalledFunction() == &F) {
+        SmallVector<Value*, 8> Args;
+        SmallVector<AttributeWithIndex, 8> AttributesVec;
+
+        // Get the initial attributes of the call
+        AttrListPtr CallPAL = CI->getAttributes();
+        Attributes RAttrs = CallPAL.getRetAttributes();
+        Attributes FnAttrs = CallPAL.getFnAttributes();
+        
+        Function::arg_iterator II = F.arg_begin();
+
+        for(unsigned j =1;j<CI->getNumOperands();j++, II++) {
+          // Add the original argument
+          Args.push_back(CI->getOperand(j));
+          // If there are attributes on this argument, copy them to the correct 
+          // position in the AttributesVec
+          if (Attributes Attrs = CallPAL.getParamAttributes(j))
+            AttributesVec.push_back(AttributeWithIndex::get(Args.size(), Attrs));
+          // If it is a value passed as byval, add it again, as the source
+          if(II->hasByValAttr()) 
+            Args.push_back(CI->getOperand(j));
+        }
+        
+        // Create the new attributes vec.
+        if (FnAttrs != Attribute::None)
+          AttributesVec.push_back(AttributeWithIndex::get(~0, FnAttrs));
+        if (RAttrs)
+          AttributesVec.push_back(AttributeWithIndex::get(0, RAttrs));
+
+        AttrListPtr NewCallPAL = AttrListPtr::get(AttributesVec.begin(),
+                                                  AttributesVec.end());
+
+
+        // Create the substitute call
+        CallInst *CallI = CallInst::Create(NewF,Args.begin(), Args.end(),"", CI);
+        CallI->setCallingConv(CI->getCallingConv());
+        CallI->setAttributes(NewCallPAL);
+        CI->replaceAllUsesWith(CallI);
+        CI->eraseFromParent();
+      }
+    }
+  }
+  return true;
+}
+
+bool TypeChecks::visitExternalFunction(Module &M, Function &F) {
+
+  // A list of the byval arguments that we are setting metadata for
+  typedef SmallVector<Value *, 4> RegisteredArgTy;
+  RegisteredArgTy registeredArguments;
+  for (Function::arg_iterator I = F.arg_begin(), E = F.arg_end(); I != E; ++I) {
+    if (I->hasByValAttr()) {
+      assert (isa<PointerType>(I->getType()));
+      const PointerType * PT = cast<PointerType>(I->getType());
+      const Type * ET = PT->getElementType();
+      Value * AllocSize = ConstantInt::get(Int64Ty, TD->getTypeAllocSize(ET));
+      Instruction * InsertBefore = &(F.getEntryBlock().front());
+      CastInst *BCI = BitCastInst::CreatePointerCast(I, VoidPtrTy, "", InsertBefore);
+      std::vector<Value *> Args;
+      Args.push_back(BCI);
+      Args.push_back(AllocSize);
+      Args.push_back(ConstantInt::get(Int32Ty, tagCounter++));
+      // Set the metadata for the byval argument to TOP/Initialized
+      Constant *F = M.getOrInsertFunction("trackInitInst", VoidTy, VoidPtrTy, Int64Ty, Int32Ty, NULL);
+      CallInst::Create(F, Args.begin(), Args.end(), "", InsertBefore);
+      registeredArguments.push_back(&*I);
+    }
+  }
+  
+  // Find all basic blocks which terminate the function.
+  std::set<BasicBlock *> exitBlocks;
+  for (inst_iterator I = inst_begin(&F), E = inst_end(&F); I != E; ++I) {
+    if (isa<ReturnInst>(*I) || isa<UnwindInst>(*I)) {
+      exitBlocks.insert(I->getParent());
+    }
+  }
+
+  // At each function exit, insert code to set the metadata as uninitialized.
+  for (std::set<BasicBlock*>::const_iterator BI = exitBlocks.begin(),
+       BE = exitBlocks.end();
+       BI != BE; ++BI) {
+    for (RegisteredArgTy::const_iterator I = registeredArguments.begin(),
+         E = registeredArguments.end();
+         I != E; ++I) {
+      SmallVector<Value *, 2> args;
+      Instruction * Pt = &((*BI)->back());
+      const PointerType * PT = cast<PointerType>((*I)->getType());
+      const Type * ET = PT->getElementType();
+      Value * AllocSize = ConstantInt::get(Int64Ty, TD->getTypeAllocSize(ET));
+      CastInst *BCI = BitCastInst::CreatePointerCast(*I, VoidPtrTy, "", Pt);
+      std::vector<Value *> Args;
+      Args.push_back(BCI);
+      Args.push_back(AllocSize);
+      Args.push_back(ConstantInt::get(Int32Ty, tagCounter++));
+      Constant *F = M.getOrInsertFunction("trackUnInitInst", VoidTy, VoidPtrTy, Int64Ty, Int32Ty, NULL);
+      CallInst::Create(F, Args.begin(), Args.end(), "", Pt);
+    }
+  }
+  return true;
+}
 // Print the types found in the module. If the optional Module parameter is
 // passed in, then the types are printed symbolically if possible, using the
 // symbol table from the module.
