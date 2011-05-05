@@ -133,6 +133,9 @@ bool TypeChecks::runOnModule(Module &M) {
         }
       } else if (CallInst *CI = dyn_cast<CallInst>(&I)) {
         modified |= visitCallInst(M, *CI);
+      } else if (InvokeInst *II = dyn_cast<InvokeInst>(&I)) {
+        II->dump();
+        modified |= visitInvokeInst(M, *II);
       }
     }
   }
@@ -274,6 +277,11 @@ bool TypeChecks::visitGlobal(Module &M, GlobalVariable &GV,
 // Insert runtime checks for certain call instructions
 bool TypeChecks::visitCallInst(Module &M, CallInst &CI) {
   return visitCallSite(M, &CI);
+}
+
+// Insert runtime checks for certain call instructions
+bool TypeChecks::visitInvokeInst(Module &M, InvokeInst &II) {
+  return visitCallSite(M, &II);
 }
 
 bool TypeChecks::visitCallSite(Module &M, CallSite CS) {

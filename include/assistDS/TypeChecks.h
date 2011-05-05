@@ -57,11 +57,12 @@ public:
   bool initShadow(Module &M, Instruction &I);
   bool unmapShadow(Module &M, Instruction &I);
   bool visitCallInst(Module &M, CallInst &CI);
+  bool visitInvokeInst(Module &M, InvokeInst &CI);
   bool visitCallSite(Module &M, CallSite CS);
   bool visitLoadInst(Module &M, LoadInst &LI);
+  bool visitStoreInst(Module &M, StoreInst &SI);
   bool visitGlobal(Module &M, GlobalVariable &GV, 
                    Constant *C, Instruction &I, unsigned offset);
-  bool visitStoreInst(Module &M, StoreInst &SI);
   bool visitCopyingStoreInst(Module &M, StoreInst &SI, Value *SS);
   bool visitInputFunctionValue(Module &M, Value *V, Instruction *CI);
 
