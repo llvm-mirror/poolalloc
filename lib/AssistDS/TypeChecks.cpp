@@ -150,7 +150,7 @@ bool TypeChecks::runOnModule(Module &M) {
   // we can find all call sites to it, and also pass in the
   // original ptr/metadata.
   // One that sets it just to initialized memory
-  // so that it can be calle from external code.
+  // so that it can be called from external code.
   for (Module::iterator MI = M.begin(), ME = M.end(); MI != ME; ++MI) {
     Function &F = *MI;
     typedef SmallVector<Value *, 4> RegisteredArgTy;
@@ -205,8 +205,6 @@ bool TypeChecks::runOnModule(Module &M) {
         CallInst::Create(F, Args.begin(), Args.end(), "", Pt);
       }
     }
-
-
   }
 
   return modified;
