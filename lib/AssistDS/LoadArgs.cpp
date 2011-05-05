@@ -106,12 +106,11 @@ namespace {
 
               //return type is same as that of original instruction
               const FunctionType *NewFTy = FunctionType::get(CI->getType(), TP, false);
-              Function *NewF;
               numSimplified++;
               if(numSimplified > 400)
                 return true;
 
-              NewF = Function::Create(NewFTy,
+              Function *NewF = Function::Create(NewFTy,
                                       GlobalValue::InternalLinkage,
                                       F->getNameStr() + ".TEST",
                                       &M);
