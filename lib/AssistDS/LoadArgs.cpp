@@ -108,7 +108,7 @@ namespace {
               const FunctionType *NewFTy = FunctionType::get(CI->getType(), TP, false);
               Function *NewF;
               numSimplified++;
-              if(numSimplified > 500) //26
+              if(numSimplified > 400) //26
                 return true;
 
               NewF = Function::Create(NewFTy,
