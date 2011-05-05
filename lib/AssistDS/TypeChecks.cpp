@@ -21,6 +21,9 @@
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Intrinsics.h"
 
+#include <set>
+#include <vector>
+
 using namespace llvm;
 
 char TypeChecks::ID = 0;
@@ -109,7 +112,8 @@ bool TypeChecks::runOnModule(Module &M) {
     IncorporateType(MI->getType());
     Function &F = *MI;
 
-    // Loop over all of the instructions in the function, adding their return type as well as the types of their operands.
+    // Loop over all of the instructions in the function, 
+    // adding their return type as well as the types of their operands.
     for (inst_iterator II = inst_begin(F), IE = inst_end(F); II != IE; ++II) {
       Instruction &I = *II;
 
@@ -138,6 +142,71 @@ bool TypeChecks::runOnModule(Module &M) {
         modified |= visitInvokeInst(M, *II);
       }
     }
+  }
+
+  // Record types for byval arguments.
+
+  // Split fn into 2 clones. One internal, such that
+  // we can find all call sites to it, and also pass in the
+  // original ptr/metadata.
+  // One that sets it just to initialized memory
+  // so that it can be calle from external code.
+  for (Module::iterator MI = M.begin(), ME = M.end(); MI != ME; ++MI) {
+    Function &F = *MI;
+    typedef SmallVector<Value *, 4> RegisteredArgTy;
+    RegisteredArgTy registeredArguments;
+    for (Function::arg_iterator I = F.arg_begin(), E = F.arg_end(); I != E; ++I) {
+      if (I->hasByValAttr()) {
+        assert (isa<PointerType>(I->getType()));
+        const PointerType * PT = cast<PointerType>(I->getType());
+        const Type * ET = PT->getElementType();
+        Value * AllocSize = ConstantInt::get(Int64Ty, TD->getTypeAllocSize(ET));
+        Instruction * InsertBefore = &(F.getEntryBlock().front());
+        CastInst *BCI = BitCastInst::CreatePointerCast(I, VoidPtrTy, "", InsertBefore);
+        std::vector<Value *> Args;
+        Args.push_back(BCI);
+        Args.push_back(AllocSize);
+        Args.push_back(ConstantInt::get(Int32Ty, tagCounter++));
+        Constant *F = M.getOrInsertFunction("trackInitInst", VoidTy, VoidPtrTy, Int64Ty, Int32Ty, NULL);
+        CallInst::Create(F, Args.begin(), Args.end(), "", InsertBefore);
+        registeredArguments.push_back(&*I);
+      }
+    }
+    //
+    // Find all basic blocks which terminate the function.
+    //
+    std::set<BasicBlock *> exitBlocks;
+    for (inst_iterator I = inst_begin(&F), E = inst_end(&F); I != E; ++I) {
+      if (isa<ReturnInst>(*I) || isa<UnwindInst>(*I)) {
+        exitBlocks.insert(I->getParent());
+      }
+    }
+
+    //
+    // At each function exit, insert code to deregister all byval arguments.
+    //
+    for (std::set<BasicBlock*>::const_iterator BI = exitBlocks.begin(),
+         BE = exitBlocks.end();
+         BI != BE; ++BI) {
+      for (RegisteredArgTy::const_iterator I = registeredArguments.begin(),
+           E = registeredArguments.end();
+           I != E; ++I) {
+        SmallVector<Value *, 2> args;
+        Instruction * Pt = &((*BI)->back());
+        const PointerType * PT = cast<PointerType>((*I)->getType());
+        const Type * ET = PT->getElementType();
+        Value * AllocSize = ConstantInt::get(Int64Ty, TD->getTypeAllocSize(ET));
+        CastInst *BCI = BitCastInst::CreatePointerCast(*I, VoidPtrTy, "", Pt);
+        std::vector<Value *> Args;
+        Args.push_back(BCI);
+        Args.push_back(AllocSize);
+        Args.push_back(ConstantInt::get(Int32Ty, tagCounter++));
+        Constant *F = M.getOrInsertFunction("trackUnInitInst", VoidTy, VoidPtrTy, Int64Ty, Int32Ty, NULL);
+        CallInst::Create(F, Args.begin(), Args.end(), "", Pt);
+      }
+    }
+
+
   }
 
   return modified;
@@ -184,7 +253,7 @@ bool TypeChecks::unmapShadow(Module &M, Instruction &I) {
 
 bool TypeChecks::visitGlobal(Module &M, GlobalVariable &GV, 
                              Constant *C, Instruction &I, unsigned offset) {
-  
+
   if(ConstantArray *CA = dyn_cast<ConstantArray>(C)) {
     const Type * ElementType = CA->getType()->getElementType();
     unsigned int t = TD->getTypeStoreSize(ElementType);

@@ -123,6 +123,11 @@ void trackInitInst(void *ptr, uint64_t size, uint32_t tag) {
   p &= 0xFFFFFFFF;
   memset(&shadow_begin[p], 0xFF, size);
 }
+void trackUnInitInst(void *ptr, uint64_t size, uint32_t tag) {
+  uintptr_t p = (uintptr_t)ptr;
+  p &= 0xFFFFFFFF;
+  memset(&shadow_begin[p], 0x00, size);
+}
 
 /**
  * Copy size bits of metadata from src ptr to dest ptr.
