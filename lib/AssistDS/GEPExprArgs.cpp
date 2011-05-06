@@ -1,4 +1,4 @@
-//===-- LoadArgs.cpp - Promote args if they came from loads ---------------===//
+//===-- GEPExprArg.cpp - Promote args if they come from GEPs  -------------===//
 //
 //                     The LLVM Compiler Infrastructure
 //
@@ -7,14 +7,12 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// Identify calls, that are passed arguments that are LoadInsts.
-// Pass the original pointer instead. Helps improve some
-// context sensitivity.
+// Identify GEPs used as arguments to call sites.
 // 
 //===----------------------------------------------------------------------===//
-#define DEBUG_TYPE "ld-args"
+#define DEBUG_TYPE "gepexprargs"
 
-#include "assistDS/LoadArgs.h"
+#include "assistDS/GEPExprArgs.h"
 #include "llvm/Constants.h"
 #include "llvm/Support/GetElementPtrTypeIterator.h"
 #include "llvm/Transforms/Utils/Cloning.h"
@@ -35,7 +33,7 @@ using namespace llvm;
 //
 // Description:
 //  Entry point for this LLVM pass.
-//  Clone functions that take LoadInsts as arguments
+//  Clone functions that take GEPs as arguments
 //
 // Inputs:
 //  M - A reference to the LLVM module to transform
@@ -47,9 +45,9 @@ using namespace llvm;
 //  true  - The module was modified.
 //  false - The module was not modified.
 //
-bool LoadArgs::runOnModule(Module& M) {
+bool GEPExprArgs::runOnModule(Module& M) {
   bool changed;
-  do { 
+  do {
     changed = false;
     for (Module::iterator F = M.begin(); F != M.end(); ++F){
       for (Function::iterator B = F->begin(), FE = F->end(); B != FE; ++B) {
@@ -77,10 +75,7 @@ bool LoadArgs::runOnModule(Module& M) {
           for(; argNum < CI->getNumOperands();argNum++, ++ai) {
             if(ai->use_empty())
               continue;
-            if(F->paramHasAttr(argNum, Attribute::SExt) ||
-               F->paramHasAttr(argNum, Attribute::ZExt)) 
-              continue;
-            if (isa<LoadInst>(CI->getOperand(argNum)))
+            if (isa<GEPOperator>(CI->getOperand(argNum)))
               break;
           }
 
@@ -88,45 +83,29 @@ bool LoadArgs::runOnModule(Module& M) {
           if(ai == ae)
             continue;
 
-          LoadInst *LI = dyn_cast<LoadInst>(CI->getOperand(argNum));
-          if(LI->getParent() != CI->getParent())
+          GEPOperator *GEP = dyn_cast<GEPOperator>(CI->getOperand(argNum));
+          if(!GEP->hasAllConstantIndices())
             continue;
-          // Also check that there is no store after the load.
-          // TODO: Check if the load/store do not alias.
-          BasicBlock::iterator bii = LI->getParent()->begin();
-          Instruction *BII = bii;
-          while(BII != LI) {
-            ++bii;
-            BII = bii;
-          }
-          while(BII != CI) {
-            if(isa<StoreInst>(BII))
-              break;
-            ++bii;
-            BII = bii;
-          }
-          if(isa<StoreInst>(bii)){
-            continue;
-          }
 
           // Construct the new Type
           // Appends the struct Type at the beginning
           std::vector<const Type*>TP;
-          TP.push_back(LI->getOperand(0)->getType());
+          TP.push_back(GEP->getPointerOperand()->getType());
           for(unsigned c = 1; c < CI->getNumOperands();c++) {
             TP.push_back(CI->getOperand(c)->getType());
           }
 
           //return type is same as that of original instruction
           const FunctionType *NewFTy = FunctionType::get(CI->getType(), TP, false);
+          Function *NewF;
           numSimplified++;
-          if(numSimplified > 400)
+          if(numSimplified > 800) 
             return true;
 
-          Function *NewF = Function::Create(NewFTy,
-                                            GlobalValue::InternalLinkage,
-                                            F->getNameStr() + ".TEST",
-                                            &M);
+          NewF = Function::Create(NewFTy,
+                                  GlobalValue::InternalLinkage,
+                                  F->getNameStr() + ".TEST",
+                                  &M);
 
           Function::arg_iterator NI = NewF->arg_begin();
           NI->setName("Sarg");
@@ -154,11 +133,18 @@ bool LoadArgs::runOnModule(Module& M) {
           Instruction *InsertPoint;
           for (BasicBlock::iterator insrt = NewF->front().begin(); isa<AllocaInst>(InsertPoint = insrt); ++insrt) {;}
 
-          LoadInst *LI_new = new LoadInst(cast<Value>(NI), "", InsertPoint);
-          fargs.at(argNum)->replaceAllUsesWith(LI_new);
+          SmallVector<Value*, 8> Indices;
+          Indices.append(GEP->op_begin()+1, GEP->op_end());
+          GetElementPtrInst *GEP_new = GetElementPtrInst::Create(cast<Value>(NI), Indices.begin(), Indices.end(), "", InsertPoint);
+          fargs.at(argNum)->replaceAllUsesWith(GEP_new);
+          unsigned j = argNum + 1;
+          for(; j < CI->getNumOperands();j++) {
+            if(CI->getOperand(j) == GEP)
+              fargs.at(j)->replaceAllUsesWith(GEP_new);
+          }
 
           SmallVector<Value*, 8> Args;
-          Args.push_back(LI->getOperand(0));
+          Args.push_back(GEP->getPointerOperand());
           for(unsigned j =1;j<CI->getNumOperands();j++) {
             Args.push_back(CI->getOperand(j));
           }
@@ -174,6 +160,7 @@ bool LoadArgs::runOnModule(Module& M) {
   return true;
 }
 
-char LoadArgs::ID = 0;
-static RegisterPass<LoadArgs>
-X("ld-args", "Find Load Inst passed as args");
+
+char GEPExprArgs::ID = 0;
+static RegisterPass<GEPExprArgs>
+X("gep-expr-arg", "Find GEP Exprs passed as args");

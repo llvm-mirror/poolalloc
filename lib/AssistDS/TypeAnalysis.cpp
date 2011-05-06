@@ -8,9 +8,10 @@
 //===----------------------------------------------------------------------===//
 
 #include "assistDS/TypeAnalysis.h"
-#include <vector>
 #include "llvm/Support/FormattedStream.h"
 #include "llvm/Support/Debug.h"
+
+#include <vector>
 
 using namespace llvm;
 
@@ -20,7 +21,6 @@ char TypeAnalysis::ID = 0;
 // Register the Pass
 static RegisterPass<TypeAnalysis>
 X("type-analysis", "Get types for load/stores");
-
 
 //
 // Method: runOnModule()
