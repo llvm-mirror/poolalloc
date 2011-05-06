@@ -578,6 +578,16 @@ bool TypeChecks::visitCallSite(Module &M, CallSite CS) {
         CallInst::Create(F, Args.begin(), Args.end(), "", I);
         break;
       }
+    } else if(F->getNameStr() == std::string("read")) {
+      CastInst *BCI = BitCastInst::CreatePointerCast(I->getOperand(2), VoidPtrTy);
+      BCI->insertAfter(I);
+      std::vector<Value *> Args;
+      Args.push_back(BCI);
+      Args.push_back(I);
+      Args.push_back(ConstantInt::get(Int32Ty, tagCounter++));
+      Constant *F = M.getOrInsertFunction("trackInitInst", VoidTy, VoidPtrTy, I->getType(), Int32Ty, NULL);
+      CallInst *CI = CallInst::Create(F, Args.begin(), Args.end());
+      CI->insertAfter(BCI);
     } else if(F->getNameStr() == std::string("calloc")) {
       CastInst *BCI = BitCastInst::CreatePointerCast(I, VoidPtrTy);
       BCI->insertAfter(I);
@@ -596,8 +606,6 @@ bool TypeChecks::visitCallSite(Module &M, CallSite CS) {
       F = M.getOrInsertFunction("trackGlobalArray", VoidTy, VoidPtrTy, I->getOperand(2)->getType(), I->getOperand(1)->getType(), Int32Ty, NULL);
       CallInst *CI_Arr = CallInst::Create(F, Args1.begin(), Args1.end());
       CI_Arr->insertAfter(CI);
-
-
     } else if(F->getNameStr() ==  std::string("realloc")) {
       CastInst *BCI_Src = BitCastInst::CreatePointerCast(I->getOperand(1), VoidPtrTy);
       CastInst *BCI_Dest = BitCastInst::CreatePointerCast(I, VoidPtrTy);
