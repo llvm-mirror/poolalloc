@@ -44,6 +44,7 @@ namespace llvm {
     { "pool_bcopy",       2 },
     { "pool_index",       1 },
     { "pool_rindex",      1 },
+    { "pool_strcasestr",  2 },
     {  0,                 0 }
   };
 

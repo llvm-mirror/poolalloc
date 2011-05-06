@@ -279,6 +279,7 @@ const struct {
   {"pool_strcat",     {NRET_NNYARGS, YRET_NNYARGS,  NRET_NARGS, YRET_NNYARGS,  true}},
   {"pool_strncat",    {NRET_NNYARGS, YRET_NNYARGS,  NRET_NARGS, YRET_NNYARGS,  true}},
   {"pool_strstr",     {NRET_NNYARGS, YRET_NARGS,    NRET_NARGS, YRET_NNYNARGS, true}},
+  {"pool_strcasestr", {NRET_NNYARGS, YRET_NARGS,    NRET_NARGS, YRET_NNYNARGS, true}},
   {"pool_strpbrk",    {NRET_NNYARGS, YRET_NARGS,    NRET_NARGS, YRET_NNYNARGS, true}},
   {"pool_strspn",     {NRET_NYARGS,  YRET_NARGS,    NRET_NARGS, NRET_NARGS,    true}},
   {"pool_strcspn",    {NRET_NYARGS,  YRET_NARGS,    NRET_NARGS, NRET_NARGS,    true}},
