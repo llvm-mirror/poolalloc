@@ -102,7 +102,7 @@ void trackLoadInst(void *ptr, uint8_t typeNumber, uint64_t size, uint32_t tag) {
         Check that none of the bytes are typed.*/
     for (; i < size; ++i) {
       if (0xFF != shadow_begin[p + i]) {
-        printf("Type mismatch: detecting %u, expecting %u (0 != %u)!\n", typeNumber, shadow_begin[p], shadow_begin[p + i]);
+        printf("Type mismatch: detecting %u, expecting %u (0 != %u)! %u\n", typeNumber, shadow_begin[p+i], shadow_begin[p + i], tag);
         break;
       }
     }
