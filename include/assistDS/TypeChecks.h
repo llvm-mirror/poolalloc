@@ -54,7 +54,7 @@ public:
     AU.addRequired<TypeAnalysis>();
   }
 
-  bool initShadow(Module &M, Instruction &I);
+  bool initShadow(Module &M);
   bool unmapShadow(Module &M, Instruction &I);
   bool visitCallInst(Module &M, CallInst &CI);
   bool visitInvokeInst(Module &M, InvokeInst &CI);

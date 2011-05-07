@@ -96,9 +96,9 @@ bool TypeChecks::runOnModule(Module &M) {
   if (MainF == 0 || MainF->isDeclaration())
     return false;
 
-  inst_iterator MainI = inst_begin(MainF);
-  modified |= initShadow(M, *MainI);
+  modified |= initShadow(M);
 
+  inst_iterator MainI = inst_begin(MainF);
   // record all globals
   for (Module::global_iterator I = M.global_begin(), E = M.global_end();
        I != E; ++I) {
@@ -423,10 +423,67 @@ void TypeChecks::print(raw_ostream &OS, const Module *M) const {
 }
 
 // Initialize the shadow memory which contains the 1:1 mapping.
-bool TypeChecks::initShadow(Module &M, Instruction &I) {
+bool TypeChecks::initShadow(Module &M) {
   // Create the call to the runtime initialization function and place it before the store instruction.
-  Constant *F = M.getOrInsertFunction("shadowInit", VoidTy, NULL);
-  CallInst::Create(F, "", &I);
+
+  Constant * RuntimeCtor = M.getOrInsertFunction("shadowInit", VoidTy, NULL);
+
+  //
+  // Insert the run-time ctor into the ctor list.
+  //
+  std::vector<Constant *> CtorInits;
+  CtorInits.push_back (ConstantInt::get (Int32Ty, 65535));
+  CtorInits.push_back (RuntimeCtor);
+  Constant * RuntimeCtorInit=ConstantStruct::get(M.getContext(),CtorInits, false);
+
+  //
+  // Get the current set of static global constructors and add the new ctor
+  // to the list.
+  //
+  std::vector<Constant *> CurrentCtors;
+  GlobalVariable * GVCtor = M.getNamedGlobal ("llvm.global_ctors");
+  if (GVCtor) {
+    if (Constant * C = GVCtor->getInitializer()) {
+      for (unsigned index = 0; index < C->getNumOperands(); ++index) {
+        CurrentCtors.push_back (cast<Constant>(C->getOperand (index)));
+      }
+    }
+
+    //
+    // Rename the global variable so that we can name our global
+    // llvm.global_ctors.
+    //
+    GVCtor->setName ("removed");
+  }
+
+  //
+  // The ctor list seems to be initialized in different orders on different
+  // platforms, and the priority settings don't seem to work.  Examine the
+  // module's platform string and take a best guess to the order.
+  //
+  if (M.getTargetTriple().find ("linux") == std::string::npos)
+    CurrentCtors.insert (CurrentCtors.begin(), RuntimeCtorInit);
+  else
+    CurrentCtors.push_back (RuntimeCtorInit);
+  
+  //
+  // Create a new initializer.
+  //
+  const ArrayType * AT = ArrayType::get (RuntimeCtorInit-> getType(),
+                                         CurrentCtors.size());
+  Constant * NewInit=ConstantArray::get (AT, CurrentCtors);
+
+  //
+  // Create the new llvm.global_ctors global variable and replace all uses of
+  // the old global variable with the new one.
+  //
+  new GlobalVariable (M,
+                      NewInit->getType(),
+                      false,
+                      GlobalValue::AppendingLinkage,
+                      NewInit,
+                      "llvm.global_ctors");
+
 
   return true;
 }
