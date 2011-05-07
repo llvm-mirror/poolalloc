@@ -588,6 +588,16 @@ bool TypeChecks::visitCallSite(Module &M, CallSite CS) {
       Constant *F = M.getOrInsertFunction("trackInitInst", VoidTy, VoidPtrTy, I->getType(), Int32Ty, NULL);
       CallInst *CI = CallInst::Create(F, Args.begin(), Args.end());
       CI->insertAfter(BCI);
+    } else if(F->getNameStr() == std::string("fread")) {
+      CastInst *BCI = BitCastInst::CreatePointerCast(I->getOperand(1), VoidPtrTy);
+      BCI->insertAfter(I);
+      std::vector<Value *> Args;
+      Args.push_back(BCI);
+      Args.push_back(I);
+      Args.push_back(ConstantInt::get(Int32Ty, tagCounter++));
+      Constant *F = M.getOrInsertFunction("trackInitInst", VoidTy, VoidPtrTy, I->getType(), Int32Ty, NULL);
+      CallInst *CI = CallInst::Create(F, Args.begin(), Args.end());
+      CI->insertAfter(BCI);
     } else if(F->getNameStr() == std::string("calloc")) {
       CastInst *BCI = BitCastInst::CreatePointerCast(I, VoidPtrTy);
       BCI->insertAfter(I);
