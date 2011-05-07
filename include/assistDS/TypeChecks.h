@@ -15,6 +15,7 @@
 #define TYPE_CHECKS_H
 
 #include "assistDS/TypeAnalysis.h"
+#include "dsa/TypeSafety.h"
 
 #include "llvm/Instructions.h"
 #include "llvm/Pass.h"
@@ -36,6 +37,8 @@ private:
 
   // Analysis from other passes.
   TargetData *TD;
+  TypeAnalysis *TA;
+  dsa::TypeSafety<TDDataStructures> *TS;
 
   // Incorporate one type and all of its subtypes into the collection of used types.
   void IncorporateType(const Type *Ty);
@@ -51,6 +54,7 @@ public:
 
   virtual void getAnalysisUsage(AnalysisUsage &AU) const {
     AU.addRequired<TargetData>();
+    AU.addRequired<dsa::TypeSafety<TDDataStructures> >();
     AU.addRequired<TypeAnalysis>();
   }
 

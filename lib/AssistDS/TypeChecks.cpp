@@ -72,7 +72,8 @@ bool TypeChecks::runOnModule(Module &M) {
   bool modified = false; // Flags whether we modified the module.
 
   TD = &getAnalysis<TargetData>();
-  TypeAnalysis &TA = getAnalysis<TypeAnalysis>();
+  TA = &getAnalysis<TypeAnalysis>();
+  TS = &getAnalysis<dsa::TypeSafety<TDDataStructures> >();
 
   VoidTy = IntegerType::getVoidTy(M.getContext());
   Int8Ty = IntegerType::getInt8Ty(M.getContext());
@@ -126,8 +127,8 @@ bool TypeChecks::runOnModule(Module &M) {
       }
 
       if (StoreInst *SI = dyn_cast<StoreInst>(&I)) {
-        if (TA.isCopyingStore(SI)) {
-          Value *SS = TA.getStoreSource(SI);
+        if (TA->isCopyingStore(SI)) {
+          Value *SS = TA->getStoreSource(SI);
           if (SS != NULL) {
             modified |= visitCopyingStoreInst(M, *SI, SS);
           }
@@ -135,7 +136,7 @@ bool TypeChecks::runOnModule(Module &M) {
           modified |= visitStoreInst(M, *SI);
         }
       } else if (LoadInst *LI = dyn_cast<LoadInst>(&I)) {
-        if (!TA.isCopyingLoad(LI)) {
+        if (!TA->isCopyingLoad(LI)) {
           modified |= visitLoadInst(M, *LI);
         }
       } else if (CallInst *CI = dyn_cast<CallInst>(&I)) {
@@ -635,6 +636,17 @@ bool TypeChecks::visitCallSite(Module &M, CallSite CS) {
         CallInst::Create(F, Args.begin(), Args.end(), "", I);
         break;
       }
+    } else if(F->getNameStr() == std::string("ftime")) {
+      CastInst *BCI = BitCastInst::CreatePointerCast(I->getOperand(1), VoidPtrTy, "", I);
+      const PointerType *PTy = cast<PointerType>(I->getOperand(1)->getType());
+      const Type * ElementType = PTy->getElementType();
+      unsigned int t = TD->getTypeStoreSize(ElementType);
+      std::vector<Value *> Args;
+      Args.push_back(BCI);
+      Args.push_back(ConstantInt::get(Int64Ty, t));
+      Args.push_back(ConstantInt::get(Int32Ty, tagCounter++));
+      Constant *F = M.getOrInsertFunction("trackInitInst", VoidTy, VoidPtrTy, Int64Ty, Int32Ty, NULL);
+      CallInst::Create(F, Args.begin(), Args.end(), "", I);
     } else if(F->getNameStr() == std::string("read")) {
       CastInst *BCI = BitCastInst::CreatePointerCast(I->getOperand(2), VoidPtrTy);
       BCI->insertAfter(I);
