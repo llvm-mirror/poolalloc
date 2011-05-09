@@ -6,7 +6,8 @@ add_llvm_library(AssistDS
   GEPExprArg.cpp
   IndCloner.cpp
   Int2PtrCmp.cpp
-  MergeArrayIndexGEP.cpp
+  LoadArgs.cpp
+  MergeGEP.cpp
   SVADevirt.cpp
   SimplifyExtractValue.cpp
   SimplifyGEP.cpp
