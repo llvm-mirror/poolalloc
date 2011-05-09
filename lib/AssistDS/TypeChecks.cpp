@@ -21,6 +21,8 @@
 #include "llvm/Support/InstIterator.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Intrinsics.h"
+#include "llvm/Support/CommandLine.h"
+#include "llvm/ADT/Statistic.h"
 
 #include <set>
 #include <vector>
@@ -28,7 +30,20 @@
 using namespace llvm;
 
 char TypeChecks::ID = 0;
-static RegisterPass<TypeChecks> TC("typechecks", "Insert runtime type checks", false, true);
+
+static RegisterPass<TypeChecks> 
+TC("typechecks", "Insert runtime type checks", false, true);
+
+// Pass statistics
+STATISTIC(numLoadChecks,  "Number of Load Insts that need type checks");
+STATISTIC(numStoreChecks, "Number of Store Insts that need type checks");
+
+namespace {
+  static cl::opt<bool> EnableTypeSafeOpt("enable-type-safe-opt",
+         cl::desc("Use DSA pass"),
+         cl::Hidden,
+         cl::init(false));
+}
 
 static int tagCounter = 0;
 static const Type *VoidTy = 0;
@@ -92,11 +107,11 @@ bool TypeChecks::runOnModule(Module &M) {
     }
   }
 
-  // Insert the shadow initialization function at the entry to main.
   Function *MainF = M.getFunction("main");
   if (MainF == 0 || MainF->isDeclaration())
     return false;
 
+  // Insert the shadow initialization function.
   modified |= initShadow(M);
 
   inst_iterator MainI = inst_begin(MainF);
@@ -183,7 +198,7 @@ TypeChecks::visitByValFunction(Module &M, Function &F) {
   //  Create an internal clone (treated same as internal functions)
   //  Modify the original function
   //  To assume that the metadata for the byval arguments is TOP 
-  
+
   if(F.hasInternalLinkage()) {
     visitInternalFunction(M, F);
   } else {
@@ -241,7 +256,7 @@ bool TypeChecks::visitInternalFunction(Module &M, Function &F) {
   // Perform the cloning.
   SmallVector<ReturnInst*,100> Returns;
   CloneFunctionInto(NewF, &F, ValueMap, Returns);
- 
+
   // Add calls to the runtime to copy metadata from source to the byval argument pointer. 
   typedef SmallVector<Value *, 4> RegisteredArgTy;
   // Keep track of the byval arguments.
@@ -266,7 +281,7 @@ bool TypeChecks::visitInternalFunction(Module &M, Function &F) {
       CallInst::Create(F, Args.begin(), Args.end(), "", InsertBefore);
     }
   }
-  
+
   // Find all basic blocks which terminate the function.
   std::set<BasicBlock *> exitBlocks;
   for (inst_iterator I = inst_begin(NewF), E = inst_end(NewF); I != E; ++I) {
@@ -310,7 +325,7 @@ bool TypeChecks::visitInternalFunction(Module &M, Function &F) {
         AttrListPtr CallPAL = CI->getAttributes();
         Attributes RAttrs = CallPAL.getRetAttributes();
         Attributes FnAttrs = CallPAL.getFnAttributes();
-        
+
         Function::arg_iterator II = F.arg_begin();
 
         for(unsigned j =1;j<CI->getNumOperands();j++, II++) {
@@ -324,7 +339,7 @@ bool TypeChecks::visitInternalFunction(Module &M, Function &F) {
           if(II->hasByValAttr()) 
             Args.push_back(CI->getOperand(j));
         }
-        
+
         // Create the new attributes vec.
         if (FnAttrs != Attribute::None)
           AttributesVec.push_back(AttributeWithIndex::get(~0, FnAttrs));
@@ -370,7 +385,7 @@ bool TypeChecks::visitExternalFunction(Module &M, Function &F) {
       registeredArguments.push_back(&*I);
     }
   }
-  
+
   // Find all basic blocks which terminate the function.
   std::set<BasicBlock *> exitBlocks;
   for (inst_iterator I = inst_begin(&F), E = inst_end(&F); I != E; ++I) {
@@ -466,7 +481,7 @@ bool TypeChecks::initShadow(Module &M) {
     CurrentCtors.insert (CurrentCtors.begin(), RuntimeCtorInit);
   else
     CurrentCtors.push_back (RuntimeCtorInit);
-  
+
   //
   // Create a new initializer.
   //
@@ -747,6 +762,11 @@ bool TypeChecks::visitInputFunctionValue(Module &M, Value *V, Instruction *CI) {
 
 // Insert runtime checks before all load instructions.
 bool TypeChecks::visitLoadInst(Module &M, LoadInst &LI) {
+  if(EnableTypeSafeOpt) {
+    if(TS->isTypeSafe(LI.getOperand(0), LI.getParent()->getParent())) {
+      return false;
+    }
+  }
   // Cast the pointer operand to i8* for the runtime function.
   CastInst *BCI = BitCastInst::CreatePointerCast(LI.getPointerOperand(), VoidPtrTy, "", &LI);
 
@@ -760,7 +780,7 @@ bool TypeChecks::visitLoadInst(Module &M, LoadInst &LI) {
   // Create the call to the runtime check and place it before the load instruction.
   Constant *F = M.getOrInsertFunction("trackLoadInst", VoidTy, VoidPtrTy, Int8Ty, Int64Ty, Int32Ty, NULL);
   CallInst::Create(F, Args.begin(), Args.end(), "", &LI);
-
+  numLoadChecks++;
   return true;
 }
 
@@ -778,6 +798,7 @@ bool TypeChecks::visitStoreInst(Module &M, StoreInst &SI) {
   // Create the call to the runtime check and place it before the store instruction.
   Constant *F = M.getOrInsertFunction("trackStoreInst", VoidTy, VoidPtrTy, Int8Ty, Int64Ty, Int32Ty, NULL);
   CallInst::Create(F, Args.begin(), Args.end(), "", &SI);
+  numStoreChecks++;
 
   return true;
 }
@@ -797,6 +818,7 @@ bool TypeChecks::visitCopyingStoreInst(Module &M, StoreInst &SI, Value *SS) {
   // Create the call to the runtime check and place it before the copying store instruction.
   Constant *F = M.getOrInsertFunction("copyTypeInfo", VoidTy, VoidPtrTy, VoidPtrTy, Int64Ty, Int32Ty, NULL);
   CallInst::Create(F, Args.begin(), Args.end(), "", &SI);
+  numStoreChecks++;
 
   return true;
 }
