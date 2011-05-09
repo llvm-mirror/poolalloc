@@ -8,6 +8,13 @@
 #define DEBUG (0)
 #define SIZE ((size_t)(70368744177664))
 
+/*
+ * Do some macro magic to get mmap macros defined properly on all platforms.
+ */
+#if defined(MAP_ANON) && !defined(MAP_ANONYMOUS)
+# define MAP_ANONYMOUS MAP_ANON
+#endif /* defined(MAP_ANON) && !defined(MAP_ANONYMOUS) */
+
 uint8_t *shadow_begin;
 
 uintptr_t maskAddress(void *ptr) {
