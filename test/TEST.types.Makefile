@@ -51,7 +51,7 @@ Output/%.temp1.bc: Output/%.llvm1.bc
 
 $(PROGRAMS_TO_TEST:%=Output/%.opt.bc): \
 Output/%.opt.bc: Output/%.llvm1.bc $(LOPT) $(ASSIST_SO)
-	-$(RUNOPT) -load $(ASSIST_SO) -disable-opt -info-output-file=$(CURDIR)/$@.info -instnamer -internalize -mem2reg -dce  -basiccg -inline -dce -varargsfunc -indclone -funcspec -ipsccp -deadargelim  -simplify-gep -die -die -mergearrgep -die -globaldce -simplifycfg -deadargelim -arg-simplify -die -varargsfunc -die -simplifycfg -globaldce -indclone -funcspec -deadargelim -globaldce -die -simplifycfg -gep-expr-arg -deadargelim -die -mergefunc -die -die -mergearrgep -die -globaldce -int2ptrcmp -die -dce  -inline -mem2reg -dce -arg-cast -dce -struct-ret -deadargelim -simplify-ev -simplify-iv -dce -ld-args -gep-expr-arg -deadargelim -mergefunc -dce -stats -time-passes $< -f -o $@ 
+	-$(RUNOPT) -load $(ASSIST_SO) -disable-opt -info-output-file=$(CURDIR)/$@.info -instnamer -internalize -mem2reg -dce  -basiccg -inline -dce -varargsfunc -indclone -funcspec -ipsccp -deadargelim  -simplify-gep -die -die -mergearrgep -die -globaldce -simplifycfg -deadargelim -arg-simplify -die -varargsfunc -die -simplifycfg -globaldce -indclone -funcspec -deadargelim -globaldce -die -simplifycfg -gep-expr-arg -deadargelim -die -mergefunc -die -die -mergearrgep -die -globaldce -int2ptrcmp -die -dce  -inline -mem2reg -dce -arg-cast -dce -sretpromotion -struct-ret -deadargelim -simplify-ev -simplify-iv -dce -ld-args -gep-expr-arg -deadargelim -mergefunc -dce -stats -time-passes $< -f -o $@ 
 
 $(PROGRAMS_TO_TEST:%=Output/%.count.bc): \
 Output/%.count.bc: Output/%.opt.bc $(LOPT) $(ASSIST_SO)
@@ -63,7 +63,11 @@ Output/%.count1.bc: Output/%.opt.bc $(LOPT) $(ASSIST_SO)
 
 $(PROGRAMS_TO_TEST:%=Output/%.tc.bc): \
 Output/%.tc.bc: Output/%.opt.bc $(LOPT) $(ASSIST_SO)
-	-$(RUNOPT) -load $(ASSIST_SO) -typechecks -dce -ipsccp -info-output-file=$(CURDIR)/$@.info $< -f -o $@ 
+	-$(RUNOPT) -load $(ASSIST_SO) -typechecks -dce -ipsccp -stats -info-output-file=$(CURDIR)/$@.info $< -f -o $@ 
+
+$(PROGRAMS_TO_TEST:%=Output/%.tco.bc): \
+Output/%.tco.bc: Output/%.opt.bc $(LOPT) $(ASSIST_SO)
+	-$(RUNOPT) -load $(ASSIST_SO) -typechecks -enable-type-safe-opt -dce -ipsccp -stats -info-output-file=$(CURDIR)/$@.info $< -f -o $@ 
 
 $(PROGRAMS_TO_TEST:%=Output/%.count.s): \
 Output/%.count.s: Output/%.count.bc $(LLC)
@@ -80,12 +84,18 @@ Output/%.llvm1.s: Output/%.llvm1.bc $(LLC)
 $(PROGRAMS_TO_TEST:%=Output/%.tc.s): \
 Output/%.tc.s: Output/%.tc.bc $(LLC)
 	-$(LLC) -f $< -o $@
+$(PROGRAMS_TO_TEST:%=Output/%.tco.s): \
+Output/%.tco.s: Output/%.tco.bc $(LLC)
+	-$(LLC) -f $< -o $@
 
 $(PROGRAMS_TO_TEST:%=Output/%.opt): \
 Output/%.opt: Output/%.opt.s
 	-$(CC) $(CFLAGS) $<  $(LLCLIBS) $(LDFLAGS) -o $@
 $(PROGRAMS_TO_TEST:%=Output/%.tc): \
 Output/%.tc: Output/%.tc.s $(TYPE_RT_O)
+	-$(CC) $(CFLAGS) $<  $(LLCLIBS) $(TYPE_RT_O) $(LDFLAGS) -o $@
+$(PROGRAMS_TO_TEST:%=Output/%.tco): \
+Output/%.tco: Output/%.tco.s $(TYPE_RT_O)
 	-$(CC) $(CFLAGS) $<  $(LLCLIBS) $(TYPE_RT_O) $(LDFLAGS) -o $@
 $(PROGRAMS_TO_TEST:%=Output/%.llvm1): \
 Output/%.llvm1: Output/%.llvm1.s 
@@ -116,6 +126,9 @@ Output/%.count.out: Output/%.count
 $(PROGRAMS_TO_TEST:%=Output/%.tc.out): \
 Output/%.tc.out: Output/%.tc
 	-$(RUNSAFELY) $(STDIN_FILENAME) $@ $< $(RUN_OPTIONS)
+$(PROGRAMS_TO_TEST:%=Output/%.tco.out): \
+Output/%.tco.out: Output/%.tco
+	-$(RUNSAFELY) $(STDIN_FILENAME) $@ $< $(RUN_OPTIONS)
 
 else
 $(PROGRAMS_TO_TEST:%=Output/%.opt.out): \
@@ -139,6 +152,13 @@ Output/%.tc.out: Output/%.tc
                   ../../$< $(RUN_OPTIONS)
 	-(cd Output/tc-$(RUN_TYPE); cat $(LOCAL_OUTPUTS)) > $@
 	-cp Output/tc-$(RUN_TYPE)/$(STDOUT_FILENAME).time $@.time
+$(PROGRAMS_TO_TEST:%=Output/%.tco.out): \
+Output/%.tco.out: Output/%.tco
+	-$(SPEC_SANDBOX) tco-$(RUN_TYPE) $@ $(REF_IN_DIR) \
+             $(RUNSAFELY) $(STDIN_FILENAME) $(STDOUT_FILENAME) \
+                  ../../$< $(RUN_OPTIONS)
+	-(cd Output/tco-$(RUN_TYPE); cat $(LOCAL_OUTPUTS)) > $@
+	-cp Output/tco-$(RUN_TYPE)/$(STDOUT_FILENAME).time $@.time
 $(PROGRAMS_TO_TEST:%=Output/%.count.out): \
 Output/%.count.out: Output/%.count
 	-$(SPEC_SANDBOX) count-$(RUN_TYPE) $@ $(REF_IN_DIR) \
@@ -167,6 +187,11 @@ Output/%.tc.diff-nat: Output/%.out-nat Output/%.tc.out
 	@cp Output/$*.out-nat Output/$*.tc.out-nat
 	-$(DIFFPROG) nat $*.tc $(HIDEDIFF)
 
+$(PROGRAMS_TO_TEST:%=Output/%.tco.diff-nat): \
+Output/%.tco.diff-nat: Output/%.out-nat Output/%.tco.out
+	@cp Output/$*.out-nat Output/$*.tco.out-nat
+	-$(DIFFPROG) nat $*.tco $(HIDEDIFF)
+
 $(PROGRAMS_TO_TEST:%=Output/%.llvm1.diff-nat): \
 Output/%.llvm1.diff-nat: Output/%.out-nat Output/%.llvm1.out
 	@cp Output/$*.out-nat Output/$*.llvm1.out-nat
@@ -183,7 +208,7 @@ Output/%.count1.diff-nat: Output/%.out-nat Output/%.count1.out
 
 
 $(PROGRAMS_TO_TEST:%=Output/%.$(TEST).report.txt): \
-Output/%.$(TEST).report.txt: Output/%.opt.bc Output/%.LOC.txt $(LOPT) Output/%.out-nat Output/%.opt.diff-nat Output/%.count.diff-nat Output/%.count1.diff-nat
+Output/%.$(TEST).report.txt: Output/%.opt.bc Output/%.LOC.txt $(LOPT) Output/%.out-nat Output/%.opt.diff-nat Output/%.tc.diff-nat Output/%.count.diff-nat Output/%.count1.diff-nat Output/%.tco.diff-nat
 	@# Gather data
 	-($(RUNOPT)  -dsa-$(PASS) -enable-type-inference-opts -dsa-stdlib-no-fold $(ANALYZE_OPTS) $<)> $@.time.1 2>&1
 	-($(RUNOPT)  -dsa-$(PASS)  $(ANALYZE_OPTS) $<)> $@.time.2 2>&1
@@ -242,6 +267,9 @@ Output/%.$(TEST).report.txt: Output/%.opt.bc Output/%.LOC.txt $(LOPT) Output/%.o
 	@/bin/echo -n "IGN: " >> $@
 	-@grep 'Number of instructions ignored' $@.time.1 >> $@
 	@echo >> $@
+	@/bin/echo -n "GEPI: " >> $@
+	-@grep 'Number of gep instructions ignored' $@.time.1 >> $@
+	@echo >> $@
 	@/bin/echo -n "ACCESSES I: " >> $@
 	-@grep 'Number of loads/stores which are on incomplete nodes' $@.time.1 >> $@
 	@echo >> $@
@@ -273,6 +301,19 @@ Output/%.$(TEST).report.txt: Output/%.opt.bc Output/%.LOC.txt $(LOPT) Output/%.o
 	@/bin/echo -n "TIME: " >> $@
 	-@grep '  Top-down Data Structure' $@.time.1 >> $@
 	@echo >> $@
+	@# Emit runtime data.
+	@-if test -f Output/$*.opt.diff-nat; then \
+	  printf "OPT-RUN_TIME: " >> $@;\
+	  grep 'program' Output/$*.opt.out.time >> $@;\
+	fi
+	@-if test -f Output/$*.tc.diff-nat; then \
+	  printf "TC-RUN_TIME: " >> $@;\
+	  grep 'program' Output/$*.tc.out.time >> $@;\
+	fi
+	@-if test -f Output/$*.tco.diff-nat; then \
+	  printf "TCO-RUN_TIME: " >> $@;\
+	  grep 'program' Output/$*.tco.out.time >> $@;\
+	fi
 	@# Emit AssistDS stats
 	@/bin/echo -n "CLONED_FUNCSPEC: " >> $@
 	-@grep 'Number of Functions Cloned in FuncSpec' $<.info >> $@
@@ -316,7 +357,12 @@ Output/%.$(TEST).report.txt: Output/%.opt.bc Output/%.LOC.txt $(LOPT) Output/%.o
 	@/bin/echo -n "DSAFE: " >> $@
 	-@grep 'Safe' lsstats1 >> $@
 	@echo >> $@
-
+	@/bin/echo -n "LCHK: " >> $@
+	-@grep 'Number of Load Insts that need type checks' $<.info >> $@
+	@echo >> $@
+	@/bin/echo -n "SCHK: " >> $@
+	-@grep 'Number of Store Insts that need type checks' $<.info >> $@
+	@echo >> $@
 
 $(PROGRAMS_TO_TEST:%=test.$(TEST).%): \
 test.$(TEST).%: Output/%.$(TEST).report.txt
