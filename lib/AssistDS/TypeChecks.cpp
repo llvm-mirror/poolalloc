@@ -516,6 +516,11 @@ bool TypeChecks::unmapShadow(Module &M, Instruction &I) {
 bool TypeChecks::visitGlobal(Module &M, GlobalVariable &GV, 
                              Constant *C, Instruction &I, unsigned offset) {
 
+  if(EnableTypeSafeOpt) {
+    if(TS->isTypeSafe(&GV, I.getParent()->getParent())) {
+      return false;
+    }
+  }
   if(ConstantArray *CA = dyn_cast<ConstantArray>(C)) {
     const Type * ElementType = CA->getType()->getElementType();
     unsigned int t = TD->getTypeStoreSize(ElementType);
@@ -786,6 +791,11 @@ bool TypeChecks::visitLoadInst(Module &M, LoadInst &LI) {
 
 // Insert runtime checks before all store instructions.
 bool TypeChecks::visitStoreInst(Module &M, StoreInst &SI) {
+  if(EnableTypeSafeOpt) {
+    if(TS->isTypeSafe(SI.getOperand(1), SI.getParent()->getParent())) {
+      return false;
+    }
+  }
   // Cast the pointer operand to i8* for the runtime function.
   CastInst *BCI = BitCastInst::CreatePointerCast(SI.getPointerOperand(), VoidPtrTy, "", &SI);
 
@@ -805,6 +815,11 @@ bool TypeChecks::visitStoreInst(Module &M, StoreInst &SI) {
 
 // Insert runtime checks before copying store instructions.
 bool TypeChecks::visitCopyingStoreInst(Module &M, StoreInst &SI, Value *SS) {
+  if(EnableTypeSafeOpt) {
+    if(TS->isTypeSafe(SI.getOperand(1), SI.getParent()->getParent())) {
+      return false;
+    }
+  }
   // Cast the pointer operand to i8* for the runtime function.
   CastInst *BCI_Dest = BitCastInst::CreatePointerCast(SI.getPointerOperand(), VoidPtrTy, "", &SI);
   CastInst *BCI_Src = BitCastInst::CreatePointerCast(SS, VoidPtrTy, "", &SI);
