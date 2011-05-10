@@ -16,19 +16,22 @@
 #endif /* defined(MAP_ANON) && !defined(MAP_ANONYMOUS) */
 
 uint8_t *shadow_begin;
+uint8_t *shadow_end;
 
 uintptr_t maskAddress(void *ptr) {
   uintptr_t p = (uintptr_t)ptr;
+  uintptr_t res = (uintptr_t)ptr;
 
-  if ((p & 0x600000000000) == 0x600000000000) {
-    return (p & 0x3FFFFFFFFFFF);
-  } else if ((p | 0x1FFFFFFFFFFF) == 0x1FFFFFFFFFFF) {
-    return p;
+  if (p < (uintptr_t)shadow_begin) {
+    res = p;
+  } else if (p >= (uintptr_t)shadow_end) {
+    res = (p - (uintptr_t)SIZE);
   } else {
     fprintf(stderr, "Address out of range!\n");
     fflush(stderr);
     assert(0 && "MAP_FAILED");
   }
+  return res;
 }
 
 /**
@@ -42,6 +45,7 @@ void shadowInit() {
     fflush(stderr);
     assert(0 && "MAP_FAILED");
   }
+  shadow_end = (uint8_t*)((uintptr_t)shadow_begin + (uintptr_t)SIZE);
 }
 
 /**
