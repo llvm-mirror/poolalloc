@@ -1,4 +1,4 @@
-//===-- VarArgsFunc.cpp - Simplify calls to bitcasted const funcs --------===//
+//===--- VarArgsFunc.cpp - Simplify calls to bitcasted const funcs --------===//
 //
 //                     The LLVM Compiler Infrastructure
 //
@@ -20,7 +20,6 @@
 namespace llvm {
   //
   // Class: VarArgsFunc
-  //
   //
   class VarArgsFunc : public ModulePass {
   public:
