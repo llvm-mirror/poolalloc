@@ -415,20 +415,48 @@ void GraphBuilder::visitReturnInst(ReturnInst &RI) {
 }
 
 void GraphBuilder::visitVAArgInst(VAArgInst &I) {
-  assert(0 && "What frontend generates this?");
-  //FIXME: also updates the argument
-  DSNodeHandle Ptr = getValueDest(I.getOperand(0));
-  if (Ptr.isNull()) return;
+  Module *M = FB->getParent();
+  Triple TargetTriple(M->getTargetTriple());
+  Triple::ArchType Arch = TargetTriple.getArch();
+  switch(Arch) {
+  case Triple::x86_64: {
+    // On x86_64, we have va_list as a struct {i32, i32, i8*, i8* }
+    // The first i8* is where arguments generally go, but the second i8* can
+    // be used also to pass arguments by register.
+    // We model this by having both the i8*'s point to an array of pointers
+    // to the arguments.
+    DSNodeHandle Ptr = G.getVANodeFor(*FB);
+    DSNodeHandle Dest = getValueDest(&I);
+    if (Ptr.isNull()) return;
 
-  // Make that the node is read and written
-  Ptr.getNode()->setReadMarker()->setModifiedMarker();
+    // Make that the node is read and written
+    Ptr.getNode()->setReadMarker()->setModifiedMarker();
 
-  // Ensure a type record exists.
-  DSNode *PtrN = Ptr.getNode();
-  PtrN->mergeTypeInfo(I.getType(), Ptr.getOffset());
+    // Not updating type info, as it is already a collapsed node
 
-  if (isa<PointerType>(I.getType()))
-    setDestTo(I, getLink(Ptr));
+    if (isa<PointerType>(I.getType()))
+      Dest.mergeWith(Ptr);
+    return; 
+  }
+
+  default: {
+    assert(0 && "What frontend generates this?");
+    DSNodeHandle Ptr = getValueDest(I.getOperand(0));
+
+    //FIXME: also updates the argument
+    if (Ptr.isNull()) return;
+
+    // Make that the node is read and written
+    Ptr.getNode()->setReadMarker()->setModifiedMarker();
+
+    // Ensure a type record exists.
+    DSNode *PtrN = Ptr.getNode();
+    PtrN->mergeTypeInfo(I.getType(), Ptr.getOffset());
+
+    if (isa<PointerType>(I.getType()))
+      setDestTo(I, getLink(Ptr));
+  }
+  }
 }
 
 void GraphBuilder::visitIntToPtrInst(IntToPtrInst &I) {
