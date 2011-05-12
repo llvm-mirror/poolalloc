@@ -68,6 +68,7 @@ public:
   bool visitByValFunction(Module &M, Function &F); 
   bool visitLoadInst(Module &M, LoadInst &LI);
   bool visitStoreInst(Module &M, StoreInst &SI);
+  bool visitAllocaInst(Module &M, AllocaInst &AI);
   bool visitGlobal(Module &M, GlobalVariable &GV, 
                    Constant *C, Instruction &I, unsigned offset);
   bool visitCopyingStoreInst(Module &M, StoreInst &SI, Value *SS);
