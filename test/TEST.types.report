@@ -190,4 +190,5 @@ my $USERSYSTTIME = '([0-9.]+)[ 0-9.]+\([^)]+\)[ 0-9.]+\([^)]+\) +';
             ["OptTime", "OPT-RUN_TIME: program *([.0-9]+)"],
             ["TcTime", "TC-RUN_TIME: program *([.0-9]+)"],
             ["TcoTime", "TCO-RUN_TIME: program *([.0-9]+)"],
+            ["TcooTime", "TCOO-RUN_TIME: program *([.0-9]+)"],
            );

@@ -27,6 +27,7 @@ RUNOPT := $(RUNTOOLSAFELY) $(LLVM_OBJ_ROOT)/projects/poolalloc/$(CONFIGURATION)/
 PASS := td
 
 TYPE_RT_O := $(PADIR)/$(CONFIGURATION)/lib/libtypechecks_rt.a
+TYPE_RT_BC := $(PADIR)/$(CONFIGURATION)/lib/libtypechecks_rt.bca
 DYNCOUNT_RT_O := $(PADIR)/$(CONFIGURATION)/lib/libcount.a
 ANALYZE_OPTS := -stats -time-passes -disable-output -dsstats
 #ANALYZE_OPTS := -stats -time-passes -dsstats 
@@ -63,11 +64,22 @@ Output/%.count1.bc: Output/%.opt.bc $(LOPT) $(ASSIST_SO)
 
 $(PROGRAMS_TO_TEST:%=Output/%.tc.bc): \
 Output/%.tc.bc: Output/%.opt.bc $(LOPT) $(ASSIST_SO)
-	-$(RUNOPT) -load $(ASSIST_SO) -typechecks -dce -ipsccp -stats -info-output-file=$(CURDIR)/$@.info $< -f -o $@ 
+	-$(RUNOPT) -load $(ASSIST_SO) -typechecks -dce -ipsccp -dce -stats -info-output-file=$(CURDIR)/$@.info $< -f -o $@.temp
+	-$(LLVMLD) -disable-opt -o $@.ld $@.temp $(TYPE_RT_BC)
+	-$(LOPT) $(SAFE_OPTS) $@.ld.bc -o $@ -f
+
 
 $(PROGRAMS_TO_TEST:%=Output/%.tco.bc): \
 Output/%.tco.bc: Output/%.opt.bc $(LOPT) $(ASSIST_SO)
-	-$(RUNOPT) -load $(ASSIST_SO) -typechecks -enable-type-safe-opt -dce -ipsccp -stats -info-output-file=$(CURDIR)/$@.info $< -f -o $@ 
+	-$(RUNOPT) -load $(ASSIST_SO) -typechecks -enable-type-safe-opt -dce -ipsccp -dce -stats -info-output-file=$(CURDIR)/$@.info $< -f -o $@.temp 
+	-$(LLVMLD) -disable-opt -o $@.ld $@.temp $(TYPE_RT_BC)
+	-$(LOPT) $(SAFE_OPTS) $@.ld.bc -o $@ -f
+
+$(PROGRAMS_TO_TEST:%=Output/%.tcoo.bc): \
+Output/%.tcoo.bc: Output/%.opt.bc $(LOPT) $(ASSIST_SO)
+	-$(RUNOPT) -load $(ASSIST_SO) -typechecks -enable-type-safe-opt -enable-type-inference-opts -dsa-stdlib-no-fold -dce -ipsccp -dce -stats -info-output-file=$(CURDIR)/$@.info $< -f -o $@.temp 
+	-$(LLVMLD) -disable-opt -o $@.ld $@.temp $(TYPE_RT_BC)
+	-$(LOPT) $(SAFE_OPTS) $@.ld.bc -o $@ -f
 
 $(PROGRAMS_TO_TEST:%=Output/%.count.s): \
 Output/%.count.s: Output/%.count.bc $(LLC)
@@ -87,6 +99,9 @@ Output/%.tc.s: Output/%.tc.bc $(LLC)
 $(PROGRAMS_TO_TEST:%=Output/%.tco.s): \
 Output/%.tco.s: Output/%.tco.bc $(LLC)
 	-$(LLC) -f $< -o $@
+$(PROGRAMS_TO_TEST:%=Output/%.tcoo.s): \
+Output/%.tcoo.s: Output/%.tcoo.bc $(LLC)
+	-$(LLC) -f $< -o $@
 
 $(PROGRAMS_TO_TEST:%=Output/%.opt): \
 Output/%.opt: Output/%.opt.s
@@ -96,6 +111,9 @@ Output/%.tc: Output/%.tc.s $(TYPE_RT_O)
 	-$(CC) $(CFLAGS) $<  $(LLCLIBS) $(TYPE_RT_O) $(LDFLAGS) -o $@
 $(PROGRAMS_TO_TEST:%=Output/%.tco): \
 Output/%.tco: Output/%.tco.s $(TYPE_RT_O)
+	-$(CC) $(CFLAGS) $<  $(LLCLIBS) $(TYPE_RT_O) $(LDFLAGS) -o $@
+$(PROGRAMS_TO_TEST:%=Output/%.tcoo): \
+Output/%.tcoo: Output/%.tcoo.s $(TYPE_RT_O)
 	-$(CC) $(CFLAGS) $<  $(LLCLIBS) $(TYPE_RT_O) $(LDFLAGS) -o $@
 $(PROGRAMS_TO_TEST:%=Output/%.llvm1): \
 Output/%.llvm1: Output/%.llvm1.s 
@@ -129,6 +147,9 @@ Output/%.tc.out: Output/%.tc
 $(PROGRAMS_TO_TEST:%=Output/%.tco.out): \
 Output/%.tco.out: Output/%.tco
 	-$(RUNSAFELY) $(STDIN_FILENAME) $@ $< $(RUN_OPTIONS)
+$(PROGRAMS_TO_TEST:%=Output/%.tcoo.out): \
+Output/%.tcoo.out: Output/%.tcoo
+	-$(RUNSAFELY) $(STDIN_FILENAME) $@ $< $(RUN_OPTIONS)
 
 else
 $(PROGRAMS_TO_TEST:%=Output/%.opt.out): \
@@ -159,6 +180,13 @@ Output/%.tco.out: Output/%.tco
                   ../../$< $(RUN_OPTIONS)
 	-(cd Output/tco-$(RUN_TYPE); cat $(LOCAL_OUTPUTS)) > $@
 	-cp Output/tco-$(RUN_TYPE)/$(STDOUT_FILENAME).time $@.time
+$(PROGRAMS_TO_TEST:%=Output/%.tcoo.out): \
+Output/%.tcoo.out: Output/%.tcoo
+	-$(SPEC_SANDBOX) tcoo-$(RUN_TYPE) $@ $(REF_IN_DIR) \
+             $(RUNSAFELY) $(STDIN_FILENAME) $(STDOUT_FILENAME) \
+                  ../../$< $(RUN_OPTIONS)
+	-(cd Output/tcoo-$(RUN_TYPE); cat $(LOCAL_OUTPUTS)) > $@
+	-cp Output/tcoo-$(RUN_TYPE)/$(STDOUT_FILENAME).time $@.time
 $(PROGRAMS_TO_TEST:%=Output/%.count.out): \
 Output/%.count.out: Output/%.count
 	-$(SPEC_SANDBOX) count-$(RUN_TYPE) $@ $(REF_IN_DIR) \
@@ -192,6 +220,11 @@ Output/%.tco.diff-nat: Output/%.out-nat Output/%.tco.out
 	@cp Output/$*.out-nat Output/$*.tco.out-nat
 	-$(DIFFPROG) nat $*.tco $(HIDEDIFF)
 
+$(PROGRAMS_TO_TEST:%=Output/%.tcoo.diff-nat): \
+Output/%.tcoo.diff-nat: Output/%.out-nat Output/%.tcoo.out
+	@cp Output/$*.out-nat Output/$*.tcoo.out-nat
+	-$(DIFFPROG) nat $*.tcoo $(HIDEDIFF)
+
 $(PROGRAMS_TO_TEST:%=Output/%.llvm1.diff-nat): \
 Output/%.llvm1.diff-nat: Output/%.out-nat Output/%.llvm1.out
 	@cp Output/$*.out-nat Output/$*.llvm1.out-nat
@@ -208,7 +241,7 @@ Output/%.count1.diff-nat: Output/%.out-nat Output/%.count1.out
 
 
 $(PROGRAMS_TO_TEST:%=Output/%.$(TEST).report.txt): \
-Output/%.$(TEST).report.txt: Output/%.opt.bc Output/%.LOC.txt $(LOPT) Output/%.out-nat Output/%.opt.diff-nat Output/%.tc.diff-nat Output/%.count.diff-nat Output/%.count1.diff-nat Output/%.tco.diff-nat
+Output/%.$(TEST).report.txt: Output/%.opt.bc Output/%.LOC.txt $(LOPT) Output/%.out-nat Output/%.opt.diff-nat Output/%.tc.diff-nat Output/%.tco.diff-nat Output/%.tcoo.diff-nat
 	@# Gather data
 	-($(RUNOPT)  -dsa-$(PASS) -enable-type-inference-opts -dsa-stdlib-no-fold $(ANALYZE_OPTS) $<)> $@.time.1 2>&1
 	-($(RUNOPT)  -dsa-$(PASS)  $(ANALYZE_OPTS) $<)> $@.time.2 2>&1
@@ -313,6 +346,10 @@ Output/%.$(TEST).report.txt: Output/%.opt.bc Output/%.LOC.txt $(LOPT) Output/%.o
 	@-if test -f Output/$*.tco.diff-nat; then \
 	  printf "TCO-RUN_TIME: " >> $@;\
 	  grep 'program' Output/$*.tco.out.time >> $@;\
+	fi
+	@-if test -f Output/$*.tcoo.diff-nat; then \
+	  printf "TCOO-RUN_TIME: " >> $@;\
+	  grep 'program' Output/$*.tcoo.out.time >> $@;\
 	fi
 	@# Emit AssistDS stats
 	@/bin/echo -n "CLONED_FUNCSPEC: " >> $@
