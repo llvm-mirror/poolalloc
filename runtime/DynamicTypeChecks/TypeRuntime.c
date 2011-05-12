@@ -99,7 +99,6 @@ void trackStoreInst(void *ptr, uint8_t typeNumber, uint64_t size, uint32_t tag) 
  * Check that the two types match
  */
 void compareTypes(uint8_t typeNumberSrc, uint8_t typeNumberDest, uint32_t tag) {
-  //TODO:add size info
   if(typeNumberSrc != typeNumberDest) {
       printf("Type mismatch: detecting %u, expecting %u! %u \n", typeNumberDest, typeNumberSrc, tag);
   }

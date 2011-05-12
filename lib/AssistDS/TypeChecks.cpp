@@ -189,6 +189,8 @@ bool
 TypeChecks::visitVarArgFunction(Module &M, Function &F) {
   if(!F.isVarArg())
     return false;
+  if(!F.hasInternalLinkage())
+    return false;
   // FIXME:handle external functions
 
   // Find all uses of the function
@@ -728,6 +730,9 @@ bool TypeChecks::visitAllocaInst(Module &M, AllocaInst &AI) {
 
 // Insert runtime check for va_arg instructions
 bool TypeChecks::visitVAArgInst(Module &M, VAArgInst &VI) {
+  Function *Func = VI.getParent()->getParent();
+  if(!Func->hasInternalLinkage())
+    return false;
 
   // FIXME:handle external functions
   // For every va_arg instruction,
