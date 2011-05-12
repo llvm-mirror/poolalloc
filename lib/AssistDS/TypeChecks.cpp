@@ -516,11 +516,11 @@ bool TypeChecks::unmapShadow(Module &M, Instruction &I) {
 bool TypeChecks::visitGlobal(Module &M, GlobalVariable &GV, 
                              Constant *C, Instruction &I, unsigned offset) {
 
-  if(EnableTypeSafeOpt) {
+  /*if(EnableTypeSafeOpt) {
     if(TS->isTypeSafe(&GV, I.getParent()->getParent())) {
       return false;
     }
-  }
+  }*/
   if(ConstantArray *CA = dyn_cast<ConstantArray>(C)) {
     const Type * ElementType = CA->getType()->getElementType();
     unsigned int t = TD->getTypeStoreSize(ElementType);
