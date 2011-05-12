@@ -1,5 +1,6 @@
 LEVEL = ../..
 LIBRARYNAME = typechecks_rt
+BYTECODE_LIBRARY=1
 
 ifneq ($(OS),Cygwin)
 ifneq ($(OS),MingW)
