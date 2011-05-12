@@ -88,7 +88,8 @@ bool TypeChecks::runOnModule(Module &M) {
 
   TD = &getAnalysis<TargetData>();
   TA = &getAnalysis<TypeAnalysis>();
-  TS = &getAnalysis<dsa::TypeSafety<TDDataStructures> >();
+  if(EnableTypeSafeOpt)
+    TS = &getAnalysis<dsa::TypeSafety<TDDataStructures> >();
 
   VoidTy = IntegerType::getVoidTy(M.getContext());
   Int8Ty = IntegerType::getInt8Ty(M.getContext());
@@ -108,8 +109,10 @@ bool TypeChecks::runOnModule(Module &M) {
   }
 
   Function *MainF = M.getFunction("main");
-  if (MainF == 0 || MainF->isDeclaration())
+  if (MainF == 0 || MainF->isDeclaration()) {
+    assert(0 && "No main function found");
     return false;
+  }
 
   // Insert the shadow initialization function.
   modified |= initShadow(M);
@@ -160,6 +163,8 @@ bool TypeChecks::runOnModule(Module &M) {
         modified |= visitInvokeInst(M, *II);
       } else if (AllocaInst *AI = dyn_cast<AllocaInst>(&I)) {
         modified |= visitAllocaInst(M, *AI);
+      } else if (VAArgInst *VI = dyn_cast<VAArgInst>(&I)) {
+        modified |= visitVAArgInst(M, *VI);
       }
     }
   }
@@ -172,9 +177,47 @@ bool TypeChecks::runOnModule(Module &M) {
     if(F->isDeclaration())
       continue;
     modified |= visitByValFunction(M, *F);
+    modified |= visitVarArgFunction(M, *F);
   }
 
   return modified;
+}
+
+// Transform Variable Argument functions, by also passing
+// the relavant metadata info
+bool
+TypeChecks::visitVarArgFunction(Module &M, Function &F) {
+  if(!F.isVarArg())
+    return false;
+  // FIXME:handle external functions
+
+  // Find all uses of the function
+  for(Value::use_iterator ui = F.use_begin(), ue = F.use_end();
+      ui != ue;)  {
+    // Check for call sites
+    CallInst *CI = dyn_cast<CallInst>(ui++);
+    if(!CI)
+      continue;
+    if(CI->getNumOperands() - 1 <= F.arg_size()) 
+      continue;
+    std::vector<Value *> Args;
+    unsigned int i = F.arg_size() + 1;
+    for(i = 1 ;i < CI->getNumOperands(); i++) {
+      if(i > F.arg_size()) {
+        // For each vararg argument, also add its type information before it
+        Args.push_back(ConstantInt::get(Int8Ty, UsedTypes[CI->getOperand(i)->getType()]));
+      }
+
+      // Add the original argument
+      Args.push_back(CI->getOperand(i));
+    }
+
+    // Create the new call
+    CallInst *CI_New = CallInst::Create(CI->getCalledValue(), Args.begin(), Args.end(), "", CI);
+    CI->replaceAllUsesWith(CI_New);
+    CI->eraseFromParent();
+  }
+  return true;
 }
 
 bool
@@ -526,11 +569,13 @@ bool TypeChecks::unmapShadow(Module &M, Instruction &I) {
 bool TypeChecks::visitGlobal(Module &M, GlobalVariable &GV, 
                              Constant *C, Instruction &I, unsigned offset) {
 
+  // FIXME:This should maybe move into the global ctor.
+
   /*if(EnableTypeSafeOpt) {
     if(TS->isTypeSafe(&GV, I.getParent()->getParent())) {
-      return false;
+    return false;
     }
-  }*/
+    }*/
 
   if(ConstantArray *CA = dyn_cast<ConstantArray>(C)) {
     const Type * ElementType = CA->getType()->getElementType();
@@ -626,12 +671,42 @@ bool TypeChecks::visitGlobal(Module &M, GlobalVariable &GV,
 // Insert code to set objects to 0
 bool TypeChecks::visitAllocaInst(Module &M, AllocaInst &AI) {
 
-  // Setting metadata to be 0(BOTTOM/Uninitialized)
+  // Set the object to be zero
+  //
+  // Add the memset function to the program.
+  Constant *memsetF = M.getOrInsertFunction ("llvm.memset.i64", VoidTy,
+                                             VoidPtrTy,
+                                             Int8Ty,
+                                             Int64Ty,
+                                             Int32Ty,
+                                             NULL);
+
   const PointerType * PT = AI.getType();
   const Type * ET = PT->getElementType();
   Value * AllocSize = ConstantInt::get(Int64Ty, TD->getTypeAllocSize(ET));
   CastInst *BCI = BitCastInst::CreatePointerCast(&AI, VoidPtrTy);
   BCI->insertAfter(&AI);
+
+  CastInst *ArraySize = CastInst::CreateSExtOrBitCast(AI.getArraySize(), Int64Ty);
+  ArraySize->insertAfter(BCI);
+  BinaryOperator *Size = BinaryOperator::Create(Instruction::Mul, AllocSize, ArraySize);
+  Size->insertAfter(ArraySize);
+  std::vector<Value *> Args2;
+  Args2.push_back(BCI);
+  Args2.push_back(ConstantInt::get(Int8Ty, 0));
+  Args2.push_back(Size);
+  Args2.push_back(ConstantInt::get(Int32Ty, AI.getAlignment()));
+  CallInst *CI_Init = CallInst::Create(memsetF, Args2.begin(), Args2.end());
+  CI_Init->insertAfter(Size);
+
+  if(EnableTypeSafeOpt) {
+    if(TS->isTypeSafe(&AI, AI.getParent()->getParent())) {
+      return true;
+    }
+  }
+
+  // Setting metadata to be 0(BOTTOM/Uninitialized)
+
   std::vector<Value *> Args;
   Args.push_back(BCI);
   Args.push_back(AllocSize);
@@ -648,29 +723,24 @@ bool TypeChecks::visitAllocaInst(Module &M, AllocaInst &AI) {
   CallInst *CI_Arr = CallInst::Create(F, Args1.begin(), Args1.end());
   CI_Arr->insertAfter(CI);
 
-  // Set the object to be zero
-  //
-  // Add the memset function to the program.
-  Constant *memsetF = M.getOrInsertFunction ("llvm.memset.i64", VoidTy,
-                                   VoidPtrTy,
-                                   Int8Ty,
-                                   Int64Ty,
-                                   Int32Ty,
-                                   NULL);
+  return true;
+}
 
+// Insert runtime check for va_arg instructions
+bool TypeChecks::visitVAArgInst(Module &M, VAArgInst &VI) {
 
-  CastInst *ArraySize = CastInst::CreateSExtOrBitCast(AI.getArraySize(), Int64Ty);
-  ArraySize->insertAfter(BCI);
-  BinaryOperator *Size = BinaryOperator::Create(Instruction::Mul, AllocSize, ArraySize);
-  Size->insertAfter(ArraySize);
-  std::vector<Value *> Args2;
-  Args2.push_back(BCI);
-  Args2.push_back(ConstantInt::get(Int8Ty, 0));
-  Args2.push_back(Size);
-  Args2.push_back(ConstantInt::get(Int32Ty, AI.getAlignment()));
-  CallInst *CI_Init = CallInst::Create(memsetF, Args2.begin(), Args2.end());
-  CI_Init->insertAfter(CI_Arr);
-
+  // FIXME:handle external functions
+  // For every va_arg instruction,
+  // In a transformed function, we pass in the type metadata before the actual argument
+  // Read metadata from va_list
+  // And then add a compare in the runtime
+  VAArgInst *VI_Type = new VAArgInst(VI.getOperand(0), Int8Ty, "", &VI);
+  std::vector<Value *> Args;
+  Args.push_back(VI_Type);
+  Args.push_back(ConstantInt::get(Int8Ty, UsedTypes[VI.getType()]));
+  Args.push_back(ConstantInt::get(Int32Ty, tagCounter++));
+  Constant *F = M.getOrInsertFunction("compareTypes", VoidTy, Int8Ty, Int8Ty,Int32Ty,  NULL);
+  CallInst::Create(F, Args.begin(), Args.end(), "", &VI);
   return true;
 }
 
@@ -698,6 +768,11 @@ bool TypeChecks::visitCallSite(Module &M, CallSite CS) {
       case Intrinsic::memcpy: 
       case Intrinsic::memmove: 
         {
+          if(EnableTypeSafeOpt) {
+            if(TS->isTypeSafe(I->getOperand(2), I->getParent()->getParent())) {
+              return false;
+            }
+          }
           CastInst *BCI_Src = BitCastInst::CreatePointerCast(I->getOperand(2), VoidPtrTy, "", I);
           CastInst *BCI_Dest = BitCastInst::CreatePointerCast(I->getOperand(1), VoidPtrTy, "", I);
           std::vector<Value *> Args;
@@ -818,6 +893,11 @@ bool TypeChecks::visitCallSite(Module &M, CallSite CS) {
       CI->insertAfter(BCI_Dest);
       return true;
     } else if(F->getNameStr() == std::string("fgets")) {
+      if(EnableTypeSafeOpt) {
+        if(TS->isTypeSafe(I->getOperand(1), I->getParent()->getParent())) {
+          return true;
+        }
+      }
       CastInst *BCI = BitCastInst::CreatePointerCast(I->getOperand(1), VoidPtrTy, "", I);
       std::vector<Value *> Args;
       Args.push_back(BCI);
@@ -879,7 +959,6 @@ bool TypeChecks::visitLoadInst(Module &M, LoadInst &LI) {
   Args.push_back(ConstantInt::get(Int8Ty, UsedTypes[LI.getType()]));
   Args.push_back(ConstantInt::get(Int64Ty, TD->getTypeStoreSize(LI.getType())));
   Args.push_back(ConstantInt::get(Int32Ty, tagCounter++));
-
 
   // Create the call to the runtime check and place it before the load instruction.
   Constant *F = M.getOrInsertFunction("trackLoadInst", VoidTy, VoidPtrTy, Int8Ty, Int64Ty, Int32Ty, NULL);
