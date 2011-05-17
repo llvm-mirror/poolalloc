@@ -187,7 +187,7 @@ bool AllocIdentify::runOnModule(Module& M) {
   return false;
 }
 void AllocIdentify::getAnalysisUsage(AnalysisUsage &AU) const {
-  AU.addRequiredTransitive<LoopInfo>();
+  AU.addRequired<LoopInfo>();
   AU.setPreservesAll();
 }
 
