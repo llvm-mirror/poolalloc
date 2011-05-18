@@ -131,7 +131,6 @@ bool GEPExprArgs::runOnModule(Module& M) {
               0, F->getAttributes().getRetAttributes()));
           NewF->setAttributes(NewF->getAttributes().addAttr(
               ~0, F->getAttributes().getFnAttributes()));
-          //NewF->setAlignment(F->getAlignment());
           //Get the point to insert the GEP instr.
           SmallVector<Value*, 8> Ops(CI->op_begin()+1, CI->op_end());
           Instruction *InsertPoint;

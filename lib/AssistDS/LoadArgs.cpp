@@ -60,7 +60,7 @@ bool LoadArgs::runOnModule(Module& M) {
 
           if(CI->hasByValArgument())
             continue;
-          // if the GEP calls a function, that is externally defined,
+          // if the CallInst calls a function, that is externally defined,
           // or might be changed, ignore this call site.
           Function *F = CI->getCalledFunction();
 
@@ -75,6 +75,7 @@ bool LoadArgs::runOnModule(Module& M) {
           Function::arg_iterator ai = F->arg_begin(), ae = F->arg_end();
           unsigned argNum = 1;
           for(; argNum < CI->getNumOperands();argNum++, ++ai) {
+            // do not care about dead arguments
             if(ai->use_empty())
               continue;
             if(F->paramHasAttr(argNum, Attribute::SExt) ||
