@@ -120,8 +120,9 @@ CompleteBUDataStructures::buildIndirectFunctionSets (void) {
     // Graph, but at least one of the functions in the SCC
     // should have an entry in the GlobalsGraph
 
-    bool isIndirect = ((*ii).getCalledFunction() == NULL);
-
+    Value *CalledValue = (*ii).getCalledValue()->stripPointerCasts();
+    
+    bool isIndirect = (!isa<Function>(CalledValue));
     if (isIndirect) {
       DSCallGraph::callee_iterator csii = callgraph.callee_begin(*ii),
                                    csee = callgraph.callee_end(*ii);
