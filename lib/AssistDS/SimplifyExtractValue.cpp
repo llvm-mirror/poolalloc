@@ -122,6 +122,9 @@ bool SimplifyEV::runOnModule(Module& M) {
             continue;
           }
           if (LoadInst * LI = dyn_cast<LoadInst>(Agg)) {
+            // if the Agg value came from a load instruction
+            // replace the extract value intruction with
+            // a gep and a load.
             SmallVector<Value*, 8> Indices;
             const Type *Int32Ty = Type::getInt32Ty(M.getContext());
             Indices.push_back(Constant::getNullValue(Int32Ty));
@@ -138,7 +141,6 @@ bool SimplifyEV::runOnModule(Module& M) {
             changed = true;
             numErased++;
             continue;
-
           }
           if (InsertValueInst *IV = dyn_cast<InsertValueInst>(Agg)) {
             bool done = false;
@@ -185,7 +187,6 @@ bool SimplifyEV::runOnModule(Module& M) {
               numErased++;
               changed = true;
               continue;
-
             }
             if (exti == exte) {
               // The extract list is a prefix of the insert list. i.e. replace

@@ -59,17 +59,20 @@ bool SimplifyIV::runOnModule(Module& M) {
           InsertValueInst *IV = dyn_cast<InsertValueInst>(I++);
           if(!IV)
             continue;
-          //Value *Agg = IV->getAggregateOperand();
+          // Find all insert value instructions.
           if(IV->getNumUses() != 1)
             continue;
+          // Check that its only use is a StoreInst
           StoreInst *SI = dyn_cast<StoreInst>(IV->use_begin());
           if(!SI)
             continue;
+          // Check that it is the stored value
           if(SI->getOperand(0) != IV)
             continue;
           changed = true;
           numErased++;
           do {
+            // replace by a series of gep/stores
             SmallVector<Value*, 8> Indices;
             const Type *Int32Ty = Type::getInt32Ty(M.getContext());
             Indices.push_back(Constant::getNullValue(Int32Ty));
@@ -84,7 +87,6 @@ bool SimplifyIV::runOnModule(Module& M) {
 
           } while(IV);
           worklist.push_back(SI);
-
         }
       }
     }
