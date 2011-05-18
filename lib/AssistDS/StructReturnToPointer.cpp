@@ -47,19 +47,19 @@ using namespace llvm;
 //
 bool StructRet::runOnModule(Module& M) {
 
-  std::vector<Function*> worklistR;
+  std::vector<Function*> worklist;
   for (Module::iterator I = M.begin(); I != M.end(); ++I)
     if (!I->isDeclaration() && !I->mayBeOverridden()) {
       if(I->hasAddressTaken())
         continue;
       if(I->getReturnType()->isStructTy()) {
-        worklistR.push_back(I);
+        worklist.push_back(I);
       }
     }
 
-  while(!worklistR.empty()) {
-    Function *F = worklistR.back();
-    worklistR.pop_back();
+  while(!worklist.empty()) {
+    Function *F = worklist.back();
+    worklist.pop_back();
     const Type *NewArgType = F->getReturnType()->getPointerTo();
 
     // Construct the new Type
@@ -79,9 +79,9 @@ bool StructRet::runOnModule(Module& M) {
     NI->setName("ret");
     ++NI;
     for (Function::arg_iterator II = F->arg_begin(); II != F->arg_end(); ++II, ++NI) {
-      //II->replaceAllUsesWith(NI);
       ValueMap[II] = NI;
       NI->setName(II->getName());
+      NI->addAttr(F->getAttributes().getParamAttributes(II->getArgNo() + 1));
     }
     // Perform the cloning.
     SmallVector<ReturnInst*,100> Returns;
@@ -91,15 +91,17 @@ bool StructRet::runOnModule(Module& M) {
         ae= NF->arg_end(); ai != ae; ++ai) {
       fargs.push_back(ai);
     }
-    NF->setAlignment(F->getAlignment());
+    NF->setAttributes(NF->getAttributes().addAttr(
+        0, F->getAttributes().getRetAttributes()));
+    NF->setAttributes(NF->getAttributes().addAttr(
+        ~0, F->getAttributes().getFnAttributes()));
+    
     for (Function::iterator B = NF->begin(), FE = NF->end(); B != FE; ++B) {      
       for (BasicBlock::iterator I = B->begin(), BE = B->end(); I != BE;) {
         ReturnInst * RI = dyn_cast<ReturnInst>(I++);
         if(!RI)
           continue;
         new StoreInst(RI->getOperand(0), fargs.at(0), RI);
-        //ReturnInst::Create(M.getContext(), fargs, RI);
-        //RI->eraseFromParent();
       }
     }
 
@@ -115,11 +117,32 @@ bool StructRet::runOnModule(Module& M) {
       AllocaInst *AllocaNew = new AllocaInst(F->getReturnType(), 0, "", CI);
       SmallVector<Value*, 8> Args;
 
+      SmallVector<AttributeWithIndex, 8> AttributesVec;
+
+      // Get the initial attributes of the call
+      AttrListPtr CallPAL = CI->getAttributes();
+      Attributes RAttrs = CallPAL.getRetAttributes();
+      Attributes FnAttrs = CallPAL.getFnAttributes();
+
       Args.push_back(AllocaNew);
       for(unsigned j =1;j<CI->getNumOperands();j++) {
         Args.push_back(CI->getOperand(j));
+        // position in the AttributesVec
+        if (Attributes Attrs = CallPAL.getParamAttributes(j))
+          AttributesVec.push_back(AttributeWithIndex::get(Args.size(), Attrs));
       }
-      CallInst::Create(NF, Args.begin(), Args.end(), "", CI);
+      // Create the new attributes vec.
+      if (FnAttrs != Attribute::None)
+        AttributesVec.push_back(AttributeWithIndex::get(~0, FnAttrs));
+      if (RAttrs)
+        AttributesVec.push_back(AttributeWithIndex::get(0, RAttrs));
+
+      AttrListPtr NewCallPAL = AttrListPtr::get(AttributesVec.begin(),
+                                                AttributesVec.end());
+      
+      CallInst *CallI = CallInst::Create(NF, Args.begin(), Args.end(), "", CI);
+      CallI->setCallingConv(CI->getCallingConv());
+      CallI->setAttributes(NewCallPAL);
       LoadInst *LI = new LoadInst(AllocaNew, "", CI);
       CI->replaceAllUsesWith(LI);
       CI->eraseFromParent();
