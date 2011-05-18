@@ -52,42 +52,56 @@ STATISTIC(numChanged,   "Number of Args bitcasted");
 bool ArgCast::runOnModule(Module& M) {
 
   std::vector<CallInst*> worklist;
-  for (Module::iterator I = M.begin(); I != M.end(); ++I)
-    if (!I->isDeclaration() && !I->mayBeOverridden())
-      // Find all uses of this function
-      for(Value::use_iterator ui = I->use_begin(), ue = I->use_end(); ui != ue; ++ui)
-        // check if is ever casted to a different function type
-        if (Constant *C = dyn_cast<Constant>(ui)) 
-          if (ConstantExpr *CE = dyn_cast<ConstantExpr>(C)) 
-            if (CE->getOpcode() == Instruction::BitCast) 
-              if(CE->getOperand(0) == I) 
-                if(const FunctionType *FTy  = dyn_cast<FunctionType>
-                   ((cast<PointerType>(CE->getType()))->getElementType())) {
-                  //casting to a varargs funtion
-                  if(FTy->isVarArg())
-                    for(Value::use_iterator uii = CE->use_begin(),
-                        uee = CE->use_end(); uii != uee; ++uii) {
-                      // Find all uses of the casted value, and check if it is 
-                      // used in a Call Instruction
-                      if (CallInst* CI = dyn_cast<CallInst>(uii)) {
-                        // Check that it is the called value, and not an argument
-                        if(CI->getCalledValue() != CE) 
-                          continue;
-                        // Check that the number of arguments passed, and expected
-                        // by the function are the same.
-                        if(CI->getNumOperands() != I->arg_size() + 1)
-                          continue;
-                        // Check that the return type of the function matches that
-                        // expected by the call inst(ensures that the reason for the
-                        // cast is not the return type).
-                        if(CI->getType() != I->getReturnType())
-                          continue;
-
-                        // If so, add to worklist
-                        worklist.push_back(CI);
-                      }
-                    }
-                }
+  for (Module::iterator I = M.begin(); I != M.end(); ++I) {
+    if (I->isDeclaration() || I->mayBeOverridden())
+      continue;
+    // Find all uses of this function
+    for(Value::use_iterator ui = I->use_begin(), ue = I->use_end(); ui != ue; ) {
+      // check if is ever casted to a different function type
+      ConstantExpr *CE = dyn_cast<ConstantExpr>(ui++);
+      if(!CE)
+        continue;
+      if (CE->getOpcode() != Instruction::BitCast) 
+        continue;
+      if(CE->getOperand(0) != I) 
+        continue;
+      const PointerType *PTy = dyn_cast<PointerType>(CE->getType());
+      if (!PTy)
+        continue;
+      const Type *ETy = PTy->getElementType();
+      const FunctionType *FTy  = dyn_cast<FunctionType>(ETy); 
+      if(!FTy)
+        continue;
+      // casting to a varargs funtion
+      // or function with same number of arguments
+      // possibly varying types of arguments
+      if(FTy->getNumParams() != I->arg_size() && !FTy->isVarArg())
+        continue;
+      for(Value::use_iterator uii = CE->use_begin(),
+          uee = CE->use_end(); uii != uee; ++uii) {
+        // Find all uses of the casted value, and check if it is 
+        // used in a Call Instruction
+        if (CallInst* CI = dyn_cast<CallInst>(uii)) {
+          // Check that it is the called value, and not an argument
+          if(CI->getCalledValue() != CE) 
+            continue;
+          // Check that the number of arguments passed, and expected
+          // by the function are the same.
+          if(CI->getNumOperands() != I->arg_size() + 1)
+            continue;
+          // Check that the return type of the function matches that
+          // expected by the call inst(ensures that the reason for the
+          // cast is not the return type).
+          if(CI->getType() != I->getReturnType()) {
+            if(CI->getNumUses() != 0)
+              continue;
+          }
+          // If so, add to worklist
+          worklist.push_back(CI);
+        }
+      }
+    }
+  }
 
   // Proces the worklist of potential call sites to transform
   while(!worklist.empty()) {
@@ -154,7 +168,17 @@ bool ArgCast::runOnModule(Module& M) {
     CallInst *CINew = CallInst::Create(F, Args.begin(), Args.end(), "", CI);
     CINew->setCallingConv(CI->getCallingConv());
     CINew->setAttributes(CI->getAttributes());
-    CI->replaceAllUsesWith(CINew);
+    if(!CI->use_empty())
+      CI->replaceAllUsesWith(CINew);
+
+    // Debug printing
+    DEBUG(errs() << "ARGCAST:");
+    DEBUG(errs() << "ERASE:");
+    DEBUG(CI->dump());
+    DEBUG(errs() << "ARGCAST:");
+    DEBUG(errs() << "ADDED:");
+    DEBUG(CINew->dump());
+
     CI->eraseFromParent();
     numChanged++;
   }
