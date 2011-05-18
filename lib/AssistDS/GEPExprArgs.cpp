@@ -108,7 +108,7 @@ bool GEPExprArgs::runOnModule(Module& M) {
                                   &M);
 
           Function::arg_iterator NI = NewF->arg_begin();
-          NI->setName("Sarg");
+          NI->setName("GEParg");
           ++NI;
 
           DenseMap<const Value*, Value*> ValueMap;
@@ -116,6 +116,7 @@ bool GEPExprArgs::runOnModule(Module& M) {
           for (Function::arg_iterator II = F->arg_begin(); NI != NewF->arg_end(); ++II, ++NI) {
             ValueMap[II] = NI;
             NI->setName(II->getName());
+            NI->addAttr(F->getAttributes().getParamAttributes(II->getArgNo() + 1));
           }
           // Perform the cloning.
           SmallVector<ReturnInst*,100> Returns;
@@ -126,16 +127,24 @@ bool GEPExprArgs::runOnModule(Module& M) {
             fargs.push_back(ai);
           }
 
-          NewF->setAlignment(F->getAlignment());
+          NewF->setAttributes(NewF->getAttributes().addAttr(
+              0, F->getAttributes().getRetAttributes()));
+          NewF->setAttributes(NewF->getAttributes().addAttr(
+              ~0, F->getAttributes().getFnAttributes()));
+          //NewF->setAlignment(F->getAlignment());
           //Get the point to insert the GEP instr.
-          NI = NewF->arg_begin();
           SmallVector<Value*, 8> Ops(CI->op_begin()+1, CI->op_end());
           Instruction *InsertPoint;
-          for (BasicBlock::iterator insrt = NewF->front().begin(); isa<AllocaInst>(InsertPoint = insrt); ++insrt) {;}
+          for (BasicBlock::iterator insrt = NewF->front().begin(); 
+               isa<AllocaInst>(InsertPoint = insrt); ++insrt) {;}
 
+          NI = NewF->arg_begin();
           SmallVector<Value*, 8> Indices;
           Indices.append(GEP->op_begin()+1, GEP->op_end());
-          GetElementPtrInst *GEP_new = GetElementPtrInst::Create(cast<Value>(NI), Indices.begin(), Indices.end(), "", InsertPoint);
+          GetElementPtrInst *GEP_new = GetElementPtrInst::Create(cast<Value>(NI),
+                                                                 Indices.begin(), 
+                                                                 Indices.end(), 
+                                                                 "", InsertPoint);
           fargs.at(argNum)->replaceAllUsesWith(GEP_new);
           unsigned j = argNum + 1;
           for(; j < CI->getNumOperands();j++) {
@@ -143,13 +152,33 @@ bool GEPExprArgs::runOnModule(Module& M) {
               fargs.at(j)->replaceAllUsesWith(GEP_new);
           }
 
+          SmallVector<AttributeWithIndex, 8> AttributesVec;
+
+          // Get the initial attributes of the call
+          AttrListPtr CallPAL = CI->getAttributes();
+          Attributes RAttrs = CallPAL.getRetAttributes();
+          Attributes FnAttrs = CallPAL.getFnAttributes();
+
           SmallVector<Value*, 8> Args;
           Args.push_back(GEP->getPointerOperand());
           for(unsigned j =1;j<CI->getNumOperands();j++) {
             Args.push_back(CI->getOperand(j));
+            // position in the AttributesVec
+            if (Attributes Attrs = CallPAL.getParamAttributes(j))
+              AttributesVec.push_back(AttributeWithIndex::get(Args.size(), Attrs));
           }
+          // Create the new attributes vec.
+          if (FnAttrs != Attribute::None)
+            AttributesVec.push_back(AttributeWithIndex::get(~0, FnAttrs));
+          if (RAttrs)
+            AttributesVec.push_back(AttributeWithIndex::get(0, RAttrs));
+
+          AttrListPtr NewCallPAL = AttrListPtr::get(AttributesVec.begin(),
+                                                    AttributesVec.end());
+
           CallInst *CallI = CallInst::Create(NewF,Args.begin(), Args.end(),"", CI);
           CallI->setCallingConv(CI->getCallingConv());
+          CallI->setAttributes(NewCallPAL);
           CI->replaceAllUsesWith(CallI);
           CI->eraseFromParent();
           changed = true;
