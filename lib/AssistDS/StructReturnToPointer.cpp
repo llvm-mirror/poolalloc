@@ -73,7 +73,9 @@ bool StructRet::runOnModule(Module& M) {
     const FunctionType *NFTy = FunctionType::get(F->getReturnType(), TP, F->isVarArg());
 
     // Create the new function body and insert it into the module.
-    Function *NF = Function::Create(NFTy, F->getLinkage(), F->getName(), &M);
+    Function *NF = Function::Create(NFTy, 
+                                    GlobalValue::InternalLinkage, 
+                                    F->getName(), &M);
     DenseMap<const Value*, Value*> ValueMap;
     Function::arg_iterator NI = NF->arg_begin();
     NI->setName("ret");
