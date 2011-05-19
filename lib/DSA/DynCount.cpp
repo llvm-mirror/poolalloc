@@ -50,9 +50,9 @@ Dyncount::instrumentLoad (GlobalVariable * Counter, LoadInst * LI) {
   //
   LLVMContext & Context = Counter->getParent()->getContext();
   ConstantInt * One = ConstantInt::get (Type::getInt64Ty(Context), 1); 
-  LoadInst * Value = new LoadInst (Counter, "count", LI);
+  LoadInst * OldValue = new LoadInst (Counter, "count", LI);
   Instruction * NewValue = BinaryOperator::Create (BinaryOperator::Add,
-                                                   Value,
+                                                   OldValue,
                                                    One,
                                                    "count",
                                                    LI);
@@ -66,9 +66,9 @@ Dyncount::instrumentStore (GlobalVariable * Counter, StoreInst * SI) {
   //
   LLVMContext & Context = Counter->getParent()->getContext();
   ConstantInt * One = ConstantInt::get (Type::getInt64Ty(Context), 1); 
-  LoadInst * Value = new LoadInst (Counter, "count", SI);
+  LoadInst * OldValue = new LoadInst (Counter, "count", SI);
   Instruction * NewValue = BinaryOperator::Create (BinaryOperator::Add,
-                                                   Value,
+                                                   OldValue,
                                                    One,
                                                    "count",
                                                    SI);
