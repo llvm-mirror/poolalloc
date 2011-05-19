@@ -61,10 +61,13 @@ void shadowUnmap() {
   }
 }
 
+/**
+ * Copy arguments into a new array, and initialize
+ * metadata for that location to TOP/initialized.
+ */
 void * trackArgvType(int argc, char **argv) {
   
   char ** argv_temp = (char **)malloc((sizeof(char*)*(argc+1)));
-
   int index = 0;
   for (; index < argc; ++index) {
     char *argv_index_temp =
@@ -92,6 +95,7 @@ void trackGlobal(void *ptr, uint8_t typeNumber, uint64_t size, uint32_t tag) {
   printf("Global: %p, %p = %u | %" PRIu64 " bytes\n", ptr, (void *)p, typeNumber, size);
 #endif
 }
+
 /**
  * Record the type stored at ptr(of size size) and replicate it
  */
