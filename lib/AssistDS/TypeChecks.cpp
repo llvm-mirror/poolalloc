@@ -118,6 +118,10 @@ bool TypeChecks::runOnModule(Module &M) {
   modified |= initShadow(M);
 
   inst_iterator MainI = inst_begin(MainF);
+
+  // record argv
+
+  modified |= visitMain(M, *MainF);
   // record all globals
   for (Module::global_iterator I = M.global_begin(), E = M.global_end();
        I != E; ++I) {
@@ -179,6 +183,7 @@ bool TypeChecks::runOnModule(Module &M) {
     modified |= visitByValFunction(M, *F);
     modified |= visitVarArgFunction(M, *F);
   }
+
 
   return modified;
 }
@@ -625,6 +630,41 @@ bool TypeChecks::unmapShadow(Module &M, Instruction &I) {
   // Create the call to the runtime shadow memory unmap function and place it before any exiting instruction.
   Constant *F = M.getOrInsertFunction("shadowUnmap", VoidTy, NULL);
   CallInst::Create(F, "", &I);
+
+  return true;
+}
+
+bool TypeChecks::visitMain(Module &M, Function &MainFunc) {
+  if(MainFunc.arg_size() != 2)
+    // No need to register
+    return false;
+
+  Function::arg_iterator AI = MainFunc.arg_begin();
+  Value *Argc = AI;
+  Value *Argv = ++AI;
+
+  Instruction *InsertPt = MainFunc.front().begin();
+  Constant * RegisterArgv = M.getOrInsertFunction("trackArgvType", VoidPtrTy, Argc->getType(), Argv->getType(), NULL);
+  std::vector<Value *> fargs;
+  fargs.push_back (Argc);
+  fargs.push_back (Argv);
+  CallInst *CI = CallInst::Create (RegisterArgv, fargs.begin(), fargs.end(), "", InsertPt);
+  CastInst *BCII = BitCastInst::CreatePointerCast(CI, Argv->getType());
+  BCII->insertAfter(CI);
+  std::vector<User *> Uses;
+  Value::use_iterator UI = Argv->use_begin();
+  for (; UI != Argv->use_end(); ++UI) {
+    if (Instruction * Use = dyn_cast<Instruction>(UI))
+      if (CI != Use) {
+        Uses.push_back (*UI);
+      }
+  }
+
+  while (Uses.size()) {
+    User *Use = Uses.back();
+    Uses.pop_back();
+    Use->replaceUsesOfWith (Argv, BCII);
+  }
 
   return true;
 }

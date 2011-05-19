@@ -2,6 +2,7 @@
 #include <inttypes.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/mman.h>
 
@@ -17,6 +18,8 @@
 
 uint8_t *shadow_begin;
 uint8_t *shadow_end;
+
+void trackInitInst(void *ptr, uint64_t size, uint32_t tag);
 
 uintptr_t maskAddress(void *ptr) {
   uintptr_t p = (uintptr_t)ptr;
@@ -56,6 +59,26 @@ void shadowUnmap() {
     fprintf(stderr, "Failed to unmap the shadow memory!\n");
     fflush(stderr);
   }
+}
+
+void * trackArgvType(int argc, char **argv) {
+  
+  char ** argv_temp = (char **)malloc((sizeof(char*)*(argc+1)));
+
+  int index = 0;
+  for (; index < argc; ++index) {
+    char *argv_index_temp =
+      (char *)malloc((strlen(argv[index])+ 1)*sizeof(char));
+    argv_index_temp = strcpy(argv_index_temp,  argv[index]);
+
+    trackInitInst(argv_index_temp, (strlen(argv[index]) + 1)*sizeof(char), 0);
+    argv_temp[index] = argv_index_temp;
+  }
+  argv_temp[argc] = NULL;
+
+  trackInitInst(argv_temp, (argc + 1)*sizeof(char*), 0);
+
+  return (void*)argv_temp;
 }
 
 /**

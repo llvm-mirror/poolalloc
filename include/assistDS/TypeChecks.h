@@ -67,6 +67,7 @@ public:
   bool visitInternalFunction(Module &M, Function &F); 
   bool visitExternalFunction(Module &M, Function &F); 
   bool visitByValFunction(Module &M, Function &F); 
+  bool visitMain(Module &M, Function &F); 
   bool visitVarArgFunction(Module &M, Function &F); 
   bool visitLoadInst(Module &M, LoadInst &LI);
   bool visitStoreInst(Module &M, StoreInst &SI);
