@@ -205,6 +205,10 @@ TypeChecks::visitVarArgFunction(Module &M, Function &F) {
     std::vector<Value *> Args;
     unsigned int i = F.arg_size() + 1;
     for(i = 1 ;i < CI->getNumOperands(); i++) {
+      // As the first vararg argument pass the number of var_arg arguments
+      if(i == F.arg_size() + 1) {
+        Args.push_back(ConstantInt::get(Int64Ty, 2*(CI->getNumOperands()-1 - F.arg_size())));
+      }
       if(i > F.arg_size()) {
         // For each vararg argument, also add its type information before it
         Args.push_back(ConstantInt::get(Int8Ty, UsedTypes[CI->getOperand(i)->getType()]));
@@ -218,6 +222,63 @@ TypeChecks::visitVarArgFunction(Module &M, Function &F) {
     CallInst *CI_New = CallInst::Create(CI->getCalledValue(), Args.begin(), Args.end(), "", CI);
     CI->replaceAllUsesWith(CI_New);
     CI->eraseFromParent();
+  }
+
+  // Modify the function to add a call to get the num of arguments
+  VAArgInst *VASize = NULL;
+  for (Function::iterator B = F.begin(), FE = F.end(); B != FE; ++B) {
+    for (BasicBlock::iterator I = B->begin(), BE = B->end(); I != BE;) {
+      CallInst *CI = dyn_cast<CallInst>(I++);
+      if(!CI)
+        continue;
+      Function *CalledF = dyn_cast<Function>(CI->getCalledFunction());
+      if(!CalledF)
+        continue;
+      if(!CalledF->isIntrinsic())
+        continue;
+      if(CalledF->getIntrinsicID() != Intrinsic::vastart) 
+        continue;
+      VASize = new VAArgInst(CI->getOperand(1), Int64Ty, "NumArgs");
+      VASize->insertAfter(CI);
+      break;
+    }
+  }
+  assert(VASize && "Varargs function without a call to VAStart???");
+
+  // Modify function to add checks on every var_arg call to ensure that we
+  // are not accessing more arguments than we passed in.
+
+  // Add a counter variable
+  AllocaInst *Counter = new AllocaInst(Int64Ty, "", VASize);
+  new StoreInst(ConstantInt::get(Int64Ty, 0), Counter, VASize); 
+
+  // Increment the counter
+
+  for (Function::iterator B = F.begin(), FE = F.end(); B != FE; ++B) {
+    for (BasicBlock::iterator I = B->begin(), BE = B->end(); I != BE;) {
+      VAArgInst *VI = dyn_cast<VAArgInst>(I++);
+      if(!VI)
+        continue;
+      if(VI == VASize)
+        continue;
+      Constant *One = ConstantInt::get(Int64Ty, 1);
+      LoadInst *OldValue = new LoadInst(Counter, "count", VI);
+      Instruction *NewValue = BinaryOperator::Create(BinaryOperator::Add,
+                                                     OldValue,
+                                                     One,
+                                                     "count",
+                                                     VI);
+      new StoreInst(NewValue, Counter, VI);
+
+
+      std::vector<Value *> Args;
+      Args.push_back(VASize);
+      Args.push_back(NewValue);
+      Args.push_back(ConstantInt::get(Int32Ty, tagCounter++));
+      Constant *Func = M.getOrInsertFunction("compareNumber", VoidTy, Int64Ty, Int64Ty,Int32Ty,  NULL);
+      CallInst::Create(Func, Args.begin(), Args.end(), "", VI);
+
+    }
   }
   return true;
 }

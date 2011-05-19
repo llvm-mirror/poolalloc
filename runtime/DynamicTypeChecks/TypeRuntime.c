@@ -100,10 +100,18 @@ void trackStoreInst(void *ptr, uint8_t typeNumber, uint64_t size, uint32_t tag) 
  */
 void compareTypes(uint8_t typeNumberSrc, uint8_t typeNumberDest, uint32_t tag) {
   if(typeNumberSrc != typeNumberDest) {
-      printf("Type mismatch: detecting %u, expecting %u! %u \n", typeNumberDest, typeNumberSrc, tag);
+    printf("Type mismatch: detecting %u, expecting %u! %u \n", typeNumberDest, typeNumberSrc, tag);
   }
 }
 
+/**
+ * Check that number of VAArg accessed is not greater than those passed
+ */
+void compareNumber(uint64_t NumArgsPassed, uint64_t ArgAccessed, uint32_t tag){
+  if(ArgAccessed > NumArgsPassed) {
+    printf("Type mismatch: Accessing variable %lu, passed only %lu! %u \n", ArgAccessed, NumArgsPassed, tag);
+  }
+}
 /**
  * Check the loaded type against the type recorded in the shadow memory.
  */
@@ -126,7 +134,7 @@ void trackLoadInst(void *ptr, uint8_t typeNumber, uint64_t size, uint32_t tag) {
     }
   } else {
     /* If so, set type to the type being read.
-        Check that none of the bytes are typed.*/
+       Check that none of the bytes are typed.*/
     for (; i < size; ++i) {
       if (0xFF != shadow_begin[p + i]) {
         printf("Type mismatch: detecting %u, expecting %u (0 != %u)! %u\n", typeNumber, shadow_begin[p+i], shadow_begin[p + i], tag);
@@ -162,6 +170,6 @@ void copyTypeInfo(void *dstptr, void *srcptr, uint64_t size, uint32_t tag) {
   uintptr_t s = maskAddress(srcptr);
   memcpy(&shadow_begin[d], &shadow_begin[s], size);
 #if DEBUG
-  printf("Copy: %p, %p = %u | %" PRIu64 " bytes | %d\n", dstptr, (void *)d, shadow_begin[s], size, tag);
+  printf("Copy: %p, %p = %u | %" PRIu64 " bytes | %u\n", dstptr, (void *)d, shadow_begin[s], size, tag);
 #endif
 }
