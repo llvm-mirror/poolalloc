@@ -160,7 +160,6 @@ bool GEPExprArgs::runOnModule(Module& M) {
           if (RAttrs)
             AttributesVec.push_back(AttributeWithIndex::get(0, RAttrs));
 
-          CI->dump();
           SmallVector<Value*, 8> Args;
           Args.push_back(GEP->getPointerOperand());
           for(unsigned j =1;j<CI->getNumOperands();j++) {
