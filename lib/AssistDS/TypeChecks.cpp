@@ -674,11 +674,11 @@ bool TypeChecks::visitGlobal(Module &M, GlobalVariable &GV,
 
   // FIXME:This should maybe move into the global ctor.
 
-  /*if(EnableTypeSafeOpt) {
+  if(EnableTypeSafeOpt) {
     if(TS->isTypeSafe(&GV, I.getParent()->getParent())) {
-    return false;
+      return false;
     }
-    }*/
+  }
 
   if(ConstantArray *CA = dyn_cast<ConstantArray>(C)) {
     const Type * ElementType = CA->getType()->getElementType();
