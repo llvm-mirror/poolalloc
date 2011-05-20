@@ -1115,6 +1115,19 @@ bool TypeChecks::visitCopyingStoreInst(Module &M, StoreInst &SI, Value *SS) {
   CastInst *BCI_Dest = BitCastInst::CreatePointerCast(SI.getPointerOperand(), VoidPtrTy, "", &SI);
   CastInst *BCI_Src = BitCastInst::CreatePointerCast(SS, VoidPtrTy, "", &SI);
 
+  if(EnableTypeSafeOpt) {
+    LoadInst *LI = cast<LoadInst>(SI.getOperand(0));
+    if(TS->isTypeSafe(LI->getPointerOperand(), SI.getParent()->getParent())) {
+      std::vector<Value *> Args;
+      Args.push_back(BCI_Src);
+      Args.push_back(ConstantInt::get(Int8Ty, UsedTypes[SI.getOperand(0)->getType()])); // SI.getValueOperand()
+      Args.push_back(ConstantInt::get(Int64Ty, TD->getTypeStoreSize(SI.getOperand(0)->getType())));
+      Args.push_back(ConstantInt::get(Int32Ty, tagCounter++));
+      Constant *F = M.getOrInsertFunction("trackStoreInst", VoidTy, VoidPtrTy, Int8Ty, Int64Ty, Int32Ty, NULL);
+      CallInst::Create(F, Args.begin(), Args.end(), "", &SI);
+    }
+  }
+
   std::vector<Value *> Args;
   Args.push_back(BCI_Dest);
   Args.push_back(BCI_Src);
