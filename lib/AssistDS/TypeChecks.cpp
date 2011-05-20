@@ -446,6 +446,9 @@ bool TypeChecks::visitInternalFunction(Module &M, Function &F) {
         Attributes RAttrs = CallPAL.getRetAttributes();
         Attributes FnAttrs = CallPAL.getFnAttributes();
 
+        if (RAttrs)
+          AttributesVec.push_back(AttributeWithIndex::get(0, RAttrs));
+        
         Function::arg_iterator II = F.arg_begin();
 
         for(unsigned j =1;j<CI->getNumOperands();j++, II++) {
@@ -463,8 +466,6 @@ bool TypeChecks::visitInternalFunction(Module &M, Function &F) {
         // Create the new attributes vec.
         if (FnAttrs != Attribute::None)
           AttributesVec.push_back(AttributeWithIndex::get(~0, FnAttrs));
-        if (RAttrs)
-          AttributesVec.push_back(AttributeWithIndex::get(0, RAttrs));
 
         AttrListPtr NewCallPAL = AttrListPtr::get(AttributesVec.begin(),
                                                   AttributesVec.end());

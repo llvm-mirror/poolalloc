@@ -168,6 +168,9 @@ bool LoadArgs::runOnModule(Module& M) {
           AttrListPtr CallPAL = CI->getAttributes();
           Attributes RAttrs = CallPAL.getRetAttributes();
           Attributes FnAttrs = CallPAL.getFnAttributes();
+          if (RAttrs)
+            AttributesVec.push_back(AttributeWithIndex::get(0, RAttrs));
+          
           SmallVector<Value*, 8> Args;
           Args.push_back(LI->getOperand(0));
           for(unsigned j =1;j<CI->getNumOperands();j++) {
@@ -179,8 +182,6 @@ bool LoadArgs::runOnModule(Module& M) {
           // Create the new attributes vec.
           if (FnAttrs != Attribute::None)
             AttributesVec.push_back(AttributeWithIndex::get(~0, FnAttrs));
-          if (RAttrs)
-            AttributesVec.push_back(AttributeWithIndex::get(0, RAttrs));
 
           AttrListPtr NewCallPAL = AttrListPtr::get(AttributesVec.begin(),
                                                     AttributesVec.end());

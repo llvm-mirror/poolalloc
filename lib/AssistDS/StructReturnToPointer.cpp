@@ -125,6 +125,9 @@ bool StructRet::runOnModule(Module& M) {
       AttrListPtr CallPAL = CI->getAttributes();
       Attributes RAttrs = CallPAL.getRetAttributes();
       Attributes FnAttrs = CallPAL.getFnAttributes();
+      
+      if (RAttrs)
+        AttributesVec.push_back(AttributeWithIndex::get(0, RAttrs));
 
       Args.push_back(AllocaNew);
       for(unsigned j =1;j<CI->getNumOperands();j++) {
@@ -136,8 +139,6 @@ bool StructRet::runOnModule(Module& M) {
       // Create the new attributes vec.
       if (FnAttrs != Attribute::None)
         AttributesVec.push_back(AttributeWithIndex::get(~0, FnAttrs));
-      if (RAttrs)
-        AttributesVec.push_back(AttributeWithIndex::get(0, RAttrs));
 
       AttrListPtr NewCallPAL = AttrListPtr::get(AttributesVec.begin(),
                                                 AttributesVec.end());

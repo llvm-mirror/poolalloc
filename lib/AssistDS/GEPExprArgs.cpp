@@ -118,6 +118,8 @@ bool GEPExprArgs::runOnModule(Module& M) {
             NI->setName(II->getName());
             NI->addAttr(F->getAttributes().getParamAttributes(II->getArgNo() + 1));
           }
+          NewF->setAttributes(NewF->getAttributes().addAttr(
+              0, F->getAttributes().getRetAttributes()));
           // Perform the cloning.
           SmallVector<ReturnInst*,100> Returns;
           CloneFunctionInto(NewF, F, ValueMap, Returns);
@@ -127,8 +129,6 @@ bool GEPExprArgs::runOnModule(Module& M) {
             fargs.push_back(ai);
           }
 
-          NewF->setAttributes(NewF->getAttributes().addAttr(
-              0, F->getAttributes().getRetAttributes()));
           NewF->setAttributes(NewF->getAttributes().addAttr(
               ~0, F->getAttributes().getFnAttributes()));
           //Get the point to insert the GEP instr.
@@ -157,7 +157,10 @@ bool GEPExprArgs::runOnModule(Module& M) {
           AttrListPtr CallPAL = CI->getAttributes();
           Attributes RAttrs = CallPAL.getRetAttributes();
           Attributes FnAttrs = CallPAL.getFnAttributes();
+          if (RAttrs)
+            AttributesVec.push_back(AttributeWithIndex::get(0, RAttrs));
 
+          CI->dump();
           SmallVector<Value*, 8> Args;
           Args.push_back(GEP->getPointerOperand());
           for(unsigned j =1;j<CI->getNumOperands();j++) {
@@ -169,8 +172,6 @@ bool GEPExprArgs::runOnModule(Module& M) {
           // Create the new attributes vec.
           if (FnAttrs != Attribute::None)
             AttributesVec.push_back(AttributeWithIndex::get(~0, FnAttrs));
-          if (RAttrs)
-            AttributesVec.push_back(AttributeWithIndex::get(0, RAttrs));
 
           AttrListPtr NewCallPAL = AttrListPtr::get(AttributesVec.begin(),
                                                     AttributesVec.end());
