@@ -200,3 +200,7 @@ void copyTypeInfo(void *dstptr, void *srcptr, uint64_t size, uint32_t tag) {
   printf("Copy: %p, %p = %u | %" PRIu64 " bytes | %u\n", dstptr, (void *)d, shadow_begin[s], size, tag);
 #endif
 }
+
+void trackStrcpyInst(void *dst, void *src, uint32_t tag) {
+  copyTypeInfo(dst, src, strlen(src), tag);
+}
