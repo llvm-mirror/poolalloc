@@ -907,6 +907,15 @@ bool TypeChecks::visitCallSite(Module &M, CallSite CS) {
         CallInst::Create(F, Args.begin(), Args.end(), "", I);
         return true;
       }
+    } else if (F->getNameStr() == std::string("__ctype_b_loc")) {
+      CastInst *BCI = BitCastInst::CreatePointerCast(I, VoidPtrTy);
+      BCI->insertAfter(I);
+      std::vector<Value *>Args;
+      Args.push_back(BCI);
+      Args.push_back(ConstantInt::get(Int32Ty, tagCounter++));
+      Constant *F = M.getOrInsertFunction("trackctype", VoidTy, VoidPtrTy, Int32Ty, NULL);
+      CallInst *CI = CallInst::Create(F, Args.begin(), Args.end());
+      CI->insertAfter(BCI);
     } else if (F->getNameStr() == std::string("strcpy")) {
       std::vector<Value *> Args;
       Args.push_back(I->getOperand(1));
@@ -1121,10 +1130,9 @@ bool TypeChecks::visitCopyingStoreInst(Module &M, StoreInst &SI, Value *SS) {
     if(TS->isTypeSafe(LI->getPointerOperand(), SI.getParent()->getParent())) {
       std::vector<Value *> Args;
       Args.push_back(BCI_Src);
-      Args.push_back(ConstantInt::get(Int8Ty, UsedTypes[SI.getOperand(0)->getType()])); // SI.getValueOperand()
       Args.push_back(ConstantInt::get(Int64Ty, TD->getTypeStoreSize(SI.getOperand(0)->getType())));
       Args.push_back(ConstantInt::get(Int32Ty, tagCounter++));
-      Constant *F = M.getOrInsertFunction("trackStoreInst", VoidTy, VoidPtrTy, Int8Ty, Int64Ty, Int32Ty, NULL);
+      Constant *F = M.getOrInsertFunction("trackInitInst", VoidTy, VoidPtrTy, Int64Ty, Int32Ty, NULL);
       CallInst::Create(F, Args.begin(), Args.end(), "", &SI);
     }
   }
