@@ -167,8 +167,6 @@ bool TypeChecks::runOnModule(Module &M) {
         modified |= visitInvokeInst(M, *II);
       } else if (AllocaInst *AI = dyn_cast<AllocaInst>(&I)) {
         modified |= visitAllocaInst(M, *AI);
-      } else if (VAArgInst *VI = dyn_cast<VAArgInst>(&I)) {
-        modified |= visitVAArgInst(M, *VI);
       }
     }
   }
@@ -197,40 +195,11 @@ TypeChecks::visitVarArgFunction(Module &M, Function &F) {
   if(!F.hasInternalLinkage())
     return false;
   // FIXME:handle external functions
-
-  // Find all uses of the function
-  for(Value::use_iterator ui = F.use_begin(), ue = F.use_end();
-      ui != ue;)  {
-    // Check for call sites
-    CallInst *CI = dyn_cast<CallInst>(ui++);
-    if(!CI)
-      continue;
-    if(CI->getNumOperands() - 1 <= F.arg_size()) 
-      continue;
-    std::vector<Value *> Args;
-    unsigned int i = F.arg_size() + 1;
-    for(i = 1 ;i < CI->getNumOperands(); i++) {
-      // As the first vararg argument pass the number of var_arg arguments
-      if(i == F.arg_size() + 1) {
-        Args.push_back(ConstantInt::get(Int64Ty, 2*(CI->getNumOperands()-1 - F.arg_size())));
-      }
-      if(i > F.arg_size()) {
-        // For each vararg argument, also add its type information before it
-        Args.push_back(ConstantInt::get(Int8Ty, UsedTypes[CI->getOperand(i)->getType()]));
-      }
-
-      // Add the original argument
-      Args.push_back(CI->getOperand(i));
-    }
-
-    // Create the new call
-    CallInst *CI_New = CallInst::Create(CI->getCalledValue(), Args.begin(), Args.end(), "", CI);
-    CI->replaceAllUsesWith(CI_New);
-    CI->eraseFromParent();
-  }
-
+  
   // Modify the function to add a call to get the num of arguments
   VAArgInst *VASize = NULL;
+  VAArgInst *VAMetaData = NULL;
+  CallInst *VAStart = NULL;
   for (Function::iterator B = F.begin(), FE = F.end(); B != FE; ++B) {
     for (BasicBlock::iterator I = B->begin(), BE = B->end(); I != BE;) {
       CallInst *CI = dyn_cast<CallInst>(I++);
@@ -243,12 +212,22 @@ TypeChecks::visitVarArgFunction(Module &M, Function &F) {
         continue;
       if(CalledF->getIntrinsicID() != Intrinsic::vastart) 
         continue;
+      VAStart = CI;
       VASize = new VAArgInst(CI->getOperand(1), Int64Ty, "NumArgs");
+      VAMetaData = new VAArgInst(CI->getOperand(1), VoidPtrTy, "MD");
       VASize->insertAfter(CI);
+      VAMetaData->insertAfter(VASize);
       break;
     }
   }
   assert(VASize && "Varargs function without a call to VAStart???");
+
+  // FIXME:handle external functions
+  // For every va_arg instruction,
+  // In a transformed function, we pass in the type metadata before the actual argument
+  // Read metadata from va_list
+  // And then add a compare in the runtime
+
 
   // Modify function to add checks on every var_arg call to ensure that we
   // are not accessing more arguments than we passed in.
@@ -258,13 +237,14 @@ TypeChecks::visitVarArgFunction(Module &M, Function &F) {
   new StoreInst(ConstantInt::get(Int64Ty, 0), Counter, VASize); 
 
   // Increment the counter
-
   for (Function::iterator B = F.begin(), FE = F.end(); B != FE; ++B) {
     for (BasicBlock::iterator I = B->begin(), BE = B->end(); I != BE;) {
       VAArgInst *VI = dyn_cast<VAArgInst>(I++);
       if(!VI)
         continue;
       if(VI == VASize)
+        continue;
+      if(VI == VAMetaData)
         continue;
       Constant *One = ConstantInt::get(Int64Ty, 1);
       LoadInst *OldValue = new LoadInst(Counter, "count", VI);
@@ -274,17 +254,58 @@ TypeChecks::visitVarArgFunction(Module &M, Function &F) {
                                                      "count",
                                                      VI);
       new StoreInst(NewValue, Counter, VI);
-
-
       std::vector<Value *> Args;
       Args.push_back(VASize);
-      Args.push_back(NewValue);
+      Args.push_back(OldValue);
+      Args.push_back(ConstantInt::get(Int8Ty, UsedTypes[VI->getType()]));
+      Args.push_back(VAMetaData);
       Args.push_back(ConstantInt::get(Int32Ty, tagCounter++));
-      Constant *Func = M.getOrInsertFunction("compareNumber", VoidTy, Int64Ty, Int64Ty,Int32Ty,  NULL);
+      Constant *Func = M.getOrInsertFunction("compareTypeAndNumber", VoidTy, Int64Ty, Int64Ty, Int8Ty, VoidPtrTy, Int32Ty, NULL);
       CallInst::Create(Func, Args.begin(), Args.end(), "", VI);
-
     }
   }
+
+  // Find all uses of the function
+  for(Value::use_iterator ui = F.use_begin(), ue = F.use_end();
+      ui != ue;)  {
+    // Check for call sites
+    CallInst *CI = dyn_cast<CallInst>(ui++);
+    if(!CI)
+      continue;
+    if(CI->getNumOperands() - 1 <= F.arg_size()) 
+      continue;
+    std::vector<Value *> Args;
+    unsigned int i;
+    unsigned int NumVarArgs = CI->getNumOperands() -F.arg_size() - 1;
+    Value *NumArgs = ConstantInt::get(Int32Ty, NumVarArgs);
+    AllocaInst *AI = new AllocaInst(Int8Ty, NumArgs, "", CI);
+    // set the metadata for the varargs in AI
+    unsigned int j =0;
+    for(i = F.arg_size() + 1; i <CI->getNumOperands(); i++) {
+      Value *Idx[2];
+      Idx[0] = ConstantInt::get(Int32Ty, j++);
+      // For each vararg argument, also add its type information before it
+      GetElementPtrInst *GEP = GetElementPtrInst::CreateInBounds(AI, Idx, Idx + 1, "", CI);
+      new StoreInst(ConstantInt::get(Int8Ty, UsedTypes[CI->getOperand(i)->getType()]), GEP, CI);
+    }
+
+    for(i = 1 ;i < CI->getNumOperands(); i++) {
+      // As the first vararg argument pass the number of var_arg arguments
+      if(i == F.arg_size() + 1) {
+        Args.push_back(ConstantInt::get(Int64Ty, NumVarArgs));
+        Args.push_back(AI);
+      }
+
+      // Add the original argument
+      Args.push_back(CI->getOperand(i));
+    }
+
+    // Create the new call
+    CallInst *CI_New = CallInst::Create(CI->getCalledValue(), Args.begin(), Args.end(), "", CI);
+    CI->replaceAllUsesWith(CI_New);
+    CI->eraseFromParent();
+  }
+
   return true;
 }
 
@@ -448,7 +469,7 @@ bool TypeChecks::visitInternalFunction(Module &M, Function &F) {
 
         if (RAttrs)
           AttributesVec.push_back(AttributeWithIndex::get(0, RAttrs));
-        
+
         Function::arg_iterator II = F.arg_begin();
 
         for(unsigned j =1;j<CI->getNumOperands();j++, II++) {
@@ -635,40 +656,40 @@ bool TypeChecks::unmapShadow(Module &M, Instruction &I) {
   return true;
 }
 
-bool TypeChecks::visitMain(Module &M, Function &MainFunc) {
-  if(MainFunc.arg_size() != 2)
-    // No need to register
-    return false;
+  bool TypeChecks::visitMain(Module &M, Function &MainFunc) {
+    if(MainFunc.arg_size() != 2)
+      // No need to register
+      return false;
 
-  Function::arg_iterator AI = MainFunc.arg_begin();
-  Value *Argc = AI;
-  Value *Argv = ++AI;
+    Function::arg_iterator AI = MainFunc.arg_begin();
+    Value *Argc = AI;
+    Value *Argv = ++AI;
 
-  Instruction *InsertPt = MainFunc.front().begin();
-  Constant * RegisterArgv = M.getOrInsertFunction("trackArgvType", VoidPtrTy, Argc->getType(), Argv->getType(), NULL);
-  std::vector<Value *> fargs;
-  fargs.push_back (Argc);
-  fargs.push_back (Argv);
-  CallInst *CI = CallInst::Create (RegisterArgv, fargs.begin(), fargs.end(), "", InsertPt);
-  CastInst *BCII = BitCastInst::CreatePointerCast(CI, Argv->getType());
-  BCII->insertAfter(CI);
-  std::vector<User *> Uses;
-  Value::use_iterator UI = Argv->use_begin();
-  for (; UI != Argv->use_end(); ++UI) {
-    if (Instruction * Use = dyn_cast<Instruction>(UI))
-      if (CI != Use) {
-        Uses.push_back (*UI);
-      }
+    Instruction *InsertPt = MainFunc.front().begin();
+    Constant * RegisterArgv = M.getOrInsertFunction("trackArgvType", VoidPtrTy, Argc->getType(), Argv->getType(), NULL);
+    std::vector<Value *> fargs;
+    fargs.push_back (Argc);
+    fargs.push_back (Argv);
+    CallInst *CI = CallInst::Create (RegisterArgv, fargs.begin(), fargs.end(), "", InsertPt);
+    CastInst *BCII = BitCastInst::CreatePointerCast(CI, Argv->getType());
+    BCII->insertAfter(CI);
+    std::vector<User *> Uses;
+    Value::use_iterator UI = Argv->use_begin();
+    for (; UI != Argv->use_end(); ++UI) {
+      if (Instruction * Use = dyn_cast<Instruction>(UI))
+        if (CI != Use) {
+          Uses.push_back (*UI);
+        }
+    }
+
+    while (Uses.size()) {
+      User *Use = Uses.back();
+      Uses.pop_back();
+      Use->replaceUsesOfWith (Argv, BCII);
+    }
+
+    return true;
   }
-
-  while (Uses.size()) {
-    User *Use = Uses.back();
-    Uses.pop_back();
-    Use->replaceUsesOfWith (Argv, BCII);
-  }
-
-  return true;
-}
 
 bool TypeChecks::visitGlobal(Module &M, GlobalVariable &GV, 
                              Constant *C, Instruction &I, unsigned offset) {
@@ -827,27 +848,6 @@ bool TypeChecks::visitAllocaInst(Module &M, AllocaInst &AI) {
   CallInst *CI_Arr = CallInst::Create(F, Args1.begin(), Args1.end());
   CI_Arr->insertAfter(CI);
 
-  return true;
-}
-
-// Insert runtime check for va_arg instructions
-bool TypeChecks::visitVAArgInst(Module &M, VAArgInst &VI) {
-  Function *Func = VI.getParent()->getParent();
-  if(!Func->hasInternalLinkage())
-    return false;
-
-  // FIXME:handle external functions
-  // For every va_arg instruction,
-  // In a transformed function, we pass in the type metadata before the actual argument
-  // Read metadata from va_list
-  // And then add a compare in the runtime
-  VAArgInst *VI_Type = new VAArgInst(VI.getOperand(0), Int8Ty, "", &VI);
-  std::vector<Value *> Args;
-  Args.push_back(VI_Type);
-  Args.push_back(ConstantInt::get(Int8Ty, UsedTypes[VI.getType()]));
-  Args.push_back(ConstantInt::get(Int32Ty, tagCounter++));
-  Constant *F = M.getOrInsertFunction("compareTypes", VoidTy, Int8Ty, Int8Ty,Int32Ty,  NULL);
-  CallInst::Create(F, Args.begin(), Args.end(), "", &VI);
   return true;
 }
 

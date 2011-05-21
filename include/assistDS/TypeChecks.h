@@ -60,7 +60,6 @@ public:
 
   bool initShadow(Module &M);
   bool unmapShadow(Module &M, Instruction &I);
-  bool visitVAArgInst(Module &M, VAArgInst &VI);
   bool visitCallInst(Module &M, CallInst &CI);
   bool visitInvokeInst(Module &M, InvokeInst &CI);
   bool visitCallSite(Module &M, CallSite CS);

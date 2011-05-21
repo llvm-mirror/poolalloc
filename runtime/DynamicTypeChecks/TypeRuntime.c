@@ -139,6 +139,12 @@ void compareNumber(uint64_t NumArgsPassed, uint64_t ArgAccessed, uint32_t tag){
     printf("Type mismatch: Accessing variable %lu, passed only %lu! %u \n", ArgAccessed, NumArgsPassed, tag);
   }
 }
+
+void compareTypeAndNumber(uint64_t NumArgsPassed, uint64_t ArgAccessed, uint8_t TypeAccessed, void *MD, uint32_t tag) {
+  compareNumber(NumArgsPassed, ArgAccessed, tag);
+  compareTypes(TypeAccessed, ((uint8_t*)MD)[ArgAccessed], tag);
+}
+
 /**
  * Check the loaded type against the type recorded in the shadow memory.
  */
