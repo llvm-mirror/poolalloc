@@ -923,6 +923,14 @@ bool TypeChecks::visitCallSite(Module &M, CallSite CS) {
       Args.push_back(ConstantInt::get(Int32Ty, tagCounter++));
       Constant *F = M.getOrInsertFunction("trackStrcpyInst", VoidTy, VoidPtrTy, VoidPtrTy, Int32Ty, NULL);
       CallInst::Create(F, Args.begin(), Args.end(), "", I);
+    } else if (F->getNameStr() == std::string("strncpy")) {
+      std::vector<Value *>Args;
+      Args.push_back(I->getOperand(1));
+      Args.push_back(I->getOperand(2));
+      Args.push_back(I->getOperand(3));
+      Args.push_back(ConstantInt::get(Int32Ty, tagCounter++));
+      Constant *F = M.getOrInsertFunction("trackStrncpyInst", VoidTy, VoidPtrTy, VoidPtrTy, I->getOperand(3)->getType(), Int32Ty, NULL);
+      CallInst::Create(F, Args.begin(), Args.end(), "", I);
     } else if(F->getNameStr() == std::string("ftime")) {
       if(EnableTypeSafeOpt) {
         if(TS->isTypeSafe(I->getOperand(1), I->getParent()->getParent())) {

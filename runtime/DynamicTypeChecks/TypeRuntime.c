@@ -206,6 +206,12 @@ void trackctype(void *ptr, uint32_t tag) {
   trackInitInst(*(short**)ptr, sizeof(short)*384, tag);
 }
 
+void trackStrncpyInst(void *dst, void *src, uint64_t size, uint32_t tag) {
+  if(strlen(src) < size)
+    size = strlen(src);
+  copyTypeInfo(dst, src, size, tag);
+}
+
 void trackStrcpyInst(void *dst, void *src, uint32_t tag) {
   copyTypeInfo(dst, src, strlen(src), tag);
 }
