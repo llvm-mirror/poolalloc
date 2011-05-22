@@ -38,7 +38,7 @@ namespace llvm {
   class Devirtualize : public ModulePass, public InstVisitor<Devirtualize> {
     private:
       // Access to analysis pass which finds targets of indirect function calls
-      CallTargetFinder* CTF;
+      dsa::CallTargetFinder<EQTDDataStructures> *CTF;
 
       // Access to the target data analysis pass
       TargetData * TD;
@@ -62,7 +62,7 @@ namespace llvm {
       virtual bool runOnModule(Module & M);
 
       virtual void getAnalysisUsage(AnalysisUsage &AU) const {
-        AU.addRequired<CallTargetFinder>();
+        AU.addRequired<dsa::CallTargetFinder<EQTDDataStructures> >();
         AU.addRequired<TargetData>();
       }
 

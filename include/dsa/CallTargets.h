@@ -17,13 +17,16 @@
 
 #include "llvm/Pass.h"
 #include "llvm/Support/CallSite.h"
+#include "dsa/DataStructure.h"
 
 #include <set>
 #include <list>
 #include <map>
 
-namespace llvm {
+using namespace llvm;
+namespace dsa{
 
+  template<class dsa>
   class CallTargetFinder : public ModulePass {
     std::map<CallSite, std::vector<const Function*> > IndMap;
     std::set<CallSite> CompleteSites;

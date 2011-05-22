@@ -395,7 +395,7 @@ Devirtualize::runOnModule (Module & M) {
   //
   // Get the targets of indirect function calls.
   //
-  CTF = &getAnalysis<CallTargetFinder>();
+  CTF = &getAnalysis<dsa::CallTargetFinder<EQTDDataStructures> >();
 
   //
   // Get information on the target system.

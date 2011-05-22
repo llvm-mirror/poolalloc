@@ -29,20 +29,23 @@
 #include <ostream>
 using namespace llvm;
 
+RegisterPass<dsa::CallTargetFinder<EQTDDataStructures> > X("calltarget","Find Call Targets (uses DSA)");
 namespace {
   STATISTIC (DirCall, "Number of direct calls");
   STATISTIC (IndCall, "Number of indirect calls");
   STATISTIC (CompleteInd, "Number of complete indirect calls");
   STATISTIC (CompleteEmpty, "Number of complete empty calls");
 
-  RegisterPass<CallTargetFinder> X("calltarget","Find Call Targets (uses DSA)");
 }
 
-char CallTargetFinder::ID = 0;
+namespace dsa {
+  template<typename dsa>
+char CallTargetFinder<dsa>::ID = 0;
 
-void CallTargetFinder::findIndTargets(Module &M)
+  template<class dsa>
+void CallTargetFinder<dsa>::findIndTargets(Module &M)
 {
-  EQTDDataStructures* T = &getAnalysis<EQTDDataStructures>();
+  dsa* T = &getAnalysis<dsa>();
   const DSCallGraph & callgraph = T->getCallGraph();
   DSGraph* G = T->getGlobalsGraph();
   DSGraph::ScalarMapTy& SM = G->getScalarMap();
@@ -122,7 +125,8 @@ void CallTargetFinder::findIndTargets(Module &M)
           }
 }
 
-void CallTargetFinder::print(llvm::raw_ostream &O, const Module *M) const
+  template<class dsa>
+void CallTargetFinder<dsa>::print(llvm::raw_ostream &O, const Module *M) const
 {
   O << "[* = incomplete] CS: func list\n";
   for (std::map<CallSite, std::vector<const Function*> >::const_iterator ii =
@@ -149,12 +153,15 @@ void CallTargetFinder::print(llvm::raw_ostream &O, const Module *M) const
   }
 }
 
-bool CallTargetFinder::runOnModule(Module &M) {
+  template<class dsa>
+bool CallTargetFinder<dsa>::runOnModule(Module &M) {
   findIndTargets(M);
   return false;
 }
 
-void CallTargetFinder::getAnalysisUsage(AnalysisUsage &AU) const {
+  template<class dsa>
+void CallTargetFinder<dsa>::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.setPreservesAll();
-  AU.addRequired<EQTDDataStructures>();
+  AU.addRequired<dsa>();
+}
 }
