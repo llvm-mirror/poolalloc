@@ -158,26 +158,3 @@ void CallTargetFinder::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.setPreservesAll();
   AU.addRequired<EQTDDataStructures>();
 }
-
-std::vector<const Function*>::iterator CallTargetFinder::begin(CallSite cs) {
-  return IndMap[cs].begin();
-}
-
-std::vector<const Function*>::iterator CallTargetFinder::end(CallSite cs) {
-  return IndMap[cs].end();
-}
-unsigned CallTargetFinder::size(CallSite cs) {
-  return IndMap[cs].size();
-}
-
-bool CallTargetFinder::isComplete(CallSite cs) const {
-  return CompleteSites.find(cs) != CompleteSites.end();
-}
-
-std::list<CallSite>::iterator CallTargetFinder::cs_begin() {
-  return AllSites.begin();
-}
-
-std::list<CallSite>::iterator CallTargetFinder::cs_end() {
-  return AllSites.end();
-}

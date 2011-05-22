@@ -41,17 +41,29 @@ namespace llvm {
     virtual void print(llvm::raw_ostream &O, const Module *M) const;
 
     // Given a CallSite, get an iterator of callees
-    std::vector<const Function*>::iterator begin(CallSite cs);
-    std::vector<const Function*>::iterator end(CallSite cs);
-    unsigned size(CallSite cs);
+    std::vector<const Function*>::iterator begin(CallSite cs){
+      return IndMap[cs].begin();
+    }
+    std::vector<const Function*>::iterator end(CallSite cs){
+      return IndMap[cs].end();
+    }
+    unsigned size(CallSite cs){
+      return IndMap[cs].size();
+    }
 
     // Iterate over CallSites in program
-    std::list<CallSite>::iterator cs_begin();
-    std::list<CallSite>::iterator cs_end();
+    std::list<CallSite>::iterator cs_begin(){
+      return AllSites.begin();
+    }
+    std::list<CallSite>::iterator cs_end(){
+      return AllSites.end();
+    }
 
     // Do we think we have complete knowledge of this site?
     // That is, do we think there are no missing callees
-    bool isComplete(CallSite cs) const;
+    bool isComplete(CallSite cs) const {
+      return CompleteSites.find(cs) != CompleteSites.end();
+    }
   };
   
 }
