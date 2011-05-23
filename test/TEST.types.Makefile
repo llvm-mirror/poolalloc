@@ -35,7 +35,7 @@ ANALYZE_OPTS +=  -instcount -disable-verify
 MEM := -track-memory -time-passes -disable-output
 
 #SAFE_OPTS := -internalize -scalarrepl -deadargelim -globaldce -basiccg -inline 
-SAFE_OPTS := -internalize  -deadargelim -globaldce -basiccg -inline 
+SAFE_OPTS := -internalize  -deadargelim -globaldce -basiccg -inline  
 #SAFE_OPTS := -internalize   -deadargelim -globaldce 
 
 $(PROGRAMS_TO_TEST:%=Output/%.linked1.bc): \
@@ -52,7 +52,7 @@ Output/%.temp1.bc: Output/%.llvm1.bc
 
 $(PROGRAMS_TO_TEST:%=Output/%.opt.bc): \
 Output/%.opt.bc: Output/%.llvm1.bc $(LOPT) $(ASSIST_SO)
-	-$(RUNOPT) -load $(ASSIST_SO) -disable-opt -info-output-file=$(CURDIR)/$@.info -instnamer -internalize -mem2reg -dce  -basiccg -inline -dce -arg-cast -indclone -funcspec -ipsccp -deadargelim  -simplify-gep -die -die -mergearrgep -die -globaldce -simplifycfg -deadargelim -arg-simplify -die -arg-cast -die -simplifycfg -globaldce -indclone -funcspec -deadargelim -globaldce -die -simplifycfg -gep-expr-arg -deadargelim -die -mergefunc -die -die -mergearrgep -die -globaldce -int2ptrcmp -die -dce  -inline -mem2reg -dce -arg-cast -dce -sretpromotion -struct-ret -deadargelim -simplify-ev -simplify-iv -dce -ld-args -gep-expr-arg -deadargelim -mergefunc -dce -stats -time-passes $< -f -o $@ 
+	-$(RUNOPT) -load $(ASSIST_SO) -disable-opt -info-output-file=$(CURDIR)/$@.info -instnamer -internalize -mem2reg -dce -basiccg -inline -dce -arg-cast -indclone -funcspec -ipsccp -deadargelim -simplify-gep -die -mergearrgep -die -globaldce -simplifycfg -deadargelim -arg-simplify -die -arg-cast -die -simplifycfg -globaldce -indclone -funcspec -deadargelim -globaldce -die -simplifycfg -gep-expr-arg -deadargelim -die -mergefunc -die -mergearrgep -die -globaldce -int2ptrcmp -die -dce -inline -mem2reg -dce -arg-cast -dce -sretpromotion -struct-ret -deadargelim -simplify-ev -simplify-iv -dce -ld-args -gep-expr-arg -deadargelim -mergefunc -dce -stats -time-passes $< -f -o $@ 
 
 $(PROGRAMS_TO_TEST:%=Output/%.count.bc): \
 Output/%.count.bc: Output/%.opt.bc $(LOPT) $(ASSIST_SO)
@@ -209,39 +209,47 @@ endif
 $(PROGRAMS_TO_TEST:%=Output/%.opt.diff-nat): \
 Output/%.opt.diff-nat: Output/%.out-nat Output/%.opt.out
 	@cp Output/$*.out-nat Output/$*.opt.out-nat
-	-$(DIFFPROG) nat $*.opt $(HIDEDIFF)
+	@cp Output/$*.opt.out Output/$*.tco.out-opt
+	-$(DIFFPROG) opt $*.opt $(HIDEDIFF)
+
 $(PROGRAMS_TO_TEST:%=Output/%.tc.diff-nat): \
 Output/%.tc.diff-nat: Output/%.out-nat Output/%.tc.out
 	@cp Output/$*.out-nat Output/$*.tc.out-nat
-	-$(DIFFPROG) nat $*.tc $(HIDEDIFF)
+	@cp Output/$*.tc.out Output/$*.tco.out-tc
+	-$(DIFFPROG) tc $*.tc $(HIDEDIFF)
 
 $(PROGRAMS_TO_TEST:%=Output/%.tco.diff-nat): \
 Output/%.tco.diff-nat: Output/%.out-nat Output/%.tco.out
 	@cp Output/$*.out-nat Output/$*.tco.out-nat
-	-$(DIFFPROG) nat $*.tco $(HIDEDIFF)
+	@cp Output/$*.tco.out Output/$*.tco.out-tco
+	-$(DIFFPROG) tco $*.tco $(HIDEDIFF)
 
 $(PROGRAMS_TO_TEST:%=Output/%.tcoo.diff-nat): \
 Output/%.tcoo.diff-nat: Output/%.out-nat Output/%.tcoo.out
 	@cp Output/$*.out-nat Output/$*.tcoo.out-nat
-	-$(DIFFPROG) nat $*.tcoo $(HIDEDIFF)
+	@cp Output/$*.tcoo.out Output/$*.tco.out-tcoo
+	-$(DIFFPROG) tcoo $*.tcoo $(HIDEDIFF)
 
 $(PROGRAMS_TO_TEST:%=Output/%.llvm1.diff-nat): \
 Output/%.llvm1.diff-nat: Output/%.out-nat Output/%.llvm1.out
 	@cp Output/$*.out-nat Output/$*.llvm1.out-nat
-	-$(DIFFPROG) nat $*.llvm1 $(HIDEDIFF)
+	@cp Output/$*.llvm1.out Output/$*.llvm1.out-llvm1
+	-$(DIFFPROG) llvm1 $*.llvm1 $(HIDEDIFF)
 
 $(PROGRAMS_TO_TEST:%=Output/%.count.diff-nat): \
 Output/%.count.diff-nat: Output/%.out-nat Output/%.count.out
 	@cp Output/$*.out-nat Output/$*.count.out-nat
-	-$(DIFFPROG) nat $*.count $(HIDEDIFF)
+	@cp Output/$*.count.out Output/$*.llvm1.out-count
+	-$(DIFFPROG) count $*.count $(HIDEDIFF)
 $(PROGRAMS_TO_TEST:%=Output/%.count1.diff-nat): \
 Output/%.count1.diff-nat: Output/%.out-nat Output/%.count1.out
 	@cp Output/$*.out-nat Output/$*.count1.out-nat
-	-$(DIFFPROG) nat $*.count1 $(HIDEDIFF)
+	@cp Output/$*.count1.out Output/$*.llvm1.out-count1
+	-$(DIFFPROG) count1 $*.count1 $(HIDEDIFF)
 
 
 $(PROGRAMS_TO_TEST:%=Output/%.$(TEST).report.txt): \
-Output/%.$(TEST).report.txt: Output/%.opt.bc Output/%.LOC.txt $(LOPT) Output/%.out-nat Output/%.opt.diff-nat Output/%.tc.diff-nat Output/%.tco.diff-nat Output/%.tcoo.diff-nat
+Output/%.$(TEST).report.txt: Output/%.opt.bc Output/%.LOC.txt $(LOPT) Output/%.out-nat Output/%.llvm1.diff-nat Output/%.opt.diff-nat Output/%.tc.diff-nat Output/%.tco.diff-nat Output/%.tcoo.diff-nat
 	@# Gather data
 	-($(RUNOPT)  -dsa-$(PASS) -enable-type-inference-opts -dsa-stdlib-no-fold $(ANALYZE_OPTS) $<)> $@.time.1 2>&1
 	-($(RUNOPT)  -dsa-$(PASS)  $(ANALYZE_OPTS) $<)> $@.time.2 2>&1
