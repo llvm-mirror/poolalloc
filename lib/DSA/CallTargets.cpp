@@ -29,7 +29,8 @@
 #include <ostream>
 using namespace llvm;
 
-RegisterPass<dsa::CallTargetFinder<EQTDDataStructures> > X("calltarget","Find Call Targets (uses DSA)");
+RegisterPass<dsa::CallTargetFinder<EQTDDataStructures> > X("calltarget-eqtd","Find Call Targets (uses DSA-EQTD)");
+RegisterPass<dsa::CallTargetFinder<TDDataStructures> > Y("calltarget-td","Find Call Targets (uses DSA-TD)");
 namespace {
   STATISTIC (DirCall, "Number of direct calls");
   STATISTIC (IndCall, "Number of indirect calls");
