@@ -92,7 +92,7 @@ void trackGlobal(void *ptr, uint8_t typeNumber, uint64_t size, uint32_t tag) {
   shadow_begin[p] = typeNumber;
   memset(&shadow_begin[p + 1], 0, size - 1);
 #if DEBUG
-  printf("Global: %p, %p = %u | %" PRIu64 " bytes\n", ptr, (void *)p, typeNumber, size);
+  printf("Global: %p, %p = %u | %lu bytes\n", ptr, (void *)p, typeNumber, size);
 #endif
 }
 
@@ -118,7 +118,7 @@ void trackStoreInst(void *ptr, uint8_t typeNumber, uint64_t size, uint32_t tag) 
   shadow_begin[p] = typeNumber;
   memset(&shadow_begin[p + 1], 0, size - 1);
 #if DEBUG
-  printf("Store: %p, %p = %u | %" PRIu64 " bytes | %d\n", ptr, (void *)p, typeNumber, size, tag);
+  printf("Store: %p, %p = %u | %lu bytes | %d\n", ptr, (void *)p, typeNumber, size, tag);
 #endif
 }
 
@@ -140,6 +140,12 @@ void compareNumber(uint64_t NumArgsPassed, uint64_t ArgAccessed, uint32_t tag){
   }
 }
 
+/**
+ * Combined check for Va_arg. 
+ * Check that no. of arguments is less than passed
+ * Check that the type being accessed is correct
+ * MD : pointer to array of metadata for each argument passed
+ */
 void compareTypeAndNumber(uint64_t NumArgsPassed, uint64_t ArgAccessed, uint8_t TypeAccessed, void *MD, uint32_t tag) {
   compareNumber(NumArgsPassed, ArgAccessed, tag);
   compareTypes(TypeAccessed, ((uint8_t*)MD)[ArgAccessed], tag);
@@ -178,7 +184,7 @@ void trackLoadInst(void *ptr, uint8_t typeNumber, uint64_t size, uint32_t tag) {
   }
 
 #if DEBUG
-  printf("Load: %p, %p = actual: %u, expect: %u | %" PRIu64 " bytes\n", ptr, (void *)p, typeNumber, shadow_begin[p], size);
+  printf("Load: %p, %p = actual: %u, expect: %u | %lu  bytes\n", ptr, (void *)p, typeNumber, shadow_begin[p], size);
 #endif
 }
 
@@ -189,10 +195,20 @@ void trackLoadInst(void *ptr, uint8_t typeNumber, uint64_t size, uint32_t tag) {
 void trackInitInst(void *ptr, uint64_t size, uint32_t tag) {
   uintptr_t p = maskAddress(ptr);
   memset(&shadow_begin[p], 0xFF, size);
+#if DEBUG
+  printf("Initialize: %p, %p | %lu bytes | %u\n", ptr, (void *)p, size, tag);
+#endif
 }
+
+/**
+ * Clear the metadata for given pointer
+ */
 void trackUnInitInst(void *ptr, uint64_t size, uint32_t tag) {
   uintptr_t p = maskAddress(ptr);
   memset(&shadow_begin[p], 0x00, size);
+#if DEBUG
+  printf("Unitialize: %p, %p | %lu bytes | %u\n", ptr, (void *)p, size, tag);
+#endif
 }
 
 /**
@@ -203,7 +219,7 @@ void copyTypeInfo(void *dstptr, void *srcptr, uint64_t size, uint32_t tag) {
   uintptr_t s = maskAddress(srcptr);
   memcpy(&shadow_begin[d], &shadow_begin[s], size);
 #if DEBUG
-  printf("Copy: %p, %p = %u | %" PRIu64 " bytes | %u\n", dstptr, (void *)d, shadow_begin[s], size, tag);
+  printf("Copy: %p, %p = %u | %lu bytes | %u\n", dstptr, (void *)d, shadow_begin[s], size, tag);
 #endif
 }
 
