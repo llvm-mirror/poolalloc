@@ -56,15 +56,15 @@ Output/%.opt.bc: Output/%.llvm1.bc $(LOPT) $(ASSIST_SO)
 
 $(PROGRAMS_TO_TEST:%=Output/%.count.bc): \
 Output/%.count.bc: Output/%.opt.bc $(LOPT) $(ASSIST_SO)
-	-$(RUNOPT) -enable-type-inference-opts -dsa-stdlib-no-fold -dyncount -disable-opt -info-output-file=$(CURDIR)/$@.info $< -f -o $@ 
+	-$(RUNOPT) -load $(ASSIST_SO) -enable-type-inference-opts -dsa-stdlib-no-fold -dyncount -disable-opt -info-output-file=$(CURDIR)/$@.info $< -f -o $@ 
 
 $(PROGRAMS_TO_TEST:%=Output/%.count1.bc): \
 Output/%.count1.bc: Output/%.opt.bc $(LOPT) $(ASSIST_SO)
-	-$(RUNOPT) -dyncount -disable-opt -info-output-file=$(CURDIR)/$@.info $< -f -o $@ 
+	-$(RUNOPT) -load $(ASSIST_SO) -dyncount -disable-opt -info-output-file=$(CURDIR)/$@.info $< -f -o $@ 
 
 $(PROGRAMS_TO_TEST:%=Output/%.tc.bc): \
 Output/%.tc.bc: Output/%.opt.bc $(LOPT) $(ASSIST_SO)
-	-$(RUNOPT) -load $(ASSIST_SO) -typechecks -dce -ipsccp -dce -stats -info-output-file=$(CURDIR)/$@.info $< -f -o $@.temp
+	-$(RUNOPT) -load $(ASSIST_SO)  -typechecks -dce -ipsccp -dce -stats -info-output-file=$(CURDIR)/$@.info $< -f -o $@.temp
 	-$(LLVMLD) -disable-opt -o $@.ld $@.temp $(TYPE_RT_BC)
 	-$(LOPT) $(SAFE_OPTS) $@.ld.bc -o $@ -f
 
@@ -83,25 +83,25 @@ Output/%.tcoo.bc: Output/%.opt.bc $(LOPT) $(ASSIST_SO)
 
 $(PROGRAMS_TO_TEST:%=Output/%.count.s): \
 Output/%.count.s: Output/%.count.bc $(LLC)
-	-$(LLC) -f $< -o $@
+	-$(LLC)  $< -o $@
 $(PROGRAMS_TO_TEST:%=Output/%.count1.s): \
 Output/%.count1.s: Output/%.count1.bc $(LLC)
-	-$(LLC) -f $< -o $@
+	-$(LLC)  $< -o $@
 $(PROGRAMS_TO_TEST:%=Output/%.opt.s): \
 Output/%.opt.s: Output/%.opt.bc $(LLC)
-	-$(LLC) -f $< -o $@
+	-$(LLC)  $< -o $@
 $(PROGRAMS_TO_TEST:%=Output/%.llvm1.s): \
 Output/%.llvm1.s: Output/%.llvm1.bc $(LLC)
-	-$(LLC) -f $< -o $@
+	-$(LLC)  $< -o $@
 $(PROGRAMS_TO_TEST:%=Output/%.tc.s): \
 Output/%.tc.s: Output/%.tc.bc $(LLC)
-	-$(LLC) -f $< -o $@
+	-$(LLC)  $< -o $@
 $(PROGRAMS_TO_TEST:%=Output/%.tco.s): \
 Output/%.tco.s: Output/%.tco.bc $(LLC)
-	-$(LLC) -f $< -o $@
+	-$(LLC)  $< -o $@
 $(PROGRAMS_TO_TEST:%=Output/%.tcoo.s): \
 Output/%.tcoo.s: Output/%.tcoo.bc $(LLC)
-	-$(LLC) -f $< -o $@
+	-$(LLC)  $< -o $@
 
 $(PROGRAMS_TO_TEST:%=Output/%.opt): \
 Output/%.opt: Output/%.opt.s
