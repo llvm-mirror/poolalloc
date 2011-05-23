@@ -148,28 +148,30 @@ void trackLoadInst(void *ptr, uint8_t typeNumber, uint64_t size, uint32_t tag) {
   uintptr_t p = maskAddress(ptr);
 
   /* Check if this an initialized but untyped memory.*/
-  if (shadow_begin[p] != 0xFF) {
-    if (typeNumber != shadow_begin[p]) {
+  if (typeNumber != shadow_begin[p]) {
+    if (shadow_begin[p] != 0xFF) {
+
       printf("Type mismatch: detecting %p %u, expecting %u! %u \n", ptr, typeNumber, shadow_begin[p], tag);
       i = size;
+    } else {
+      /* If so, set type to the type being read.
+         Check that none of the bytes are typed.*/
+      for (; i < size; ++i) {
+        if (0xFF != shadow_begin[p + i]) {
+          printf("Type mismatch: detecting %u, expecting %u (0 != %u)! %u\n", typeNumber, shadow_begin[p+i], shadow_begin[p + i], tag);
+          break;
+        }
+      }
+      trackStoreInst(ptr, typeNumber, size, tag);
+      return ;
     }
+  }
 
-    for (; i < size; ++i) {
-      if (0 != shadow_begin[p + i]) {
-        printf("Type mismatch: detecting %u, expecting %u (0 != %u)!\n", typeNumber, shadow_begin[p], shadow_begin[p + i]);
-        break;
-      }
+  for (; i < size; ++i) {
+    if (0 != shadow_begin[p + i]) {
+      printf("Type mismatch: detecting %u, expecting %u (0 != %u)!\n", typeNumber, shadow_begin[p], shadow_begin[p + i]);
+      break;
     }
-  } else {
-    /* If so, set type to the type being read.
-       Check that none of the bytes are typed.*/
-    for (; i < size; ++i) {
-      if (0xFF != shadow_begin[p + i]) {
-        printf("Type mismatch: detecting %u, expecting %u (0 != %u)! %u\n", typeNumber, shadow_begin[p+i], shadow_begin[p + i], tag);
-        break;
-      }
-    }
-    trackStoreInst(ptr, typeNumber, size, tag);
   }
 
 #if DEBUG
