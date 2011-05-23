@@ -358,9 +358,6 @@ Output/%.$(TEST).report.txt: Output/%.opt.bc Output/%.LOC.txt $(LOPT) Output/%.o
 	@/bin/echo -n "CLONED_INDCLONE: " >> $@
 	-@grep 'Number of Functions Cloned in IndClone' $<.info >> $@
 	@echo >> $@
-	@/bin/echo -n "VARARGS_CALLS: " >> $@
-	-@grep 'Number of Calls Simplified' $<.info >> $@
-	@echo >> $@
 	@/bin/echo -n "GEP_CALLS: " >> $@
 	-@grep 'Number of Calls Modified' $<.info >> $@
 	@echo >> $@

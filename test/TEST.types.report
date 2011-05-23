@@ -163,7 +163,6 @@ my $USERSYSTTIME = '([0-9.]+)[ 0-9.]+\([^)]+\)[ 0-9.]+\([^)]+\) +';
             ["I2P", "ACCESSES I2P: *([0-9]+)"],
 # Nodes Folded
             [],
-            ["VAFUNC", "VARARGS_CALLS: *([0-9]+)"],
             ["GEPFUNC", "GEP_CALLS: *([0-9]+)"],
             ["ARGSMPL", "ARG_SMPL: *([0-9]+)"],
             ["FUNCSPEC", "CLONED_FUNCSPEC: *([0-9]+)"],
