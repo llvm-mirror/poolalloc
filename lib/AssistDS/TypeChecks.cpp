@@ -666,27 +666,11 @@ bool TypeChecks::unmapShadow(Module &M, Instruction &I) {
     Value *Argv = ++AI;
 
     Instruction *InsertPt = MainFunc.front().begin();
-    Constant * RegisterArgv = M.getOrInsertFunction("trackArgvType", VoidPtrTy, Argc->getType(), Argv->getType(), NULL);
+    Constant * RegisterArgv = M.getOrInsertFunction("trackArgvType", VoidTy, Argc->getType(), Argv->getType(), NULL);
     std::vector<Value *> fargs;
     fargs.push_back (Argc);
     fargs.push_back (Argv);
-    CallInst *CI = CallInst::Create (RegisterArgv, fargs.begin(), fargs.end(), "", InsertPt);
-    CastInst *BCII = BitCastInst::CreatePointerCast(CI, Argv->getType());
-    BCII->insertAfter(CI);
-    std::vector<User *> Uses;
-    Value::use_iterator UI = Argv->use_begin();
-    for (; UI != Argv->use_end(); ++UI) {
-      if (Instruction * Use = dyn_cast<Instruction>(UI))
-        if (CI != Use) {
-          Uses.push_back (*UI);
-        }
-    }
-
-    while (Uses.size()) {
-      User *Use = Uses.back();
-      Uses.pop_back();
-      Use->replaceUsesOfWith (Argv, BCII);
-    }
+    CallInst::Create (RegisterArgv, fargs.begin(), fargs.end(), "", InsertPt);
 
     return true;
   }

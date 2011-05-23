@@ -65,23 +65,12 @@ void shadowUnmap() {
  * Copy arguments into a new array, and initialize
  * metadata for that location to TOP/initialized.
  */
-void * trackArgvType(int argc, char **argv) {
-  
-  char ** argv_temp = (char **)malloc((sizeof(char*)*(argc+1)));
+void trackArgvType(int argc, char **argv) {
   int index = 0;
   for (; index < argc; ++index) {
-    char *argv_index_temp =
-      (char *)malloc((strlen(argv[index])+ 1)*sizeof(char));
-    argv_index_temp = strcpy(argv_index_temp,  argv[index]);
-
-    trackInitInst(argv_index_temp, (strlen(argv[index]) + 1)*sizeof(char), 0);
-    argv_temp[index] = argv_index_temp;
+    trackInitInst(argv[index], (strlen(argv[index]) + 1)*sizeof(char), 0);
   }
-  argv_temp[argc] = NULL;
-
-  trackInitInst(argv_temp, (argc + 1)*sizeof(char*), 0);
-
-  return (void*)argv_temp;
+  trackInitInst(argv, (argc + 1)*sizeof(char*), 0);
 }
 
 /**
