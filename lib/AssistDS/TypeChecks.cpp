@@ -37,6 +37,7 @@ TC("typechecks", "Insert runtime type checks", false, true);
 // Pass statistics
 STATISTIC(numLoadChecks,  "Number of Load Insts that need type checks");
 STATISTIC(numStoreChecks, "Number of Store Insts that need type checks");
+STATISTIC(numTypes, "Number of Types used in the module");
 
 namespace {
   static cl::opt<bool> EnableTypeSafeOpt("enable-type-safe-opt",
@@ -51,37 +52,6 @@ static const Type *Int8Ty = 0;
 static const Type *Int32Ty = 0;
 static const Type *Int64Ty = 0;
 static const PointerType *VoidPtrTy = 0;
-
-// Incorporate one type and all of its subtypes into the collection of used types.
-void TypeChecks::IncorporateType(const Type *Ty) {
-  // If Ty doesn't already exist in the used types map, add it now. Otherwise, return.
-  if (UsedTypes[Ty] != 0) {
-    return;
-  }
-
-  UsedTypes[Ty] = maxType;
-  ++maxType;
-
-  // Make sure to add any types this type references now.
-  for (Type::subtype_iterator I = Ty->subtype_begin(), E = Ty->subtype_end(); I != E; ++I) {
-    IncorporateType(*I);
-  }
-}
-
-// Incorporate all of the types used by this value.
-void TypeChecks::IncorporateValue(const Value *V) {
-  IncorporateType(V->getType());
-  UsedValues[V] = V->getType();
-
-  // If this is a constant, it could be using other types.
-  if (const Constant *C = dyn_cast<Constant>(V)) {
-    if (!isa<GlobalValue>(C)) {
-      for (User::const_op_iterator OI = C->op_begin(), OE = C->op_end(); OI != OE; ++OI) {
-        IncorporateValue(*OI);
-      }
-    }
-  }
-}
 
 bool TypeChecks::runOnModule(Module &M) {
   bool modified = false; // Flags whether we modified the module.
@@ -98,15 +68,6 @@ bool TypeChecks::runOnModule(Module &M) {
   VoidPtrTy = PointerType::getUnqual(Int8Ty);
 
   UsedTypes.clear(); // Reset if run multiple times.
-  maxType = 1;
-
-  // Loop over global variables, incorporating their types.
-  for (Module::const_global_iterator I = M.global_begin(), E = M.global_end(); I != E; ++I) {
-    IncorporateType(I->getType());
-    if (I->hasInitializer()) {
-      IncorporateValue(I->getInitializer());
-    }
-  }
 
   Function *MainF = M.getFunction("main");
   if (MainF == 0 || MainF->isDeclaration()) {
@@ -117,12 +78,11 @@ bool TypeChecks::runOnModule(Module &M) {
   // Insert the shadow initialization function.
   modified |= initShadow(M);
 
-  inst_iterator MainI = inst_begin(MainF);
-
   // record argv
-
   modified |= visitMain(M, *MainF);
+
   // record all globals
+  inst_iterator MainI = inst_begin(MainF);
   for (Module::global_iterator I = M.global_begin(), E = M.global_end();
        I != E; ++I) {
     if(!I->getNumUses() == 1)
@@ -134,7 +94,6 @@ bool TypeChecks::runOnModule(Module &M) {
 
   std::vector<Function *> toProcess;
   for (Module::iterator MI = M.begin(), ME = M.end(); MI != ME; ++MI) {
-    IncorporateType(MI->getType());
     Function &F = *MI;
     toProcess.push_back(&F);
 
@@ -142,11 +101,6 @@ bool TypeChecks::runOnModule(Module &M) {
     // adding their return type as well as the types of their operands.
     for (inst_iterator II = inst_begin(F), IE = inst_end(F); II != IE; ++II) {
       Instruction &I = *II;
-
-      IncorporateType(I.getType()); // Incorporate the type of the instruction.
-      for (User::op_iterator OI = I.op_begin(), OE = I.op_end(); OI != OE; ++OI) {
-        IncorporateValue(*OI); // Insert instruction operand types.
-      }
 
       if (StoreInst *SI = dyn_cast<StoreInst>(&I)) {
         if (TA->isCopyingStore(SI)) {
@@ -182,6 +136,7 @@ bool TypeChecks::runOnModule(Module &M) {
     modified |= visitVarArgFunction(M, *F);
   }
 
+  numTypes += UsedTypes.size();
 
   return modified;
 }
@@ -195,7 +150,7 @@ TypeChecks::visitVarArgFunction(Module &M, Function &F) {
   if(!F.hasInternalLinkage())
     return false;
   // FIXME:handle external functions
-  
+
   // Modify the function to add a call to get the num of arguments
   VAArgInst *VASize = NULL;
   VAArgInst *VAMetaData = NULL;
@@ -571,14 +526,7 @@ void TypeChecks::print(raw_ostream &OS, const Module *M) const {
     OS << '\n';
   }
 
-  OS << "\nValues in use by this module:\n";
-  for (std::map<const Value *, const Type *>::const_iterator I = UsedValues.begin(), E = UsedValues.end(); I != E; ++I) {
-    OS << "  " << I->first << " = ";
-    WriteTypeSymbolic(OS, I->second, M);
-    OS << '\n';
-  }
-
-  OS << "\nNumber of types: " << maxType << '\n';
+  OS << "\nNumber of types: " << UsedTypes.size() << '\n';
 }
 
 // Initialize the shadow memory which contains the 1:1 mapping.

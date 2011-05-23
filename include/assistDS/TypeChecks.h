@@ -31,20 +31,12 @@ class Value;
 
 class TypeChecks : public ModulePass {
 private:
-  unsigned int maxType;
   std::map<const Type *, unsigned int> UsedTypes;
-  std::map<const Value *, const Type *> UsedValues;
 
   // Analysis from other passes.
   TargetData *TD;
   TypeAnalysis *TA;
   dsa::TypeSafety<TDDataStructures> *TS;
-
-  // Incorporate one type and all of its subtypes into the collection of used types.
-  void IncorporateType(const Type *Ty);
-
-  // Incorporate all of the types used by this value.
-  void IncorporateValue(const Value *V);
 
 public:
   static char ID;
