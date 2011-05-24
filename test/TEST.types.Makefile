@@ -120,76 +120,76 @@ Output/%.count1: Output/%.count1.s
 
 ifndef PROGRAMS_HAVE_CUSTOM_RUN_RULES
 
-$(PROGRAMS_TO_TEST:%=Output/%.opt.out): \
-Output/%.opt.out: Output/%.opt
+$(PROGRAMS_TO_TEST:%=Output/%.out-opt): \
+Output/%.out-opt: Output/%.opt
 	-$(RUNSAFELY) $(STDIN_FILENAME) $@ $< $(RUN_OPTIONS)
-$(PROGRAMS_TO_TEST:%=Output/%.llvm1.out): \
-Output/%.llvm1.out: Output/%.llvm1
+$(PROGRAMS_TO_TEST:%=Output/%.out-llvm1): \
+Output/%.out-llvm1: Output/%.llvm1
 	-$(RUNSAFELY) $(STDIN_FILENAME) $@ $< $(RUN_OPTIONS)
-$(PROGRAMS_TO_TEST:%=Output/%.count1.out): \
-Output/%.count1.out: Output/%.count1
+$(PROGRAMS_TO_TEST:%=Output/%.out-count1): \
+Output/%.out-count1: Output/%.count1
 	-$(RUNSAFELY) $(STDIN_FILENAME) $@ $< $(RUN_OPTIONS)
 	-cp lsstats lsstats1
-$(PROGRAMS_TO_TEST:%=Output/%.count.out): \
-Output/%.count.out: Output/%.count
+$(PROGRAMS_TO_TEST:%=Output/%.out-count): \
+Output/%.out-count: Output/%.count
 	-$(RUNSAFELY) $(STDIN_FILENAME) $@ $< $(RUN_OPTIONS)
 	-cp lsstats lsstats2
-$(PROGRAMS_TO_TEST:%=Output/%.tc.out): \
-Output/%.tc.out: Output/%.tc
+$(PROGRAMS_TO_TEST:%=Output/%.out-tc): \
+Output/%.out-tc: Output/%.tc
 	-$(RUNSAFELY) $(STDIN_FILENAME) $@ $< $(RUN_OPTIONS)
-$(PROGRAMS_TO_TEST:%=Output/%.tco.out): \
-Output/%.tco.out: Output/%.tco
+$(PROGRAMS_TO_TEST:%=Output/%.out-tco): \
+Output/%.out-tco: Output/%.tco
 	-$(RUNSAFELY) $(STDIN_FILENAME) $@ $< $(RUN_OPTIONS)
-$(PROGRAMS_TO_TEST:%=Output/%.tcoo.out): \
-Output/%.tcoo.out: Output/%.tcoo
+$(PROGRAMS_TO_TEST:%=Output/%.out-tcoo): \
+Output/%.out-tcoo: Output/%.tcoo
 	-$(RUNSAFELY) $(STDIN_FILENAME) $@ $< $(RUN_OPTIONS)
 
 else
-$(PROGRAMS_TO_TEST:%=Output/%.opt.out): \
-Output/%.opt.out: Output/%.opt
+$(PROGRAMS_TO_TEST:%=Output/%.out-opt): \
+Output/%.out-opt: Output/%.opt
 	-$(SPEC_SANDBOX) opt-$(RUN_TYPE) $@ $(REF_IN_DIR) \
              $(RUNSAFELY) $(STDIN_FILENAME) $(STDOUT_FILENAME) \
                   ../../$< $(RUN_OPTIONS)
 	-(cd Output/opt-$(RUN_TYPE); cat $(LOCAL_OUTPUTS)) > $@
 	-cp Output/opt-$(RUN_TYPE)/$(STDOUT_FILENAME).time $@.time
-$(PROGRAMS_TO_TEST:%=Output/%.llvm1.out): \
-Output/%.llvm1.out: Output/%.llvm1
+$(PROGRAMS_TO_TEST:%=Output/%.out-llvm1): \
+Output/%.out-llvm1: Output/%.llvm1
 	-$(SPEC_SANDBOX) llvm1-$(RUN_TYPE) $@ $(REF_IN_DIR) \
              $(RUNSAFELY) $(STDIN_FILENAME) $(STDOUT_FILENAME) \
                   ../../$< $(RUN_OPTIONS)
 	-(cd Output/llvm1-$(RUN_TYPE); cat $(LOCAL_OUTPUTS)) > $@
 	-cp Output/llvm1-$(RUN_TYPE)/$(STDOUT_FILENAME).time $@.time
-$(PROGRAMS_TO_TEST:%=Output/%.tc.out): \
-Output/%.tc.out: Output/%.tc
+$(PROGRAMS_TO_TEST:%=Output/%.out-tc): \
+Output/%.out-tc: Output/%.tc
 	-$(SPEC_SANDBOX) tc-$(RUN_TYPE) $@ $(REF_IN_DIR) \
              $(RUNSAFELY) $(STDIN_FILENAME) $(STDOUT_FILENAME) \
                   ../../$< $(RUN_OPTIONS)
 	-(cd Output/tc-$(RUN_TYPE); cat $(LOCAL_OUTPUTS)) > $@
 	-cp Output/tc-$(RUN_TYPE)/$(STDOUT_FILENAME).time $@.time
-$(PROGRAMS_TO_TEST:%=Output/%.tco.out): \
-Output/%.tco.out: Output/%.tco
+$(PROGRAMS_TO_TEST:%=Output/%.out-tco): \
+Output/%.out-tco: Output/%.tco
 	-$(SPEC_SANDBOX) tco-$(RUN_TYPE) $@ $(REF_IN_DIR) \
              $(RUNSAFELY) $(STDIN_FILENAME) $(STDOUT_FILENAME) \
                   ../../$< $(RUN_OPTIONS)
 	-(cd Output/tco-$(RUN_TYPE); cat $(LOCAL_OUTPUTS)) > $@
 	-cp Output/tco-$(RUN_TYPE)/$(STDOUT_FILENAME).time $@.time
-$(PROGRAMS_TO_TEST:%=Output/%.tcoo.out): \
-Output/%.tcoo.out: Output/%.tcoo
+$(PROGRAMS_TO_TEST:%=Output/%.out-tcoo): \
+Output/%.out-tcoo: Output/%.tcoo
 	-$(SPEC_SANDBOX) tcoo-$(RUN_TYPE) $@ $(REF_IN_DIR) \
              $(RUNSAFELY) $(STDIN_FILENAME) $(STDOUT_FILENAME) \
                   ../../$< $(RUN_OPTIONS)
 	-(cd Output/tcoo-$(RUN_TYPE); cat $(LOCAL_OUTPUTS)) > $@
 	-cp Output/tcoo-$(RUN_TYPE)/$(STDOUT_FILENAME).time $@.time
-$(PROGRAMS_TO_TEST:%=Output/%.count.out): \
-Output/%.count.out: Output/%.count
+$(PROGRAMS_TO_TEST:%=Output/%.out-count): \
+Output/%.out-count: Output/%.count
 	-$(SPEC_SANDBOX) count-$(RUN_TYPE) $@ $(REF_IN_DIR) \
              $(RUNSAFELY) $(STDIN_FILENAME) $(STDOUT_FILENAME) \
                   ../../$< $(RUN_OPTIONS)
 	-(cd Output/count-$(RUN_TYPE); cat $(LOCAL_OUTPUTS)) > $@
 	-cp Output/count-$(RUN_TYPE)/$(STDOUT_FILENAME).time $@.time
 	-cp Output/count-$(RUN_TYPE)/lsstats lsstats2
-$(PROGRAMS_TO_TEST:%=Output/%.count1.out): \
-Output/%.count1.out: Output/%.count1
+$(PROGRAMS_TO_TEST:%=Output/%.out-count1): \
+Output/%.out-count1: Output/%.count1
 	-$(SPEC_SANDBOX) count1-$(RUN_TYPE) $@ $(REF_IN_DIR) \
              $(RUNSAFELY) $(STDIN_FILENAME) $(STDOUT_FILENAME) \
                   ../../$< $(RUN_OPTIONS)
@@ -199,51 +199,37 @@ Output/%.count1.out: Output/%.count1
 
 endif
 
-$(PROGRAMS_TO_TEST:%=Output/%.opt.diff-opt): \
-Output/%.opt.diff-opt: Output/%.out-nat Output/%.opt.out
-	@cp Output/$*.out-nat Output/$*.opt.out-nat
-	@cp Output/$*.opt.out Output/$*.opt.out-opt
-	-$(DIFFPROG) opt $*.opt $(HIDEDIFF)
+$(PROGRAMS_TO_TEST:%=Output/%.diff-opt): \
+Output/%.diff-opt: Output/%.out-nat Output/%.out-opt
+	-$(DIFFPROG) opt $* $(HIDEDIFF)
 
-$(PROGRAMS_TO_TEST:%=Output/%.tc.diff-tc): \
-Output/%.tc.diff-tc: Output/%.out-nat Output/%.tc.out
-	@cp Output/$*.out-nat Output/$*.tc.out-nat
-	@cp Output/$*.tc.out Output/$*.tc.out-tc
-	-$(DIFFPROG) tc $*.tc $(HIDEDIFF)
+$(PROGRAMS_TO_TEST:%=Output/%.diff-tc): \
+Output/%.diff-tc: Output/%.out-nat Output/%.out-tc
+	-$(DIFFPROG) tc $* $(HIDEDIFF)
 
-$(PROGRAMS_TO_TEST:%=Output/%.tco.diff-tco): \
-Output/%.tco.diff-tco: Output/%.out-nat Output/%.tco.out
-	@cp Output/$*.out-nat Output/$*.tco.out-nat
-	@cp Output/$*.tco.out Output/$*.tco.out-tco
-	-$(DIFFPROG) tco $*.tco $(HIDEDIFF)
+$(PROGRAMS_TO_TEST:%=Output/%.diff-tco): \
+Output/%.diff-tco: Output/%.out-nat Output/%.out-tco
+	-$(DIFFPROG) tco $* $(HIDEDIFF)
 
-$(PROGRAMS_TO_TEST:%=Output/%.tcoo.diff-tcoo): \
-Output/%.tcoo.diff-tcoo: Output/%.out-nat Output/%.tcoo.out
-	@cp Output/$*.out-nat Output/$*.tcoo.out-nat
-	@cp Output/$*.tcoo.out Output/$*.tcoo.out-tcoo
-	-$(DIFFPROG) tcoo $*.tcoo $(HIDEDIFF)
+$(PROGRAMS_TO_TEST:%=Output/%.diff-tcoo): \
+Output/%.diff-tcoo: Output/%.out-nat Output/%.out-tcoo
+	-$(DIFFPROG) tcoo $* $(HIDEDIFF)
 
-$(PROGRAMS_TO_TEST:%=Output/%.llvm1.diff-llvm1): \
-Output/%.llvm1.diff-llvm1: Output/%.out-nat Output/%.llvm1.out
-	@cp Output/$*.out-nat Output/$*.llvm1.out-nat
-	@cp Output/$*.llvm1.out Output/$*.llvm1.out-llvm1
-	-$(DIFFPROG) llvm1 $*.llvm1 $(HIDEDIFF)
+$(PROGRAMS_TO_TEST:%=Output/%.diff-llvm1): \
+Output/%.diff-llvm1: Output/%.out-nat Output/%.out-llvm1
+	-$(DIFFPROG) llvm1 $* $(HIDEDIFF)
 
-$(PROGRAMS_TO_TEST:%=Output/%.count.diff-count): \
-Output/%.count.diff-count: Output/%.out-nat Output/%.count.out
-	@cp Output/$*.out-nat Output/$*.count.out-nat
-	@cp Output/$*.count.out Output/$*.count.out-count
-	-$(DIFFPROG) count $*.count $(HIDEDIFF)
+$(PROGRAMS_TO_TEST:%=Output/%.diff-count): \
+Output/%.diff-count: Output/%.out-nat Output/%.out-count
+	-$(DIFFPROG) count $* $(HIDEDIFF)
 
-$(PROGRAMS_TO_TEST:%=Output/%.count1.diff-count1): \
-Output/%.count1.diff-count1: Output/%.out-nat Output/%.count1.out
-	@cp Output/$*.out-nat Output/$*.count1.out-nat
-	@cp Output/$*.count1.out Output/$*.count1.out-count1
-	-$(DIFFPROG) count1 $*.count1 $(HIDEDIFF)
+$(PROGRAMS_TO_TEST:%=Output/%.diff-count1): \
+Output/%.diff-count1: Output/%.out-nat Output/%.out-count1
+	-$(DIFFPROG) count1 $* $(HIDEDIFF)
 
 
 $(PROGRAMS_TO_TEST:%=Output/%.$(TEST).report.txt): \
-Output/%.$(TEST).report.txt: Output/%.opt.bc Output/%.LOC.txt $(LOPT) Output/%.out-nat Output/%.llvm1.diff-llvm1 Output/%.opt.diff-opt Output/%.tc.diff-tc Output/%.tco.diff-tco Output/%.tcoo.diff-tcoo Output/%.count.diff-count Output/%.count1.diff-count1
+Output/%.$(TEST).report.txt: Output/%.opt.bc Output/%.LOC.txt $(LOPT) Output/%.out-nat Output/%.diff-llvm1 Output/%.diff-opt Output/%.diff-tc Output/%.diff-tco Output/%.diff-tcoo Output/%.diff-count Output/%.diff-count1
 	@# Gather data
 	-($(RUNOPT)  -dsa-$(PASS) -enable-type-inference-opts -dsa-stdlib-no-fold $(ANALYZE_OPTS) $<)> $@.time.1 2>&1
 	-($(RUNOPT)  -dsa-$(PASS)  $(ANALYZE_OPTS) $<)> $@.time.2 2>&1
@@ -337,21 +323,21 @@ Output/%.$(TEST).report.txt: Output/%.opt.bc Output/%.LOC.txt $(LOPT) Output/%.o
 	-@grep '  Top-down Data Structure' $@.time.1 >> $@
 	@echo >> $@
 	@# Emit runtime data.
-	@-if test -f Output/$*.opt.diff-opt; then \
+	@-if test -f Output/$*.diff-opt; then \
 	  printf "OPT-RUN_TIME: " >> $@;\
-	  grep 'program' Output/$*.opt.out.time >> $@;\
+	  grep 'program' Output/$*.out-opt.time >> $@;\
 	fi
-	@-if test -f Output/$*.tc.diff-tc; then \
+	@-if test -f Output/$*.diff-tc; then \
 	  printf "TC-RUN_TIME: " >> $@;\
-	  grep 'program' Output/$*.tc.out.time >> $@;\
+	  grep 'program' Output/$*.out-tc.time >> $@;\
 	fi
-	@-if test -f Output/$*.tco.diff-tco; then \
+	@-if test -f Output/$*.diff-tco; then \
 	  printf "TCO-RUN_TIME: " >> $@;\
-	  grep 'program' Output/$*.tco.out.time >> $@;\
+	  grep 'program' Output/$*.out-tco.time >> $@;\
 	fi
-	@-if test -f Output/$*.tcoo.diff-tcoo; then \
+	@-if test -f Output/$*.diff-tcoo; then \
 	  printf "TCOO-RUN_TIME: " >> $@;\
-	  grep 'program' Output/$*.tcoo.out.time >> $@;\
+	  grep 'program' Output/$*.out-tcoo.time >> $@;\
 	fi
 	@# Emit AssistDS stats
 	@/bin/echo -n "CLONED_FUNCSPEC: " >> $@
