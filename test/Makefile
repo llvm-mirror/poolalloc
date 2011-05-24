@@ -41,6 +41,7 @@ LARGE_PROBLEM_SIZE_DIRS := \
 NORMAL_PROBLEM_SIZE_DIRS := \
    MultiSource/Benchmarks/Olden \
    External/SPEC/CINT2000/ \
+   External/SPEC/CINT2006/ \
    #External/SPEC/CINT2000/164.gzip \
    #External/SPEC/CINT2000/175.vpr \
    #External/SPEC/CINT2000/176.gcc \
