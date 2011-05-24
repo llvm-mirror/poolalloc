@@ -202,74 +202,75 @@ endif
 
 # This rule diffs the post-poolallocated version to make sure we didn't break
 # the program!
-$(PROGRAMS_TO_TEST:%=Output/%.poolalloc.diff-nat): \
-Output/%.poolalloc.diff-nat: Output/%.out-nat Output/%.poolalloc.out
+$(PROGRAMS_TO_TEST:%=Output/%.poolalloc.diff-pa): \
+Output/%.poolalloc.diff-pa: Output/%.out-nat Output/%.poolalloc.out
 	@cp Output/$*.out-nat Output/$*.poolalloc.out-nat
-	-$(DIFFPROG) nat $*.poolalloc $(HIDEDIFF)
+	@cp Output/$*.poolalloc.out Output/$*.poolalloc.out-pa
+	-$(DIFFPROG) pa $*.poolalloc $(HIDEDIFF)
 
-$(PROGRAMS_TO_TEST:%=Output/%.basepa.diff-nat): \
-Output/%.basepa.diff-nat: Output/%.out-nat Output/%.basepa.out
+$(PROGRAMS_TO_TEST:%=Output/%.basepa.diff-basepa): \
+Output/%.basepa.diff-basepa: Output/%.out-nat Output/%.basepa.out
 	@cp Output/$*.out-nat Output/$*.basepa.out-nat
-	-$(DIFFPROG) nat $*.basepa $(HIDEDIFF)
+	@cp Output/$*.basepa.out Output/$*.basepa.out-basepa
+	-$(DIFFPROG) basepa $*.basepa $(HIDEDIFF)
 
-$(PROGRAMS_TO_TEST:%=Output/%.mallocrepl.diff-nat): \
-Output/%.mallocrepl.diff-nat: Output/%.out-nat Output/%.mallocrepl.out
+$(PROGRAMS_TO_TEST:%=Output/%.mallocrepl.diff-mr): \
+Output/%.mallocrepl.diff-mr: Output/%.out-nat Output/%.mallocrepl.out
 	@cp Output/$*.out-nat Output/$*.mallocrepl.out-nat
-	-$(DIFFPROG) nat $*.mallocrepl $(HIDEDIFF)
+	@cp Output/$*.mallocrepl.out Output/$*.mallocrepl.out-mr
+	-$(DIFFPROG) mr $*.mallocrepl $(HIDEDIFF)
 
-$(PROGRAMS_TO_TEST:%=Output/%.onlyoverhead.diff-nat): \
-Output/%.onlyoverhead.diff-nat: Output/%.out-nat Output/%.onlyoverhead.out
+$(PROGRAMS_TO_TEST:%=Output/%.onlyoverhead.diff-oo): \
+Output/%.onlyoverhead.diff-oo: Output/%.out-nat Output/%.onlyoverhead.out
 	@cp Output/$*.out-nat Output/$*.onlyoverhead.out-nat
-	-$(DIFFPROG) nat $*.onlyoverhead $(HIDEDIFF)
+	@cp Output/$*.onlyoverhead.out Output/$*.onlyoverhead.out-oo
+	-$(DIFFPROG) oo $*.onlyoverhead $(HIDEDIFF)
 
-$(PROGRAMS_TO_TEST:%=Output/%.nonpa.diff-nat): \
-Output/%.nonpa.diff-nat: Output/%.out-nat Output/%.nonpa.out
+$(PROGRAMS_TO_TEST:%=Output/%.nonpa.diff-nonpa): \
+Output/%.nonpa.diff-nonpa: Output/%.out-nat Output/%.nonpa.out
 	@cp Output/$*.out-nat Output/$*.nonpa.out-nat
-	-$(DIFFPROG) nat $*.nonpa $(HIDEDIFF)
+	@cp Output/$*.nonpa.out Output/$*.nonpa.out-nonpa
+	-$(DIFFPROG) nonpa $*.nonpa $(HIDEDIFF)
 
 
 # This rule wraps everything together to build the actual output the report is
 # generated from.
 $(PROGRAMS_TO_TEST:%=Output/%.$(TEST).report.txt): \
 Output/%.$(TEST).report.txt: Output/%.out-nat                \
-                             Output/%.nonpa.diff-nat         \
-			     Output/%.poolalloc.diff-nat     \
-			     Output/%.basepa.diff-nat      \
-			     Output/%.mallocrepl.diff-nat    \
-			     Output/%.onlyoverhead.diff-nat  \
+                             Output/%.nonpa.diff-nonpa         \
+			     Output/%.poolalloc.diff-pa     \
+			     Output/%.basepa.diff-basepa      \
+			     Output/%.mallocrepl.diff-mr    \
+			     Output/%.onlyoverhead.diff-oo  \
                              Output/%.LOC.txt
 	@echo > $@
 	@echo "---------------------------------------------------------------" >> $@
 	@echo ">>> ========= '$(RELDIR)/$*' Program" >> $@
 	@echo "---------------------------------------------------------------" >> $@
 	@echo >> $@
-	@-if test -f Output/$*.nonpa.diff-nat; then \
+	@-if test -f Output/$*.nonpa.diff-nonpa; then \
 	  printf "GCC-RUN-TIME: " >> $@;\
 	  grep "^program" Output/$*.out-nat.time >> $@;\
         fi
-	@-if test -f Output/$*.nonpa.diff-nat; then \
+	@-if test -f Output/$*.nonpa.diff-nonpa; then \
 	  printf "RUN-TIME-NORMAL: " >> $@;\
 	  grep "^program" Output/$*.nonpa.out.time >> $@;\
         fi
-	@-if test -f Output/$*.mallocrepl.diff-nat; then \
+	@-if test -f Output/$*.mallocrepl.diff-mr; then \
 	  printf "RUN-TIME-MALLOCREPL: " >> $@;\
 	  grep "^program" Output/$*.mallocrepl.out.time >> $@;\
         fi
-	@-if test -f Output/$*.onlyoverhead.diff-nat; then \
+	@-if test -f Output/$*.onlyoverhead.diff-oo; then \
 	  printf "RUN-TIME-ONLYOVERHEAD: " >> $@;\
 	  grep "^program" Output/$*.onlyoverhead.out.time >> $@;\
         fi
-	@-if test -f Output/$*.basepa.diff-nat; then \
+	@-if test -f Output/$*.basepa.diff-basepa; then \
 	  printf "RUN-TIME-BASEPA: " >> $@;\
 	  grep "^program" Output/$*.basepa.out.time >> $@;\
         fi
-	@-if test -f Output/$*.poolalloc.diff-nat; then \
+	@-if test -f Output/$*.poolalloc.diff-pa; then \
 	  printf "RUN-TIME-POOLALLOC: " >> $@;\
 	  grep "^program" Output/$*.poolalloc.out.time >> $@;\
-	fi
-	@-if test -f Output/$*.poolalloc.diff-nat; then \
-	  printf "DYNPOOLS: " >> $@;\
-	  grep '*** .* DYNAMIC POOLS ALLOCATED FROM ***' Output/$*.poolalloc.out >> $@;\
 	fi
 	@-if test -f Output/$*.poolalloc.bc.info; then \
 	  printf "PATIME: " >> $@;\
