@@ -205,6 +205,7 @@ class PoolAllocate : public PoolAllocateGroup {
   Module *CurModule;
 
   // FIXME: Where is this used?  Why isn't DSCallGraph used directly?
+  // TransformFunction should potentially use this.
   dsa::CallTargetFinder<EQTDDataStructures>* CTF;
   
   // Map a cloned function to its original function
