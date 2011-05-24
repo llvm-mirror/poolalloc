@@ -32,6 +32,7 @@
 
 #include "dsa/DataStructure.h"
 #include "dsa/DSGraph.h"
+#include "dsa/CallTargets.h"
 #include "poolalloc/Config/config.h"
 #include "poolalloc/Heuristic.h"
 
@@ -42,7 +43,6 @@ class DSNode;
 class DSGraph;
 class Type;
 class AllocaInst;
-class CallTargetFinder;
 
 namespace PA {
 
@@ -205,7 +205,7 @@ class PoolAllocate : public PoolAllocateGroup {
   Module *CurModule;
 
   // FIXME: Where is this used?  Why isn't DSCallGraph used directly?
-  CallTargetFinder* CTF;
+  dsa::CallTargetFinder<EQTDDataStructures>* CTF;
   
   // Map a cloned function to its original function
   std::map<const Function*, Function*> CloneToOrigMap;
