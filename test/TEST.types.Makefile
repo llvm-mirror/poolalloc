@@ -13,9 +13,6 @@ RELDIR  := $(subst $(PROJ_OBJ_ROOT),,$(PROJ_OBJ_DIR))
 # Pathname to poolalloc object tree
 PADIR   := $(LLVM_OBJ_ROOT)/projects/poolalloc
 
-# Bits of runtime to improve analysis
-PA_PRE_RT := $(PADIR)/$(CONFIGURATION)/lib/libpa_pre_rt.bca
-
 # Pathame to the DSA pass dynamic library
 DSA_SO   := $(PADIR)/$(CONFIGURATION)/lib/libLLVMDataStructure$(SHLIBEXT)
 ASSIST_SO := $(PADIR)/$(CONFIGURATION)/lib/libAssistDS$(SHLIBEXT)
@@ -35,7 +32,7 @@ ANALYZE_OPTS +=  -instcount -disable-verify
 MEM := -track-memory -time-passes -disable-output
 
 #SAFE_OPTS := -internalize -scalarrepl -deadargelim -globaldce -basiccg -inline 
-SAFE_OPTS := -internalize  -deadargelim -globaldce -basiccg -inline  
+SAFE_OPTS := -internalize  -deadargelim -globaldce -basiccg -inline
 #SAFE_OPTS := -internalize   -deadargelim -globaldce 
 
 $(PROGRAMS_TO_TEST:%=Output/%.linked1.bc): \
@@ -45,10 +42,6 @@ Output/%.linked1.bc: Output/%.linked.rbc $(LOPT)
 $(PROGRAMS_TO_TEST:%=Output/%.llvm1.bc): \
 Output/%.llvm1.bc: Output/%.linked1.bc $(LLVM_LDDPROG)
 	-$(RUNTOOLSAFELY) $(LLVMLD) -disable-opt $(SAFE_OPTS) -info-output-file=$(CURDIR)/$@.info -stats -time-passes  $(LLVMLD_FLAGS) $< -lc $(LIBS) -o Output/$*.llvm1
-
-$(PROGRAMS_TO_TEST:%=Output/%.temp1.bc): \
-Output/%.temp1.bc: Output/%.llvm1.bc 
-	-$(RUNTOOLSAFELY) $(LLVMLD) -disable-opt $(SAFE_OPTS) -link-as-library $< $(PA_PRE_RT) -o $@
 
 $(PROGRAMS_TO_TEST:%=Output/%.opt.bc): \
 Output/%.opt.bc: Output/%.llvm1.bc $(LOPT) $(ASSIST_SO)
@@ -206,50 +199,51 @@ Output/%.count1.out: Output/%.count1
 
 endif
 
-$(PROGRAMS_TO_TEST:%=Output/%.opt.diff-nat): \
-Output/%.opt.diff-nat: Output/%.out-nat Output/%.opt.out
+$(PROGRAMS_TO_TEST:%=Output/%.opt.diff-opt): \
+Output/%.opt.diff-opt: Output/%.out-nat Output/%.opt.out
 	@cp Output/$*.out-nat Output/$*.opt.out-nat
-	@cp Output/$*.opt.out Output/$*.tco.out-opt
+	@cp Output/$*.opt.out Output/$*.opt.out-opt
 	-$(DIFFPROG) opt $*.opt $(HIDEDIFF)
 
-$(PROGRAMS_TO_TEST:%=Output/%.tc.diff-nat): \
-Output/%.tc.diff-nat: Output/%.out-nat Output/%.tc.out
+$(PROGRAMS_TO_TEST:%=Output/%.tc.diff-tc): \
+Output/%.tc.diff-tc: Output/%.out-nat Output/%.tc.out
 	@cp Output/$*.out-nat Output/$*.tc.out-nat
-	@cp Output/$*.tc.out Output/$*.tco.out-tc
+	@cp Output/$*.tc.out Output/$*.tc.out-tc
 	-$(DIFFPROG) tc $*.tc $(HIDEDIFF)
 
-$(PROGRAMS_TO_TEST:%=Output/%.tco.diff-nat): \
-Output/%.tco.diff-nat: Output/%.out-nat Output/%.tco.out
+$(PROGRAMS_TO_TEST:%=Output/%.tco.diff-tco): \
+Output/%.tco.diff-tco: Output/%.out-nat Output/%.tco.out
 	@cp Output/$*.out-nat Output/$*.tco.out-nat
 	@cp Output/$*.tco.out Output/$*.tco.out-tco
 	-$(DIFFPROG) tco $*.tco $(HIDEDIFF)
 
-$(PROGRAMS_TO_TEST:%=Output/%.tcoo.diff-nat): \
-Output/%.tcoo.diff-nat: Output/%.out-nat Output/%.tcoo.out
+$(PROGRAMS_TO_TEST:%=Output/%.tcoo.diff-tcoo): \
+Output/%.tcoo.diff-tcoo: Output/%.out-nat Output/%.tcoo.out
 	@cp Output/$*.out-nat Output/$*.tcoo.out-nat
-	@cp Output/$*.tcoo.out Output/$*.tco.out-tcoo
+	@cp Output/$*.tcoo.out Output/$*.tcoo.out-tcoo
 	-$(DIFFPROG) tcoo $*.tcoo $(HIDEDIFF)
 
-$(PROGRAMS_TO_TEST:%=Output/%.llvm1.diff-nat): \
-Output/%.llvm1.diff-nat: Output/%.out-nat Output/%.llvm1.out
+$(PROGRAMS_TO_TEST:%=Output/%.llvm1.diff-llvm1): \
+Output/%.llvm1.diff-llvm1: Output/%.out-nat Output/%.llvm1.out
 	@cp Output/$*.out-nat Output/$*.llvm1.out-nat
 	@cp Output/$*.llvm1.out Output/$*.llvm1.out-llvm1
 	-$(DIFFPROG) llvm1 $*.llvm1 $(HIDEDIFF)
 
-$(PROGRAMS_TO_TEST:%=Output/%.count.diff-nat): \
-Output/%.count.diff-nat: Output/%.out-nat Output/%.count.out
+$(PROGRAMS_TO_TEST:%=Output/%.count.diff-count): \
+Output/%.count.diff-count: Output/%.out-nat Output/%.count.out
 	@cp Output/$*.out-nat Output/$*.count.out-nat
-	@cp Output/$*.count.out Output/$*.llvm1.out-count
+	@cp Output/$*.count.out Output/$*.count.out-count
 	-$(DIFFPROG) count $*.count $(HIDEDIFF)
-$(PROGRAMS_TO_TEST:%=Output/%.count1.diff-nat): \
-Output/%.count1.diff-nat: Output/%.out-nat Output/%.count1.out
+
+$(PROGRAMS_TO_TEST:%=Output/%.count1.diff-count1): \
+Output/%.count1.diff-count1: Output/%.out-nat Output/%.count1.out
 	@cp Output/$*.out-nat Output/$*.count1.out-nat
-	@cp Output/$*.count1.out Output/$*.llvm1.out-count1
+	@cp Output/$*.count1.out Output/$*.count1.out-count1
 	-$(DIFFPROG) count1 $*.count1 $(HIDEDIFF)
 
 
 $(PROGRAMS_TO_TEST:%=Output/%.$(TEST).report.txt): \
-Output/%.$(TEST).report.txt: Output/%.opt.bc Output/%.LOC.txt $(LOPT) Output/%.out-nat Output/%.llvm1.diff-nat Output/%.opt.diff-nat Output/%.tc.diff-nat Output/%.tco.diff-nat Output/%.tcoo.diff-nat
+Output/%.$(TEST).report.txt: Output/%.opt.bc Output/%.LOC.txt $(LOPT) Output/%.out-nat Output/%.llvm1.diff-llvm1 Output/%.opt.diff-opt Output/%.tc.diff-tc Output/%.tco.diff-tco Output/%.tcoo.diff-tcoo Output/%.count.diff-count Output/%.count1.diff-count1
 	@# Gather data
 	-($(RUNOPT)  -dsa-$(PASS) -enable-type-inference-opts -dsa-stdlib-no-fold $(ANALYZE_OPTS) $<)> $@.time.1 2>&1
 	-($(RUNOPT)  -dsa-$(PASS)  $(ANALYZE_OPTS) $<)> $@.time.2 2>&1
@@ -343,19 +337,19 @@ Output/%.$(TEST).report.txt: Output/%.opt.bc Output/%.LOC.txt $(LOPT) Output/%.o
 	-@grep '  Top-down Data Structure' $@.time.1 >> $@
 	@echo >> $@
 	@# Emit runtime data.
-	@-if test -f Output/$*.opt.diff-nat; then \
+	@-if test -f Output/$*.opt.diff-opt; then \
 	  printf "OPT-RUN_TIME: " >> $@;\
 	  grep 'program' Output/$*.opt.out.time >> $@;\
 	fi
-	@-if test -f Output/$*.tc.diff-nat; then \
+	@-if test -f Output/$*.tc.diff-tc; then \
 	  printf "TC-RUN_TIME: " >> $@;\
 	  grep 'program' Output/$*.tc.out.time >> $@;\
 	fi
-	@-if test -f Output/$*.tco.diff-nat; then \
+	@-if test -f Output/$*.tco.diff-tco; then \
 	  printf "TCO-RUN_TIME: " >> $@;\
 	  grep 'program' Output/$*.tco.out.time >> $@;\
 	fi
-	@-if test -f Output/$*.tcoo.diff-nat; then \
+	@-if test -f Output/$*.tcoo.diff-tcoo; then \
 	  printf "TCOO-RUN_TIME: " >> $@;\
 	  grep 'program' Output/$*.tcoo.out.time >> $@;\
 	fi
