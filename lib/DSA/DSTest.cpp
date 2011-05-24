@@ -9,15 +9,16 @@
 //
 // This defines various commandline options to DSA to help in regression tests.
 // These options are:
-// -print-node-for-value=<list>   Print the DSNodes for the given values
-//   -print-only-flags              Only print Flags for the given values
-//   -print-only-values             Only print the values pointed to by the given values
-//   -print-only-types              Only print the types for the given values
-// -check-same-node=<list>        Verify the given values' nodes were merged.
-// -check-not-same-node=<list>    Verify the given values' nodes weren't merged.
-// -check-type=<list>,type        Verify the given nodes have the given type
-// -check-callees=caller,<list>   Verify the given caller has the following callees
-// -verify-flags=<list>           Verify the given values match the flag specifications.
+// -print-node-for-value=<list>     Print the DSNodes for the given values
+//   -print-only-flags                Only print Flags for the given values
+//   -print-only-values               Only print the values pointed to by the given values
+//   -print-only-types                Only print the types for the given values
+// -check-same-node=<list>          Verify the given values' nodes were merged.
+// -check-not-same-node=<list>      Verify the given values' nodes weren't merged.
+// -check-type=<list>,type          Verify the given nodes have the given type
+// -check-callees=caller,<list>     Verify the given caller has the following callees
+// -check-not-callees=caller,<list> Verify the given caller does not have the following callees
+// -verify-flags=<list>             Verify the given values match the flag specifications.
 //
 // In general a 'value' query on the DSA results looks like this:
 // graph:value[:offset]*
@@ -67,6 +68,9 @@ namespace {
       cl::CommaSeparated, cl::ReallyHidden);
   // For first function, verify that it calls the other functions
   cl::list<std::string> CheckCallees("check-callees",
+      cl::CommaSeparated, cl::ReallyHidden);
+  // For first function, verify that it does not call the other functions
+  cl::list<std::string> CheckNotCallees("check-not-callees",
       cl::CommaSeparated, cl::ReallyHidden);
 }
 
@@ -552,8 +556,55 @@ static bool verifyFlags(llvm::raw_ostream &O, const Module *M,
   }
   return false;
 }
+/// checkNotCallees -- Verify non-callees for the given function
+/// Returns true iff the user specified anything for this option
+///
+/// checks that the first function does not callsthe rest of the
+/// functions in the list
+static bool checkNotCallees(llvm::raw_ostream &O, const Module *M,
+                         const DataStructures *DS) {
+  //Mangled names must be provided for C++
+  cl::list<std::string>::iterator I = CheckNotCallees.begin(),
+                                  E = CheckNotCallees.end();
 
-/// checkCallees -- Verify callees for the given functions
+  if(I != E) {
+    std::string &func = *(I);
+    Function *caller = M->getFunction(func);
+    assert(caller && "Function not found in module");
+    const DSCallGraph callgraph = DS->getCallGraph();
+    ++I;
+    while(I != E ) {
+      std::string &func = *(I);
+      const Function *callee = M->getFunction(func);
+      bool found = false;
+      Function const*leader = callgraph.sccLeader(&*caller);
+
+      // either the callee is in the same SCC as the caller, and hence does not show up
+      for(DSCallGraph::scc_iterator sccii = callgraph.scc_begin(leader),
+          sccee = callgraph.scc_end(leader); sccii != sccee; ++sccii) {
+        if(callee == *sccii)
+          found = true;
+      }
+      // or the callee is found in the DSCallGraph
+      for(DSCallGraph::flat_iterator CI = callgraph.flat_callee_begin(caller);
+          CI != callgraph.flat_callee_end(caller); CI ++) {
+        if (callee == *CI)
+          found = true;
+        for(DSCallGraph::scc_iterator sccii = callgraph.scc_begin(*CI),
+            sccee = callgraph.scc_end(*CI); sccii != sccee; ++sccii) {
+          if(callee == *sccii)
+            found = true;
+        }
+      }
+      assert(!found && "non-callee in call graph");
+      ++I;
+    }
+    return true;
+  }
+  return false;
+}
+
+/// checkCallees -- Verify callees for the given function
 /// Returns true iff the user specified anything for this option
 ///
 /// checks that the first function calls the rest of the
@@ -563,41 +614,41 @@ static bool checkCallees(llvm::raw_ostream &O, const Module *M,
 
   //Mangled names must be provided for C++
   cl::list<std::string>::iterator I = CheckCallees.begin(),
-                                  E = CheckCallees.end();
+  E = CheckCallees.end();
   // If the user specified that a set of values should be in the same node...
   if (I != E) {
+    std::string &func = *(I);
+    Function *caller = M->getFunction(func);
+    assert(caller && "Function not found in module");
+    const DSCallGraph callgraph = DS->getCallGraph();
+    //(const_cast<DSCallGraph&>(callgraph)).dump();
+    ++I;
+    while(I != E ){
       std::string &func = *(I);
-      Function *caller = M->getFunction(func);
-      assert(caller && "Function not found in module");
-      const DSCallGraph callgraph = DS->getCallGraph();
-      //(const_cast<DSCallGraph&>(callgraph)).dump();
-      ++I;
-      while(I != E ){
-        std::string &func = *(I);
-        const Function *callee = M->getFunction(func);
-        bool found = false;
-        Function const*leader = callgraph.sccLeader(&*caller);
+      const Function *callee = M->getFunction(func);
+      bool found = false;
+      Function const*leader = callgraph.sccLeader(&*caller);
 
-        // either the callee is in the same SCC as the caller, and hence does not show up
-        for(DSCallGraph::scc_iterator sccii = callgraph.scc_begin(leader),
-           sccee = callgraph.scc_end(leader); sccii != sccee; ++sccii) {
-           if(callee == *sccii)
-             found = true;
-        }
-        // or the callee is found in the DSCallGraph
-        for(DSCallGraph::flat_iterator CI = callgraph.flat_callee_begin(caller);
-              CI != callgraph.flat_callee_end(caller); CI ++) {
-          if (callee == *CI)
-             found = true;
-          for(DSCallGraph::scc_iterator sccii = callgraph.scc_begin(*CI),
-                sccee = callgraph.scc_end(*CI); sccii != sccee; ++sccii) {
-             if(callee == *sccii)
-             found = true;
-          }
-        }
-        assert(found && "callee not in call graph");
-        ++I;
+      // either the callee is in the same SCC as the caller, and hence does not show up
+      for(DSCallGraph::scc_iterator sccii = callgraph.scc_begin(leader),
+          sccee = callgraph.scc_end(leader); sccii != sccee; ++sccii) {
+        if(callee == *sccii)
+          found = true;
       }
+      // or the callee is found in the DSCallGraph
+      for(DSCallGraph::flat_iterator CI = callgraph.flat_callee_begin(caller);
+          CI != callgraph.flat_callee_end(caller); CI ++) {
+        if (callee == *CI)
+          found = true;
+        for(DSCallGraph::scc_iterator sccii = callgraph.scc_begin(*CI),
+            sccee = callgraph.scc_end(*CI); sccii != sccee; ++sccii) {
+          if(callee == *sccii)
+            found = true;
+        }
+      }
+      assert(found && "callee not in call graph");
+      ++I;
+    }
     return true;
   }
   return false;
@@ -616,6 +667,7 @@ bool DataStructures::handleTest(llvm::raw_ostream &O, const Module *M) const {
   tested |= verifyFlags(O,M,this);
   tested |= checkTypes(O,M,this);
   tested |= checkCallees(O,M,this);
+  tested |= checkNotCallees(O,M,this);
 
   return tested;
 }
