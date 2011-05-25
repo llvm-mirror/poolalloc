@@ -103,13 +103,15 @@ bool TypeChecks::runOnModule(Module &M) {
   std::vector<Function *> toProcess;
   for (Module::iterator MI = M.begin(), ME = M.end(); MI != ME; ++MI) {
     Function &F = *MI;
+    if(F.isDeclaration())
+      continue;
+    // record all the original functions in the program
     toProcess.push_back(&F);
 
     // Loop over all of the instructions in the function, 
     // adding their return type as well as the types of their operands.
     for (inst_iterator II = inst_begin(F), IE = inst_end(F); II != IE; ++II) {
       Instruction &I = *II;
-
       if (StoreInst *SI = dyn_cast<StoreInst>(&I)) {
         if (TA->isCopyingStore(SI)) {
           Value *SS = TA->getStoreSource(SI);
@@ -133,15 +135,13 @@ bool TypeChecks::runOnModule(Module &M) {
     }
   }
 
-  // Record types for byval arguments.
-
   while(!toProcess.empty()) {
     Function *F = toProcess.back();
     toProcess.pop_back();
-    if(F->isDeclaration())
-      continue;
     modified |= visitByValFunction(M, *F);
-    modified |= visitVarArgFunction(M, *F);
+    if(F->isVarArg()) {
+      modified |= visitVarArgFunction(M, *F);
+    }
   }
 
   numTypes += UsedTypes.size();
@@ -152,23 +152,40 @@ bool TypeChecks::runOnModule(Module &M) {
 // Transform Variable Argument functions, by also passing
 // the relavant metadata info
 bool
-  TypeChecks::visitVarArgFunction(Module &M, Function &F) {
-    if(!F.isVarArg())
-      return false;
-
-    if(F.hasInternalLinkage()) {
-      visitInternalVarArgFunction(M, F);
-    } else {
-      // create internal clone
-      Function *F_clone = CloneFunction(&F);
-      F_clone->setName(F.getNameStr() + "internal");
-      F.setLinkage(GlobalValue::InternalLinkage);
-      F.getParent()->getFunctionList().push_back(F_clone);
-      F.replaceAllUsesWith(F_clone);
-      visitInternalVarArgFunction(M, *F_clone);
-    }
-    return true;
+TypeChecks::visitVarArgFunction(Module &M, Function &F) {
+  if(F.hasInternalLinkage()) {
+    return visitInternalVarArgFunction(M, F);
   }
+    
+  // create internal clone
+  Function *F_clone = CloneFunction(&F);
+  F_clone->setName(F.getNameStr() + "internal");
+  F.setLinkage(GlobalValue::InternalLinkage);
+  F.getParent()->getFunctionList().push_back(F_clone);
+  F.replaceAllUsesWith(F_clone);
+  return visitInternalVarArgFunction(M, *F_clone);
+  return true;
+}
+
+// each vararg function is modified so that the first
+// va_arg is the number of arguments in the va_list,
+// and the second is a pointer to a metadata array, 
+// containing type information for each of the arguments
+// in the va_list.
+
+// These are read and stored on a call to va_start.
+// There can be multiple calls to va_start in a given
+// function, which is why these are stored in memory
+
+// We keep a counter for the number of arguments accessed
+// from the va_list(Counter). It is incremented and 
+// checked on every va_arg access. It is initialized to zero.
+// It is also reset to zero on a call to va_start.
+
+// Similiarly we check type on every va_arg access.
+
+// Aside from this, this function also transforms all
+// callsites of the var_arg function.
 
 bool 
 TypeChecks::visitInternalVarArgFunction(Module &M, Function &F) {
@@ -177,9 +194,6 @@ TypeChecks::visitInternalVarArgFunction(Module &M, Function &F) {
 
   AllocaInst *VASizeLoc = new AllocaInst(Int64Ty, "", &*InsPt);
   AllocaInst *VAMDLoc = new AllocaInst(VoidPtrTy, "", &*InsPt);
-
-  VASizeLoc->dump();
-  VAMDLoc->dump();
 
   // Modify function to add checks on every var_arg call to ensure that we
   // are not accessing more arguments than we passed in.
@@ -289,12 +303,13 @@ TypeChecks::visitInternalVarArgFunction(Module &M, Function &F) {
     CI->replaceAllUsesWith(CI_New);
     CI->eraseFromParent();
   }
-
   return true;
 }
 
 bool
 TypeChecks::visitByValFunction(Module &M, Function &F) {
+  
+  // check for byval arguments
   bool hasByValArg = false;
   for (Function::arg_iterator I = F.arg_begin(), E = F.arg_end(); I != E; ++I) {
     if (I->hasByValAttr()) {
