@@ -53,7 +53,7 @@ bool ArgCast::runOnModule(Module& M) {
 
   std::vector<CallInst*> worklist;
   for (Module::iterator I = M.begin(); I != M.end(); ++I) {
-    if (I->isDeclaration() || I->mayBeOverridden())
+    if (I->mayBeOverridden())
       continue;
     // Find all uses of this function
     for(Value::use_iterator ui = I->use_begin(), ue = I->use_end(); ui != ue; ) {
@@ -75,6 +75,7 @@ bool ArgCast::runOnModule(Module& M) {
       // casting to a varargs funtion
       // or function with same number of arguments
       // possibly varying types of arguments
+      
       if(FTy->getNumParams() != I->arg_size() && !FTy->isVarArg())
         continue;
       for(Value::use_iterator uii = CE->use_begin(),
