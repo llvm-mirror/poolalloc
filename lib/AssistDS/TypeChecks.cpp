@@ -147,10 +147,23 @@ bool
 TypeChecks::visitVarArgFunction(Module &M, Function &F) {
   if(!F.isVarArg())
     return false;
-  if(!F.hasInternalLinkage())
-    return false;
-  // FIXME:handle external functions
 
+  if(F.hasInternalLinkage()) {
+    visitInternalVarArgFunction(M, F);
+  } else {
+    // create internal clone
+    Function *F_clone = CloneFunction(&F);
+    F_clone->setName(F.getNameStr() + "internal");
+    F.setLinkage(GlobalValue::InternalLinkage);
+    F.getParent()->getFunctionList().push_back(F_clone);
+    F.replaceAllUsesWith(F_clone);
+    visitInternalVarArgFunction(M, *F_clone);
+  }
+  return true;
+}
+
+bool 
+TypeChecks::visitInternalVarArgFunction(Module &M, Function &F) {
   // Modify the function to add a call to get the num of arguments
   VAArgInst *VASize = NULL;
   VAArgInst *VAMetaData = NULL;
@@ -178,11 +191,6 @@ TypeChecks::visitVarArgFunction(Module &M, Function &F) {
   assert(VASize && "Varargs function without a call to VAStart???");
 
   // FIXME:handle external functions
-  // For every va_arg instruction,
-  // In a transformed function, we pass in the type metadata before the actual argument
-  // Read metadata from va_list
-  // And then add a compare in the runtime
-
 
   // Modify function to add checks on every var_arg call to ensure that we
   // are not accessing more arguments than we passed in.
@@ -303,6 +311,7 @@ TypeChecks::visitByValFunction(Module &M, Function &F) {
     F_clone->setName(F.getNameStr() + "internal");
     F.setLinkage(GlobalValue::InternalLinkage);
     F.getParent()->getFunctionList().push_back(F_clone);
+    F.replaceAllUsesWith(F_clone);
     visitInternalFunction(M, *F_clone);
     visitExternalFunction(M, F);
   }
