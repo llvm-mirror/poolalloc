@@ -1,5 +1,6 @@
 LEVEL = ../..
 LIBRARYNAME=poolalloc_rt
+BYTECODE_LIBRARY=1
 
 #
 # Build shared libraries on all platforms except Cygwin and MingW (which do

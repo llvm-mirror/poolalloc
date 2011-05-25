@@ -427,8 +427,9 @@ DSAOPT := $(PROJ_OBJ_ROOT)/test/tools/dsaopt
 ADSAOPT := $(PROJ_OBJ_ROOT)/test/tools/adsaopt
 PAOPT := $(PROJ_OBJ_ROOT)/test/tools/paopt
 TC_LINK := $(PROJ_OBJ_ROOT)/test/tools/tc-link
+PA_LINK := $(PROJ_OBJ_ROOT)/test/tools/pa-link
 
-TOOLS= $(DSAOPT) $(PAOPT) $(ADSAOPT) $(TC_LINK)
+TOOLS= $(DSAOPT) $(PAOPT) $(ADSAOPT) $(TC_LINK) $(PA_LINK)
 
 #wrapper script for 'opt' so we can avoid manually loading the dsa lib
 $(DSAOPT):
@@ -453,10 +454,19 @@ $(PAOPT):
 	@chmod +x $@.tmp
 	@mv $@.tmp $@
 
+#wrapper script for llvm-ld that links the type checking runtime
 $(TC_LINK):
 	@mkdir -p `dirname $@`
 	@echo "#!/bin/sh" > $@.tmp
 	@echo 'llvm-ld -link-as-library $$@ $(PROJ_OBJ_ROOT)/$(CONFIGURATION)/lib/libtypechecks_rt.bca ' >> $@.tmp
+	@chmod +x $@.tmp
+	@mv $@.tmp $@
+
+#wrapper script for llvm-ld that links the poolalloc runtime
+$(PA_LINK):
+	@mkdir -p `dirname $@`
+	@echo "#!/bin/sh" > $@.tmp
+	@echo 'llvm-ld -link-as-library $$@ $(PROJ_OBJ_ROOT)/$(CONFIGURATION)/lib/libpoolalloc_rt.bca ' >> $@.tmp
 	@chmod +x $@.tmp
 	@mv $@.tmp $@
 
