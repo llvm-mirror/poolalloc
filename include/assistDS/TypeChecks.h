@@ -70,6 +70,7 @@ public:
   bool visitCopyingStoreInst(Module &M, StoreInst &SI, Value *SS);
   bool visitInputFunctionValue(Module &M, Value *V, Instruction *CI);
 
+  unsigned int getTypeMarker(const llvm::Type*);
   // Return the map containing all of the types used in the module.
   const std::map<const Type *, unsigned int> &getTypes() const {
     return UsedTypes;

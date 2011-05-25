@@ -53,6 +53,14 @@ static const Type *Int32Ty = 0;
 static const Type *Int64Ty = 0;
 static const PointerType *VoidPtrTy = 0;
 
+unsigned int 
+TypeChecks::getTypeMarker(const Type * Ty) {
+  if(UsedTypes.find(Ty) == UsedTypes.end())
+    UsedTypes[Ty] = UsedTypes.size();
+
+  return UsedTypes[Ty];
+}
+
 bool TypeChecks::runOnModule(Module &M) {
   bool modified = false; // Flags whether we modified the module.
 
@@ -144,27 +152,27 @@ bool TypeChecks::runOnModule(Module &M) {
 // Transform Variable Argument functions, by also passing
 // the relavant metadata info
 bool
-TypeChecks::visitVarArgFunction(Module &M, Function &F) {
-  if(!F.isVarArg())
-    return false;
+  TypeChecks::visitVarArgFunction(Module &M, Function &F) {
+    if(!F.isVarArg())
+      return false;
 
-  if(F.hasInternalLinkage()) {
-    visitInternalVarArgFunction(M, F);
-  } else {
-    // create internal clone
-    Function *F_clone = CloneFunction(&F);
-    F_clone->setName(F.getNameStr() + "internal");
-    F.setLinkage(GlobalValue::InternalLinkage);
-    F.getParent()->getFunctionList().push_back(F_clone);
-    F.replaceAllUsesWith(F_clone);
-    visitInternalVarArgFunction(M, *F_clone);
+    if(F.hasInternalLinkage()) {
+      visitInternalVarArgFunction(M, F);
+    } else {
+      // create internal clone
+      Function *F_clone = CloneFunction(&F);
+      F_clone->setName(F.getNameStr() + "internal");
+      F.setLinkage(GlobalValue::InternalLinkage);
+      F.getParent()->getFunctionList().push_back(F_clone);
+      F.replaceAllUsesWith(F_clone);
+      visitInternalVarArgFunction(M, *F_clone);
+    }
+    return true;
   }
-  return true;
-}
 
 bool 
 TypeChecks::visitInternalVarArgFunction(Module &M, Function &F) {
-  
+
   inst_iterator InsPt = inst_begin(F);
 
   AllocaInst *VASizeLoc = new AllocaInst(Int64Ty, "", &*InsPt);
@@ -199,14 +207,14 @@ TypeChecks::visitInternalVarArgFunction(Module &M, Function &F) {
       Instruction *VAMetaData = new LoadInst(VAMDLoc, "", VI);
       Args.push_back(VASize);
       Args.push_back(OldValue);
-      Args.push_back(ConstantInt::get(Int8Ty, UsedTypes[VI->getType()]));
+      Args.push_back(ConstantInt::get(Int8Ty, getTypeMarker(VI->getType())));
       Args.push_back(VAMetaData);
       Args.push_back(ConstantInt::get(Int32Ty, tagCounter++));
       Constant *Func = M.getOrInsertFunction("compareTypeAndNumber", VoidTy, Int64Ty, Int64Ty, Int8Ty, VoidPtrTy, Int32Ty, NULL);
       CallInst::Create(Func, Args.begin(), Args.end(), "", VI);
     }
   }
-  
+
   CallInst *VAStart = NULL;
   for (Function::iterator B = F.begin(), FE = F.end(); B != FE; ++B) {
     for (BasicBlock::iterator I = B->begin(), BE = B->end(); I != BE;) {
@@ -262,7 +270,7 @@ TypeChecks::visitInternalVarArgFunction(Module &M, Function &F) {
       Idx[0] = ConstantInt::get(Int32Ty, j++);
       // For each vararg argument, also add its type information before it
       GetElementPtrInst *GEP = GetElementPtrInst::CreateInBounds(AI, Idx, Idx + 1, "", CI);
-      new StoreInst(ConstantInt::get(Int8Ty, UsedTypes[CI->getOperand(i)->getType()]), GEP, CI);
+      new StoreInst(ConstantInt::get(Int8Ty, getTypeMarker(CI->getOperand(i)->getType())), GEP, CI);
     }
 
     for(i = 1 ;i < CI->getNumOperands(); i++) {
@@ -718,7 +726,7 @@ bool TypeChecks::visitGlobal(Module &M, GlobalVariable &GV,
 
       std::vector<Value *> Args;
       Args.push_back(GEP);
-      Args.push_back(ConstantInt::get(Int8Ty, UsedTypes[CAZ->getType()]));
+      Args.push_back(ConstantInt::get(Int8Ty, getTypeMarker(CAZ->getType())));
       Args.push_back(ConstantInt::get(Int64Ty, TD->getTypeStoreSize(CAZ->getType())));
       Args.push_back(ConstantInt::get(Int32Ty, tagCounter++));
       Constant *F = M.getOrInsertFunction("trackGlobal", VoidTy, VoidPtrTy, Int8Ty, Int64Ty, Int32Ty, NULL);
@@ -735,7 +743,7 @@ bool TypeChecks::visitGlobal(Module &M, GlobalVariable &GV,
 
     std::vector<Value *> Args;
     Args.push_back(GEP);
-    Args.push_back(ConstantInt::get(Int8Ty, UsedTypes[C->getType()]));
+    Args.push_back(ConstantInt::get(Int8Ty, getTypeMarker(C->getType())));
     Args.push_back(ConstantInt::get(Int64Ty, TD->getTypeStoreSize(C->getType())));
     Args.push_back(ConstantInt::get(Int32Ty, tagCounter++));
     Constant *F = M.getOrInsertFunction("trackGlobal", VoidTy, VoidPtrTy, Int8Ty, Int64Ty, Int32Ty, NULL);
@@ -1026,7 +1034,7 @@ bool TypeChecks::visitInputFunctionValue(Module &M, Value *V, Instruction *CI) {
 
   std::vector<Value *> Args;
   Args.push_back(BCI);
-  Args.push_back(ConstantInt::get(Int8Ty, UsedTypes[PTy->getElementType()])); // SI.getValueOperand()
+  Args.push_back(ConstantInt::get(Int8Ty, getTypeMarker(PTy->getElementType())));
   Args.push_back(ConstantInt::get(Int64Ty, TD->getTypeStoreSize(PTy->getElementType())));
   Args.push_back(ConstantInt::get(Int32Ty, tagCounter++));
 
@@ -1049,7 +1057,7 @@ bool TypeChecks::visitLoadInst(Module &M, LoadInst &LI) {
 
   std::vector<Value *> Args;
   Args.push_back(BCI);
-  Args.push_back(ConstantInt::get(Int8Ty, UsedTypes[LI.getType()]));
+  Args.push_back(ConstantInt::get(Int8Ty, getTypeMarker(LI.getType())));
   Args.push_back(ConstantInt::get(Int64Ty, TD->getTypeStoreSize(LI.getType())));
   Args.push_back(ConstantInt::get(Int32Ty, tagCounter++));
 
@@ -1072,7 +1080,8 @@ bool TypeChecks::visitStoreInst(Module &M, StoreInst &SI) {
 
   std::vector<Value *> Args;
   Args.push_back(BCI);
-  Args.push_back(ConstantInt::get(Int8Ty, UsedTypes[SI.getOperand(0)->getType()])); // SI.getValueOperand()
+  Args.push_back(ConstantInt::get(Int8Ty, 
+                                  getTypeMarker(SI.getOperand(0)->getType()))); // SI.getValueOperand()
   Args.push_back(ConstantInt::get(Int64Ty, TD->getTypeStoreSize(SI.getOperand(0)->getType())));
   Args.push_back(ConstantInt::get(Int32Ty, tagCounter++));
 
