@@ -55,6 +55,7 @@ public:
   bool visitCallInst(Module &M, CallInst &CI);
   bool visitInvokeInst(Module &M, InvokeInst &CI);
   bool visitCallSite(Module &M, CallSite CS);
+  bool visitIndirectCallSite(Module &M, CallSite CS);
   bool visitInternalFunction(Module &M, Function &F); 
   bool visitExternalFunction(Module &M, Function &F); 
   bool visitByValFunction(Module &M, Function &F); 

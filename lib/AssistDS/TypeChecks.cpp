@@ -164,7 +164,7 @@ TypeChecks::visitVarArgFunction(Module &M, Function &F) {
 
 bool 
 TypeChecks::visitInternalVarArgFunction(Module &M, Function &F) {
-  // Modify the function to add a call to get the num of arguments
+
   VAArgInst *VASize = NULL;
   VAArgInst *VAMetaData = NULL;
   CallInst *VAStart = NULL;
@@ -181,7 +181,9 @@ TypeChecks::visitInternalVarArgFunction(Module &M, Function &F) {
       if(CalledF->getIntrinsicID() != Intrinsic::vastart) 
         continue;
       VAStart = CI;
+      // Modify the function to add a call to get the num of arguments
       VASize = new VAArgInst(CI->getOperand(1), Int64Ty, "NumArgs");
+      // Modify the function to add a call to get the metadata array
       VAMetaData = new VAArgInst(CI->getOperand(1), VoidPtrTy, "MD");
       VASize->insertAfter(CI);
       VAMetaData->insertAfter(VASize);
@@ -190,7 +192,6 @@ TypeChecks::visitInternalVarArgFunction(Module &M, Function &F) {
   }
   assert(VASize && "Varargs function without a call to VAStart???");
 
-  // FIXME:handle external functions
 
   // Modify function to add checks on every var_arg call to ensure that we
   // are not accessing more arguments than we passed in.
@@ -274,7 +275,6 @@ TypeChecks::visitInternalVarArgFunction(Module &M, Function &F) {
 
 bool
 TypeChecks::visitByValFunction(Module &M, Function &F) {
-
   bool hasByValArg = false;
   for (Function::arg_iterator I = F.arg_begin(), E = F.arg_end(); I != E; ++I) {
     if (I->hasByValAttr()) {
@@ -992,7 +992,16 @@ bool TypeChecks::visitCallSite(Module &M, CallSite CS) {
         i++;
       }
     }
+  } else {
+    // indirect call site
+    return visitIndirectCallSite(M, CS);
   }
+  return false;
+}
+
+bool TypeChecks::visitIndirectCallSite(Module &M, CallSite CS) {
+  Instruction *I = CS.getInstruction();
+  I->dump();
   return false;
 }
 
