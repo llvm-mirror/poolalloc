@@ -426,8 +426,9 @@ PA_SO   := $(PADIR)/$(CONFIGURATION)/lib/libpoolalloc$(SHLIBEXT)
 DSAOPT := $(PROJ_OBJ_ROOT)/test/tools/dsaopt
 ADSAOPT := $(PROJ_OBJ_ROOT)/test/tools/adsaopt
 PAOPT := $(PROJ_OBJ_ROOT)/test/tools/paopt
+TC_LINK := $(PROJ_OBJ_ROOT)/test/tools/tc-link
 
-TOOLS= $(DSAOPT) $(PAOPT) $(ADSAOPT)
+TOOLS= $(DSAOPT) $(PAOPT) $(ADSAOPT) $(TC_LINK)
 
 #wrapper script for 'opt' so we can avoid manually loading the dsa lib
 $(DSAOPT):
@@ -449,6 +450,13 @@ $(PAOPT):
 	@mkdir -p `dirname $@`
 	@echo "#!/bin/sh" > $@.tmp
 	@echo 'opt -load $(DSA_SO) -load $(PA_SO) $$@' >> $@.tmp
+	@chmod +x $@.tmp
+	@mv $@.tmp $@
+
+$(TC_LINK):
+	@mkdir -p `dirname $@`
+	@echo "#!/bin/sh" > $@.tmp
+	@echo 'llvm-ld -link-as-library $$@ $(PROJ_OBJ_ROOT)/$(CONFIGURATION)/lib/libtypechecks_rt.bca ' >> $@.tmp
 	@chmod +x $@.tmp
 	@mv $@.tmp $@
 
