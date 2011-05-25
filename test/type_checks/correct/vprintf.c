@@ -1,0 +1,31 @@
+/*
+ * Build into bitcode
+ * RUN: llvm-gcc -O0 %s --emit-llvm -c -o %t.bc
+ * RUN: adsaopt -internalize -mem2reg -typechecks %t.bc -o %t.tc.bc
+ * RUN: tc-link %t.tc.bc -o %t.tc1.bc
+ * RUN: llc %t.tc1.bc -o %t.tc1.s
+ * RUN: llvm-gcc %t.tc1.s -o %t.tc2
+ * Execute
+ * RUN: %t.tc2 >& %t.tc.out
+ */
+/* vprintf example */
+#include <stdio.h>
+#include <stdarg.h>
+
+void WriteFormatted (char * format, ...)
+{
+  va_list args;
+  va_start (args, format);
+  int a = va_arg(args, int);
+  printf("%d\n", a);
+  vprintf (format, args);
+  va_end (args);
+}
+
+int main ()
+{
+  WriteFormatted ("Call with %d variable argument.\n",55, 1);
+  WriteFormatted ("Call with %d variable %s.\n",55, 2,"arguments");
+
+  return 0;
+}
