@@ -164,9 +164,49 @@ TypeChecks::visitVarArgFunction(Module &M, Function &F) {
 
 bool 
 TypeChecks::visitInternalVarArgFunction(Module &M, Function &F) {
+  
+  inst_iterator InsPt = inst_begin(F);
 
-  VAArgInst *VASize = NULL;
-  VAArgInst *VAMetaData = NULL;
+  AllocaInst *VASizeLoc = new AllocaInst(Int64Ty, "", &*InsPt);
+  AllocaInst *VAMDLoc = new AllocaInst(VoidPtrTy, "", &*InsPt);
+
+  VASizeLoc->dump();
+  VAMDLoc->dump();
+
+  // Modify function to add checks on every var_arg call to ensure that we
+  // are not accessing more arguments than we passed in.
+
+  // Add a counter variable to the function entry
+  AllocaInst *Counter = new AllocaInst(Int64Ty, "",&*InsPt);
+  new StoreInst(ConstantInt::get(Int64Ty, 0), Counter, &*InsPt); 
+
+  // Increment the counter
+  for (Function::iterator B = F.begin(), FE = F.end(); B != FE; ++B) {
+    for (BasicBlock::iterator I = B->begin(), BE = B->end(); I != BE;) {
+      VAArgInst *VI = dyn_cast<VAArgInst>(I++);
+      if(!VI)
+        continue;
+      Constant *One = ConstantInt::get(Int64Ty, 1);
+      LoadInst *OldValue = new LoadInst(Counter, "count", VI);
+      Instruction *NewValue = BinaryOperator::Create(BinaryOperator::Add,
+                                                     OldValue,
+                                                     One,
+                                                     "count",
+                                                     VI);
+      new StoreInst(NewValue, Counter, VI);
+      std::vector<Value *> Args;
+      Instruction *VASize = new LoadInst(VASizeLoc, "", VI);
+      Instruction *VAMetaData = new LoadInst(VAMDLoc, "", VI);
+      Args.push_back(VASize);
+      Args.push_back(OldValue);
+      Args.push_back(ConstantInt::get(Int8Ty, UsedTypes[VI->getType()]));
+      Args.push_back(VAMetaData);
+      Args.push_back(ConstantInt::get(Int32Ty, tagCounter++));
+      Constant *Func = M.getOrInsertFunction("compareTypeAndNumber", VoidTy, Int64Ty, Int64Ty, Int8Ty, VoidPtrTy, Int32Ty, NULL);
+      CallInst::Create(Func, Args.begin(), Args.end(), "", VI);
+    }
+  }
+  
   CallInst *VAStart = NULL;
   for (Function::iterator B = F.begin(), FE = F.end(); B != FE; ++B) {
     for (BasicBlock::iterator I = B->begin(), BE = B->end(); I != BE;) {
@@ -182,52 +222,24 @@ TypeChecks::visitInternalVarArgFunction(Module &M, Function &F) {
         continue;
       VAStart = CI;
       // Modify the function to add a call to get the num of arguments
-      VASize = new VAArgInst(CI->getOperand(1), Int64Ty, "NumArgs");
+      VAArgInst *VASize = new VAArgInst(CI->getOperand(1), Int64Ty, "NumArgs");
       // Modify the function to add a call to get the metadata array
-      VAMetaData = new VAArgInst(CI->getOperand(1), VoidPtrTy, "MD");
+      VAArgInst *VAMetaData = new VAArgInst(CI->getOperand(1), VoidPtrTy, "MD");
       VASize->insertAfter(CI);
       VAMetaData->insertAfter(VASize);
-      break;
+
+      // Store the metadata
+      StoreInst *SI1 = new StoreInst(VASize, VASizeLoc);
+      SI1->insertAfter(VAMetaData);
+      StoreInst *SI2 = new StoreInst(VAMetaData, VAMDLoc);
+      SI2->insertAfter(SI1);
+
+      // Reinitialize the counter
+      StoreInst *SI3 = new StoreInst(ConstantInt::get(Int64Ty, 0), Counter);
+      SI3->insertAfter(SI2);
     }
   }
-  assert(VASize && "Varargs function without a call to VAStart???");
-
-
-  // Modify function to add checks on every var_arg call to ensure that we
-  // are not accessing more arguments than we passed in.
-
-  // Add a counter variable
-  AllocaInst *Counter = new AllocaInst(Int64Ty, "", VASize);
-  new StoreInst(ConstantInt::get(Int64Ty, 0), Counter, VASize); 
-
-  // Increment the counter
-  for (Function::iterator B = F.begin(), FE = F.end(); B != FE; ++B) {
-    for (BasicBlock::iterator I = B->begin(), BE = B->end(); I != BE;) {
-      VAArgInst *VI = dyn_cast<VAArgInst>(I++);
-      if(!VI)
-        continue;
-      if(VI == VASize)
-        continue;
-      if(VI == VAMetaData)
-        continue;
-      Constant *One = ConstantInt::get(Int64Ty, 1);
-      LoadInst *OldValue = new LoadInst(Counter, "count", VI);
-      Instruction *NewValue = BinaryOperator::Create(BinaryOperator::Add,
-                                                     OldValue,
-                                                     One,
-                                                     "count",
-                                                     VI);
-      new StoreInst(NewValue, Counter, VI);
-      std::vector<Value *> Args;
-      Args.push_back(VASize);
-      Args.push_back(OldValue);
-      Args.push_back(ConstantInt::get(Int8Ty, UsedTypes[VI->getType()]));
-      Args.push_back(VAMetaData);
-      Args.push_back(ConstantInt::get(Int32Ty, tagCounter++));
-      Constant *Func = M.getOrInsertFunction("compareTypeAndNumber", VoidTy, Int64Ty, Int64Ty, Int8Ty, VoidPtrTy, Int32Ty, NULL);
-      CallInst::Create(Func, Args.begin(), Args.end(), "", VI);
-    }
-  }
+  assert(VAStart && "Varargs function without a call to VAStart???");
 
   // Find all uses of the function
   for(Value::use_iterator ui = F.use_begin(), ue = F.use_end();
