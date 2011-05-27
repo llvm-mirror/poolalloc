@@ -76,6 +76,7 @@ bool TypeChecks::runOnModule(Module &M) {
   VoidPtrTy = PointerType::getUnqual(Int8Ty);
 
   UsedTypes.clear(); // Reset if run multiple times.
+  VAListFunctions.clear();
 
   Function *MainF = M.getFunction("main");
   if (MainF == 0 || MainF->isDeclaration()) {
@@ -101,12 +102,14 @@ bool TypeChecks::runOnModule(Module &M) {
   }
 
   std::vector<Function *> toProcess;
+  std::vector<Function *> toProcess1;
   for (Module::iterator MI = M.begin(), ME = M.end(); MI != ME; ++MI) {
     Function &F = *MI;
     if(F.isDeclaration())
       continue;
     // record all the original functions in the program
     toProcess.push_back(&F);
+    toProcess1.push_back(&F);
 
     // Loop over all of the instructions in the function, 
     // adding their return type as well as the types of their operands.
@@ -139,6 +142,19 @@ bool TypeChecks::runOnModule(Module &M) {
     Function *F = toProcess.back();
     toProcess.pop_back();
     modified |= visitByValFunction(M, *F);
+    modified |= visitVAListFunction(M, *F);
+    // NOTE:must visit first
+  }
+ 
+  // iterate through all the VAList funtions and modify call sites
+  // to call the new function 
+  std::map<Function *, Function *>::iterator FI = VAListFunctions.begin(), FE = VAListFunctions.end();
+  for(; FI != FE; FI++) {
+    visitVAListCall(FI->second);
+  }
+  while(!toProcess1.empty()) {
+    Function *F = toProcess1.back();
+    toProcess1.pop_back();
     if(F->isVarArg()) {
       modified |= visitVarArgFunction(M, *F);
     }
@@ -149,6 +165,141 @@ bool TypeChecks::runOnModule(Module &M) {
   return modified;
 }
 
+void
+TypeChecks::visitVAListCall(Function *F) {
+  for (Function::iterator B = F->begin(), FE = F->end(); B != FE; ++B) {
+    for (BasicBlock::iterator I = B->begin(), BE = B->end(); I != BE;) {
+      CallInst *CI = dyn_cast<CallInst>(I++);
+      if(!CI)
+        continue;
+      Function *CalledF = dyn_cast<Function>(CI->getCalledFunction());
+      if(VAListFunctions.find(CalledF) == VAListFunctions.end())
+        continue;
+      Function::arg_iterator NII = F->arg_begin();
+      std::vector<Value *>Args;
+      Args.push_back(NII++); // toatl count
+      Args.push_back(NII++); // current count
+      Args.push_back(NII); // MD
+      for(unsigned i = 1 ;i < CI->getNumOperands(); i++) {
+        // Add the original argument
+        Args.push_back(CI->getOperand(i));
+      }
+      CallInst *CINew = CallInst::Create(VAListFunctions[CalledF], Args.begin(), Args.end(), "", CI);
+      CI->replaceAllUsesWith(CINew);
+      CI->eraseFromParent();
+    }
+  }
+}
+
+bool
+TypeChecks::visitVAListFunction(Module &M, Function &F_orig) {
+  if(!F_orig.hasInternalLinkage())
+    return false;
+
+  int VAListArgNum = 0;
+  // Check if one of the arguments is a va_list
+  bool isVAListFunc = false;
+  const Type *ListType  = M.getTypeByName("struct.__va_list_tag");
+  const Type *ListPtrType = ListType->getPointerTo();
+  Argument *VAListArg = NULL; 
+  for (Function::arg_iterator I = F_orig.arg_begin(), E = F_orig.arg_end(); I != E; ++I) {
+    VAListArgNum ++;
+    if(I->getType() == ListPtrType) {
+      VAListArg = I;
+      isVAListFunc = true;
+      break;
+    }
+  }
+  if(!isVAListFunc)
+    return false;
+
+  // Clone the function to add arguments for count, MD
+
+  // 1. Create the new argument types vector
+  std::vector<const Type*>TP;
+  TP.push_back(Int64Ty); // for count
+  TP.push_back(Int64Ty); // for count
+  TP.push_back(VoidPtrTy); // for MD
+  for (Function::arg_iterator I = F_orig.arg_begin(), E = F_orig.arg_end(); I != E; ++I) {
+    TP.push_back(I->getType());
+  }
+  // 2. Create the new function prototype
+  const FunctionType *NewFTy = FunctionType::get(F_orig.getReturnType(), TP, false);
+  Function *F = Function::Create(NewFTy,
+                                 GlobalValue::InternalLinkage,
+                                 F_orig.getNameStr() + ".INT",
+                                 &M);
+
+  // 3. Set the mapping for args
+  Function::arg_iterator NI = F->arg_begin();
+  DenseMap<const Value*, Value*> ValueMap;
+  NI->setName("TotalCount");
+  NI++;
+  NI->setName("CurrentCount");
+  NI++;
+  NI->setName("MD");
+  NI++;
+  for (Function::arg_iterator II = F_orig.arg_begin(); NI != F->arg_end(); ++II, ++NI) {
+    // Each new argument maps to the argument in the old function
+    // For these arguments, also copy over the attributes
+    ValueMap[II] = NI;
+    NI->setName(II->getName());
+    NI->addAttr(F_orig.getAttributes().getParamAttributes(II->getArgNo() + 1));
+  }
+
+  // 4. Copy over the attributes for the function.
+  F->setAttributes(F->getAttributes()
+                   .addAttr(0, F_orig.getAttributes().getRetAttributes()));
+  F->setAttributes(F->getAttributes().addAttr(~0, F_orig.getAttributes().getFnAttributes()));
+
+  // 5. Perform the cloning.
+  SmallVector<ReturnInst*,100> Returns;
+  CloneFunctionInto(F, &F_orig, ValueMap, Returns);
+
+  VAListFunctions[&F_orig] =  F;
+  inst_iterator InsPt = inst_begin(F);
+
+  // Store the information
+  Function::arg_iterator NII = F->arg_begin();
+  AllocaInst *VASizeLoc = new AllocaInst(Int64Ty, "", &*InsPt);
+  new StoreInst(NII, VASizeLoc, &*InsPt);
+  NII++;
+  AllocaInst *Counter = new AllocaInst(Int64Ty, "",&*InsPt);
+  new StoreInst(NII, Counter, &*InsPt); 
+  NII++;
+  AllocaInst *VAMDLoc = new AllocaInst(VoidPtrTy, "", &*InsPt);
+  new StoreInst(NII, VAMDLoc, &*InsPt);
+
+  // instrument va_arg to increment the counter
+  for (Function::iterator B = F->begin(), FE = F->end(); B != FE; ++B) {
+    for (BasicBlock::iterator I = B->begin(), BE = B->end(); I != BE;) {
+      VAArgInst *VI = dyn_cast<VAArgInst>(I++);
+      if(!VI)
+        continue;
+      Constant *One = ConstantInt::get(Int64Ty, 1);
+      LoadInst *OldValue = new LoadInst(Counter, "count", VI);
+      Instruction *NewValue = BinaryOperator::Create(BinaryOperator::Add,
+                                                     OldValue,
+                                                     One,
+                                                     "count",
+                                                     VI);
+      new StoreInst(NewValue, Counter, VI);
+      std::vector<Value *> Args;
+      Instruction *VASize = new LoadInst(VASizeLoc, "", VI);
+      Instruction *VAMetaData = new LoadInst(VAMDLoc, "", VI);
+      Args.push_back(VASize);
+      Args.push_back(OldValue);
+      Args.push_back(ConstantInt::get(Int8Ty, getTypeMarker(VI->getType())));
+      Args.push_back(VAMetaData);
+      Args.push_back(ConstantInt::get(Int32Ty, tagCounter++));
+      Constant *Func = M.getOrInsertFunction("compareTypeAndNumber", VoidTy, Int64Ty, Int64Ty, Int8Ty, VoidPtrTy, Int32Ty, NULL);
+      CallInst::Create(Func, Args.begin(), Args.end(), "", VI);
+    }
+  }
+
+return true;
+}
+
 // Transform Variable Argument functions, by also passing
 // the relavant metadata info
 bool
@@ -156,7 +307,7 @@ TypeChecks::visitVarArgFunction(Module &M, Function &F) {
   if(F.hasInternalLinkage()) {
     return visitInternalVarArgFunction(M, F);
   }
-    
+
   // create internal clone
   Function *F_clone = CloneFunction(&F);
   F_clone->setName(F.getNameStr() + "internal");
@@ -262,6 +413,30 @@ TypeChecks::visitInternalVarArgFunction(Module &M, Function &F) {
     }
   }
   assert(VAStart && "Varargs function without a call to VAStart???");
+  for (Function::iterator B = F.begin(), FE = F.end(); B != FE; ++B) {
+    for (BasicBlock::iterator I = B->begin(), BE = B->end(); I != BE;) {
+      CallInst *CI = dyn_cast<CallInst>(I++);
+      if(!CI)
+        continue;
+      Function *CalledF = dyn_cast<Function>(CI->getCalledFunction());
+      if(VAListFunctions.find(CalledF) == VAListFunctions.end())
+        continue;
+      std::vector<Value *>Args;
+      Instruction *VASize = new LoadInst(VASizeLoc, "", CI);
+      Instruction *VACounter = new LoadInst(Counter, "", CI);
+      Instruction *VAMetaData = new LoadInst(VAMDLoc, "", CI);
+      Args.push_back(VASize); // toatl count
+      Args.push_back(VACounter); // current count
+      Args.push_back(VAMetaData); // MD
+      for(unsigned i = 1 ;i < CI->getNumOperands(); i++) {
+        // Add the original argument
+        Args.push_back(CI->getOperand(i));
+      }
+      CallInst *CINew = CallInst::Create(VAListFunctions[CalledF], Args.begin(), Args.end(), "", CI);
+      CI->replaceAllUsesWith(CINew);
+      CI->eraseFromParent();
+    }
+  }
 
   // Find all uses of the function
   for(Value::use_iterator ui = F.use_begin(), ue = F.use_end();
@@ -308,7 +483,7 @@ TypeChecks::visitInternalVarArgFunction(Module &M, Function &F) {
 
 bool
 TypeChecks::visitByValFunction(Module &M, Function &F) {
-  
+
   // check for byval arguments
   bool hasByValArg = false;
   for (Function::arg_iterator I = F.arg_begin(), E = F.arg_end(); I != E; ++I) {

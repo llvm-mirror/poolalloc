@@ -32,6 +32,7 @@ class Value;
 class TypeChecks : public ModulePass {
 private:
   std::map<const Type *, unsigned int> UsedTypes;
+  std::map<Function *, Function *> VAListFunctions;
 
   // Analysis from other passes.
   TargetData *TD;
@@ -61,6 +62,7 @@ public:
   bool visitByValFunction(Module &M, Function &F); 
   bool visitMain(Module &M, Function &F); 
   bool visitVarArgFunction(Module &M, Function &F); 
+  bool visitVAListFunction(Module &M, Function &F); 
   bool visitInternalVarArgFunction(Module &M, Function &F); 
   bool visitLoadInst(Module &M, LoadInst &LI);
   bool visitStoreInst(Module &M, StoreInst &SI);
@@ -70,6 +72,7 @@ public:
   bool visitCopyingStoreInst(Module &M, StoreInst &SI, Value *SS);
   bool visitInputFunctionValue(Module &M, Value *V, Instruction *CI);
 
+  void visitVAListCall(Function *F);
   unsigned int getTypeMarker(const llvm::Type*);
   // Return the map containing all of the types used in the module.
   const std::map<const Type *, unsigned int> &getTypes() const {
