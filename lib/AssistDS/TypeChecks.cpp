@@ -44,6 +44,10 @@ namespace {
          cl::desc("Use DSA pass"),
          cl::Hidden,
          cl::init(false));
+  static cl::opt<bool> DisablePointerTypeChecks("disable-ptr-type-checks",
+         cl::desc("DONT Distinguish pointer types"),
+         cl::Hidden,
+         cl::init(false));
 }
 
 static int tagCounter = 0;
@@ -55,6 +59,11 @@ static const PointerType *VoidPtrTy = 0;
 
 unsigned int 
 TypeChecks::getTypeMarker(const Type * Ty) {
+  if(DisablePointerTypeChecks) {
+    if(Ty->isPointerTy()) {
+      Ty = VoidPtrTy;
+    }
+  }
   if(UsedTypes.find(Ty) == UsedTypes.end())
     UsedTypes[Ty] = UsedTypes.size();
 
