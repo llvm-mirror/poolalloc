@@ -92,28 +92,21 @@ bool TypeChecks::runOnModule(Module &M) {
   // record argv
   modified |= visitMain(M, *MainF);
 
-  // record all globals
-  inst_iterator MainI = inst_begin(MainF);
-  for (Module::global_iterator I = M.global_begin(), E = M.global_end();
-       I != E; ++I) {
-    if(!I->getNumUses() == 1)
-      continue;
-    if(!I->hasInitializer())
-      continue;
-    modified |= visitGlobal(M, *I, I->getInitializer(), *MainI, 0);
-  }
-
-  // Iterate and find all byval argument functions
-
-  // Iterate and find all varargs functions
   for (Module::iterator MI = M.begin(), ME = M.end(); MI != ME; ++MI) {
     Function &F = *MI;
     if(F.isDeclaration())
       continue;
+
+    std::string name = F.getName();
+
+    if (strncmp(name.c_str(), "tc.", 3) == 0) continue;
+
+    // Iterate and find all varargs functions
     if(F.isVarArg()) {
       VAArgFunctions.push_back(&F);
       continue;
     }
+    // Iterate and find all VAList functions
     bool isVAListFunc = false;
     const Type *ListType  = M.getTypeByName("struct.__va_list_tag");
     if(!ListType)
@@ -132,7 +125,6 @@ bool TypeChecks::runOnModule(Module &M) {
     }
   }
 
-  // Iterate and find all VAList functions
   std::vector<Function *> toProcess;
   for (Module::iterator MI = M.begin(), ME = M.end(); MI != ME; ++MI) {
     Function &F = *MI;
@@ -173,7 +165,7 @@ bool TypeChecks::runOnModule(Module &M) {
     toProcess.pop_back();
     modified |= visitByValFunction(M, *F);
   }
-  
+
   // NOTE:must visit before VAArgFunctions, to populate the map with the
   // correct cloned functions.
   while(!VAListFunctions.empty()) {
@@ -200,9 +192,8 @@ bool TypeChecks::runOnModule(Module &M) {
 
   return modified;
 }
-  
-void 
-TypeChecks::addTypeMapGlobal(Module &M) {
+
+void TypeChecks::addTypeMapGlobal(Module &M) {
 
   // add a global that has the metadata -> typeString mapping
   ArrayType*  AType = ArrayType::get(VoidPtrTy, UsedTypes.size() + 1);
@@ -254,8 +245,7 @@ TypeChecks::addTypeMapGlobal(Module &M) {
   return;
 }
 
-void
-TypeChecks::visitVAListCall(Function *F) {
+void TypeChecks::visitVAListCall(Function *F) {
   for (Function::iterator B = F->begin(), FE = F->end(); B != FE; ++B) {
     for (BasicBlock::iterator I = B->begin(), BE = B->end(); I != BE;) {
       CallInst *CI = dyn_cast<CallInst>(I++);
@@ -280,8 +270,7 @@ TypeChecks::visitVAListCall(Function *F) {
   }
 }
 
-bool
-  TypeChecks::visitVAListFunction(Module &M, Function &F_orig) {
+  bool TypeChecks::visitVAListFunction(Module &M, Function &F_orig) {
     if(!F_orig.hasInternalLinkage())
       return false;
 
@@ -389,8 +378,7 @@ bool
 
 // Transform Variable Argument functions, by also passing
 // the relavant metadata info
-bool
-TypeChecks::visitVarArgFunction(Module &M, Function &F) {
+bool TypeChecks::visitVarArgFunction(Module &M, Function &F) {
   if(F.hasInternalLinkage()) {
     return visitInternalVarArgFunction(M, F);
   }
@@ -425,8 +413,7 @@ TypeChecks::visitVarArgFunction(Module &M, Function &F) {
 // Aside from this, this function also transforms all
 // callsites of the var_arg function.
 
-bool 
-TypeChecks::visitInternalVarArgFunction(Module &M, Function &F) {
+bool TypeChecks::visitInternalVarArgFunction(Module &M, Function &F) {
 
   inst_iterator InsPt = inst_begin(F);
 
@@ -462,7 +449,13 @@ TypeChecks::visitInternalVarArgFunction(Module &M, Function &F) {
       Args.push_back(ConstantInt::get(Int8Ty, getTypeMarker(VI->getType())));
       Args.push_back(VAMetaData);
       Args.push_back(ConstantInt::get(Int32Ty, tagCounter++));
-      Constant *Func = M.getOrInsertFunction("compareTypeAndNumber", VoidTy, Int64Ty, Int64Ty, Int8Ty, VoidPtrTy, Int32Ty, NULL);
+      Constant *Func = M.getOrInsertFunction("compareTypeAndNumber", 
+                                             VoidTy, 
+                                             Int64Ty, 
+                                             Int64Ty, 
+                                             Int8Ty, 
+                                             VoidPtrTy, 
+                                             Int32Ty, NULL);
       CallInst::Create(Func, Args.begin(), Args.end(), "", VI);
     }
   }
@@ -519,7 +512,8 @@ TypeChecks::visitInternalVarArgFunction(Module &M, Function &F) {
         // Add the original argument
         Args.push_back(CI->getOperand(i));
       }
-      CallInst *CINew = CallInst::Create(VAListFunctionsMap[CalledF], Args.begin(), Args.end(), "", CI);
+      CallInst *CINew = CallInst::Create(VAListFunctionsMap[CalledF], 
+                                         Args.begin(), Args.end(), "", CI);
       CI->replaceAllUsesWith(CINew);
       CI->eraseFromParent();
     }
@@ -545,8 +539,13 @@ TypeChecks::visitInternalVarArgFunction(Module &M, Function &F) {
       Value *Idx[2];
       Idx[0] = ConstantInt::get(Int32Ty, j++);
       // For each vararg argument, also add its type information before it
-      GetElementPtrInst *GEP = GetElementPtrInst::CreateInBounds(AI, Idx, Idx + 1, "", CI);
-      new StoreInst(ConstantInt::get(Int8Ty, getTypeMarker(CI->getOperand(i)->getType())), GEP, CI);
+      GetElementPtrInst *GEP = GetElementPtrInst::CreateInBounds(AI, 
+                                                                 Idx, 
+                                                                 Idx + 1, 
+                                                                 "", CI);
+      Constant *C = ConstantInt::get(Int8Ty, 
+                                     getTypeMarker(CI->getOperand(i)->getType()));
+      new StoreInst(C, GEP, CI);
     }
 
     for(i = 1 ;i < CI->getNumOperands(); i++) {
@@ -561,15 +560,16 @@ TypeChecks::visitInternalVarArgFunction(Module &M, Function &F) {
     }
 
     // Create the new call
-    CallInst *CI_New = CallInst::Create(CI->getCalledValue(), Args.begin(), Args.end(), "", CI);
+    CallInst *CI_New = CallInst::Create(CI->getCalledValue(), 
+                                        Args.begin(), Args.end(), 
+                                        "", CI);
     CI->replaceAllUsesWith(CI_New);
     CI->eraseFromParent();
   }
   return true;
 }
 
-bool
-TypeChecks::visitByValFunction(Module &M, Function &F) {
+bool TypeChecks::visitByValFunction(Module &M, Function &F) {
 
   // check for byval arguments
   bool hasByValArg = false;
@@ -679,7 +679,10 @@ bool TypeChecks::visitInternalFunction(Module &M, Function &F) {
       Args.push_back(BCI_Src);
       Args.push_back(AllocSize);
       Args.push_back(ConstantInt::get(Int32Ty, tagCounter++));
-      Constant *F = M.getOrInsertFunction("copyTypeInfo", VoidTy, VoidPtrTy, VoidPtrTy, Int64Ty, Int32Ty, NULL);
+      Constant *F = M.getOrInsertFunction("copyTypeInfo", 
+                                          VoidTy, 
+                                          VoidPtrTy, VoidPtrTy, Int64Ty, Int32Ty,
+                                          NULL);
       CallInst::Create(F, Args.begin(), Args.end(), "", InsertBefore);
     }
   }
@@ -839,8 +842,26 @@ void TypeChecks::print(raw_ostream &OS, const Module *M) const {
 bool TypeChecks::initShadow(Module &M) {
   // Create the call to the runtime initialization function and place it before the store instruction.
 
-  Constant * RuntimeCtor = M.getOrInsertFunction("shadowInit", VoidTy, NULL);
+  Constant * RuntimeCtor = M.getOrInsertFunction("tc.init", VoidTy, NULL);
+  Constant * InitFn = M.getOrInsertFunction("shadowInit", VoidTy, NULL);
 
+  //RuntimeCtor->setDoesNotThrow();
+  //RuntimeCtor->setLinkage(GlobalValue::InternalLinkage);
+
+  BasicBlock *BB = BasicBlock::Create(M.getContext(), "entry", cast<Function>(RuntimeCtor));
+  CallInst::Create(InitFn, "", BB);
+
+  Instruction *InsertPt = ReturnInst::Create(M.getContext(), BB); 
+
+  // record all globals
+  for (Module::global_iterator I = M.global_begin(), E = M.global_end();
+       I != E; ++I) {
+    if(I->use_empty())
+      continue;
+    if(!I->hasInitializer())
+      continue;
+    visitGlobal(M, *I, I->getInitializer(), *InsertPt, 0);
+  }
   //
   // Insert the run-time ctor into the ctor list.
   //
@@ -932,10 +953,8 @@ bool TypeChecks::unmapShadow(Module &M, Instruction &I) {
 bool TypeChecks::visitGlobal(Module &M, GlobalVariable &GV, 
                              Constant *C, Instruction &I, unsigned offset) {
 
-  // FIXME:This should maybe move into the global ctor.
-
   if(EnableTypeSafeOpt) {
-    if(TS->isTypeSafe(&GV, I.getParent()->getParent())) {
+    if(TS->isTypeSafe(&GV)) {
       return false;
     }
   }
@@ -1105,6 +1124,7 @@ bool TypeChecks::visitCallSite(Module &M, CallSite CS) {
   //
   Value *Callee = CS.getCalledValue()->stripPointerCasts();
   Instruction *I = CS.getInstruction();
+  Function *Caller = I->getParent()->getParent();
 
   // Special case handling of certain libc allocation functions here.
   if (Function *F = dyn_cast<Function>(Callee)) {
@@ -1114,7 +1134,7 @@ bool TypeChecks::visitCallSite(Module &M, CallSite CS) {
       case Intrinsic::memmove: 
         {
           if(EnableTypeSafeOpt) {
-            if(TS->isTypeSafe(I->getOperand(2), I->getParent()->getParent())) {
+            if(TS->isTypeSafe(I->getOperand(2), Caller)) {
               return false;
             }
           }
@@ -1132,7 +1152,7 @@ bool TypeChecks::visitCallSite(Module &M, CallSite CS) {
 
       case Intrinsic::memset:
         if(EnableTypeSafeOpt) {
-          if(TS->isTypeSafe(I->getOperand(1), I->getParent()->getParent())) {
+          if(TS->isTypeSafe(I->getOperand(1), Caller)) {
             return false;
           }
         }
@@ -1171,7 +1191,7 @@ bool TypeChecks::visitCallSite(Module &M, CallSite CS) {
       CallInst::Create(F, Args.begin(), Args.end(), "", I);
     } else if(F->getNameStr() == std::string("ftime")) {
       if(EnableTypeSafeOpt) {
-        if(TS->isTypeSafe(I->getOperand(1), I->getParent()->getParent())) {
+        if(TS->isTypeSafe(I->getOperand(1), Caller)) {
           return false;
         }
       }
@@ -1188,7 +1208,7 @@ bool TypeChecks::visitCallSite(Module &M, CallSite CS) {
       return true;
     } else if(F->getNameStr() == std::string("read")) {
       if(EnableTypeSafeOpt) {
-        if(TS->isTypeSafe(I->getOperand(2), I->getParent()->getParent())) {
+        if(TS->isTypeSafe(I->getOperand(2), Caller)) {
           return false;
         }
       }
@@ -1204,7 +1224,7 @@ bool TypeChecks::visitCallSite(Module &M, CallSite CS) {
       return true;
     } else if(F->getNameStr() == std::string("fread")) {
       if(EnableTypeSafeOpt) {
-        if(TS->isTypeSafe(I->getOperand(1), I->getParent()->getParent())) {
+        if(TS->isTypeSafe(I->getOperand(1), Caller)) {
           return false;
         }
       }
@@ -1220,7 +1240,7 @@ bool TypeChecks::visitCallSite(Module &M, CallSite CS) {
       return true;
     } else if(F->getNameStr() == std::string("calloc")) {
       if(EnableTypeSafeOpt) {
-        if(TS->isTypeSafe(I, I->getParent()->getParent())) {
+        if(TS->isTypeSafe(I, Caller)) {
           return false;
         }
       }
@@ -1244,7 +1264,7 @@ bool TypeChecks::visitCallSite(Module &M, CallSite CS) {
       return true;
     } else if(F->getNameStr() ==  std::string("realloc")) {
       if(EnableTypeSafeOpt) {
-        if(TS->isTypeSafe(I, I->getParent()->getParent())) {
+        if(TS->isTypeSafe(I, Caller)) {
           return false;
         }
       }
@@ -1263,7 +1283,7 @@ bool TypeChecks::visitCallSite(Module &M, CallSite CS) {
       return true;
     } else if(F->getNameStr() == std::string("fgets")) {
       if(EnableTypeSafeOpt) {
-        if(TS->isTypeSafe(I->getOperand(1), I->getParent()->getParent())) {
+        if(TS->isTypeSafe(I->getOperand(1), Caller)) {
           return true;
         }
       }
