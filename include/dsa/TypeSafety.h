@@ -43,6 +43,7 @@ struct TypeSafety : public ModulePass {
   protected:
     // Methods
     DSNodeHandle getDSNodeHandle (const Value * V, const Function * F);
+    DSNodeHandle getDSNodeHandle (const GlobalValue * V);
     void findTypeSafeDSNodes (const DSGraph * Graph);
     bool isTypeSafe (const DSNode * N);
     bool typeFieldsOverlap (const DSNode * N);
@@ -76,6 +77,7 @@ struct TypeSafety : public ModulePass {
 
     // Methods for clients to use
     virtual bool isTypeSafe (const Value * V, const Function * F);
+    virtual bool isTypeSafe (const GlobalValue * V);
 };
 
 }

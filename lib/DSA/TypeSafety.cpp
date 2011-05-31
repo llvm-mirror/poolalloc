@@ -43,6 +43,47 @@ char TypeSafety<dsa>::ID = 0;
 // Method: getDSNodeHandle()
 //
 // Description:
+//  This method looks up the DSNodeHandle for a given LLVM globalvalue. 
+//  The value is looked up in the globals graph
+//
+// Return value:
+//  A DSNodeHandle for the value is returned.  This DSNodeHandle is from 
+//  the GlobalsGraph.  Note that the DSNodeHandle may represent a NULL DSNode.
+//
+template<class dsa> DSNodeHandle
+TypeSafety<dsa>::getDSNodeHandle(const GlobalValue *V) {
+  DSNodeHandle DSH;
+  const DSGraph * GlobalsGraph = dsaPass->getGlobalsGraph ();
+  if(GlobalsGraph->hasNodeForValue(V)) {
+    DSH = GlobalsGraph->getNodeForValue(V);
+  }
+  //
+  // Try looking up this DSNode value in the globals graph.  Note that
+  // globals are put into equivalence classes; we may need to first find the
+  // equivalence class to which our global belongs, find the global that
+  // represents all globals in that equivalence class, and then look up the
+  // DSNode Handle for *that* global.
+  //
+  if (DSH.isNull()) {
+    //
+    // DSA does not currently handle global aliases.
+    //
+    if (!isa<GlobalAlias>(V)) {
+      //
+      // We have to dig into the globalEC of the DSGraph to find the DSNode.
+      //
+      const GlobalValue * GV = dyn_cast<GlobalValue>(V);
+      const GlobalValue * Leader;
+      Leader = GlobalsGraph->getGlobalECs().getLeaderValue(GV);
+      DSH = GlobalsGraph->getNodeForValue(Leader);
+    }
+  }
+  return DSH;
+}
+
+// Method: getDSNodeHandle()
+//
+// Description:
 //  This method looks up the DSNodeHandle for a given LLVM value.  The context
 //  of the value is the specified function, although if it is a global value,
 //  the DSNodeHandle may exist within the global DSGraph.
@@ -63,7 +104,7 @@ TypeSafety<dsa>::getDSNodeHandle (const Value * V, const Function * F) {
   // Lookup the DSNode for the value in the function's DSGraph.
   //
   const DSGraph * TDG = dsaPass->getDSGraph(*F);
-  
+
   DSNodeHandle DSH;
   if(TDG->hasNodeForValue(V))
     DSH = TDG->getNodeForValue(V);
@@ -80,24 +121,7 @@ TypeSafety<dsa>::getDSNodeHandle (const Value * V, const Function * F) {
     // represents all globals in that equivalence class, and then look up the
     // DSNode Handle for *that* global.
     //
-    const DSGraph * GlobalsGraph = TDG->getGlobalsGraph ();
-    if(GlobalsGraph->hasNodeForValue(V)) {
-      DSH = GlobalsGraph->getNodeForValue(V);
-    }
-    if (DSH.isNull()) {
-      //
-      // DSA does not currently handle global aliases.
-      //
-      if (!isa<GlobalAlias>(V)) {
-        //
-        // We have to dig into the globalEC of the DSGraph to find the DSNode.
-        //
-        const GlobalValue * GV = dyn_cast<GlobalValue>(V);
-        const GlobalValue * Leader;
-        Leader = GlobalsGraph->getGlobalECs().getLeaderValue(GV);
-        DSH = GlobalsGraph->getNodeForValue(Leader);
-      }
-    }
+    DSH = getDSNodeHandle(cast<GlobalValue>(V));
   }
   return DSH;
 }
@@ -115,6 +139,28 @@ TypeSafety<dsa>::isTypeSafe (const Value * V, const Function * F) {
   if (DH.isNull()) {
     return false;
   }
+
+  //
+  // See if the DSNode is one that we think is type-safe.
+  //
+  if (TypeSafeNodes.count (DH.getNode()))
+    return true;
+
+  return false;
+}
+
+template<class dsa> bool
+TypeSafety<dsa>::isTypeSafe(const GlobalValue *V) {
+  //
+  // Get the DSNode for the specified value.
+  //
+  DSNodeHandle DH = getDSNodeHandle(V);
+
+  //
+  // If there is no DSNode, claim that it is not typesafe.
+  //
+  if (DH.isNull())
+    return false;
 
   //
   // See if the DSNode is one that we think is type-safe.
