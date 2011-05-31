@@ -32,7 +32,10 @@ class Value;
 class TypeChecks : public ModulePass {
 private:
   std::map<const Type *, unsigned int> UsedTypes;
-  std::map<Function *, Function *> VAListFunctions;
+  std::map<Function *, Function *> VAListFunctionsMap;
+  std::list<Function *> VAArgFunctions;
+  std::list<Function *> VAListFunctions;
+  std::list<Function *> ByValFunctions;
 
   // Analysis from other passes.
   TargetData *TD;
@@ -53,6 +56,7 @@ public:
 
   bool initShadow(Module &M);
   bool unmapShadow(Module &M, Instruction &I);
+  void addTypeMapGlobal(Module &M) ;
   bool visitCallInst(Module &M, CallInst &CI);
   bool visitInvokeInst(Module &M, InvokeInst &CI);
   bool visitCallSite(Module &M, CallSite CS);

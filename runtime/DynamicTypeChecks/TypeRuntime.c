@@ -19,6 +19,8 @@
 uint8_t *shadow_begin;
 uint8_t *shadow_end;
 
+extern char* typeNames[];
+
 void trackInitInst(void *ptr, uint64_t size, uint32_t tag);
 
 uintptr_t maskAddress(void *ptr) {
@@ -116,7 +118,7 @@ void trackStoreInst(void *ptr, uint8_t typeNumber, uint64_t size, uint32_t tag) 
  */
 void compareTypes(uint8_t typeNumberSrc, uint8_t typeNumberDest, uint32_t tag) {
   if(typeNumberSrc != typeNumberDest) {
-    printf("Type mismatch: detecting %u, expecting %u! %u \n", typeNumberDest, typeNumberSrc, tag);
+    printf("Type mismatch: detecting %u, expecting %u! %u %s, %s\n", typeNumberDest, typeNumberSrc, tag, typeNames[typeNumberDest], typeNames[typeNumberSrc]);
   }
 }
 
@@ -150,9 +152,8 @@ void trackLoadInst(void *ptr, uint8_t typeNumber, uint64_t size, uint32_t tag) {
   /* Check if this an initialized but untyped memory.*/
   if (typeNumber != shadow_begin[p]) {
     if (shadow_begin[p] != 0xFF) {
-
-      printf("Type mismatch: detecting %p %u, expecting %u! %u \n", ptr, typeNumber, shadow_begin[p], tag);
-      i = size;
+      printf("Type mismatch: detecting %u, expecting %u! %u %s %s\n", typeNumber, shadow_begin[p], tag, typeNames[typeNumber], typeNames[shadow_begin[p]]);
+      return;
     } else {
       /* If so, set type to the type being read.
          Check that none of the bytes are typed.*/
