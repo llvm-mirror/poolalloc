@@ -867,6 +867,20 @@ bool TypeChecks::initShadow(Module &M) {
        I != E; ++I) {
     if(I->use_empty())
       continue;
+    if(I->getNameStr() == "stderr" ||
+       I->getNameStr() == "stdout" ||
+       I->getNameStr() == "stdin") {
+      // assume initialized
+      CastInst *BCI = BitCastInst::CreatePointerCast(I, VoidPtrTy, "", InsertPt);
+      std::vector<Value *> Args;
+      Args.push_back(BCI);
+      unsigned int size = TD->getTypeStoreSize(I->getType()->getElementType());
+      Args.push_back(ConstantInt::get(Int64Ty, size));
+      Args.push_back(ConstantInt::get(Int32Ty, tagCounter++));
+      Constant *F = M.getOrInsertFunction("trackInitInst", VoidTy, VoidPtrTy, Int64Ty, Int32Ty, NULL);
+      CallInst::Create(F, Args.begin(), Args.end(), "", InsertPt);
+      continue;
+    } 
     if(!I->hasInitializer())
       continue;
     visitGlobal(M, *I, I->getInitializer(), *InsertPt, 0);
