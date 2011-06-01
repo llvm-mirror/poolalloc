@@ -107,8 +107,19 @@ bool TypeChecks::runOnModule(Module &M) {
       continue;
 
     std::string name = F.getName();
-
     if (strncmp(name.c_str(), "tc.", 3) == 0) continue;
+
+    // check for byval arguments
+    bool hasByValArg = false;
+    for (Function::arg_iterator I = F.arg_begin(), E = F.arg_end(); I != E; ++I) {
+      if (I->hasByValAttr()) {
+        hasByValArg = true;
+        break;
+      }
+    }
+    if(hasByValArg) {
+      ByValFunctions.push_back(&F);
+    }
 
     // Iterate and find all varargs functions
     if(F.isVarArg()) {
@@ -134,13 +145,11 @@ bool TypeChecks::runOnModule(Module &M) {
     }
   }
 
-  std::vector<Function *> toProcess;
   for (Module::iterator MI = M.begin(), ME = M.end(); MI != ME; ++MI) {
     Function &F = *MI;
     if(F.isDeclaration())
       continue;
     // record all the original functions in the program
-    toProcess.push_back(&F);
 
     // Loop over all of the instructions in the function, 
     // adding their return type as well as the types of their operands.
@@ -169,9 +178,9 @@ bool TypeChecks::runOnModule(Module &M) {
     }
   }
 
-  while(!toProcess.empty()) {
-    Function *F = toProcess.back();
-    toProcess.pop_back();
+  while(!ByValFunctions.empty()) {
+    Function *F = ByValFunctions.back();
+    ByValFunctions.pop_back();
     modified |= visitByValFunction(M, *F);
   }
 
@@ -580,24 +589,6 @@ bool TypeChecks::visitInternalVarArgFunction(Module &M, Function &F) {
 
 bool TypeChecks::visitByValFunction(Module &M, Function &F) {
 
-  // check for byval arguments
-  bool hasByValArg = false;
-  for (Function::arg_iterator I = F.arg_begin(), E = F.arg_end(); I != E; ++I) {
-    if (I->hasByValAttr()) {
-      if(EnableTypeSafeOpt) {
-        if(!TS->isTypeSafe(cast<Value>(&I), &F)) {
-          hasByValArg = true;
-          break;
-        }
-      } else {
-        hasByValArg = true;
-        break;
-      }
-    }
-  }
-  if(!hasByValArg)
-    return false;
-
   // For internal functions
   //   Replace with a cloned function with extra arguments
   //   That takes as argument the original pointers without a byval parameter too
@@ -610,7 +601,7 @@ bool TypeChecks::visitByValFunction(Module &M, Function &F) {
   //  To assume that the metadata for the byval arguments is TOP 
 
   if(F.hasInternalLinkage()) {
-    visitInternalFunction(M, F);
+    visitInternalByValFunction(M, F);
   } else {
     // create internal clone
     Function *F_clone = CloneFunction(&F);
@@ -618,13 +609,13 @@ bool TypeChecks::visitByValFunction(Module &M, Function &F) {
     F.setLinkage(GlobalValue::InternalLinkage);
     F.getParent()->getFunctionList().push_back(F_clone);
     F.replaceAllUsesWith(F_clone);
-    visitInternalFunction(M, *F_clone);
-    visitExternalFunction(M, F);
+    visitInternalByValFunction(M, *F_clone);
+    visitExternalByValFunction(M, F);
   }
   return true;
 }
 
-bool TypeChecks::visitInternalFunction(Module &M, Function &F) {
+bool TypeChecks::visitInternalByValFunction(Module &M, Function &F) {
 
   // Create a list of the argument types in the new function.
   std::vector<const Type*>TP;
@@ -777,7 +768,7 @@ bool TypeChecks::visitInternalFunction(Module &M, Function &F) {
   return true;
 }
 
-bool TypeChecks::visitExternalFunction(Module &M, Function &F) {
+bool TypeChecks::visitExternalByValFunction(Module &M, Function &F) {
 
   // A list of the byval arguments that we are setting metadata for
   typedef SmallVector<Value *, 4> RegisteredArgTy;
