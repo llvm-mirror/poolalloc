@@ -61,6 +61,11 @@ Output/%.tc.bc: Output/%.opt.bc $(LOPT) $(ASSIST_SO)
 	-$(LLVMLD) -disable-opt -o $@.ld $@.temp $(TYPE_RT_BC)
 	-$(LOPT) $(SAFE_OPTS) $@.ld.bc -o $@ -f
 
+$(PROGRAMS_TO_TEST:%=Output/%.tcd.bc): \
+Output/%.tcd.bc: Output/%.opt.bc $(LOPT) $(ASSIST_SO)
+	-$(RUNOPT) -load $(ASSIST_SO)  -typechecks -disable-ptr-type-checks -dce -ipsccp -dce -stats -info-output-file=$(CURDIR)/$@.info $< -f -o $@.temp
+	-$(LLVMLD) -disable-opt -o $@.ld $@.temp $(TYPE_RT_BC)
+	-$(LOPT) $(SAFE_OPTS) $@.ld.bc -o $@ -f
 
 $(PROGRAMS_TO_TEST:%=Output/%.tco.bc): \
 Output/%.tco.bc: Output/%.opt.bc $(LOPT) $(ASSIST_SO)
@@ -89,6 +94,9 @@ Output/%.llvm1.s: Output/%.llvm1.bc $(LLC)
 $(PROGRAMS_TO_TEST:%=Output/%.tc.s): \
 Output/%.tc.s: Output/%.tc.bc $(LLC)
 	-$(LLC)  $< -o $@
+$(PROGRAMS_TO_TEST:%=Output/%.tcd.s): \
+Output/%.tcd.s: Output/%.tcd.bc $(LLC)
+	-$(LLC)  $< -o $@
 $(PROGRAMS_TO_TEST:%=Output/%.tco.s): \
 Output/%.tco.s: Output/%.tco.bc $(LLC)
 	-$(LLC)  $< -o $@
@@ -101,6 +109,9 @@ Output/%.opt: Output/%.opt.s
 	-$(CC) $(CFLAGS) $<  $(LLCLIBS) $(LDFLAGS) -o $@
 $(PROGRAMS_TO_TEST:%=Output/%.tc): \
 Output/%.tc: Output/%.tc.s $(TYPE_RT_O)
+	-$(CC) $(CFLAGS) $<  $(LLCLIBS) $(TYPE_RT_O) $(LDFLAGS) -o $@
+$(PROGRAMS_TO_TEST:%=Output/%.tcd): \
+Output/%.tcd: Output/%.tcd.s $(TYPE_RT_O)
 	-$(CC) $(CFLAGS) $<  $(LLCLIBS) $(TYPE_RT_O) $(LDFLAGS) -o $@
 $(PROGRAMS_TO_TEST:%=Output/%.tco): \
 Output/%.tco: Output/%.tco.s $(TYPE_RT_O)
@@ -137,6 +148,9 @@ Output/%.out-count: Output/%.count
 $(PROGRAMS_TO_TEST:%=Output/%.out-tc): \
 Output/%.out-tc: Output/%.tc
 	-$(RUNSAFELY) $(STDIN_FILENAME) $@ $< $(RUN_OPTIONS)
+$(PROGRAMS_TO_TEST:%=Output/%.out-tcd): \
+Output/%.out-tcd: Output/%.tcd
+	-$(RUNSAFELY) $(STDIN_FILENAME) $@ $< $(RUN_OPTIONS)
 $(PROGRAMS_TO_TEST:%=Output/%.out-tco): \
 Output/%.out-tco: Output/%.tco
 	-$(RUNSAFELY) $(STDIN_FILENAME) $@ $< $(RUN_OPTIONS)
@@ -166,6 +180,13 @@ Output/%.out-tc: Output/%.tc
                   ../../$< $(RUN_OPTIONS)
 	-(cd Output/tc-$(RUN_TYPE); cat $(LOCAL_OUTPUTS)) > $@
 	-cp Output/tc-$(RUN_TYPE)/$(STDOUT_FILENAME).time $@.time
+$(PROGRAMS_TO_TEST:%=Output/%.out-tcd): \
+Output/%.out-tcd: Output/%.tcd
+	-$(SPEC_SANDBOX) tcd-$(RUN_TYPE) $@ $(REF_IN_DIR) \
+             $(RUNSAFELY) $(STDIN_FILENAME) $(STDOUT_FILENAME) \
+                  ../../$< $(RUN_OPTIONS)
+	-(cd Output/tcd-$(RUN_TYPE); cat $(LOCAL_OUTPUTS)) > $@
+	-cp Output/tcd-$(RUN_TYPE)/$(STDOUT_FILENAME).time $@.time
 $(PROGRAMS_TO_TEST:%=Output/%.out-tco): \
 Output/%.out-tco: Output/%.tco
 	-$(SPEC_SANDBOX) tco-$(RUN_TYPE) $@ $(REF_IN_DIR) \
@@ -207,6 +228,10 @@ $(PROGRAMS_TO_TEST:%=Output/%.diff-tc): \
 Output/%.diff-tc: Output/%.out-nat Output/%.out-tc
 	-$(DIFFPROG) tc $* $(HIDEDIFF)
 
+$(PROGRAMS_TO_TEST:%=Output/%.diff-tcd): \
+Output/%.diff-tcd: Output/%.out-nat Output/%.out-tcd
+	-$(DIFFPROG) tcd $* $(HIDEDIFF)
+
 $(PROGRAMS_TO_TEST:%=Output/%.diff-tco): \
 Output/%.diff-tco: Output/%.out-nat Output/%.out-tco
 	-$(DIFFPROG) tco $* $(HIDEDIFF)
@@ -229,7 +254,7 @@ Output/%.diff-count1: Output/%.out-nat Output/%.out-count1
 
 
 $(PROGRAMS_TO_TEST:%=Output/%.$(TEST).report.txt): \
-Output/%.$(TEST).report.txt: Output/%.opt.bc Output/%.LOC.txt $(LOPT) Output/%.out-nat Output/%.diff-llvm1 Output/%.diff-opt Output/%.diff-tc Output/%.diff-tco Output/%.diff-tcoo Output/%.diff-count Output/%.diff-count1
+Output/%.$(TEST).report.txt: Output/%.opt.bc Output/%.LOC.txt $(LOPT) Output/%.out-nat Output/%.diff-llvm1 Output/%.diff-opt Output/%.diff-tc Output/%.diff-tcd Output/%.diff-tco Output/%.diff-tcoo Output/%.diff-count Output/%.diff-count1
 	@# Gather data
 	-($(RUNOPT)  -dsa-$(PASS) -enable-type-inference-opts -dsa-stdlib-no-fold $(ANALYZE_OPTS) $<)> $@.time.1 2>&1
 	-($(RUNOPT)  -dsa-$(PASS)  $(ANALYZE_OPTS) $<)> $@.time.2 2>&1
@@ -330,6 +355,10 @@ Output/%.$(TEST).report.txt: Output/%.opt.bc Output/%.LOC.txt $(LOPT) Output/%.o
 	@-if test -f Output/$*.diff-tc; then \
 	  printf "TC-RUN_TIME: " >> $@;\
 	  grep 'program' Output/$*.out-tc.time >> $@;\
+	fi
+	@-if test -f Output/$*.diff-tcd; then \
+	  printf "TCD-RUN_TIME: " >> $@;\
+	  grep 'program' Output/$*.out-tcd.time >> $@;\
 	fi
 	@-if test -f Output/$*.diff-tco; then \
 	  printf "TCO-RUN_TIME: " >> $@;\
