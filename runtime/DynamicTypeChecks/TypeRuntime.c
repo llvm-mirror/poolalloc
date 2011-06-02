@@ -118,7 +118,7 @@ void trackStoreInst(void *ptr, uint8_t typeNumber, uint64_t size, uint32_t tag) 
  */
 void compareTypes(uint8_t typeNumberSrc, uint8_t typeNumberDest, uint32_t tag) {
   if(typeNumberSrc != typeNumberDest) {
-    printf("Type mismatch: detecting %u, expecting %u! %u %s, %s\n", typeNumberDest, typeNumberSrc, tag, typeNames[typeNumberDest], typeNames[typeNumberSrc]);
+    printf("Type mismatch(%u): detecting %s, expecting %s! \n", tag, typeNames[typeNumberDest], typeNames[typeNumberSrc]);
   }
 }
 
@@ -127,7 +127,7 @@ void compareTypes(uint8_t typeNumberSrc, uint8_t typeNumberDest, uint32_t tag) {
  */
 void compareNumber(uint64_t NumArgsPassed, uint64_t ArgAccessed, uint32_t tag){
   if(ArgAccessed > NumArgsPassed) {
-    printf("Type mismatch: Accessing variable %lu, passed only %lu! %u \n", ArgAccessed, NumArgsPassed, tag);
+    printf("Type mismatch(%u): Accessing variable %lu, passed only %lu! \n", tag, ArgAccessed, NumArgsPassed);
   }
 }
 
@@ -152,14 +152,14 @@ void trackLoadInst(void *ptr, uint8_t typeNumber, uint64_t size, uint32_t tag) {
   /* Check if this an initialized but untyped memory.*/
   if (typeNumber != shadow_begin[p]) {
     if (shadow_begin[p] != 0xFF) {
-      printf("Type mismatch: detecting %u, expecting %u! %u %s %s\n", typeNumber, shadow_begin[p], tag, typeNames[typeNumber], typeNames[shadow_begin[p]]);
+      printf("Type mismatch(%u): detecting %s, expecting %s!\n", tag, typeNames[typeNumber], typeNames[shadow_begin[p]]);
       return;
     } else {
       /* If so, set type to the type being read.
          Check that none of the bytes are typed.*/
       for (; i < size; ++i) {
         if (0xFF != shadow_begin[p + i]) {
-          printf("Type mismatch: detecting %u, expecting %u (0 != %u)! %u\n", typeNumber, shadow_begin[p+i], shadow_begin[p + i], tag);
+          printf("Type alignment mismatch(%u): detecting %s, expecting %s!\n", tag, typeNames[typeNumber], typeNames[shadow_begin[p+i]]);
           break;
         }
       }
@@ -170,7 +170,7 @@ void trackLoadInst(void *ptr, uint8_t typeNumber, uint64_t size, uint32_t tag) {
 
   for (; i < size; ++i) {
     if (0 != shadow_begin[p + i]) {
-      printf("Type mismatch: detecting %u, expecting %u (0 != %u)!\n", typeNumber, shadow_begin[p], shadow_begin[p + i]);
+      printf("Type alignment mismatch(%u): detecting %s, expecting %s!\n", tag, typeNames[typeNumber], typeNames[shadow_begin[p]]);
       break;
     }
   }
