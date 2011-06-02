@@ -152,6 +152,26 @@ bool TypeChecks::runOnModule(Module &M) {
     modified |= visitByValFunction(M, *F);
   }
 
+  // NOTE:must visit before VAArgFunctions, to populate the map with the
+  // correct cloned functions.
+  while(!VAListFunctions.empty()) {
+    Function *F = VAListFunctions.back();
+    VAListFunctions.pop_back();
+    modified |= visitVAListFunction(M, *F);
+  }
+
+  // iterate through all the VAList funtions and modify call sites
+  // to call the new function 
+  std::map<Function *, Function *>::iterator FI = VAListFunctionsMap.begin(), FE = VAListFunctionsMap.end();
+  for(; FI != FE; FI++) {
+    visitVAListCall(FI->second);
+  }
+  while(!VAArgFunctions.empty()) {
+    Function *F = VAArgFunctions.back();
+    VAArgFunctions.pop_back();
+    assert(F->isVarArg());
+    modified |= visitVarArgFunction(M, *F);
+  }
   for (Module::iterator MI = M.begin(), ME = M.end(); MI != ME; ++MI) {
     Function &F = *MI;
     if(F.isDeclaration())
@@ -182,27 +202,6 @@ bool TypeChecks::runOnModule(Module &M) {
         modified |= visitAllocaInst(M, *AI);
       }
     }
-  }
-
-  // NOTE:must visit before VAArgFunctions, to populate the map with the
-  // correct cloned functions.
-  while(!VAListFunctions.empty()) {
-    Function *F = VAListFunctions.back();
-    VAListFunctions.pop_back();
-    modified |= visitVAListFunction(M, *F);
-  }
-
-  // iterate through all the VAList funtions and modify call sites
-  // to call the new function 
-  std::map<Function *, Function *>::iterator FI = VAListFunctionsMap.begin(), FE = VAListFunctionsMap.end();
-  for(; FI != FE; FI++) {
-    visitVAListCall(FI->second);
-  }
-  while(!VAArgFunctions.empty()) {
-    Function *F = VAArgFunctions.back();
-    VAArgFunctions.pop_back();
-    assert(F->isVarArg());
-    modified |= visitVarArgFunction(M, *F);
   }
 
   // add a global that contains the mapping from metadata to strings
@@ -419,10 +418,9 @@ bool TypeChecks::visitVarArgFunction(Module &M, Function &F) {
 }
 
 // each vararg function is modified so that the first
-// argument is the number of arguments in the va_list,
+// argument is the number of arguments passed in,
 // and the second is a pointer to a metadata array, 
 // containing type information for each of the arguments
-// in the va_list.
 
 // These are read and stored at the beginning of the function.
 
@@ -492,8 +490,18 @@ bool TypeChecks::visitInternalVarArgFunction(Module &M, Function &F) {
                                                  &*InsPt);
   new StoreInst(NewValue, VASizeLoc, &*InsPt);
   NII++;
+
   AllocaInst *VAMDLoc = new AllocaInst(VoidPtrTy, "", &*InsPt);
-  new StoreInst(NII, VAMDLoc, &*InsPt);
+  // Increment by the number of Initial Args, so as to not read the metadata
+  //for those.
+  Value *Idx[2];
+  Idx[0] = InitialArgs;
+  // For each vararg argument, also add its type information
+  GetElementPtrInst *GEP = GetElementPtrInst::CreateInBounds(NII, 
+                                                             Idx, 
+                                                             Idx + 1, 
+                                                             "", &*InsPt);
+  new StoreInst(GEP, VAMDLoc, &*InsPt);
   // Add a counter variable to the function entry
   AllocaInst *Counter = new AllocaInst(Int64Ty, "",&*InsPt);
   new StoreInst(ConstantInt::get(Int64Ty, 0), Counter, &*InsPt); 
@@ -596,7 +604,7 @@ bool TypeChecks::visitInternalVarArgFunction(Module &M, Function &F) {
     AllocaInst *AI = new AllocaInst(Int8Ty, NumArgsVal, "", CI);
     // set the metadata for the varargs in AI
     unsigned int j =0;
-    for(i = F.arg_size() + 1; i <CI->getNumOperands(); i++) {
+    for(i = 1; i <CI->getNumOperands(); i++) {
       Value *Idx[2];
       Idx[0] = ConstantInt::get(Int32Ty, j++);
       // For each vararg argument, also add its type information
