@@ -54,16 +54,6 @@ void shadowInit() {
 }
 
 /**
- * Unmap the shadow memory which records the 1:1 mapping of addresses to types.
- */
-void shadowUnmap() {
-  if (munmap(shadow_begin, SIZE) == -1) {
-    fprintf(stderr, "Failed to unmap the shadow memory!\n");
-    fflush(stderr);
-  }
-}
-
-/**
  * Copy arguments into a new array, and initialize
  * metadata for that location to TOP/initialized.
  */
@@ -90,7 +80,7 @@ void trackGlobal(void *ptr, uint8_t typeNumber, uint64_t size, uint32_t tag) {
 /**
  * Record the type stored at ptr(of size size) and replicate it
  */
-void trackGlobalArray(void *ptr, uint64_t size, uint64_t count, uint32_t tag) {
+void trackArray(void *ptr, uint64_t size, uint64_t count, uint32_t tag) {
   uintptr_t p = maskAddress(ptr);
   uintptr_t p1 = maskAddress(ptr);
   uint64_t i;
