@@ -1206,7 +1206,8 @@ bool TypeChecks::visitCallSite(Module &M, CallSite CS) {
       BCI->insertAfter(I);
       std::vector<Value *> Args;
       Args.push_back(BCI);
-      CastInst *Size = CastInst::CreateIntegerCast(I, Int64Ty, false, "", I);
+      CastInst *Size = CastInst::CreateIntegerCast(I, Int64Ty, false);
+      Size->insertAfter(I);
       Args.push_back(Size);
       Args.push_back(ConstantInt::get(Int32Ty, tagCounter++));
       CallInst *CI = CallInst::Create(trackInitInst, Args.begin(), Args.end());
@@ -1222,7 +1223,8 @@ bool TypeChecks::visitCallSite(Module &M, CallSite CS) {
       BCI->insertAfter(I);
       std::vector<Value *> Args;
       Args.push_back(BCI);
-      CastInst *Size = CastInst::CreateIntegerCast(I, Int64Ty, false, "", I);
+      CastInst *Size = CastInst::CreateIntegerCast(I, Int64Ty, false);
+      Size->insertAfter(I);
       Args.push_back(Size);
       Args.push_back(ConstantInt::get(Int32Ty, tagCounter++));
       CallInst *CI = CallInst::Create(trackInitInst, Args.begin(), Args.end());
