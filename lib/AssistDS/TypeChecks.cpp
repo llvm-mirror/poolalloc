@@ -483,7 +483,14 @@ bool TypeChecks::visitInternalVarArgFunction(Module &M, Function &F) {
   inst_iterator InsPt = inst_begin(NewF);
   Function::arg_iterator NII = NewF->arg_begin();
   AllocaInst *VASizeLoc = new AllocaInst(Int64Ty, "", &*InsPt);
-  new StoreInst(NII, VASizeLoc, &*InsPt);
+  // Subtract the number of initial arguments
+  Constant *InitialArgs = ConstantInt::get(Int64Ty, F.arg_size());
+  Instruction *NewValue = BinaryOperator::Create(BinaryOperator::Sub,
+                                                 NII,
+                                                 InitialArgs,
+                                                 "varargs",
+                                                 &*InsPt);
+  new StoreInst(NewValue, VASizeLoc, &*InsPt);
   NII++;
   AllocaInst *VAMDLoc = new AllocaInst(VoidPtrTy, "", &*InsPt);
   new StoreInst(NII, VAMDLoc, &*InsPt);
@@ -548,7 +555,6 @@ bool TypeChecks::visitInternalVarArgFunction(Module &M, Function &F) {
     }
   }
 
-  assert(VAStart && "Varargs function without a call to VAStart???");
   // modify calls to va list functions to pass the metadata
   for (Function::iterator B = NewF->begin(), FE = NewF->end(); B != FE; ++B) {
     for (BasicBlock::iterator I = B->begin(), BE = B->end(); I != BE;) {
@@ -585,9 +591,9 @@ bool TypeChecks::visitInternalVarArgFunction(Module &M, Function &F) {
       continue;
     std::vector<Value *> Args;
     unsigned int i;
-    unsigned int NumVarArgs = CI->getNumOperands() - F.arg_size() - 1;
-    Value *NumArgs = ConstantInt::get(Int32Ty, NumVarArgs);
-    AllocaInst *AI = new AllocaInst(Int8Ty, NumArgs, "", CI);
+    unsigned int NumArgs = CI->getNumOperands() - 1;
+    Value *NumArgsVal = ConstantInt::get(Int32Ty, NumArgs);
+    AllocaInst *AI = new AllocaInst(Int8Ty, NumArgsVal, "", CI);
     // set the metadata for the varargs in AI
     unsigned int j =0;
     for(i = F.arg_size() + 1; i <CI->getNumOperands(); i++) {
@@ -604,10 +610,9 @@ bool TypeChecks::visitInternalVarArgFunction(Module &M, Function &F) {
     }
 
     // As the first argument pass the number of var_arg arguments
-    Args.push_back(ConstantInt::get(Int64Ty, NumVarArgs));
+    Args.push_back(ConstantInt::get(Int64Ty, NumArgs));
     Args.push_back(AI);
     for(i = 1 ;i < CI->getNumOperands(); i++) {
-      CI->getOperand(i)->dump();
       // Add the original argument
       Args.push_back(CI->getOperand(i));
     }
