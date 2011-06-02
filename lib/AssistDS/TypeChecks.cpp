@@ -100,7 +100,6 @@ bool TypeChecks::runOnModule(Module &M) {
 
   // record argv
   modified |= visitMain(M, *MainF);
-  
 
   for (Module::iterator MI = M.begin(), ME = M.end(); MI != ME; ++MI) {
     Function &F = *MI;
@@ -110,7 +109,7 @@ bool TypeChecks::runOnModule(Module &M) {
     std::string name = F.getName();
     if (strncmp(name.c_str(), "tc.", 3) == 0) continue;
 
-    // check for byval arguments
+    // Iterate and find all byval functions
     bool hasByValArg = false;
     for (Function::arg_iterator I = F.arg_begin(), E = F.arg_end(); I != E; ++I) {
       if (I->hasByValAttr()) {
@@ -146,6 +145,7 @@ bool TypeChecks::runOnModule(Module &M) {
     }
   }
   
+  // modify all byval functions
   while(!ByValFunctions.empty()) {
     Function *F = ByValFunctions.back();
     ByValFunctions.pop_back();
@@ -184,7 +184,6 @@ bool TypeChecks::runOnModule(Module &M) {
     }
   }
 
-
   // NOTE:must visit before VAArgFunctions, to populate the map with the
   // correct cloned functions.
   while(!VAListFunctions.empty()) {
@@ -206,18 +205,25 @@ bool TypeChecks::runOnModule(Module &M) {
     modified |= visitVarArgFunction(M, *F);
   }
 
-  addTypeMapGlobal(M);
+  // add a global that contains the mapping from metadata to strings
+  addTypeMap(M);
+
+  // Update stats
   numTypes += UsedTypes.size();
 
   return modified;
 }
 
-void TypeChecks::addTypeMapGlobal(Module &M) {
 
-  // add a global that has the metadata -> typeString mapping
+// add a global that has the metadata -> typeString mapping
+void TypeChecks::addTypeMap(Module &M) {
+
+  // Declare the type of the global
   ArrayType*  AType = ArrayType::get(VoidPtrTy, UsedTypes.size() + 1);
   std::vector<Constant *> Values;
   Values.reserve(UsedTypes.size() + 1);
+
+  // Declare indices useful for creating a GEP
   std::vector<Constant *> Indices;
   Indices.push_back(ConstantInt::get(Int32Ty,0));
   Indices.push_back(ConstantInt::get(Int32Ty,0));
@@ -235,6 +241,8 @@ void TypeChecks::addTypeMapGlobal(Module &M) {
   Constant *C = ConstantExpr::getGetElementPtr(GV, &Indices[0], Indices.size());
   Values[0] = C;
 
+  // For each used type, create a new entry. 
+  // Also add these strings to the Values list
   std::map<const Type*, unsigned int >::iterator TI = UsedTypes.begin(), TE = UsedTypes.end(); 
   for(;TI!=TE; ++TI) {
     std::string *type = new std::string();
@@ -260,8 +268,6 @@ void TypeChecks::addTypeMapGlobal(Module &M) {
                      ConstantArray::get(AType, &Values[0], UsedTypes.size() + 1),
                      "typeNames"
                     );
-
-  return;
 }
 
 void TypeChecks::visitVAListCall(Function *F) {
@@ -275,7 +281,7 @@ void TypeChecks::visitVAListCall(Function *F) {
         continue;
       Function::arg_iterator NII = F->arg_begin();
       std::vector<Value *>Args;
-      Args.push_back(NII++); // toatl count
+      Args.push_back(NII++); // total count
       Args.push_back(NII++); // current count
       Args.push_back(NII); // MD
       for(unsigned i = 1 ;i < CI->getNumOperands(); i++) {
@@ -289,111 +295,111 @@ void TypeChecks::visitVAListCall(Function *F) {
   }
 }
 
-  bool TypeChecks::visitVAListFunction(Module &M, Function &F_orig) {
-    if(!F_orig.hasInternalLinkage())
-      return false;
+bool TypeChecks::visitVAListFunction(Module &M, Function &F_orig) {
+  if(!F_orig.hasInternalLinkage())
+    return false;
 
-    int VAListArgNum = 0;
-    // Check if one of the arguments is a va_list
-    const Type *ListType  = M.getTypeByName("struct.__va_list_tag");
-    if(!ListType)
-      return false;
-    const Type *ListPtrType = ListType->getPointerTo();
-    Argument *VAListArg = NULL; 
-    for (Function::arg_iterator I = F_orig.arg_begin(), E = F_orig.arg_end(); I != E; ++I) {
-      VAListArgNum ++;
-      if(I->getType() == ListPtrType) {
-        VAListArg = I;
-        break;
-      }
+  int VAListArgNum = 0;
+  // Check if one of the arguments is a va_list
+  const Type *ListType  = M.getTypeByName("struct.__va_list_tag");
+  if(!ListType)
+    return false;
+  const Type *ListPtrType = ListType->getPointerTo();
+  Argument *VAListArg = NULL; 
+  for (Function::arg_iterator I = F_orig.arg_begin(), E = F_orig.arg_end(); I != E; ++I) {
+    VAListArgNum ++;
+    if(I->getType() == ListPtrType) {
+      VAListArg = I;
+      break;
     }
-
-    // Clone the function to add arguments for count, MD
-
-    // 1. Create the new argument types vector
-    std::vector<const Type*>TP;
-    TP.push_back(Int64Ty); // for count
-    TP.push_back(Int64Ty); // for count
-    TP.push_back(VoidPtrTy); // for MD
-    for (Function::arg_iterator I = F_orig.arg_begin(), E = F_orig.arg_end(); I != E; ++I) {
-      TP.push_back(I->getType());
-    }
-    // 2. Create the new function prototype
-    const FunctionType *NewFTy = FunctionType::get(F_orig.getReturnType(), TP, false);
-    Function *F = Function::Create(NewFTy,
-                                   GlobalValue::InternalLinkage,
-                                   F_orig.getNameStr() + ".INT",
-                                   &M);
-
-    // 3. Set the mapping for args
-    Function::arg_iterator NI = F->arg_begin();
-    DenseMap<const Value*, Value*> ValueMap;
-    NI->setName("TotalCount");
-    NI++;
-    NI->setName("CurrentCount");
-    NI++;
-    NI->setName("MD");
-    NI++;
-    for (Function::arg_iterator II = F_orig.arg_begin(); NI != F->arg_end(); ++II, ++NI) {
-      // Each new argument maps to the argument in the old function
-      // For these arguments, also copy over the attributes
-      ValueMap[II] = NI;
-      NI->setName(II->getName());
-      NI->addAttr(F_orig.getAttributes().getParamAttributes(II->getArgNo() + 1));
-    }
-
-    // 4. Copy over the attributes for the function.
-    F->setAttributes(F->getAttributes()
-                     .addAttr(0, F_orig.getAttributes().getRetAttributes()));
-    F->setAttributes(F->getAttributes().addAttr(~0, F_orig.getAttributes().getFnAttributes()));
-
-    // 5. Perform the cloning.
-    SmallVector<ReturnInst*,100> Returns;
-    CloneFunctionInto(F, &F_orig, ValueMap, Returns);
-
-    VAListFunctionsMap[&F_orig] =  F;
-    inst_iterator InsPt = inst_begin(F);
-
-    // Store the information
-    Function::arg_iterator NII = F->arg_begin();
-    AllocaInst *VASizeLoc = new AllocaInst(Int64Ty, "", &*InsPt);
-    new StoreInst(NII, VASizeLoc, &*InsPt);
-    NII++;
-    AllocaInst *Counter = new AllocaInst(Int64Ty, "",&*InsPt);
-    new StoreInst(NII, Counter, &*InsPt); 
-    NII++;
-    AllocaInst *VAMDLoc = new AllocaInst(VoidPtrTy, "", &*InsPt);
-    new StoreInst(NII, VAMDLoc, &*InsPt);
-
-    // instrument va_arg to increment the counter
-    for (Function::iterator B = F->begin(), FE = F->end(); B != FE; ++B) {
-      for (BasicBlock::iterator I = B->begin(), BE = B->end(); I != BE;) {
-        VAArgInst *VI = dyn_cast<VAArgInst>(I++);
-        if(!VI)
-          continue;
-        Constant *One = ConstantInt::get(Int64Ty, 1);
-        LoadInst *OldValue = new LoadInst(Counter, "count", VI);
-        Instruction *NewValue = BinaryOperator::Create(BinaryOperator::Add,
-                                                       OldValue,
-                                                       One,
-                                                       "count",
-                                                       VI);
-        new StoreInst(NewValue, Counter, VI);
-        std::vector<Value *> Args;
-        Instruction *VASize = new LoadInst(VASizeLoc, "", VI);
-        Instruction *VAMetaData = new LoadInst(VAMDLoc, "", VI);
-        Args.push_back(VASize);
-        Args.push_back(OldValue);
-        Args.push_back(ConstantInt::get(Int8Ty, getTypeMarker(VI->getType())));
-        Args.push_back(VAMetaData);
-        Args.push_back(ConstantInt::get(Int32Ty, tagCounter++));
-        Constant *Func = M.getOrInsertFunction("compareTypeAndNumber", VoidTy, Int64Ty, Int64Ty, Int8Ty, VoidPtrTy, Int32Ty, NULL);
-        CallInst::Create(Func, Args.begin(), Args.end(), "", VI);
-      }
-    }
-
-    return true;
   }
+
+  // Clone the function to add arguments for count, MD
+
+  // 1. Create the new argument types vector
+  std::vector<const Type*>TP;
+  TP.push_back(Int64Ty); // for count
+  TP.push_back(Int64Ty); // for count
+  TP.push_back(VoidPtrTy); // for MD
+  for (Function::arg_iterator I = F_orig.arg_begin(), E = F_orig.arg_end(); I != E; ++I) {
+    TP.push_back(I->getType());
+  }
+  // 2. Create the new function prototype
+  const FunctionType *NewFTy = FunctionType::get(F_orig.getReturnType(), TP, false);
+  Function *F = Function::Create(NewFTy,
+                                 GlobalValue::InternalLinkage,
+                                 F_orig.getNameStr() + ".INT",
+                                 &M);
+
+  // 3. Set the mapping for args
+  Function::arg_iterator NI = F->arg_begin();
+  DenseMap<const Value*, Value*> ValueMap;
+  NI->setName("TotalCount");
+  NI++;
+  NI->setName("CurrentCount");
+  NI++;
+  NI->setName("MD");
+  NI++;
+  for (Function::arg_iterator II = F_orig.arg_begin(); NI != F->arg_end(); ++II, ++NI) {
+    // Each new argument maps to the argument in the old function
+    // For these arguments, also copy over the attributes
+    ValueMap[II] = NI;
+    NI->setName(II->getName());
+    NI->addAttr(F_orig.getAttributes().getParamAttributes(II->getArgNo() + 1));
+  }
+
+  // 4. Copy over the attributes for the function.
+  F->setAttributes(F->getAttributes()
+                   .addAttr(0, F_orig.getAttributes().getRetAttributes()));
+  F->setAttributes(F->getAttributes().addAttr(~0, F_orig.getAttributes().getFnAttributes()));
+
+  // 5. Perform the cloning.
+  SmallVector<ReturnInst*,100> Returns;
+  CloneFunctionInto(F, &F_orig, ValueMap, Returns);
+
+  VAListFunctionsMap[&F_orig] =  F;
+  inst_iterator InsPt = inst_begin(F);
+
+  // Store the information
+  Function::arg_iterator NII = F->arg_begin();
+  AllocaInst *VASizeLoc = new AllocaInst(Int64Ty, "", &*InsPt);
+  new StoreInst(NII, VASizeLoc, &*InsPt);
+  NII++;
+  AllocaInst *Counter = new AllocaInst(Int64Ty, "",&*InsPt);
+  new StoreInst(NII, Counter, &*InsPt); 
+  NII++;
+  AllocaInst *VAMDLoc = new AllocaInst(VoidPtrTy, "", &*InsPt);
+  new StoreInst(NII, VAMDLoc, &*InsPt);
+
+  // instrument va_arg to increment the counter
+  for (Function::iterator B = F->begin(), FE = F->end(); B != FE; ++B) {
+    for (BasicBlock::iterator I = B->begin(), BE = B->end(); I != BE;) {
+      VAArgInst *VI = dyn_cast<VAArgInst>(I++);
+      if(!VI)
+        continue;
+      Constant *One = ConstantInt::get(Int64Ty, 1);
+      LoadInst *OldValue = new LoadInst(Counter, "count", VI);
+      Instruction *NewValue = BinaryOperator::Create(BinaryOperator::Add,
+                                                     OldValue,
+                                                     One,
+                                                     "count",
+                                                     VI);
+      new StoreInst(NewValue, Counter, VI);
+      std::vector<Value *> Args;
+      Instruction *VASize = new LoadInst(VASizeLoc, "", VI);
+      Instruction *VAMetaData = new LoadInst(VAMDLoc, "", VI);
+      Args.push_back(VASize);
+      Args.push_back(OldValue);
+      Args.push_back(ConstantInt::get(Int8Ty, getTypeMarker(VI->getType())));
+      Args.push_back(VAMetaData);
+      Args.push_back(ConstantInt::get(Int32Ty, tagCounter++));
+      Constant *Func = M.getOrInsertFunction("compareTypeAndNumber", VoidTy, Int64Ty, Int64Ty, Int8Ty, VoidPtrTy, Int32Ty, NULL);
+      CallInst::Create(Func, Args.begin(), Args.end(), "", VI);
+    }
+  }
+
+  return true;
+}
 
 // Transform Variable Argument functions, by also passing
 // the relavant metadata info
@@ -413,14 +419,12 @@ bool TypeChecks::visitVarArgFunction(Module &M, Function &F) {
 }
 
 // each vararg function is modified so that the first
-// va_arg is the number of arguments in the va_list,
+// argument is the number of arguments in the va_list,
 // and the second is a pointer to a metadata array, 
 // containing type information for each of the arguments
 // in the va_list.
 
-// These are read and stored on a call to va_start.
-// There can be multiple calls to va_start in a given
-// function, which is why these are stored in memory
+// These are read and stored at the beginning of the function.
 
 // We keep a counter for the number of arguments accessed
 // from the va_list(Counter). It is incremented and 
@@ -434,20 +438,64 @@ bool TypeChecks::visitVarArgFunction(Module &M, Function &F) {
 
 bool TypeChecks::visitInternalVarArgFunction(Module &M, Function &F) {
 
-  inst_iterator InsPt = inst_begin(F);
+  // Clone function
+  // 1. Create the new argument types vector
+  std::vector<const Type*> TP;
+  TP.push_back(Int64Ty); // for count
+  TP.push_back(VoidPtrTy); // for MD
+  for(Function::arg_iterator I = F.arg_begin(), E = F.arg_end(); I !=E; ++I) {
+    TP.push_back(I->getType());
+  }
 
+  // 2. Create the new function prototype
+  const FunctionType *NewFTy = FunctionType::get(F.getReturnType(), TP, true);
+  Function *NewF = Function::Create(NewFTy,
+                                    GlobalValue::InternalLinkage,
+                                    F.getNameStr() + ".mod",
+                                    &M);
+
+  // 3. Set the mapping for the args
+  Function::arg_iterator NI = NewF->arg_begin();
+  DenseMap<const Value *, Value*> ValueMap;
+  NI->setName("TotalCount");
+  NI++;
+  NI->setName("MD");
+  NI++;
+  for(Function::arg_iterator II = F.arg_begin(); NI!=NewF->arg_end(); ++II, ++NI) {
+    // Each new argument maps to the argument in the old function
+    // For each of these also copy attributes
+    ValueMap[II] = NI;
+    NI->setName(II->getName());
+    NI->addAttr(F.getAttributes().getParamAttributes(II->getArgNo()+1));
+  }
+
+  // 4. Copy over attributes for the function
+  NewF->setAttributes(NewF->getAttributes()
+                      .addAttr(0, F.getAttributes().getRetAttributes()));
+  NewF->setAttributes(NewF->getAttributes().addAttr(~0, F.getAttributes().getFnAttributes()));
+
+  // 5. Perform the cloning
+  SmallVector<ReturnInst*, 100>Returns;
+  CloneFunctionInto(NewF, &F, ValueMap, Returns);
+
+
+  // Store the information
+  inst_iterator InsPt = inst_begin(NewF);
+  Function::arg_iterator NII = NewF->arg_begin();
   AllocaInst *VASizeLoc = new AllocaInst(Int64Ty, "", &*InsPt);
+  new StoreInst(NII, VASizeLoc, &*InsPt);
+  NII++;
   AllocaInst *VAMDLoc = new AllocaInst(VoidPtrTy, "", &*InsPt);
-
-  // Modify function to add checks on every var_arg call to ensure that we
-  // are not accessing more arguments than we passed in.
-
+  new StoreInst(NII, VAMDLoc, &*InsPt);
   // Add a counter variable to the function entry
   AllocaInst *Counter = new AllocaInst(Int64Ty, "",&*InsPt);
   new StoreInst(ConstantInt::get(Int64Ty, 0), Counter, &*InsPt); 
 
+  // Modify function to add checks on every var_arg call to ensure that we
+  // are not accessing more arguments than we passed in.
+
   // Increment the counter
-  for (Function::iterator B = F.begin(), FE = F.end(); B != FE; ++B) {
+  for (Function::iterator B = NewF->begin(), FE = NewF->end(); B != FE; ++B) {
     for (BasicBlock::iterator I = B->begin(), BE = B->end(); I != BE;) {
       VAArgInst *VI = dyn_cast<VAArgInst>(I++);
       if(!VI)
@@ -479,9 +527,9 @@ bool TypeChecks::visitInternalVarArgFunction(Module &M, Function &F) {
     }
   }
 
-  // store the metadata
+  // visit all VAStarts and initialize the counter
   CallInst *VAStart = NULL;
-  for (Function::iterator B = F.begin(), FE = F.end(); B != FE; ++B) {
+  for (Function::iterator B = NewF->begin(), FE = NewF->end(); B != FE; ++B) {
     for (BasicBlock::iterator I = B->begin(), BE = B->end(); I != BE;) {
       CallInst *CI = dyn_cast<CallInst>(I++);
       if(!CI)
@@ -494,28 +542,15 @@ bool TypeChecks::visitInternalVarArgFunction(Module &M, Function &F) {
       if(CalledF->getIntrinsicID() != Intrinsic::vastart) 
         continue;
       VAStart = CI;
-      // Modify the function to add a call to get the num of arguments
-      VAArgInst *VASize = new VAArgInst(CI->getOperand(1), Int64Ty, "NumArgs");
-      // Modify the function to add a call to get the metadata array
-      VAArgInst *VAMetaData = new VAArgInst(CI->getOperand(1), VoidPtrTy, "MD");
-      VASize->insertAfter(CI);
-      VAMetaData->insertAfter(VASize);
-
-      // Store the metadata
-      StoreInst *SI1 = new StoreInst(VASize, VASizeLoc);
-      SI1->insertAfter(VAMetaData);
-      StoreInst *SI2 = new StoreInst(VAMetaData, VAMDLoc);
-      SI2->insertAfter(SI1);
-
       // Reinitialize the counter
       StoreInst *SI3 = new StoreInst(ConstantInt::get(Int64Ty, 0), Counter);
-      SI3->insertAfter(SI2);
+      SI3->insertAfter(CI);
     }
   }
 
   assert(VAStart && "Varargs function without a call to VAStart???");
   // modify calls to va list functions to pass the metadata
-  for (Function::iterator B = F.begin(), FE = F.end(); B != FE; ++B) {
+  for (Function::iterator B = NewF->begin(), FE = NewF->end(); B != FE; ++B) {
     for (BasicBlock::iterator I = B->begin(), BE = B->end(); I != BE;) {
       CallInst *CI = dyn_cast<CallInst>(I++);
       if(!CI)
@@ -548,11 +583,9 @@ bool TypeChecks::visitInternalVarArgFunction(Module &M, Function &F) {
     CallInst *CI = dyn_cast<CallInst>(ui++);
     if(!CI)
       continue;
-    if(CI->getNumOperands() - 1 <= F.arg_size()) 
-      continue;
     std::vector<Value *> Args;
     unsigned int i;
-    unsigned int NumVarArgs = CI->getNumOperands() -F.arg_size() - 1;
+    unsigned int NumVarArgs = CI->getNumOperands() - F.arg_size() - 1;
     Value *NumArgs = ConstantInt::get(Int32Ty, NumVarArgs);
     AllocaInst *AI = new AllocaInst(Int8Ty, NumArgs, "", CI);
     // set the metadata for the varargs in AI
@@ -560,7 +593,7 @@ bool TypeChecks::visitInternalVarArgFunction(Module &M, Function &F) {
     for(i = F.arg_size() + 1; i <CI->getNumOperands(); i++) {
       Value *Idx[2];
       Idx[0] = ConstantInt::get(Int32Ty, j++);
-      // For each vararg argument, also add its type information before it
+      // For each vararg argument, also add its type information
       GetElementPtrInst *GEP = GetElementPtrInst::CreateInBounds(AI, 
                                                                  Idx, 
                                                                  Idx + 1, 
@@ -570,19 +603,17 @@ bool TypeChecks::visitInternalVarArgFunction(Module &M, Function &F) {
       new StoreInst(C, GEP, CI);
     }
 
+    // As the first argument pass the number of var_arg arguments
+    Args.push_back(ConstantInt::get(Int64Ty, NumVarArgs));
+    Args.push_back(AI);
     for(i = 1 ;i < CI->getNumOperands(); i++) {
-      // As the first vararg argument pass the number of var_arg arguments
-      if(i == F.arg_size() + 1) {
-        Args.push_back(ConstantInt::get(Int64Ty, NumVarArgs));
-        Args.push_back(AI);
-      }
-
+      CI->getOperand(i)->dump();
       // Add the original argument
       Args.push_back(CI->getOperand(i));
     }
 
     // Create the new call
-    CallInst *CI_New = CallInst::Create(CI->getCalledValue(), 
+    CallInst *CI_New = CallInst::Create(NewF, 
                                         Args.begin(), Args.end(), 
                                         "", CI);
     CI->replaceAllUsesWith(CI_New);
@@ -594,9 +625,8 @@ bool TypeChecks::visitInternalVarArgFunction(Module &M, Function &F) {
 bool TypeChecks::visitByValFunction(Module &M, Function &F) {
 
   // For internal functions
-  //   Replace with a cloned function with extra arguments
-  //   That takes as argument the original pointers without a byval parameter too
-  //   Use them to copy the metadata over to the byval arguments
+  //   Replace with a function with a a new function with no byval attr.
+  //   Add an explicity copy in the function
   //   Also update all the call sites.
 
   // For external functions

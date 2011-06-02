@@ -56,7 +56,7 @@ public:
 
   bool initShadow(Module &M);
   bool unmapShadow(Module &M, Instruction &I);
-  void addTypeMapGlobal(Module &M) ;
+  void addTypeMap(Module &M) ;
   bool visitCallInst(Module &M, CallInst &CI);
   bool visitInvokeInst(Module &M, InvokeInst &CI);
   bool visitCallSite(Module &M, CallSite CS);
