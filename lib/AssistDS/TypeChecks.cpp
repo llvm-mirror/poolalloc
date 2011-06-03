@@ -460,7 +460,7 @@ bool TypeChecks::visitAddressTakenFunction(Module &M, Function &F) {
   }
 
   // 2. Create the new function prototype
-  const FunctionType *NewFTy = FunctionType::get(F.getReturnType(), TP, true);
+  const FunctionType *NewFTy = FunctionType::get(F.getReturnType(), TP, false);
   Function *NewF = Function::Create(NewFTy,
                                     GlobalValue::InternalLinkage,
                                     F.getNameStr() + ".mod",
@@ -1397,6 +1397,21 @@ bool TypeChecks::visitCallSite(Module &M, CallSite CS) {
       Args.push_back(ConstantInt::get(Int32Ty, tagCounter++));
       CallInst::Create(trackInitInst, Args.begin(), Args.end(), "", I);
       return true;
+    } else if(F->getNameStr() == std::string("sprintf")) {
+      CastInst *BCI = BitCastInst::CreatePointerCast(I->getOperand(1), VoidPtrTy, "", I);
+      std::vector<Value*>Args;
+      Args.push_back(BCI);
+      CastInst *Size = CastInst::CreateIntegerCast(I, Int64Ty, false);
+      Size->insertAfter(I);
+      Constant *One = ConstantInt::get(Int64Ty, 1);
+      Instruction *NewValue = BinaryOperator::Create(BinaryOperator::Add,
+                                                     Size,
+                                                     One);
+      NewValue->insertAfter(Size);
+      Args.push_back(NewValue);
+      Args.push_back(ConstantInt::get(Int32Ty, tagCounter++));
+      CallInst *CINew = CallInst::Create(trackInitInst, Args.begin(), Args.end());
+      CINew->insertAfter(NewValue);
     } else if(F->getNameStr() == std::string("sscanf")) {
       // FIXME: Need to look at the format string and check
       unsigned i = 3;
