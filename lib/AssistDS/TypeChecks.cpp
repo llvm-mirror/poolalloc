@@ -84,6 +84,7 @@ bool TypeChecks::runOnModule(Module &M) {
 
   TD = &getAnalysis<TargetData>();
   TA = &getAnalysis<TypeAnalysis>();
+  addrAnalysis = &getAnalysis<AddressTakenAnalysis>();
   if(EnableTypeSafeOpt)
     TS = &getAnalysis<dsa::TypeSafety<TDDataStructures> >();
 
@@ -107,6 +108,7 @@ bool TypeChecks::runOnModule(Module &M) {
   VAListFunctions.clear();
   VAArgFunctions.clear();
   ByValFunctions.clear();
+  AddressTakenFunctions.clear();
 
   Function *MainF = M.getFunction("main");
   if (MainF == 0 || MainF->isDeclaration()) {
@@ -138,6 +140,11 @@ bool TypeChecks::runOnModule(Module &M) {
     }
     if(hasByValArg) {
       ByValFunctions.push_back(&F);
+    }
+
+    // Iterate and find all address taken functions
+    if(addrAnalysis->hasAddressTaken(&F)) {
+      AddressTakenFunctions.push_back(&F);
     }
 
     // Iterate and find all varargs functions
@@ -185,12 +192,7 @@ bool TypeChecks::runOnModule(Module &M) {
   for(; FI != FE; FI++) {
     visitVAListCall(FI->second);
   }
-  while(!VAArgFunctions.empty()) {
-    Function *F = VAArgFunctions.back();
-    VAArgFunctions.pop_back();
-    assert(F->isVarArg());
-    modified |= visitVarArgFunction(M, *F);
-  }
+  
   for (Module::iterator MI = M.begin(), ME = M.end(); MI != ME; ++MI) {
     Function &F = *MI;
     if(F.isDeclaration())
@@ -198,7 +200,7 @@ bool TypeChecks::runOnModule(Module &M) {
 
     // Loop over all of the instructions in the function, 
     // adding their return type as well as the types of their operands.
-    for (inst_iterator II = inst_begin(F), IE = inst_end(F); II != IE; ++II) {
+    for (inst_iterator II = inst_begin(F), IE = inst_end(F); II != IE;++II) {
       Instruction &I = *II;
       if (StoreInst *SI = dyn_cast<StoreInst>(&I)) {
         if (TA->isCopyingStore(SI)) {
@@ -222,6 +224,35 @@ bool TypeChecks::runOnModule(Module &M) {
       }
     }
   }
+
+  while(!VAArgFunctions.empty()) {
+    Function *F = VAArgFunctions.back();
+    VAArgFunctions.pop_back();
+    assert(F->isVarArg());
+    modified |= visitVarArgFunction(M, *F);
+  }
+
+  while(!AddressTakenFunctions.empty()) {
+    Function *F = AddressTakenFunctions.back();
+    AddressTakenFunctions.pop_back();
+    errs() << F->getNameStr()<<"\n";
+    if(F->isVarArg())
+      continue;
+    visitAddressTakenFunction(M, *F);
+  }
+
+  // visit all the uses of the address taken functions and modify if
+  // visit all the indirect call sites
+  for(std::set<Instruction*>::iterator II = IndCalls.begin(); II != IndCalls.end(); ) {
+    Instruction *I = *II++;
+    modified |= visitIndirectCallSite(M,I);
+  }
+  FI = IndFunctionsMap.begin(), FE = IndFunctionsMap.end();
+  for(;FI!=FE;++FI) {
+    Constant *C = ConstantExpr::getBitCast(FI->second, FI->first->getType());
+    FI->first->replaceAllUsesWith(C);
+  }
+
 
   // add a global that contains the mapping from metadata to strings
   addTypeMap(M);
@@ -413,6 +444,93 @@ bool TypeChecks::visitVAListFunction(Module &M, Function &F_orig) {
       Args.push_back(ConstantInt::get(Int32Ty, tagCounter++));
       CallInst::Create(compareTypeAndNumber, Args.begin(), Args.end(), "", VI);
     }
+  }
+
+  return true;
+}
+
+bool TypeChecks::visitAddressTakenFunction(Module &M, Function &F) {
+  // Clone function
+  // 1. Create the new argument types vector
+  std::vector<const Type*> TP;
+  TP.push_back(Int64Ty); // for count
+  TP.push_back(VoidPtrTy); // for MD
+  for(Function::arg_iterator I = F.arg_begin(), E = F.arg_end(); I !=E; ++I) {
+    TP.push_back(I->getType());
+  }
+
+  // 2. Create the new function prototype
+  const FunctionType *NewFTy = FunctionType::get(F.getReturnType(), TP, true);
+  Function *NewF = Function::Create(NewFTy,
+                                    GlobalValue::InternalLinkage,
+                                    F.getNameStr() + ".mod",
+                                    &M);
+
+  // 3. Set the mapping for the args
+  Function::arg_iterator NI = NewF->arg_begin();
+  DenseMap<const Value *, Value*> ValueMap;
+  NI->setName("TotalCount");
+  NI++;
+  NI->setName("MD");
+  NI++;
+  for(Function::arg_iterator II = F.arg_begin(); NI!=NewF->arg_end(); ++II, ++NI) {
+    // Each new argument maps to the argument in the old function
+    // For each of these also copy attributes
+    ValueMap[II] = NI;
+    NI->setName(II->getName());
+    NI->addAttr(F.getAttributes().getParamAttributes(II->getArgNo()+1));
+  }
+
+  // 4. Copy over attributes for the function
+  NewF->setAttributes(NewF->getAttributes()
+                      .addAttr(0, F.getAttributes().getRetAttributes()));
+  NewF->setAttributes(NewF->getAttributes().addAttr(~0, F.getAttributes().getFnAttributes()));
+
+  // 5. Perform the cloning
+  SmallVector<ReturnInst*, 100>Returns;
+  CloneFunctionInto(NewF, &F, ValueMap, Returns);
+  IndFunctionsMap[&F] = NewF;
+  
+  // Find all uses of the function
+  for(Value::use_iterator ui = F.use_begin(), ue = F.use_end();
+      ui != ue;)  {
+    // Check for call sites
+    CallInst *CI = dyn_cast<CallInst>(ui++);
+    if(!CI)
+      continue;
+    std::vector<Value *> Args;
+    unsigned int i;
+    unsigned int NumArgs = CI->getNumOperands() - 1;
+    Value *NumArgsVal = ConstantInt::get(Int32Ty, NumArgs);
+    AllocaInst *AI = new AllocaInst(Int8Ty, NumArgsVal, "", CI);
+    // set the metadata for the varargs in AI
+    for(i = 1; i <CI->getNumOperands(); i++) {
+      Value *Idx[2];
+      Idx[0] = ConstantInt::get(Int32Ty, i - 1 );
+      // For each vararg argument, also add its type information
+      GetElementPtrInst *GEP = GetElementPtrInst::CreateInBounds(AI, 
+                                                                 Idx, 
+                                                                 Idx + 1, 
+                                                                 "", CI);
+      Constant *C = ConstantInt::get(Int8Ty, 
+                                     getTypeMarker(CI->getOperand(i)->getType()));
+      new StoreInst(C, GEP, CI);
+    }
+
+    // As the first argument pass the number of var_arg arguments
+    Args.push_back(ConstantInt::get(Int64Ty, NumArgs));
+    Args.push_back(AI);
+    for(i = 1 ;i < CI->getNumOperands(); i++) {
+      // Add the original argument
+      Args.push_back(CI->getOperand(i));
+    }
+
+    // Create the new call
+    CallInst *CI_New = CallInst::Create(NewF, 
+                                        Args.begin(), Args.end(), 
+                                        "", CI);
+    CI->replaceAllUsesWith(CI_New);
+    CI->eraseFromParent();
   }
 
   return true;
@@ -614,10 +732,9 @@ bool TypeChecks::visitInternalVarArgFunction(Module &M, Function &F) {
     Value *NumArgsVal = ConstantInt::get(Int32Ty, NumArgs);
     AllocaInst *AI = new AllocaInst(Int8Ty, NumArgsVal, "", CI);
     // set the metadata for the varargs in AI
-    unsigned int j =0;
     for(i = 1; i <CI->getNumOperands(); i++) {
       Value *Idx[2];
-      Idx[0] = ConstantInt::get(Int32Ty, j++);
+      Idx[0] = ConstantInt::get(Int32Ty, i - 1 );
       // For each vararg argument, also add its type information
       GetElementPtrInst *GEP = GetElementPtrInst::CreateInBounds(AI, 
                                                                  Idx, 
@@ -643,6 +760,7 @@ bool TypeChecks::visitInternalVarArgFunction(Module &M, Function &F) {
     CI->replaceAllUsesWith(CI_New);
     CI->eraseFromParent();
   }
+  IndFunctionsMap[&F] = NewF;
   return true;
 }
 
@@ -689,7 +807,7 @@ bool TypeChecks::visitInternalByValFunction(Module &M, Function &F) {
     assert(I->getType()->isPointerTy());
     const Type *ETy = (cast<PointerType>(I->getType()))->getElementType();
     AllocaInst *AI = new AllocaInst(ETy, "", InsertBefore);
-    // Do this before add a load/store pair, so that those uses are not replaced.
+    // Do this before adding the load/store pair, so that those uses are not replaced.
     I->replaceAllUsesWith(AI);
     LoadInst *LI = new LoadInst(I, "", InsertBefore);
     new StoreInst(LI, AI, InsertBefore);
@@ -1084,18 +1202,10 @@ bool TypeChecks::visitAllocaInst(Module &M, AllocaInst &AI) {
 
   std::vector<Value *> Args;
   Args.push_back(BCI);
-  Args.push_back(AllocSize);
+  Args.push_back(Size);
   Args.push_back(ConstantInt::get(Int32Ty, tagCounter++));
   CallInst *CI = CallInst::Create(trackUnInitInst, Args.begin(), Args.end());
-  CI->insertAfter(BCI);
-  std::vector<Value *> Args1;
-  Args1.push_back(BCI);
-  Args1.push_back(AllocSize);
-  Args1.push_back(ArraySize);
-  Args1.push_back(ConstantInt::get(Int32Ty, tagCounter++));
-  CallInst *CI_Arr = CallInst::Create(trackArray, Args1.begin(), Args1.end());
-  CI_Arr->insertAfter(CI);
-
+  CI->insertAfter(CI_Init);
   return true;
 }
 
@@ -1247,9 +1357,9 @@ bool TypeChecks::visitCallSite(Module &M, CallSite CS) {
       CI->insertAfter(BCI);
       std::vector<Value *> Args1;
       Args1.push_back(BCI);
-      Args.push_back(Size);
+      Args1.push_back(Size);
       CastInst *Num = CastInst::CreateIntegerCast(I->getOperand(1), Int64Ty, false, "", I);
-      Args.push_back(Num);
+      Args1.push_back(Num);
       Args1.push_back(ConstantInt::get(Int32Ty, tagCounter++));
       CallInst *CI_Arr = CallInst::Create(trackArray, Args1.begin(), Args1.end());
       CI_Arr->insertAfter(CI);
@@ -1303,14 +1413,58 @@ bool TypeChecks::visitCallSite(Module &M, CallSite CS) {
     }
   } else {
     // indirect call site
-    return visitIndirectCallSite(M, CS);
+    IndCalls.insert(CS.getInstruction());
+    return false;
   }
   return false;
 }
 
-bool TypeChecks::visitIndirectCallSite(Module &M, CallSite CS) {
-  Instruction *I = CS.getInstruction();
-  I->dump();
+bool TypeChecks::visitIndirectCallSite(Module &M, Instruction *I) {
+  // add the number of arguments as the first argument
+
+  unsigned int NumArgs = I->getNumOperands() - 1;
+  Value *NumArgsVal = ConstantInt::get(Int32Ty, NumArgs);
+
+  AllocaInst *AI = new AllocaInst(Int8Ty, NumArgsVal, "", I);
+  for(unsigned int i = 1; i < I->getNumOperands(); i++) {
+    Value *Idx[2];
+    Idx[0] = ConstantInt::get(Int32Ty, i-1);
+    GetElementPtrInst *GEP = GetElementPtrInst::CreateInBounds(AI,
+                                                               Idx,
+                                                               Idx + 1,
+                                                               "", I);
+    Constant *C = ConstantInt::get(Int8Ty,
+                                   getTypeMarker(I->getOperand(i)->getType()));
+    new StoreInst(C, GEP, I);
+  }
+  std::vector<Value *> Args;
+  Args.push_back(ConstantInt::get(Int64Ty, NumArgs));
+  Args.push_back(AI);
+
+  for(unsigned int i = 1; i < I->getNumOperands(); i++)
+    Args.push_back(I->getOperand(i));
+
+  const Type* OrigType = I->getOperand(0)->getType();
+  assert(OrigType->isPointerTy());
+  const FunctionType *FOldType = cast<FunctionType>((cast<PointerType>(OrigType))->getElementType());
+  std::vector<const Type*>TP;
+  TP.push_back(Int64Ty);
+  TP.push_back(VoidPtrTy);
+
+  for(llvm::FunctionType::param_iterator ArgI = FOldType->param_begin(); ArgI != FOldType->param_end(); ++ArgI)
+    TP.push_back(*ArgI);
+
+  const FunctionType *FTy = FunctionType::get(FOldType->getReturnType(), TP, FOldType->isVarArg());
+  CastInst *Func = CastInst::CreatePointerCast(I->getOperand(0), FTy->getPointerTo(), "", I);
+  CallInst *CI_New = CallInst::Create(Func, 
+                                      Args.begin(),
+                                      Args.end(), 
+                                      "", I);
+  I->replaceAllUsesWith(CI_New);
+  I->eraseFromParent();
+
+
+  // add they types of the argument as the second argument
   return false;
 }
 

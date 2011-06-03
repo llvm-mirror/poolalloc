@@ -16,6 +16,7 @@
 
 #include "assistDS/TypeAnalysis.h"
 #include "dsa/TypeSafety.h"
+#include "dsa/AddressTakenAnalysis.h"
 
 #include "llvm/Instructions.h"
 #include "llvm/Pass.h"
@@ -33,14 +34,18 @@ class TypeChecks : public ModulePass {
 private:
   std::map<const Type *, unsigned int> UsedTypes;
   std::map<Function *, Function *> VAListFunctionsMap;
+  std::map<Function *, Function *> IndFunctionsMap;
   std::list<Function *> VAArgFunctions;
   std::list<Function *> VAListFunctions;
   std::list<Function *> ByValFunctions;
+  std::list<Function *> AddressTakenFunctions;
+  std::set<Instruction*> IndCalls;
 
   // Analysis from other passes.
   TargetData *TD;
   TypeAnalysis *TA;
   dsa::TypeSafety<TDDataStructures> *TS;
+  AddressTakenAnalysis* addrAnalysis;
 
 public:
   static char ID;
@@ -52,6 +57,7 @@ public:
     AU.addRequired<TargetData>();
     AU.addRequired<dsa::TypeSafety<TDDataStructures> >();
     AU.addRequired<TypeAnalysis>();
+    AU.addRequired<AddressTakenAnalysis>();
   }
 
   bool initShadow(Module &M);
@@ -59,12 +65,13 @@ public:
   bool visitCallInst(Module &M, CallInst &CI);
   bool visitInvokeInst(Module &M, InvokeInst &CI);
   bool visitCallSite(Module &M, CallSite CS);
-  bool visitIndirectCallSite(Module &M, CallSite CS);
+  bool visitIndirectCallSite(Module &M, Instruction *I);
   bool visitInternalByValFunction(Module &M, Function &F); 
   bool visitExternalByValFunction(Module &M, Function &F); 
   bool visitByValFunction(Module &M, Function &F); 
   bool visitMain(Module &M, Function &F); 
   bool visitVarArgFunction(Module &M, Function &F); 
+  bool visitAddressTakenFunction(Module &M, Function &F); 
   bool visitVAListFunction(Module &M, Function &F); 
   bool visitInternalVarArgFunction(Module &M, Function &F); 
   bool visitLoadInst(Module &M, LoadInst &LI);
