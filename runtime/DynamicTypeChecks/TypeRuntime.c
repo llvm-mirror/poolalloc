@@ -142,7 +142,7 @@ void trackLoadInst(void *ptr, uint8_t typeNumber, uint64_t size, uint32_t tag) {
   /* Check if this an initialized but untyped memory.*/
   if (typeNumber != shadow_begin[p]) {
     if (shadow_begin[p] != 0xFF) {
-      printf("Type mismatch(%u): expecting %s, found %s!\n", tag, typeNames[typeNumber], typeNames[shadow_begin[p]]);
+      printf("Type mismatch(%u): %p expecting %s, found %s!\n", tag, ptr, typeNames[typeNumber], typeNames[shadow_begin[p]]);
       return;
     } else {
       /* If so, set type to the type being read.
@@ -166,7 +166,7 @@ void trackLoadInst(void *ptr, uint8_t typeNumber, uint64_t size, uint32_t tag) {
   }
 
 #if DEBUG
-  printf("Load: %p, %p = actual: %u, expect: %u | %lu  bytes\n", ptr, (void *)p, typeNumber, shadow_begin[p], size);
+  printf("Load: %p, %p = actual: %u, expect: %u | %lu  bytes %d \n", ptr, (void *)p, typeNumber, shadow_begin[p], size, tag);
 #endif
 }
 
@@ -201,7 +201,7 @@ void copyTypeInfo(void *dstptr, void *srcptr, uint64_t size, uint32_t tag) {
   uintptr_t s = maskAddress(srcptr);
   memcpy(&shadow_begin[d], &shadow_begin[s], size);
 #if DEBUG
-  printf("Copy: %p, %p = %u | %lu bytes | %u\n", dstptr, (void *)d, shadow_begin[s], size, tag);
+  printf("Copy: %p, %p = %u | %lu bytes | %u\n", dstptr, srcptr, shadow_begin[s], size, tag);
 #endif
 }
 
@@ -226,5 +226,5 @@ void trackStrncpyInst(void *dst, void *src, uint64_t size, uint32_t tag) {
  * Initialize metadata for the dst pointer of strcpy
  */
 void trackStrcpyInst(void *dst, void *src, uint32_t tag) {
-  copyTypeInfo(dst, src, strlen(src), tag);
+  copyTypeInfo(dst, src, strlen(src)+1, tag);
 }
