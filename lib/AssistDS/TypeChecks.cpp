@@ -1275,6 +1275,24 @@ bool TypeChecks::visitCallSite(Module &M, CallSite CS) {
       Constant *F = M.getOrInsertFunction("trackctype", VoidTy, VoidPtrTy, Int32Ty, NULL);
       CallInst *CI = CallInst::Create(F, Args.begin(), Args.end());
       CI->insertAfter(BCI);
+    } else if (F->getNameStr() == std::string("__ctype_toupper_loc")) {
+      CastInst *BCI = BitCastInst::CreatePointerCast(I, VoidPtrTy);
+      BCI->insertAfter(I);
+      std::vector<Value *>Args;
+      Args.push_back(BCI);
+      Args.push_back(ConstantInt::get(Int32Ty, tagCounter++));
+      Constant *F = M.getOrInsertFunction("trackctype", VoidTy, VoidPtrTy, Int32Ty, NULL);
+      CallInst *CI = CallInst::Create(F, Args.begin(), Args.end());
+      CI->insertAfter(BCI);
+    } else if (F->getNameStr() == std::string("__ctype_tolower_loc")) {
+      CastInst *BCI = BitCastInst::CreatePointerCast(I, VoidPtrTy);
+      BCI->insertAfter(I);
+      std::vector<Value *>Args;
+      Args.push_back(BCI);
+      Args.push_back(ConstantInt::get(Int32Ty, tagCounter++));
+      Constant *F = M.getOrInsertFunction("trackctype", VoidTy, VoidPtrTy, Int32Ty, NULL);
+      CallInst *CI = CallInst::Create(F, Args.begin(), Args.end());
+      CI->insertAfter(BCI);
     } else if (F->getNameStr() == std::string("strcpy")) {
       std::vector<Value *> Args;
       Args.push_back(I->getOperand(1));
