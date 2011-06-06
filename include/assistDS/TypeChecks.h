@@ -84,6 +84,7 @@ public:
 
   void visitVAListCall(Function *F);
   unsigned int getTypeMarker(const llvm::Type*);
+  unsigned int getTypeMarker(Value*);
   // Return the map containing all of the types used in the module.
   const std::map<const Type *, unsigned int> &getTypes() const {
     return UsedTypes;
