@@ -57,6 +57,7 @@ static const Type *Int32Ty = 0;
 static const Type *Int64Ty = 0;
 static const PointerType *VoidPtrTy = 0;
 static Constant *trackGlobal;
+static Constant *trackStringInput;
 static Constant *trackArray;
 static Constant *trackInitInst;
 static Constant *trackUnInitInst;
@@ -159,6 +160,11 @@ bool TypeChecks::runOnModule(Module &M) {
                                                VoidPtrTy,/*metadata ptr*/
                                                Int32Ty,/*tag*/
                                                NULL);
+  trackStringInput = M.getOrInsertFunction("trackStringInput",
+                                           VoidTy,
+                                           VoidPtrTy,
+                                           Int32Ty,
+                                           NULL);
 
   UsedTypes.clear(); // Reset if run multiple times.
   VAListFunctions.clear();
@@ -249,6 +255,20 @@ bool TypeChecks::runOnModule(Module &M) {
   for(; FI != FE; FI++) {
     visitVAListCall(FI->second);
   }
+  while(!VAArgFunctions.empty()) {
+    Function *F = VAArgFunctions.back();
+    VAArgFunctions.pop_back();
+    assert(F->isVarArg());
+    modified |= visitVarArgFunction(M, *F);
+  }
+
+  while(!AddressTakenFunctions.empty()) {
+    Function *F = AddressTakenFunctions.back();
+    AddressTakenFunctions.pop_back();
+    if(F->isVarArg())
+      continue;
+    visitAddressTakenFunction(M, *F);
+  }
   
   for (Module::iterator MI = M.begin(), ME = M.end(); MI != ME; ++MI) {
     Function &F = *MI;
@@ -282,21 +302,6 @@ bool TypeChecks::runOnModule(Module &M) {
     }
   }
 
-  while(!VAArgFunctions.empty()) {
-    Function *F = VAArgFunctions.back();
-    VAArgFunctions.pop_back();
-    assert(F->isVarArg());
-    modified |= visitVarArgFunction(M, *F);
-  }
-
-  while(!AddressTakenFunctions.empty()) {
-    Function *F = AddressTakenFunctions.back();
-    AddressTakenFunctions.pop_back();
-    errs() << F->getNameStr()<<"\n";
-    if(F->isVarArg())
-      continue;
-    visitAddressTakenFunction(M, *F);
-  }
 
   // visit all the uses of the address taken functions and modify if
   // visit all the indirect call sites
@@ -307,8 +312,37 @@ bool TypeChecks::runOnModule(Module &M) {
   }
   FI = IndFunctionsMap.begin(), FE = IndFunctionsMap.end();
   for(;FI!=FE;++FI) {
-    Constant *C = ConstantExpr::getBitCast(FI->second, FI->first->getType());
-    FI->first->replaceAllUsesWith(C);
+    Function *F = FI->first;
+    std::vector<User *> toReplace;
+    for(Function::use_iterator User = F->use_begin();
+        User != F->use_end();++User) {
+      toReplace.push_back(*User);
+    }
+    Constant *CNew = ConstantExpr::getBitCast(FI->second, F->getType());
+    while (toReplace.size()) {
+      llvm::User * user = toReplace.back();
+      toReplace.pop_back(); 
+      if(Constant *C = dyn_cast<Constant>(user)) {
+        if(!isa<GlobalValue>(C)) {
+          std::vector<Use *> ReplaceWorklist;
+          for (User::op_iterator use = user->op_begin();
+               use != user->op_end();
+               ++use) {
+            if (use->get() == F) {
+              ReplaceWorklist.push_back (use);
+            }
+          }
+
+          //
+          // Do replacements in the worklist.
+          //
+          for (unsigned index = 0; index < ReplaceWorklist.size(); ++index)
+            C->replaceUsesOfWithOnConstant(F, CNew, ReplaceWorklist[index]);
+          continue;
+        }
+      }
+      user->replaceUsesOfWith(F, CNew);
+    }
   }
 
 
@@ -810,6 +844,10 @@ bool TypeChecks::visitInternalVarArgFunction(Module &M, Function &F) {
   for(Value::use_iterator ui = F.use_begin(), ue = F.use_end();
       ui != ue;)  {
     // Check for call sites
+    if(isa<InvokeInst>(ui)) {
+      //FIXME
+      ui->dump();
+    }
     CallInst *CI = dyn_cast<CallInst>(ui++);
     if(!CI)
       continue;
@@ -903,6 +941,10 @@ bool TypeChecks::visitInternalByValFunction(Module &M, Function &F) {
   // Update the call sites
   for(Value::use_iterator ui = F.use_begin(), ue = F.use_end();
       ui != ue;)  {
+    if(isa<InvokeInst>(ui)) {
+    //FIXME
+      ui->dump();
+    }
     // Check that F is the called value
     if(CallInst *CI = dyn_cast<CallInst>(ui++)) {
       if(CI->getCalledFunction() == &F) {
@@ -991,7 +1033,7 @@ bool TypeChecks::visitExternalByValFunction(Module &M, Function &F) {
       Args.push_back(AllocSize);
       Args.push_back(ConstantInt::get(Int32Ty, tagCounter++));
       // Set the metadata for the byval argument to TOP/Initialized
-      CallInst::Create(trackInitInst, Args.begin(), Args.end(), "", InsertBePt);
+      CallInst::Create(trackInitInst, Args.begin(), Args.end(), "", InsertPt);
       registeredArguments.push_back(&*I);
     }
   }
@@ -1582,12 +1624,38 @@ bool TypeChecks::visitIndirectCallSite(Module &M, Instruction *I) {
 
   const FunctionType *FTy = FunctionType::get(FOldType->getReturnType(), TP, FOldType->isVarArg());
   CastInst *Func = CastInst::CreatePointerCast(I->getOperand(0), FTy->getPointerTo(), "", I);
-  CallInst *CI_New = CallInst::Create(Func, 
-                                      Args.begin(),
-                                      Args.end(), 
-                                      "", I);
-  I->replaceAllUsesWith(CI_New);
-  I->eraseFromParent();
+  if(isa<CallInst>(I)) {
+    std::vector<Value *> Args;
+    Args.push_back(ConstantInt::get(Int64Ty, NumArgs));
+    Args.push_back(AI);
+
+    for(unsigned int i = 1; i < I->getNumOperands(); i++)
+      Args.push_back(I->getOperand(i));
+    CallInst *CI_New = CallInst::Create(Func, 
+                                        Args.begin(),
+                                        Args.end(), 
+                                        "", I);
+    I->replaceAllUsesWith(CI_New);
+    I->eraseFromParent();
+  } else if(InvokeInst *II = dyn_cast<InvokeInst>(I)) {
+    std::vector<Value *> Args;
+    Args.push_back(ConstantInt::get(Int64Ty, NumArgs));
+    Args.push_back(AI);
+
+    for(unsigned int i = 3; i < I->getNumOperands(); i++) {
+      Args.push_back(I->getOperand(i));
+    }
+
+    InvokeInst *INew = InvokeInst::Create(Func,
+                                          II->getNormalDest(),
+                                          II->getUnwindDest(),
+                                          Args.begin(),
+                                          Args.end(),
+                                          "", I);
+    I->replaceAllUsesWith(INew);
+    I->eraseFromParent();
+
+  }
 
 
   // add they types of the argument as the second argument
@@ -1609,6 +1677,16 @@ bool TypeChecks::visitInputFunctionValue(Module &M, Value *V, Instruction *CI) {
 
   // Create the call to the runtime check and place it before the store instruction.
   CallInst::Create(trackStoreInst, Args.begin(), Args.end(), "", CI);
+
+  if(PTy == VoidPtrTy) {
+    // TODO: This is currently a heuristic for strings. If we see a i8* in a call to 
+    // input functions, treat as string, and get length using strlen.
+    std::vector<Value*> Args;
+    Args.push_back(BCI);
+    Args.push_back(ConstantInt::get(Int32Ty, tagCounter++));
+    CallInst *CINew = CallInst::Create(trackStringInput, Args.begin(), Args.end());
+    CINew->insertAfter(CI);
+  }
 
   return true;
 }
