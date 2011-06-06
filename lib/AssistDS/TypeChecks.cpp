@@ -79,6 +79,11 @@ TypeChecks::getTypeMarker(const Type * Ty) {
   return UsedTypes[Ty];
 }
 
+unsigned int
+TypeChecks::getTypeMarker(Value *V) {
+  return getTypeMarker(V->getType());
+}
+
 bool TypeChecks::runOnModule(Module &M) {
   bool modified = false; // Flags whether we modified the module.
 
@@ -94,15 +99,66 @@ bool TypeChecks::runOnModule(Module &M) {
   Int64Ty = IntegerType::getInt64Ty(M.getContext());
   VoidPtrTy = PointerType::getUnqual(Int8Ty);
 
-  RegisterArgv = M.getOrInsertFunction("trackArgvType", VoidTy, Int32Ty, VoidPtrTy->getPointerTo(), NULL);
-  trackGlobal = M.getOrInsertFunction("trackGlobal", VoidTy, VoidPtrTy, Int8Ty, Int64Ty, Int32Ty, NULL);
-  trackArray = M.getOrInsertFunction("trackArray", VoidTy, VoidPtrTy, Int64Ty, Int64Ty, Int32Ty, NULL);
-  trackInitInst = M.getOrInsertFunction("trackInitInst", VoidTy, VoidPtrTy, Int64Ty, Int32Ty, NULL);
-  trackUnInitInst = M.getOrInsertFunction("trackUnInitInst", VoidTy, VoidPtrTy, Int64Ty, Int32Ty, NULL);
-  trackStoreInst = M.getOrInsertFunction("trackStoreInst", VoidTy, VoidPtrTy, Int8Ty, Int64Ty, Int32Ty, NULL);
-  trackLoadInst = M.getOrInsertFunction("trackLoadInst", VoidTy, VoidPtrTy, Int8Ty, Int64Ty, Int32Ty, NULL);
-  copyTypeInfo = M.getOrInsertFunction("copyTypeInfo", VoidTy, VoidPtrTy, VoidPtrTy, Int64Ty, Int32Ty, NULL);
-  compareTypeAndNumber = M.getOrInsertFunction("compareTypeAndNumber", VoidTy, Int64Ty, Int64Ty, Int8Ty, VoidPtrTy, Int32Ty, NULL);
+  RegisterArgv = M.getOrInsertFunction("trackArgvType",
+                                       VoidTy,
+                                       Int32Ty, /*argc */
+                                       VoidPtrTy->getPointerTo(),/*argv*/
+                                       NULL);
+  trackGlobal = M.getOrInsertFunction("trackGlobal",
+                                      VoidTy,
+                                      VoidPtrTy,/*ptr*/
+                                      Int8Ty,/*type*/
+                                      Int64Ty,/*size*/
+                                      Int32Ty,/*tag*/
+                                      NULL);
+  trackArray = M.getOrInsertFunction("trackArray",
+                                     VoidTy,
+                                     VoidPtrTy,/*ptr*/
+                                     Int64Ty,/*size*/
+                                     Int64Ty,/*count*/
+                                     Int32Ty,/*tag*/
+                                     NULL);
+  trackInitInst = M.getOrInsertFunction("trackInitInst",
+                                        VoidTy,
+                                        VoidPtrTy,/*ptr*/
+                                        Int64Ty,/*size*/
+                                        Int32Ty,/*tag*/
+                                        NULL);
+  trackUnInitInst = M.getOrInsertFunction("trackUnInitInst",
+                                          VoidTy,
+                                          VoidPtrTy,/*ptr*/
+                                          Int64Ty,/*size*/
+                                          Int32Ty,/*tag*/
+                                          NULL);
+  trackStoreInst = M.getOrInsertFunction("trackStoreInst",
+                                         VoidTy,
+                                         VoidPtrTy,/*ptr*/
+                                         Int8Ty,/*type*/
+                                         Int64Ty,/*size*/
+                                         Int32Ty,/*tag*/
+                                         NULL);
+  trackLoadInst = M.getOrInsertFunction("trackLoadInst",
+                                        VoidTy,
+                                        VoidPtrTy,/*ptr*/
+                                        Int8Ty,/*type*/
+                                        Int64Ty,/*size*/
+                                        Int32Ty,/*tag*/
+                                        NULL);
+  copyTypeInfo = M.getOrInsertFunction("copyTypeInfo",
+                                       VoidTy,
+                                       VoidPtrTy,/*dest ptr*/
+                                       VoidPtrTy,/*src ptr*/
+                                       Int64Ty,/*size*/
+                                       Int32Ty,/*tag*/
+                                       NULL);
+  compareTypeAndNumber = M.getOrInsertFunction("compareTypeAndNumber",
+                                               VoidTy,
+                                               Int64Ty,/*Total Args*/
+                                               Int64Ty,/*Arg accessed*/
+                                               Int8Ty,/*type*/
+                                               VoidPtrTy,/*metadata ptr*/
+                                               Int32Ty,/*tag*/
+                                               NULL);
 
   UsedTypes.clear(); // Reset if run multiple times.
   VAListFunctions.clear();
@@ -132,7 +188,7 @@ bool TypeChecks::runOnModule(Module &M) {
 
     // Iterate and find all byval functions
     bool hasByValArg = false;
-    for (Function::arg_iterator I = F.arg_begin(), E = F.arg_end(); I != E; ++I) {
+    for (Function::arg_iterator I = F.arg_begin(); I != F.arg_end(); ++I) {
       if (I->hasByValAttr()) {
         hasByValArg = true;
         break;
@@ -159,7 +215,7 @@ bool TypeChecks::runOnModule(Module &M) {
       continue;
 
     const Type *ListPtrType = ListType->getPointerTo();
-    for (Function::arg_iterator I = F.arg_begin(), E = F.arg_end(); I != E; ++I) {
+    for (Function::arg_iterator I = F.arg_begin(); I != F.arg_end(); ++I) {
       if(I->getType() == ListPtrType) {
         isVAListFunc = true;
         break;
@@ -188,7 +244,8 @@ bool TypeChecks::runOnModule(Module &M) {
 
   // iterate through all the VAList funtions and modify call sites
   // to call the new function 
-  std::map<Function *, Function *>::iterator FI = VAListFunctionsMap.begin(), FE = VAListFunctionsMap.end();
+  std::map<Function *, Function *>::iterator FI = VAListFunctionsMap.begin(), 
+                                             FE = VAListFunctionsMap.end();
   for(; FI != FE; FI++) {
     visitVAListCall(FI->second);
   }
@@ -243,7 +300,8 @@ bool TypeChecks::runOnModule(Module &M) {
 
   // visit all the uses of the address taken functions and modify if
   // visit all the indirect call sites
-  for(std::set<Instruction*>::iterator II = IndCalls.begin(); II != IndCalls.end(); ) {
+  std::set<Instruction*>::iterator II = IndCalls.begin();
+  for(; II != IndCalls.end();) {
     Instruction *I = *II++;
     modified |= visitIndirectCallSite(M,I);
   }
@@ -287,12 +345,15 @@ void TypeChecks::addTypeMap(Module &M) {
                                           CA,
                                           "");
   GV->setInitializer(CA);
-  Constant *C = ConstantExpr::getGetElementPtr(GV, &Indices[0], Indices.size());
+  Constant *C = ConstantExpr::getGetElementPtr(GV, 
+                                               &Indices[0], 
+                                               Indices.size());
   Values[0] = C;
 
   // For each used type, create a new entry. 
   // Also add these strings to the Values list
-  std::map<const Type*, unsigned int >::iterator TI = UsedTypes.begin(), TE = UsedTypes.end(); 
+  std::map<const Type*, unsigned int >::iterator TI = UsedTypes.begin(),
+                                                 TE = UsedTypes.end(); 
   for(;TI!=TE; ++TI) {
     std::string *type = new std::string();
     llvm::raw_string_ostream *test = new llvm::raw_string_ostream(*type);
@@ -306,7 +367,9 @@ void TypeChecks::addTypeMap(Module &M) {
                                             CA,
                                             "");
     GV->setInitializer(CA);
-    Constant *C = ConstantExpr::getGetElementPtr(GV, &Indices[0], Indices.size());
+    Constant *C = ConstantExpr::getGetElementPtr(GV, 
+                                                 &Indices[0], 
+                                                 Indices.size());
     Values[TI->second]= C;
   }
 
@@ -314,7 +377,7 @@ void TypeChecks::addTypeMap(Module &M) {
                      AType,
                      true,
                      GlobalValue::ExternalLinkage,
-                     ConstantArray::get(AType, &Values[0], UsedTypes.size() + 1),
+                     ConstantArray::get(AType,&Values[0],UsedTypes.size()+1),
                      "typeNames"
                     );
 }
@@ -337,7 +400,10 @@ void TypeChecks::visitVAListCall(Function *F) {
         // Add the original argument
         Args.push_back(CI->getOperand(i));
       }
-      CallInst *CINew = CallInst::Create(VAListFunctionsMap[CalledF], Args.begin(), Args.end(), "", CI);
+      CallInst *CINew = CallInst::Create(VAListFunctionsMap[CalledF], 
+                                         Args.begin(), 
+                                         Args.end(),
+                                         "", CI);
       CI->replaceAllUsesWith(CINew);
       CI->eraseFromParent();
     }
@@ -355,7 +421,8 @@ bool TypeChecks::visitVAListFunction(Module &M, Function &F_orig) {
     return false;
   const Type *ListPtrType = ListType->getPointerTo();
   Argument *VAListArg = NULL; 
-  for (Function::arg_iterator I = F_orig.arg_begin(), E = F_orig.arg_end(); I != E; ++I) {
+  for (Function::arg_iterator I = F_orig.arg_begin(); 
+       I != F_orig.arg_end(); ++I) {
     VAListArgNum ++;
     if(I->getType() == ListPtrType) {
       VAListArg = I;
@@ -370,11 +437,14 @@ bool TypeChecks::visitVAListFunction(Module &M, Function &F_orig) {
   TP.push_back(Int64Ty); // for count
   TP.push_back(Int64Ty); // for count
   TP.push_back(VoidPtrTy); // for MD
-  for (Function::arg_iterator I = F_orig.arg_begin(), E = F_orig.arg_end(); I != E; ++I) {
+  for (Function::arg_iterator I = F_orig.arg_begin();
+       I != F_orig.arg_end(); ++I) {
     TP.push_back(I->getType());
   }
   // 2. Create the new function prototype
-  const FunctionType *NewFTy = FunctionType::get(F_orig.getReturnType(), TP, false);
+  const FunctionType *NewFTy = FunctionType::get(F_orig.getReturnType(),
+                                                 TP,/*argument types*/
+                                                 false);/*vararg*/
   Function *F = Function::Create(NewFTy,
                                  GlobalValue::InternalLinkage,
                                  F_orig.getNameStr() + ".INT",
@@ -389,18 +459,21 @@ bool TypeChecks::visitVAListFunction(Module &M, Function &F_orig) {
   NI++;
   NI->setName("MD");
   NI++;
-  for (Function::arg_iterator II = F_orig.arg_begin(); NI != F->arg_end(); ++II, ++NI) {
+  for (Function::arg_iterator II = F_orig.arg_begin(); 
+       NI != F->arg_end(); ++II, ++NI) {
     // Each new argument maps to the argument in the old function
     // For these arguments, also copy over the attributes
     ValueMap[II] = NI;
     NI->setName(II->getName());
-    NI->addAttr(F_orig.getAttributes().getParamAttributes(II->getArgNo() + 1));
+    NI->addAttr(F_orig.getAttributes()
+                .getParamAttributes(II->getArgNo() + 1));
   }
 
   // 4. Copy over the attributes for the function.
   F->setAttributes(F->getAttributes()
                    .addAttr(0, F_orig.getAttributes().getRetAttributes()));
-  F->setAttributes(F->getAttributes().addAttr(~0, F_orig.getAttributes().getFnAttributes()));
+  F->setAttributes(F->getAttributes()
+                   .addAttr(~0, F_orig.getAttributes().getFnAttributes()));
 
   // 5. Perform the cloning.
   SmallVector<ReturnInst*,100> Returns;
@@ -439,10 +512,13 @@ bool TypeChecks::visitVAListFunction(Module &M, Function &F_orig) {
       Instruction *VAMetaData = new LoadInst(VAMDLoc, "", VI);
       Args.push_back(VASize);
       Args.push_back(OldValue);
-      Args.push_back(ConstantInt::get(Int8Ty, getTypeMarker(VI->getType())));
+      Args.push_back(ConstantInt::get(Int8Ty, getTypeMarker(VI)));
       Args.push_back(VAMetaData);
       Args.push_back(ConstantInt::get(Int32Ty, tagCounter++));
-      CallInst::Create(compareTypeAndNumber, Args.begin(), Args.end(), "", VI);
+      CallInst::Create(compareTypeAndNumber,
+                       Args.begin(),
+                       Args.end(),
+                       "", VI);
     }
   }
 
@@ -455,12 +531,14 @@ bool TypeChecks::visitAddressTakenFunction(Module &M, Function &F) {
   std::vector<const Type*> TP;
   TP.push_back(Int64Ty); // for count
   TP.push_back(VoidPtrTy); // for MD
-  for(Function::arg_iterator I = F.arg_begin(), E = F.arg_end(); I !=E; ++I) {
+  for(Function::arg_iterator I = F.arg_begin(); I !=F.arg_end(); ++I) {
     TP.push_back(I->getType());
   }
 
   // 2. Create the new function prototype
-  const FunctionType *NewFTy = FunctionType::get(F.getReturnType(), TP, false);
+  const FunctionType *NewFTy = FunctionType::get(F.getReturnType(),
+                                                 TP,
+                                                 false);
   Function *NewF = Function::Create(NewFTy,
                                     GlobalValue::InternalLinkage,
                                     F.getNameStr() + ".mod",
@@ -473,7 +551,8 @@ bool TypeChecks::visitAddressTakenFunction(Module &M, Function &F) {
   NI++;
   NI->setName("MD");
   NI++;
-  for(Function::arg_iterator II = F.arg_begin(); NI!=NewF->arg_end(); ++II, ++NI) {
+  for(Function::arg_iterator II = F.arg_begin(); 
+      NI!=NewF->arg_end(); ++II, ++NI) {
     // Each new argument maps to the argument in the old function
     // For each of these also copy attributes
     ValueMap[II] = NI;
@@ -484,7 +563,8 @@ bool TypeChecks::visitAddressTakenFunction(Module &M, Function &F) {
   // 4. Copy over attributes for the function
   NewF->setAttributes(NewF->getAttributes()
                       .addAttr(0, F.getAttributes().getRetAttributes()));
-  NewF->setAttributes(NewF->getAttributes().addAttr(~0, F.getAttributes().getFnAttributes()));
+  NewF->setAttributes(NewF->getAttributes()
+                      .addAttr(~0, F.getAttributes().getFnAttributes()));
 
   // 5. Perform the cloning
   SmallVector<ReturnInst*, 100>Returns;
@@ -513,7 +593,7 @@ bool TypeChecks::visitAddressTakenFunction(Module &M, Function &F) {
                                                                  Idx + 1, 
                                                                  "", CI);
       Constant *C = ConstantInt::get(Int8Ty, 
-                                     getTypeMarker(CI->getOperand(i)->getType()));
+                                     getTypeMarker(CI->getOperand(i)));
       new StoreInst(C, GEP, CI);
     }
 
@@ -577,12 +657,14 @@ bool TypeChecks::visitInternalVarArgFunction(Module &M, Function &F) {
   std::vector<const Type*> TP;
   TP.push_back(Int64Ty); // for count
   TP.push_back(VoidPtrTy); // for MD
-  for(Function::arg_iterator I = F.arg_begin(), E = F.arg_end(); I !=E; ++I) {
+  for(Function::arg_iterator I = F.arg_begin(); I !=F.arg_end(); ++I) {
     TP.push_back(I->getType());
   }
 
   // 2. Create the new function prototype
-  const FunctionType *NewFTy = FunctionType::get(F.getReturnType(), TP, true);
+  const FunctionType *NewFTy = FunctionType::get(F.getReturnType(),
+                                                 TP,
+                                                 true);
   Function *NewF = Function::Create(NewFTy,
                                     GlobalValue::InternalLinkage,
                                     F.getNameStr() + ".mod",
@@ -595,7 +677,8 @@ bool TypeChecks::visitInternalVarArgFunction(Module &M, Function &F) {
   NI++;
   NI->setName("MD");
   NI++;
-  for(Function::arg_iterator II = F.arg_begin(); NI!=NewF->arg_end(); ++II, ++NI) {
+  for(Function::arg_iterator II = F.arg_begin(); 
+      NI!=NewF->arg_end(); ++II, ++NI) {
     // Each new argument maps to the argument in the old function
     // For each of these also copy attributes
     ValueMap[II] = NI;
@@ -606,7 +689,8 @@ bool TypeChecks::visitInternalVarArgFunction(Module &M, Function &F) {
   // 4. Copy over attributes for the function
   NewF->setAttributes(NewF->getAttributes()
                       .addAttr(0, F.getAttributes().getRetAttributes()));
-  NewF->setAttributes(NewF->getAttributes().addAttr(~0, F.getAttributes().getFnAttributes()));
+  NewF->setAttributes(NewF->getAttributes()
+                      .addAttr(~0, F.getAttributes().getFnAttributes()));
 
   // 5. Perform the cloning
   SmallVector<ReturnInst*, 100>Returns;
@@ -664,10 +748,13 @@ bool TypeChecks::visitInternalVarArgFunction(Module &M, Function &F) {
       Instruction *VAMetaData = new LoadInst(VAMDLoc, "", VI);
       Args.push_back(VASize);
       Args.push_back(OldValue);
-      Args.push_back(ConstantInt::get(Int8Ty, getTypeMarker(VI->getType())));
+      Args.push_back(ConstantInt::get(Int8Ty, getTypeMarker(VI)));
       Args.push_back(VAMetaData);
       Args.push_back(ConstantInt::get(Int32Ty, tagCounter++));
-      CallInst::Create(compareTypeAndNumber, Args.begin(), Args.end(), "", VI);
+      CallInst::Create(compareTypeAndNumber,
+                       Args.begin(),
+                       Args.end(),
+                       "", VI);
     }
   }
 
@@ -741,7 +828,7 @@ bool TypeChecks::visitInternalVarArgFunction(Module &M, Function &F) {
                                                                  Idx + 1, 
                                                                  "", CI);
       Constant *C = ConstantInt::get(Int8Ty, 
-                                     getTypeMarker(CI->getOperand(i)->getType()));
+                                     getTypeMarker(CI->getOperand(i)));
       new StoreInst(C, GEP, CI);
     }
 
@@ -796,7 +883,7 @@ bool TypeChecks::visitInternalByValFunction(Module &M, Function &F) {
   // for every byval argument
   // add an alloca, a load, and a store inst
   Instruction * InsertBefore = &(F.getEntryBlock().front());
-  for (Function::arg_iterator I = F.arg_begin(), E = F.arg_end(); I != E; ++I) {
+  for (Function::arg_iterator I = F.arg_begin(); I != F.arg_end(); ++I) {
     if (!I->hasByValAttr())
       continue;
     if(EnableTypeSafeOpt) {
@@ -839,7 +926,7 @@ bool TypeChecks::visitInternalByValFunction(Module &M, Function &F) {
           if(EnableTypeSafeOpt) {
             if(TS->isTypeSafe(II, CI->getParent()->getParent())) {
               if (Attributes Attrs = CallPAL.getParamAttributes(j))
-                AttributesVec.push_back(AttributeWithIndex::get(Args.size(), Attrs));
+                AttributesVec.push_back(AttributeWithIndex::get(j, Attrs));
               continue;
             }
           }
@@ -847,7 +934,7 @@ bool TypeChecks::visitInternalByValFunction(Module &M, Function &F) {
           if(II->hasByValAttr()) 
             continue;
           if (Attributes Attrs = CallPAL.getParamAttributes(j)) {
-            AttributesVec.push_back(AttributeWithIndex::get(Args.size(), Attrs));
+            AttributesVec.push_back(AttributeWithIndex::get(j, Attrs));
           }
         }
 
@@ -860,7 +947,11 @@ bool TypeChecks::visitInternalByValFunction(Module &M, Function &F) {
 
 
         // Create the substitute call
-        CallInst *CallI = CallInst::Create(&F,Args.begin(), Args.end(),"", CI);
+        CallInst *CallI = CallInst::Create(&F,
+                                           Args.begin(),
+                                           Args.end(),
+                                           "", CI);
+
         CallI->setCallingConv(CI->getCallingConv());
         CallI->setAttributes(NewCallPAL);
         CI->replaceAllUsesWith(CallI);
@@ -870,7 +961,7 @@ bool TypeChecks::visitInternalByValFunction(Module &M, Function &F) {
   }
 
   // remove the byval attribute from the function
-  for (Function::arg_iterator I = F.arg_begin(), E = F.arg_end(); I != E; ++I) {
+  for (Function::arg_iterator I = F.arg_begin(); I != F.arg_end(); ++I) {
     if (!I->hasByValAttr())
       continue;
     if(EnableTypeSafeOpt) {
@@ -887,20 +978,20 @@ bool TypeChecks::visitExternalByValFunction(Module &M, Function &F) {
   // A list of the byval arguments that we are setting metadata for
   typedef SmallVector<Value *, 4> RegisteredArgTy;
   RegisteredArgTy registeredArguments;
-  for (Function::arg_iterator I = F.arg_begin(), E = F.arg_end(); I != E; ++I) {
+  for (Function::arg_iterator I = F.arg_begin(); I != F.arg_end(); ++I) {
     if (I->hasByValAttr()) {
       assert (isa<PointerType>(I->getType()));
       const PointerType * PT = cast<PointerType>(I->getType());
       const Type * ET = PT->getElementType();
       Value * AllocSize = ConstantInt::get(Int64Ty, TD->getTypeAllocSize(ET));
-      Instruction * InsertBefore = &(F.getEntryBlock().front());
-      CastInst *BCI = BitCastInst::CreatePointerCast(I, VoidPtrTy, "", InsertBefore);
+      Instruction * InsertPt = &(F.getEntryBlock().front());
+      CastInst *BCI = BitCastInst::CreatePointerCast(I, VoidPtrTy, "", InsertPt);
       std::vector<Value *> Args;
       Args.push_back(BCI);
       Args.push_back(AllocSize);
       Args.push_back(ConstantInt::get(Int32Ty, tagCounter++));
       // Set the metadata for the byval argument to TOP/Initialized
-      CallInst::Create(trackInitInst, Args.begin(), Args.end(), "", InsertBefore);
+      CallInst::Create(trackInitInst, Args.begin(), Args.end(), "", InsertBePt);
       registeredArguments.push_back(&*I);
     }
   }
@@ -941,7 +1032,9 @@ bool TypeChecks::visitExternalByValFunction(Module &M, Function &F) {
 // symbol table from the module.
 void TypeChecks::print(raw_ostream &OS, const Module *M) const {
   OS << "Types in use by this module:\n";
-  for (std::map<const Type *, unsigned int>::const_iterator I = UsedTypes.begin(), E = UsedTypes.end(); I != E; ++I) {
+  std::map<const Type *,unsigned int>::const_iterator I = UsedTypes.begin(), 
+                                                      E = UsedTypes.end();
+  for (; I != E; ++I) {
     OS << "  ";
     WriteTypeSymbolic(OS, I->first, M);
     OS << '\n';
@@ -1135,7 +1228,7 @@ bool TypeChecks::visitGlobal(Module &M, GlobalVariable &GV,
 
       std::vector<Value *> Args;
       Args.push_back(GEP);
-      Args.push_back(ConstantInt::get(Int8Ty, getTypeMarker(CAZ->getType())));
+      Args.push_back(ConstantInt::get(Int8Ty, getTypeMarker(CAZ)));
       Args.push_back(ConstantInt::get(Int64Ty, TD->getTypeStoreSize(CAZ->getType())));
       Args.push_back(ConstantInt::get(Int32Ty, tagCounter++));
       CallInst::Create(trackGlobal, Args.begin(), Args.end(), "", &I);
@@ -1151,7 +1244,7 @@ bool TypeChecks::visitGlobal(Module &M, GlobalVariable &GV,
 
     std::vector<Value *> Args;
     Args.push_back(GEP);
-    Args.push_back(ConstantInt::get(Int8Ty, getTypeMarker(C->getType())));
+    Args.push_back(ConstantInt::get(Int8Ty, getTypeMarker(C)));
     Args.push_back(ConstantInt::get(Int64Ty, TD->getTypeStoreSize(C->getType())));
     Args.push_back(ConstantInt::get(Int32Ty, tagCounter++));
     CallInst::Create(trackGlobal, Args.begin(), Args.end(), "", &I);
@@ -1467,7 +1560,7 @@ bool TypeChecks::visitIndirectCallSite(Module &M, Instruction *I) {
                                                                Idx + 1,
                                                                "", I);
     Constant *C = ConstantInt::get(Int8Ty,
-                                   getTypeMarker(I->getOperand(i)->getType()));
+                                   getTypeMarker(I->getOperand(i)));
     new StoreInst(C, GEP, I);
   }
   std::vector<Value *> Args;
@@ -1532,7 +1625,7 @@ bool TypeChecks::visitLoadInst(Module &M, LoadInst &LI) {
 
   std::vector<Value *> Args;
   Args.push_back(BCI);
-  Args.push_back(ConstantInt::get(Int8Ty, getTypeMarker(LI.getType())));
+  Args.push_back(ConstantInt::get(Int8Ty, getTypeMarker(&LI)));
   Args.push_back(ConstantInt::get(Int64Ty, TD->getTypeStoreSize(LI.getType())));
   Args.push_back(ConstantInt::get(Int32Ty, tagCounter++));
 
@@ -1555,7 +1648,7 @@ bool TypeChecks::visitStoreInst(Module &M, StoreInst &SI) {
   std::vector<Value *> Args;
   Args.push_back(BCI);
   Args.push_back(ConstantInt::get(Int8Ty, 
-                                  getTypeMarker(SI.getOperand(0)->getType()))); // SI.getValueOperand()
+                                  getTypeMarker(SI.getOperand(0)))); // SI.getValueOperand()
   Args.push_back(ConstantInt::get(Int64Ty, TD->getTypeStoreSize(SI.getOperand(0)->getType())));
   Args.push_back(ConstantInt::get(Int32Ty, tagCounter++));
 
