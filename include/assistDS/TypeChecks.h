@@ -52,6 +52,7 @@ private:
   Constant *getTypeMarkerConstant(Value * V);
   Constant *getTypeMarkerConstant(const Type* T);
   unsigned int getSize(const Type*);
+  Constant* getSizeConstant(const Type*);
   
   bool initShadow(Module &M);
   void addTypeMap(Module &M) ;
