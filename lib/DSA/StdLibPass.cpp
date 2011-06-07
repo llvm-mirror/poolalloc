@@ -297,6 +297,22 @@ const struct {
   {"pool_strncasecmp",{NRET_NNYARGS, NRET_NARGS,    NRET_NARGS, NRET_NARGS,   false}},
   {"pool_bcopy",      {NRET_NNYARGS, NRET_NNNYARGS, NRET_NARGS, NRET_NNYARGS,  true}},
   {"pool_bcmp",       {NRET_NNYARGS, NRET_NARGS,    NRET_NARGS, NRET_NARGS,    true}},
+  
+  // Type Checks
+  {"trackGlobal",          {NRET_NARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS,   false}},
+  {"trackLoadInst",        {NRET_NARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS,   false}},
+  {"trackStoreInst",       {NRET_NARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS,   false}},
+  {"copyTypeInfo",         {NRET_NARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS,   false}},
+  {"trackInitInst",        {NRET_NARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS,   false}},
+  {"trackUnInitInst",      {NRET_NARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS,   false}},
+  {"trackArray",           {NRET_NARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS,   false}},
+  {"trackStringInput",     {NRET_NARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS,   false}},
+  {"trackArgvType",        {NRET_NARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS,   false}},
+  {"compareTypeAndNumber", {NRET_NARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS,   false}},
+  {"trackctype",           {NRET_NARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS,   false}},
+  {"trackctype_32",        {NRET_NARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS,   false}},
+  {"trackStrcpyInst",      {NRET_NARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS,   false}},
+  {"trackStrcnpyInst",     {NRET_NARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS,   false}},
 
 #if 0
   {"wait",       {false, false, false, false,  true, false, false, false, false}},
