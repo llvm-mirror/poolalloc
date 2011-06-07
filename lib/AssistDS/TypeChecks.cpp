@@ -40,10 +40,6 @@ STATISTIC(numStoreChecks, "Number of Store Insts that need type checks");
 STATISTIC(numTypes, "Number of Types used in the module");
 
 namespace {
-  static cl::opt<bool> EnableTypeSafeOpt("enable-type-safe-opt",
-         cl::desc("Use DSA pass"),
-         cl::Hidden,
-         cl::init(false));
   static cl::opt<bool> DisablePointerTypeChecks("disable-ptr-type-checks",
          cl::desc("DONT Distinguish pointer types"),
          cl::Hidden,
@@ -67,8 +63,7 @@ static Constant *copyTypeInfo;
 static Constant *RegisterArgv;
 static Constant *compareTypeAndNumber;
 
-unsigned int 
-TypeChecks::getTypeMarker(const Type * Ty) {
+unsigned int TypeChecks::getTypeMarker(const Type * Ty) {
   if(DisablePointerTypeChecks) {
     if(Ty->isPointerTy()) {
       Ty = VoidPtrTy;
@@ -80,8 +75,7 @@ TypeChecks::getTypeMarker(const Type * Ty) {
   return UsedTypes[Ty];
 }
 
-unsigned int
-TypeChecks::getTypeMarker(Value *V) {
+unsigned int TypeChecks::getTypeMarker(Value *V) {
   return getTypeMarker(V->getType());
 }
 
@@ -91,9 +85,8 @@ bool TypeChecks::runOnModule(Module &M) {
   TD = &getAnalysis<TargetData>();
   TA = &getAnalysis<TypeAnalysis>();
   addrAnalysis = &getAnalysis<AddressTakenAnalysis>();
-  if(EnableTypeSafeOpt)
-    TS = &getAnalysis<dsa::TypeSafety<TDDataStructures> >();
 
+  // Create the necessary prototypes
   VoidTy = IntegerType::getVoidTy(M.getContext());
   Int8Ty = IntegerType::getInt8Ty(M.getContext());
   Int32Ty = IntegerType::getInt32Ty(M.getContext());
@@ -172,6 +165,7 @@ bool TypeChecks::runOnModule(Module &M) {
   ByValFunctions.clear();
   AddressTakenFunctions.clear();
 
+  // Only works for whole program analysis
   Function *MainF = M.getFunction("main");
   if (MainF == 0 || MainF->isDeclaration()) {
     assert(0 && "No main function found");
@@ -181,9 +175,10 @@ bool TypeChecks::runOnModule(Module &M) {
   // Insert the shadow initialization function.
   modified |= initShadow(M);
 
-  // record argv
+  // Record argv
   modified |= visitMain(M, *MainF);
 
+  // Recognize special cases
   for (Module::iterator MI = M.begin(), ME = M.end(); MI != ME; ++MI) {
     Function &F = *MI;
     if(F.isDeclaration())
@@ -191,6 +186,7 @@ bool TypeChecks::runOnModule(Module &M) {
 
     std::string name = F.getName();
     if (strncmp(name.c_str(), "tc.", 3) == 0) continue;
+    if (strncmp(name.c_str(), "main", 4) == 0) continue;
 
     // Iterate and find all byval functions
     bool hasByValArg = false;
@@ -233,7 +229,7 @@ bool TypeChecks::runOnModule(Module &M) {
     }
   }
   
-  // modify all byval functions
+  // Modify all byval functions
   while(!ByValFunctions.empty()) {
     Function *F = ByValFunctions.back();
     ByValFunctions.pop_back();
@@ -310,6 +306,7 @@ bool TypeChecks::runOnModule(Module &M) {
     Instruction *I = *II++;
     modified |= visitIndirectCallSite(M,I);
   }
+
   FI = IndFunctionsMap.begin(), FE = IndFunctionsMap.end();
   for(;FI!=FE;++FI) {
     Function *F = FI->first;
@@ -324,6 +321,15 @@ bool TypeChecks::runOnModule(Module &M) {
       toReplace.pop_back(); 
       if(Constant *C = dyn_cast<Constant>(user)) {
         if(!isa<GlobalValue>(C)) {
+          bool changeUse = true;
+          for(Value::use_iterator II = user->use_begin();
+              II != user->use_end(); II++) {
+            if(CallInst *CI = dyn_cast<CallInst>(II))
+              if(CI->getCalledFunction()->isDeclaration())
+                changeUse = false;
+          }
+          if(!changeUse)
+            continue;
           std::vector<Use *> ReplaceWorklist;
           for (User::op_iterator use = user->op_begin();
                use != user->op_end();
@@ -664,7 +670,6 @@ bool TypeChecks::visitVarArgFunction(Module &M, Function &F) {
   F.getParent()->getFunctionList().push_back(F_clone);
   F.replaceAllUsesWith(F_clone);
   return visitInternalVarArgFunction(M, *F_clone);
-  return true;
 }
 
 // each vararg function is modified so that the first
@@ -924,11 +929,6 @@ bool TypeChecks::visitInternalByValFunction(Module &M, Function &F) {
   for (Function::arg_iterator I = F.arg_begin(); I != F.arg_end(); ++I) {
     if (!I->hasByValAttr())
       continue;
-    if(EnableTypeSafeOpt) {
-      if(TS->isTypeSafe(cast<Value>(I), &F)) {
-        continue;
-      }
-    }
     assert(I->getType()->isPointerTy());
     const Type *ETy = (cast<PointerType>(I->getType()))->getElementType();
     AllocaInst *AI = new AllocaInst(ETy, "", InsertBefore);
@@ -943,6 +943,9 @@ bool TypeChecks::visitInternalByValFunction(Module &M, Function &F) {
       ui != ue;)  {
     if(isa<InvokeInst>(ui)) {
     //FIXME
+      ui->dump();
+    }
+    if(!isa<CallInst>(ui)) {
       ui->dump();
     }
     // Check that F is the called value
@@ -965,13 +968,6 @@ bool TypeChecks::visitInternalByValFunction(Module &M, Function &F) {
           Args.push_back(CI->getOperand(j));
           // If there are attributes on this argument, copy them to the correct 
           // position in the AttributesVec
-          if(EnableTypeSafeOpt) {
-            if(TS->isTypeSafe(II, CI->getParent()->getParent())) {
-              if (Attributes Attrs = CallPAL.getParamAttributes(j))
-                AttributesVec.push_back(AttributeWithIndex::get(j, Attrs));
-              continue;
-            }
-          }
           //FIXME: copy the rest of the attributes.
           if(II->hasByValAttr()) 
             continue;
@@ -1006,11 +1002,6 @@ bool TypeChecks::visitInternalByValFunction(Module &M, Function &F) {
   for (Function::arg_iterator I = F.arg_begin(); I != F.arg_end(); ++I) {
     if (!I->hasByValAttr())
       continue;
-    if(EnableTypeSafeOpt) {
-      if(TS->isTypeSafe(cast<Value>(I), &F)) {
-        continue;
-      }
-    }
     I->removeAttr(llvm::Attribute::ByVal);
   }
   return true;
@@ -1203,12 +1194,6 @@ bool TypeChecks::visitMain(Module &M, Function &MainFunc) {
 bool TypeChecks::visitGlobal(Module &M, GlobalVariable &GV, 
                              Constant *C, Instruction &I, unsigned offset) {
 
-  if(EnableTypeSafeOpt) {
-    if(TS->isTypeSafe(&GV)) {
-      return false;
-    }
-  }
-
   if(ConstantArray *CA = dyn_cast<ConstantArray>(C)) {
     const Type * ElementType = CA->getType()->getElementType();
     unsigned int t = TD->getTypeStoreSize(ElementType);
@@ -1327,12 +1312,6 @@ bool TypeChecks::visitAllocaInst(Module &M, AllocaInst &AI) {
   CallInst *CI_Init = CallInst::Create(memsetF, Args2.begin(), Args2.end());
   CI_Init->insertAfter(Size);
 
-  if(EnableTypeSafeOpt) {
-    if(TS->isTypeSafe(&AI, AI.getParent()->getParent())) {
-      return true;
-    }
-  }
-
   // Setting metadata to be 0(BOTTOM/Uninitialized)
 
   std::vector<Value *> Args;
@@ -1360,7 +1339,6 @@ bool TypeChecks::visitCallSite(Module &M, CallSite CS) {
   //
   Value *Callee = CS.getCalledValue()->stripPointerCasts();
   Instruction *I = CS.getInstruction();
-  Function *Caller = I->getParent()->getParent();
 
   // Special case handling of certain libc allocation functions here.
   if (Function *F = dyn_cast<Function>(Callee)) {
@@ -1369,11 +1347,6 @@ bool TypeChecks::visitCallSite(Module &M, CallSite CS) {
       case Intrinsic::memcpy: 
       case Intrinsic::memmove: 
         {
-          if(EnableTypeSafeOpt) {
-            if(TS->isTypeSafe(I->getOperand(2), Caller)) {
-              return false;
-            }
-          }
           CastInst *BCI_Src = BitCastInst::CreatePointerCast(I->getOperand(2), VoidPtrTy, "", I);
           CastInst *BCI_Dest = BitCastInst::CreatePointerCast(I->getOperand(1), VoidPtrTy, "", I);
           std::vector<Value *> Args;
@@ -1387,11 +1360,6 @@ bool TypeChecks::visitCallSite(Module &M, CallSite CS) {
         }
 
       case Intrinsic::memset:
-        if(EnableTypeSafeOpt) {
-          if(TS->isTypeSafe(I->getOperand(1), Caller)) {
-            return false;
-          }
-        }
         CastInst *BCI = BitCastInst::CreatePointerCast(I->getOperand(1), VoidPtrTy, "", I);
         std::vector<Value *> Args;
         Args.push_back(BCI);
@@ -1416,7 +1384,7 @@ bool TypeChecks::visitCallSite(Module &M, CallSite CS) {
       std::vector<Value *>Args;
       Args.push_back(BCI);
       Args.push_back(ConstantInt::get(Int32Ty, tagCounter++));
-      Constant *F = M.getOrInsertFunction("trackctype", VoidTy, VoidPtrTy, Int32Ty, NULL);
+      Constant *F = M.getOrInsertFunction("trackctype_32", VoidTy, VoidPtrTy, Int32Ty, NULL);
       CallInst *CI = CallInst::Create(F, Args.begin(), Args.end());
       CI->insertAfter(BCI);
     } else if (F->getNameStr() == std::string("__ctype_tolower_loc")) {
@@ -1425,7 +1393,7 @@ bool TypeChecks::visitCallSite(Module &M, CallSite CS) {
       std::vector<Value *>Args;
       Args.push_back(BCI);
       Args.push_back(ConstantInt::get(Int32Ty, tagCounter++));
-      Constant *F = M.getOrInsertFunction("trackctype", VoidTy, VoidPtrTy, Int32Ty, NULL);
+      Constant *F = M.getOrInsertFunction("trackctype_32", VoidTy, VoidPtrTy, Int32Ty, NULL);
       CallInst *CI = CallInst::Create(F, Args.begin(), Args.end());
       CI->insertAfter(BCI);
     } else if (F->getNameStr() == std::string("strcpy")) {
@@ -1444,11 +1412,6 @@ bool TypeChecks::visitCallSite(Module &M, CallSite CS) {
       Constant *F = M.getOrInsertFunction("trackStrncpyInst", VoidTy, VoidPtrTy, VoidPtrTy, I->getOperand(3)->getType(), Int32Ty, NULL);
       CallInst::Create(F, Args.begin(), Args.end(), "", I);
     } else if(F->getNameStr() == std::string("ftime")) {
-      if(EnableTypeSafeOpt) {
-        if(TS->isTypeSafe(I->getOperand(1), Caller)) {
-          return false;
-        }
-      }
       CastInst *BCI = BitCastInst::CreatePointerCast(I->getOperand(1), VoidPtrTy, "", I);
       const PointerType *PTy = cast<PointerType>(I->getOperand(1)->getType());
       const Type * ElementType = PTy->getElementType();
@@ -1460,11 +1423,6 @@ bool TypeChecks::visitCallSite(Module &M, CallSite CS) {
       CallInst::Create(trackInitInst, Args.begin(), Args.end(), "", I);
       return true;
     } else if(F->getNameStr() == std::string("read")) {
-      if(EnableTypeSafeOpt) {
-        if(TS->isTypeSafe(I->getOperand(2), Caller)) {
-          return false;
-        }
-      }
       CastInst *BCI = BitCastInst::CreatePointerCast(I->getOperand(2), VoidPtrTy);
       BCI->insertAfter(I);
       std::vector<Value *> Args;
@@ -1477,11 +1435,6 @@ bool TypeChecks::visitCallSite(Module &M, CallSite CS) {
       CI->insertAfter(BCI);
       return true;
     } else if(F->getNameStr() == std::string("fread")) {
-      if(EnableTypeSafeOpt) {
-        if(TS->isTypeSafe(I->getOperand(1), Caller)) {
-          return false;
-        }
-      }
       CastInst *BCI = BitCastInst::CreatePointerCast(I->getOperand(1), VoidPtrTy);
       BCI->insertAfter(I);
       std::vector<Value *> Args;
@@ -1494,11 +1447,6 @@ bool TypeChecks::visitCallSite(Module &M, CallSite CS) {
       CI->insertAfter(BCI);
       return true;
     } else if(F->getNameStr() == std::string("calloc")) {
-      if(EnableTypeSafeOpt) {
-        if(TS->isTypeSafe(I, Caller)) {
-          return false;
-        }
-      }
       CastInst *BCI = BitCastInst::CreatePointerCast(I, VoidPtrTy);
       BCI->insertAfter(I);
       std::vector<Value *> Args;
@@ -1518,11 +1466,6 @@ bool TypeChecks::visitCallSite(Module &M, CallSite CS) {
       CI_Arr->insertAfter(CI);
       return true;
     } else if(F->getNameStr() ==  std::string("realloc")) {
-      if(EnableTypeSafeOpt) {
-        if(TS->isTypeSafe(I, Caller)) {
-          return false;
-        }
-      }
       CastInst *BCI_Src = BitCastInst::CreatePointerCast(I->getOperand(1), VoidPtrTy);
       CastInst *BCI_Dest = BitCastInst::CreatePointerCast(I, VoidPtrTy);
       BCI_Src->insertAfter(I);
@@ -1537,11 +1480,6 @@ bool TypeChecks::visitCallSite(Module &M, CallSite CS) {
       CI->insertAfter(BCI_Dest);
       return true;
     } else if(F->getNameStr() == std::string("fgets")) {
-      if(EnableTypeSafeOpt) {
-        if(TS->isTypeSafe(I->getOperand(1), Caller)) {
-          return true;
-        }
-      }
       CastInst *BCI = BitCastInst::CreatePointerCast(I->getOperand(1), VoidPtrTy, "", I);
       std::vector<Value *> Args;
       Args.push_back(BCI);
@@ -1693,11 +1631,6 @@ bool TypeChecks::visitInputFunctionValue(Module &M, Value *V, Instruction *CI) {
 
 // Insert runtime checks before all load instructions.
 bool TypeChecks::visitLoadInst(Module &M, LoadInst &LI) {
-  if(EnableTypeSafeOpt) {
-    if(TS->isTypeSafe(LI.getOperand(0), LI.getParent()->getParent())) {
-      return false;
-    }
-  }
   // Cast the pointer operand to i8* for the runtime function.
   CastInst *BCI = BitCastInst::CreatePointerCast(LI.getPointerOperand(), VoidPtrTy, "", &LI);
 
@@ -1715,11 +1648,6 @@ bool TypeChecks::visitLoadInst(Module &M, LoadInst &LI) {
 
 // Insert runtime checks before all store instructions.
 bool TypeChecks::visitStoreInst(Module &M, StoreInst &SI) {
-  if(EnableTypeSafeOpt) {
-    if(TS->isTypeSafe(SI.getOperand(1), SI.getParent()->getParent())) {
-      return false;
-    }
-  }
   // Cast the pointer operand to i8* for the runtime function.
   CastInst *BCI = BitCastInst::CreatePointerCast(SI.getPointerOperand(), VoidPtrTy, "", &SI);
 
@@ -1739,25 +1667,9 @@ bool TypeChecks::visitStoreInst(Module &M, StoreInst &SI) {
 
 // Insert runtime checks before copying store instructions.
 bool TypeChecks::visitCopyingStoreInst(Module &M, StoreInst &SI, Value *SS) {
-  if(EnableTypeSafeOpt) {
-    if(TS->isTypeSafe(SI.getOperand(1), SI.getParent()->getParent())) {
-      return false;
-    }
-  }
   // Cast the pointer operand to i8* for the runtime function.
   CastInst *BCI_Dest = BitCastInst::CreatePointerCast(SI.getPointerOperand(), VoidPtrTy, "", &SI);
   CastInst *BCI_Src = BitCastInst::CreatePointerCast(SS, VoidPtrTy, "", &SI);
-
-  if(EnableTypeSafeOpt) {
-    LoadInst *LI = cast<LoadInst>(SI.getOperand(0));
-    if(TS->isTypeSafe(LI->getPointerOperand(), SI.getParent()->getParent())) {
-      std::vector<Value *> Args;
-      Args.push_back(BCI_Src);
-      Args.push_back(ConstantInt::get(Int64Ty, TD->getTypeStoreSize(SI.getOperand(0)->getType())));
-      Args.push_back(ConstantInt::get(Int32Ty, tagCounter++));
-      CallInst::Create(trackInitInst, Args.begin(), Args.end(), "", &SI);
-    }
-  }
 
   std::vector<Value *> Args;
   Args.push_back(BCI_Dest);

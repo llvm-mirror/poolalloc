@@ -55,7 +55,6 @@ public:
 
   virtual void getAnalysisUsage(AnalysisUsage &AU) const {
     AU.addRequired<TargetData>();
-    AU.addRequired<dsa::TypeSafety<TDDataStructures> >();
     AU.addRequired<TypeAnalysis>();
     AU.addRequired<AddressTakenAnalysis>();
   }
