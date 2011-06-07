@@ -79,6 +79,14 @@ unsigned int TypeChecks::getTypeMarker(Value *V) {
   return getTypeMarker(V->getType());
 }
 
+unsigned int TypeChecks::getSize(const Type *Ty) {
+  return TD->getTypeStoreSize(Ty);
+}
+
+static Constant *getTagCounter() {
+  return ConstantInt::get(Int32Ty, tagCounter++);
+}
+
 bool TypeChecks::runOnModule(Module &M) {
   bool modified = false; // Flags whether we modified the module.
 
@@ -554,7 +562,7 @@ bool TypeChecks::visitVAListFunction(Module &M, Function &F_orig) {
       Args.push_back(OldValue);
       Args.push_back(ConstantInt::get(Int8Ty, getTypeMarker(VI)));
       Args.push_back(VAMetaData);
-      Args.push_back(ConstantInt::get(Int32Ty, tagCounter++));
+      Args.push_back(getTagCounter());
       CallInst::Create(compareTypeAndNumber,
                        Args.begin(),
                        Args.end(),
@@ -789,7 +797,7 @@ bool TypeChecks::visitInternalVarArgFunction(Module &M, Function &F) {
       Args.push_back(OldValue);
       Args.push_back(ConstantInt::get(Int8Ty, getTypeMarker(VI)));
       Args.push_back(VAMetaData);
-      Args.push_back(ConstantInt::get(Int32Ty, tagCounter++));
+      Args.push_back(getTagCounter());
       CallInst::Create(compareTypeAndNumber,
                        Args.begin(),
                        Args.end(),
@@ -1022,7 +1030,7 @@ bool TypeChecks::visitExternalByValFunction(Module &M, Function &F) {
       std::vector<Value *> Args;
       Args.push_back(BCI);
       Args.push_back(AllocSize);
-      Args.push_back(ConstantInt::get(Int32Ty, tagCounter++));
+      Args.push_back(getTagCounter());
       // Set the metadata for the byval argument to TOP/Initialized
       CallInst::Create(trackInitInst, Args.begin(), Args.end(), "", InsertPt);
       registeredArguments.push_back(&*I);
@@ -1053,7 +1061,7 @@ bool TypeChecks::visitExternalByValFunction(Module &M, Function &F) {
       std::vector<Value *> Args;
       Args.push_back(BCI);
       Args.push_back(AllocSize);
-      Args.push_back(ConstantInt::get(Int32Ty, tagCounter++));
+      Args.push_back(getTagCounter());
       CallInst::Create(trackUnInitInst, Args.begin(), Args.end(), "", Pt);
     }
   }
@@ -1103,9 +1111,9 @@ bool TypeChecks::initShadow(Module &M) {
       CastInst *BCI = BitCastInst::CreatePointerCast(I, VoidPtrTy, "", InsertPt);
       std::vector<Value *> Args;
       Args.push_back(BCI);
-      unsigned int size = TD->getTypeStoreSize(I->getType()->getElementType());
+      unsigned int size = getSize(I->getType()->getElementType());
       Args.push_back(ConstantInt::get(Int64Ty, size));
-      Args.push_back(ConstantInt::get(Int32Ty, tagCounter++));
+      Args.push_back(getTagCounter());
       CallInst::Create(trackInitInst, Args.begin(), Args.end(), "", InsertPt);
       continue;
     } 
@@ -1196,7 +1204,7 @@ bool TypeChecks::visitGlobal(Module &M, GlobalVariable &GV,
 
   if(ConstantArray *CA = dyn_cast<ConstantArray>(C)) {
     const Type * ElementType = CA->getType()->getElementType();
-    unsigned int t = TD->getTypeStoreSize(ElementType);
+    unsigned int t = getSize(ElementType);
     // Create the type entry for the first element
     // using recursive creation till we get to the base types
     visitGlobal(M, GV, CA->getOperand(0), I, offset);
@@ -1208,7 +1216,7 @@ bool TypeChecks::visitGlobal(Module &M, GlobalVariable &GV,
     Args.push_back(BCI);
     Args.push_back(ConstantInt::get(Int64Ty, t));
     Args.push_back(ConstantInt::get(Int64Ty, CA->getNumOperands()));
-    Args.push_back(ConstantInt::get(Int32Ty, tagCounter++));
+    Args.push_back(getTagCounter());
     CallInst::Create(trackArray, Args.begin(), Args.end(), "", &I);
   }
   else if(ConstantStruct *CS = dyn_cast<ConstantStruct>(C)) {
@@ -1228,14 +1236,14 @@ bool TypeChecks::visitGlobal(Module &M, GlobalVariable &GV,
     const Type *Ty = CAZ->getType();
     if(const ArrayType * ATy = dyn_cast<ArrayType>(Ty)) {
       const Type * ElementType = ATy->getElementType();
-      unsigned int t = TD->getTypeStoreSize(ElementType);
+      unsigned int size = getSize(ElementType);
       visitGlobal(M, GV, Constant::getNullValue(ElementType), I, offset);
       CastInst *BCI = BitCastInst::CreatePointerCast(&GV, VoidPtrTy, "", &I);
       std::vector<Value *> Args;
       Args.push_back(BCI);
-      Args.push_back(ConstantInt::get(Int64Ty, t));
+      Args.push_back(ConstantInt::get(Int64Ty, size));
       Args.push_back(ConstantInt::get(Int64Ty, ATy->getNumElements()));
-      Args.push_back(ConstantInt::get(Int32Ty, tagCounter++));
+      Args.push_back(getTagCounter());
       CallInst::Create(trackArray, Args.begin(), Args.end(), "", &I);
     } else if(const StructType *STy = dyn_cast<StructType>(Ty)) {
       const StructLayout *SL = TD->getStructLayout(STy);
@@ -1256,8 +1264,8 @@ bool TypeChecks::visitGlobal(Module &M, GlobalVariable &GV,
       std::vector<Value *> Args;
       Args.push_back(GEP);
       Args.push_back(ConstantInt::get(Int8Ty, getTypeMarker(CAZ)));
-      Args.push_back(ConstantInt::get(Int64Ty, TD->getTypeStoreSize(CAZ->getType())));
-      Args.push_back(ConstantInt::get(Int32Ty, tagCounter++));
+      Args.push_back(ConstantInt::get(Int64Ty, getSize(CAZ->getType())));
+      Args.push_back(getTagCounter());
       CallInst::Create(trackGlobal, Args.begin(), Args.end(), "", &I);
     }
   }
@@ -1272,8 +1280,8 @@ bool TypeChecks::visitGlobal(Module &M, GlobalVariable &GV,
     std::vector<Value *> Args;
     Args.push_back(GEP);
     Args.push_back(ConstantInt::get(Int8Ty, getTypeMarker(C)));
-    Args.push_back(ConstantInt::get(Int64Ty, TD->getTypeStoreSize(C->getType())));
-    Args.push_back(ConstantInt::get(Int32Ty, tagCounter++));
+    Args.push_back(ConstantInt::get(Int64Ty, getSize(C->getType())));
+    Args.push_back(getTagCounter());
     CallInst::Create(trackGlobal, Args.begin(), Args.end(), "", &I);
   }
 
@@ -1317,7 +1325,7 @@ bool TypeChecks::visitAllocaInst(Module &M, AllocaInst &AI) {
   std::vector<Value *> Args;
   Args.push_back(BCI);
   Args.push_back(Size);
-  Args.push_back(ConstantInt::get(Int32Ty, tagCounter++));
+  Args.push_back(getTagCounter());
   CallInst *CI = CallInst::Create(trackUnInitInst, Args.begin(), Args.end());
   CI->insertAfter(CI_Init);
   return true;
@@ -1354,7 +1362,7 @@ bool TypeChecks::visitCallSite(Module &M, CallSite CS) {
           Args.push_back(BCI_Src);
           CastInst *Size = CastInst::CreateIntegerCast(I->getOperand(3), Int64Ty, false, "", I);
           Args.push_back(Size);
-          Args.push_back(ConstantInt::get(Int32Ty, tagCounter++));
+          Args.push_back(getTagCounter());
           CallInst::Create(copyTypeInfo, Args.begin(), Args.end(), "", I);
           return true;
         }
@@ -1365,7 +1373,7 @@ bool TypeChecks::visitCallSite(Module &M, CallSite CS) {
         Args.push_back(BCI);
         CastInst *Size = CastInst::CreateIntegerCast(I->getOperand(3), Int64Ty, false, "", I);
         Args.push_back(Size);
-        Args.push_back(ConstantInt::get(Int32Ty, tagCounter++));
+        Args.push_back(getTagCounter());
         CallInst::Create(trackInitInst, Args.begin(), Args.end(), "", I);
         return true;
       }
@@ -1374,7 +1382,7 @@ bool TypeChecks::visitCallSite(Module &M, CallSite CS) {
       BCI->insertAfter(I);
       std::vector<Value *>Args;
       Args.push_back(BCI);
-      Args.push_back(ConstantInt::get(Int32Ty, tagCounter++));
+      Args.push_back(getTagCounter());
       Constant *F = M.getOrInsertFunction("trackctype", VoidTy, VoidPtrTy, Int32Ty, NULL);
       CallInst *CI = CallInst::Create(F, Args.begin(), Args.end());
       CI->insertAfter(BCI);
@@ -1383,7 +1391,7 @@ bool TypeChecks::visitCallSite(Module &M, CallSite CS) {
       BCI->insertAfter(I);
       std::vector<Value *>Args;
       Args.push_back(BCI);
-      Args.push_back(ConstantInt::get(Int32Ty, tagCounter++));
+      Args.push_back(getTagCounter());
       Constant *F = M.getOrInsertFunction("trackctype_32", VoidTy, VoidPtrTy, Int32Ty, NULL);
       CallInst *CI = CallInst::Create(F, Args.begin(), Args.end());
       CI->insertAfter(BCI);
@@ -1392,7 +1400,7 @@ bool TypeChecks::visitCallSite(Module &M, CallSite CS) {
       BCI->insertAfter(I);
       std::vector<Value *>Args;
       Args.push_back(BCI);
-      Args.push_back(ConstantInt::get(Int32Ty, tagCounter++));
+      Args.push_back(getTagCounter());
       Constant *F = M.getOrInsertFunction("trackctype_32", VoidTy, VoidPtrTy, Int32Ty, NULL);
       CallInst *CI = CallInst::Create(F, Args.begin(), Args.end());
       CI->insertAfter(BCI);
@@ -1400,7 +1408,7 @@ bool TypeChecks::visitCallSite(Module &M, CallSite CS) {
       std::vector<Value *> Args;
       Args.push_back(I->getOperand(1));
       Args.push_back(I->getOperand(2));
-      Args.push_back(ConstantInt::get(Int32Ty, tagCounter++));
+      Args.push_back(getTagCounter());
       Constant *F = M.getOrInsertFunction("trackStrcpyInst", VoidTy, VoidPtrTy, VoidPtrTy, Int32Ty, NULL);
       CallInst::Create(F, Args.begin(), Args.end(), "", I);
     } else if (F->getNameStr() == std::string("strncpy")) {
@@ -1408,18 +1416,18 @@ bool TypeChecks::visitCallSite(Module &M, CallSite CS) {
       Args.push_back(I->getOperand(1));
       Args.push_back(I->getOperand(2));
       Args.push_back(I->getOperand(3));
-      Args.push_back(ConstantInt::get(Int32Ty, tagCounter++));
+      Args.push_back(getTagCounter());
       Constant *F = M.getOrInsertFunction("trackStrncpyInst", VoidTy, VoidPtrTy, VoidPtrTy, I->getOperand(3)->getType(), Int32Ty, NULL);
       CallInst::Create(F, Args.begin(), Args.end(), "", I);
     } else if(F->getNameStr() == std::string("ftime")) {
       CastInst *BCI = BitCastInst::CreatePointerCast(I->getOperand(1), VoidPtrTy, "", I);
       const PointerType *PTy = cast<PointerType>(I->getOperand(1)->getType());
       const Type * ElementType = PTy->getElementType();
-      unsigned int t = TD->getTypeStoreSize(ElementType);
+      unsigned int size = getSize(ElementType);
       std::vector<Value *> Args;
       Args.push_back(BCI);
-      Args.push_back(ConstantInt::get(Int64Ty, t));
-      Args.push_back(ConstantInt::get(Int32Ty, tagCounter++));
+      Args.push_back(ConstantInt::get(Int64Ty, size));
+      Args.push_back(getTagCounter());
       CallInst::Create(trackInitInst, Args.begin(), Args.end(), "", I);
       return true;
     } else if(F->getNameStr() == std::string("read")) {
@@ -1430,7 +1438,7 @@ bool TypeChecks::visitCallSite(Module &M, CallSite CS) {
       CastInst *Size = CastInst::CreateIntegerCast(I, Int64Ty, false);
       Size->insertAfter(I);
       Args.push_back(Size);
-      Args.push_back(ConstantInt::get(Int32Ty, tagCounter++));
+      Args.push_back(getTagCounter());
       CallInst *CI = CallInst::Create(trackInitInst, Args.begin(), Args.end());
       CI->insertAfter(BCI);
       return true;
@@ -1442,7 +1450,7 @@ bool TypeChecks::visitCallSite(Module &M, CallSite CS) {
       CastInst *Size = CastInst::CreateIntegerCast(I, Int64Ty, false);
       Size->insertAfter(I);
       Args.push_back(Size);
-      Args.push_back(ConstantInt::get(Int32Ty, tagCounter++));
+      Args.push_back(getTagCounter());
       CallInst *CI = CallInst::Create(trackInitInst, Args.begin(), Args.end());
       CI->insertAfter(BCI);
       return true;
@@ -1453,7 +1461,7 @@ bool TypeChecks::visitCallSite(Module &M, CallSite CS) {
       Args.push_back(BCI);
       CastInst *Size = CastInst::CreateIntegerCast(I->getOperand(2), Int64Ty, false, "", I);
       Args.push_back(Size);
-      Args.push_back(ConstantInt::get(Int32Ty, tagCounter++));
+      Args.push_back(getTagCounter());
       CallInst *CI = CallInst::Create(trackInitInst, Args.begin(), Args.end());
       CI->insertAfter(BCI);
       std::vector<Value *> Args1;
@@ -1461,7 +1469,7 @@ bool TypeChecks::visitCallSite(Module &M, CallSite CS) {
       Args1.push_back(Size);
       CastInst *Num = CastInst::CreateIntegerCast(I->getOperand(1), Int64Ty, false, "", I);
       Args1.push_back(Num);
-      Args1.push_back(ConstantInt::get(Int32Ty, tagCounter++));
+      Args.push_back(getTagCounter());
       CallInst *CI_Arr = CallInst::Create(trackArray, Args1.begin(), Args1.end());
       CI_Arr->insertAfter(CI);
       return true;
@@ -1475,7 +1483,7 @@ bool TypeChecks::visitCallSite(Module &M, CallSite CS) {
       Args.push_back(BCI_Src);
       CastInst *Size = CastInst::CreateIntegerCast(I->getOperand(2), Int64Ty, false, "", I);
       Args.push_back(Size);
-      Args.push_back(ConstantInt::get(Int32Ty, tagCounter++));
+      Args.push_back(getTagCounter());
       CallInst *CI = CallInst::Create(copyTypeInfo, Args.begin(), Args.end());
       CI->insertAfter(BCI_Dest);
       return true;
@@ -1485,7 +1493,7 @@ bool TypeChecks::visitCallSite(Module &M, CallSite CS) {
       Args.push_back(BCI);
       CastInst *Size = CastInst::CreateIntegerCast(I->getOperand(2), Int64Ty, false, "", I);
       Args.push_back(Size);
-      Args.push_back(ConstantInt::get(Int32Ty, tagCounter++));
+      Args.push_back(getTagCounter());
       CallInst::Create(trackInitInst, Args.begin(), Args.end(), "", I);
       return true;
     } else if(F->getNameStr() == std::string("sprintf")) {
@@ -1500,7 +1508,7 @@ bool TypeChecks::visitCallSite(Module &M, CallSite CS) {
                                                      One);
       NewValue->insertAfter(Size);
       Args.push_back(NewValue);
-      Args.push_back(ConstantInt::get(Int32Ty, tagCounter++));
+      Args.push_back(getTagCounter());
       CallInst *CINew = CallInst::Create(trackInitInst, Args.begin(), Args.end());
       CINew->insertAfter(NewValue);
     } else if(F->getNameStr() == std::string("sscanf")) {
@@ -1610,8 +1618,8 @@ bool TypeChecks::visitInputFunctionValue(Module &M, Value *V, Instruction *CI) {
   std::vector<Value *> Args;
   Args.push_back(BCI);
   Args.push_back(ConstantInt::get(Int8Ty, getTypeMarker(PTy->getElementType())));
-  Args.push_back(ConstantInt::get(Int64Ty, TD->getTypeStoreSize(PTy->getElementType())));
-  Args.push_back(ConstantInt::get(Int32Ty, tagCounter++));
+  Args.push_back(ConstantInt::get(Int64Ty, getSize(PTy->getElementType())));
+  Args.push_back(getTagCounter());
 
   // Create the call to the runtime check and place it before the store instruction.
   CallInst::Create(trackStoreInst, Args.begin(), Args.end(), "", CI);
@@ -1621,7 +1629,7 @@ bool TypeChecks::visitInputFunctionValue(Module &M, Value *V, Instruction *CI) {
     // input functions, treat as string, and get length using strlen.
     std::vector<Value*> Args;
     Args.push_back(BCI);
-    Args.push_back(ConstantInt::get(Int32Ty, tagCounter++));
+    Args.push_back(getTagCounter());
     CallInst *CINew = CallInst::Create(trackStringInput, Args.begin(), Args.end());
     CINew->insertAfter(CI);
   }
@@ -1637,8 +1645,8 @@ bool TypeChecks::visitLoadInst(Module &M, LoadInst &LI) {
   std::vector<Value *> Args;
   Args.push_back(BCI);
   Args.push_back(ConstantInt::get(Int8Ty, getTypeMarker(&LI)));
-  Args.push_back(ConstantInt::get(Int64Ty, TD->getTypeStoreSize(LI.getType())));
-  Args.push_back(ConstantInt::get(Int32Ty, tagCounter++));
+  Args.push_back(ConstantInt::get(Int64Ty, getSize(LI.getType())));
+  Args.push_back(getTagCounter());
 
   // Create the call to the runtime check and place it before the load instruction.
   CallInst::Create(trackLoadInst, Args.begin(), Args.end(), "", &LI);
@@ -1655,8 +1663,8 @@ bool TypeChecks::visitStoreInst(Module &M, StoreInst &SI) {
   Args.push_back(BCI);
   Args.push_back(ConstantInt::get(Int8Ty, 
                                   getTypeMarker(SI.getOperand(0)))); // SI.getValueOperand()
-  Args.push_back(ConstantInt::get(Int64Ty, TD->getTypeStoreSize(SI.getOperand(0)->getType())));
-  Args.push_back(ConstantInt::get(Int32Ty, tagCounter++));
+  Args.push_back(ConstantInt::get(Int64Ty, getSize(SI.getOperand(0)->getType())));
+  Args.push_back(getTagCounter());
 
   // Create the call to the runtime check and place it before the store instruction.
   CallInst::Create(trackStoreInst, Args.begin(), Args.end(), "", &SI);
@@ -1674,8 +1682,8 @@ bool TypeChecks::visitCopyingStoreInst(Module &M, StoreInst &SI, Value *SS) {
   std::vector<Value *> Args;
   Args.push_back(BCI_Dest);
   Args.push_back(BCI_Src);
-  Args.push_back(ConstantInt::get(Int64Ty, TD->getTypeStoreSize(SI.getOperand(0)->getType())));
-  Args.push_back(ConstantInt::get(Int32Ty, tagCounter++));
+  Args.push_back(ConstantInt::get(Int64Ty, getSize(SI.getOperand(0)->getType())));
+  Args.push_back(getTagCounter());
 
   // Create the call to the runtime check and place it before the copying store instruction.
   CallInst::Create(copyTypeInfo, Args.begin(), Args.end(), "", &SI);

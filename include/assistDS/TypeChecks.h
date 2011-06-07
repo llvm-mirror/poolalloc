@@ -82,8 +82,9 @@ public:
   bool visitInputFunctionValue(Module &M, Value *V, Instruction *CI);
 
   void visitVAListCall(Function *F);
-  unsigned int getTypeMarker(const llvm::Type*);
+  unsigned int getTypeMarker(const Type*);
   unsigned int getTypeMarker(Value*);
+  unsigned int getSize(const Type*);
   // Return the map containing all of the types used in the module.
   const std::map<const Type *, unsigned int> &getTypes() const {
     return UsedTypes;
