@@ -36,8 +36,14 @@ uintptr_t maskAddress(void *ptr) {
     fflush(stderr);
     assert(0 && "MAP_FAILED");
   }
+  assert(res < SIZE && "wrong mapped address");
   return res;
 }
+
+void trackStringInput(void *ptr, uint32_t tag) {
+  trackInitInst(ptr, strlen(ptr) + 1, tag);
+}
+
 
 /**
  * Initialize the shadow memory which records the 1:1 mapping of addresses to types.
@@ -138,6 +144,7 @@ void compareTypeAndNumber(uint64_t NumArgsPassed, uint64_t ArgAccessed, uint8_t 
 void trackLoadInst(void *ptr, uint8_t typeNumber, uint64_t size, uint32_t tag) {
   uint8_t i = 1;
   uintptr_t p = maskAddress(ptr);
+  assert(p + size < SIZE);
 
   /* Check if this an initialized but untyped memory.*/
   if (typeNumber != shadow_begin[p]) {
@@ -164,10 +171,10 @@ void trackLoadInst(void *ptr, uint8_t typeNumber, uint64_t size, uint32_t tag) {
       break;
     }
   }
-
 #if DEBUG
   printf("Load: %p, %p = actual: %u, expect: %u | %lu  bytes %d \n", ptr, (void *)p, typeNumber, shadow_begin[p], size, tag);
 #endif
+
 }
 
 /**
@@ -209,8 +216,11 @@ void copyTypeInfo(void *dstptr, void *srcptr, uint64_t size, uint32_t tag) {
  * Initialize metadata for the pointer returned by __ctype_b_loc
  */
 void trackctype(void *ptr, uint32_t tag) {
-  trackInitInst(ptr, sizeof(short*), tag);
-  trackInitInst(*(short**)ptr, sizeof(short)*384, tag);
+  char *p, p1;
+  trackInitInst(ptr, sizeof(int*), tag);
+  p = *(int**)ptr;
+  p1 = p + (-128 * sizeof(int));
+  trackInitInst(p1, sizeof(int)*384, tag);
 }
 
 /**
