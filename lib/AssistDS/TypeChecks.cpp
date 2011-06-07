@@ -87,6 +87,14 @@ static Constant *getTagCounter() {
   return ConstantInt::get(Int32Ty, tagCounter++);
 }
 
+Constant *TypeChecks::getTypeMarkerConstant(Value * V) {
+  return ConstantInt::get(Int8Ty, getTypeMarker(V));
+}
+
+Constant *TypeChecks::getTypeMarkerConstant(const Type *T) {
+  return ConstantInt::get(Int8Ty, getTypeMarker(T));
+}
+
 bool TypeChecks::runOnModule(Module &M) {
   bool modified = false; // Flags whether we modified the module.
 
@@ -305,7 +313,6 @@ bool TypeChecks::runOnModule(Module &M) {
       }
     }
   }
-
 
   // visit all the uses of the address taken functions and modify if
   // visit all the indirect call sites
@@ -560,7 +567,7 @@ bool TypeChecks::visitVAListFunction(Module &M, Function &F_orig) {
       Instruction *VAMetaData = new LoadInst(VAMDLoc, "", VI);
       Args.push_back(VASize);
       Args.push_back(OldValue);
-      Args.push_back(ConstantInt::get(Int8Ty, getTypeMarker(VI)));
+      Args.push_back(getTypeMarkerConstant(VI));
       Args.push_back(VAMetaData);
       Args.push_back(getTagCounter());
       CallInst::Create(compareTypeAndNumber,
@@ -640,8 +647,7 @@ bool TypeChecks::visitAddressTakenFunction(Module &M, Function &F) {
                                                                  Idx, 
                                                                  Idx + 1, 
                                                                  "", CI);
-      Constant *C = ConstantInt::get(Int8Ty, 
-                                     getTypeMarker(CI->getOperand(i)));
+      Constant *C = getTypeMarkerConstant(CI->getOperand(i));
       new StoreInst(C, GEP, CI);
     }
 
@@ -795,7 +801,7 @@ bool TypeChecks::visitInternalVarArgFunction(Module &M, Function &F) {
       Instruction *VAMetaData = new LoadInst(VAMDLoc, "", VI);
       Args.push_back(VASize);
       Args.push_back(OldValue);
-      Args.push_back(ConstantInt::get(Int8Ty, getTypeMarker(VI)));
+      Args.push_back(getTypeMarkerConstant(VI));
       Args.push_back(VAMetaData);
       Args.push_back(getTagCounter());
       CallInst::Create(compareTypeAndNumber,
@@ -878,8 +884,7 @@ bool TypeChecks::visitInternalVarArgFunction(Module &M, Function &F) {
                                                                  Idx, 
                                                                  Idx + 1, 
                                                                  "", CI);
-      Constant *C = ConstantInt::get(Int8Ty, 
-                                     getTypeMarker(CI->getOperand(i)));
+      Constant *C = getTypeMarkerConstant(CI->getOperand(i));
       new StoreInst(C, GEP, CI);
     }
 
@@ -1263,7 +1268,7 @@ bool TypeChecks::visitGlobal(Module &M, GlobalVariable &GV,
 
       std::vector<Value *> Args;
       Args.push_back(GEP);
-      Args.push_back(ConstantInt::get(Int8Ty, getTypeMarker(CAZ)));
+      Args.push_back(getTypeMarkerConstant(CAZ));
       Args.push_back(ConstantInt::get(Int64Ty, getSize(CAZ->getType())));
       Args.push_back(getTagCounter());
       CallInst::Create(trackGlobal, Args.begin(), Args.end(), "", &I);
@@ -1279,7 +1284,7 @@ bool TypeChecks::visitGlobal(Module &M, GlobalVariable &GV,
 
     std::vector<Value *> Args;
     Args.push_back(GEP);
-    Args.push_back(ConstantInt::get(Int8Ty, getTypeMarker(C)));
+    Args.push_back(getTypeMarkerConstant(C));
     Args.push_back(ConstantInt::get(Int64Ty, getSize(C->getType())));
     Args.push_back(getTagCounter());
     CallInst::Create(trackGlobal, Args.begin(), Args.end(), "", &I);
@@ -1547,8 +1552,7 @@ bool TypeChecks::visitIndirectCallSite(Module &M, Instruction *I) {
                                                                Idx,
                                                                Idx + 1,
                                                                "", I);
-    Constant *C = ConstantInt::get(Int8Ty,
-                                   getTypeMarker(I->getOperand(i)));
+    Constant *C = getTypeMarkerConstant(I->getOperand(i));
     new StoreInst(C, GEP, I);
   }
   std::vector<Value *> Args;
@@ -1617,7 +1621,7 @@ bool TypeChecks::visitInputFunctionValue(Module &M, Value *V, Instruction *CI) {
 
   std::vector<Value *> Args;
   Args.push_back(BCI);
-  Args.push_back(ConstantInt::get(Int8Ty, getTypeMarker(PTy->getElementType())));
+  Args.push_back(getTypeMarkerConstant(PTy->getElementType()));
   Args.push_back(ConstantInt::get(Int64Ty, getSize(PTy->getElementType())));
   Args.push_back(getTagCounter());
 
@@ -1644,7 +1648,7 @@ bool TypeChecks::visitLoadInst(Module &M, LoadInst &LI) {
 
   std::vector<Value *> Args;
   Args.push_back(BCI);
-  Args.push_back(ConstantInt::get(Int8Ty, getTypeMarker(&LI)));
+  Args.push_back(getTypeMarkerConstant(&LI));
   Args.push_back(ConstantInt::get(Int64Ty, getSize(LI.getType())));
   Args.push_back(getTagCounter());
 
@@ -1661,8 +1665,7 @@ bool TypeChecks::visitStoreInst(Module &M, StoreInst &SI) {
 
   std::vector<Value *> Args;
   Args.push_back(BCI);
-  Args.push_back(ConstantInt::get(Int8Ty, 
-                                  getTypeMarker(SI.getOperand(0)))); // SI.getValueOperand()
+  Args.push_back(getTypeMarkerConstant(SI.getOperand(0))); // SI.getValueOperand()
   Args.push_back(ConstantInt::get(Int64Ty, getSize(SI.getOperand(0)->getType())));
   Args.push_back(getTagCounter());
 

@@ -46,6 +46,44 @@ private:
   TypeAnalysis *TA;
   dsa::TypeSafety<TDDataStructures> *TS;
   AddressTakenAnalysis* addrAnalysis;
+  
+  unsigned int getTypeMarker(const Type*);
+  unsigned int getTypeMarker(Value*);
+  Constant *getTypeMarkerConstant(Value * V);
+  Constant *getTypeMarkerConstant(const Type* T);
+  unsigned int getSize(const Type*);
+  
+  bool initShadow(Module &M);
+  void addTypeMap(Module &M) ;
+  
+  bool visitMain(Module &M, Function &F); 
+
+  bool visitCallInst(Module &M, CallInst &CI);
+  bool visitInvokeInst(Module &M, InvokeInst &CI);
+  bool visitCallSite(Module &M, CallSite CS);
+  bool visitIndirectCallSite(Module &M, Instruction *I);
+
+  bool visitLoadInst(Module &M, LoadInst &LI);
+  bool visitStoreInst(Module &M, StoreInst &SI);
+  bool visitCopyingStoreInst(Module &M, StoreInst &SI, Value *SS);
+  bool visitAllocaInst(Module &M, AllocaInst &AI);
+
+  bool visitGlobal(Module &M, GlobalVariable &GV, 
+                   Constant *C, Instruction &I, unsigned offset);
+  
+  bool visitInternalByValFunction(Module &M, Function &F); 
+  bool visitExternalByValFunction(Module &M, Function &F); 
+  bool visitByValFunction(Module &M, Function &F); 
+
+  bool visitAddressTakenFunction(Module &M, Function &F);
+
+
+  bool visitVarArgFunction(Module &M, Function &F); 
+  bool visitVAListFunction(Module &M, Function &F); 
+  void visitVAListCall(Function *F);
+  bool visitInternalVarArgFunction(Module &M, Function &F); 
+
+  bool visitInputFunctionValue(Module &M, Value *V, Instruction *CI);
 
 public:
   static char ID;
@@ -59,32 +97,6 @@ public:
     AU.addRequired<AddressTakenAnalysis>();
   }
 
-  bool initShadow(Module &M);
-  void addTypeMap(Module &M) ;
-  bool visitCallInst(Module &M, CallInst &CI);
-  bool visitInvokeInst(Module &M, InvokeInst &CI);
-  bool visitCallSite(Module &M, CallSite CS);
-  bool visitIndirectCallSite(Module &M, Instruction *I);
-  bool visitInternalByValFunction(Module &M, Function &F); 
-  bool visitExternalByValFunction(Module &M, Function &F); 
-  bool visitByValFunction(Module &M, Function &F); 
-  bool visitMain(Module &M, Function &F); 
-  bool visitVarArgFunction(Module &M, Function &F); 
-  bool visitAddressTakenFunction(Module &M, Function &F); 
-  bool visitVAListFunction(Module &M, Function &F); 
-  bool visitInternalVarArgFunction(Module &M, Function &F); 
-  bool visitLoadInst(Module &M, LoadInst &LI);
-  bool visitStoreInst(Module &M, StoreInst &SI);
-  bool visitAllocaInst(Module &M, AllocaInst &AI);
-  bool visitGlobal(Module &M, GlobalVariable &GV, 
-                   Constant *C, Instruction &I, unsigned offset);
-  bool visitCopyingStoreInst(Module &M, StoreInst &SI, Value *SS);
-  bool visitInputFunctionValue(Module &M, Value *V, Instruction *CI);
-
-  void visitVAListCall(Function *F);
-  unsigned int getTypeMarker(const Type*);
-  unsigned int getTypeMarker(Value*);
-  unsigned int getSize(const Type*);
   // Return the map containing all of the types used in the module.
   const std::map<const Type *, unsigned int> &getTypes() const {
     return UsedTypes;
