@@ -1474,7 +1474,7 @@ bool TypeChecks::visitCallSite(Module &M, CallSite CS) {
       Args1.push_back(Size);
       CastInst *Num = CastInst::CreateIntegerCast(I->getOperand(1), Int64Ty, false, "", I);
       Args1.push_back(Num);
-      Args.push_back(getTagCounter());
+      Args1.push_back(getTagCounter());
       CallInst *CI_Arr = CallInst::Create(trackArray, Args1.begin(), Args1.end());
       CI_Arr->insertAfter(CI);
       return true;
