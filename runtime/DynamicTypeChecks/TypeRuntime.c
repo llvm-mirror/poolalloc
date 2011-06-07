@@ -216,20 +216,18 @@ void copyTypeInfo(void *dstptr, void *srcptr, uint64_t size, uint32_t tag) {
  * Initialize metadata for the pointer returned by __ctype_b_loc
  */
 void trackctype(void *ptr, uint32_t tag) {
-  short *p, *p1, *p2;
+  short *p, *p1;
   trackInitInst(ptr, sizeof(short*), tag);
   p = *(short**)ptr;
   p1 = p -128;
-  p2 = p1 + 384;
   trackInitInst(p1, sizeof(short)*384, tag);
 }
 
 void trackctype_32(void *ptr, uint32_t tag) {
-  int *p, *p1, *p2;
+  int *p, *p1;
   trackInitInst(ptr, sizeof(int*), tag);
   p = *(int**)ptr;
   p1 = p -128 ;
-  p2 = p1 + 384;
   trackInitInst(p1, sizeof(int)*384, tag);
 }
 
