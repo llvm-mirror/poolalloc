@@ -15,15 +15,17 @@
 #define TYPE_CHECKS_H
 
 #include "assistDS/TypeAnalysis.h"
-#include "dsa/TypeSafety.h"
 #include "dsa/AddressTakenAnalysis.h"
 
 #include "llvm/Instructions.h"
+#include "llvm/Function.h"
 #include "llvm/Pass.h"
 #include "llvm/Target/TargetData.h"
 #include "llvm/Support/CallSite.h"
 
 #include <map>
+#include <list>
+#include <set>
 
 namespace llvm {
 
@@ -44,7 +46,6 @@ private:
   // Analysis from other passes.
   TargetData *TD;
   TypeAnalysis *TA;
-  dsa::TypeSafety<TDDataStructures> *TS;
   AddressTakenAnalysis* addrAnalysis;
   
   unsigned int getTypeMarker(const Type*);

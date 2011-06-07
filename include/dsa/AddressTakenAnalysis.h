@@ -16,14 +16,15 @@
 #ifndef _ADDRESSTAKENANALYSIS_H
 #define	_ADDRESSTAKENANALYSIS_H
 
+#include "llvm/Pass.h"
+
+#include <string>
+#include <set>
+
 namespace llvm {
 class Function;
 class Module;
 class Instruction;
-
-
-#include <string>
-#include "llvm/Pass.h"
 
 class AddressTakenAnalysis : public llvm::ModulePass {
   std::set<Function*> addressTakenFunctions;
