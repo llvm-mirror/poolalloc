@@ -112,7 +112,7 @@ bool TypeChecksOpt::runOnModule(Module &M) {
     CallInst *CI = dyn_cast<CallInst>(User);
     assert(CI);
     
-    if(TS->isTypeSafe(cast<GlobalValue>(CI->getOperand(1)->stripPointerCasts()))) {
+    if(TS->isTypeSafe((CI->getOperand(1)->stripPointerCasts(), CI->getParent()->getParent()))) {
       toDelete.push_back(CI);
     }
   }
