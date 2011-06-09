@@ -46,9 +46,11 @@ static Constant *trackGlobal;
 static Constant *trackStringInput;
 static Constant *trackArray;
 static Constant *trackInitInst;
+static Constant *trackUnInitInst;
 static Constant *trackStoreInst;
 static Constant *trackLoadInst;
 static Constant *copyTypeInfo;
+static Constant *MallocFunc;
 
 bool TypeChecksOpt::runOnModule(Module &M) {
   bool modified = false; // Flags whether we modified the module.
@@ -81,6 +83,12 @@ bool TypeChecksOpt::runOnModule(Module &M) {
                                         Int64Ty,/*size*/
                                         Int32Ty,/*tag*/
                                         NULL);
+  trackUnInitInst = M.getOrInsertFunction("trackUnInitInst",
+                                        VoidTy,
+                                        VoidPtrTy,/*ptr*/
+                                        Int64Ty,/*size*/
+                                        Int32Ty,/*tag*/
+                                        NULL);
   trackStoreInst = M.getOrInsertFunction("trackStoreInst",
                                          VoidTy,
                                          VoidPtrTy,/*ptr*/
@@ -107,12 +115,17 @@ bool TypeChecksOpt::runOnModule(Module &M) {
                                            VoidPtrTy,
                                            Int32Ty,
                                            NULL);
+  MallocFunc = M.getFunction("malloc");
 
   for(Value::use_iterator User = trackGlobal->use_begin(); User != trackGlobal->use_end(); ++User) {
     CallInst *CI = dyn_cast<CallInst>(User);
     assert(CI);
-    
     if(TS->isTypeSafe(CI->getOperand(1)->stripPointerCasts(), CI->getParent()->getParent())) {
+      std::vector<Value*>Args;
+      Args.push_back(CI->getOperand(1));
+      Args.push_back(CI->getOperand(3));
+      Args.push_back(CI->getOperand(4));
+      CallInst::Create(trackInitInst, Args.begin(), Args.end(), "", CI);
       toDelete.push_back(CI);
     }
   }
@@ -123,6 +136,7 @@ bool TypeChecksOpt::runOnModule(Module &M) {
     
     if(TS->isTypeSafe(CI->getOperand(1)->stripPointerCasts(), CI->getParent()->getParent())) {
       toDelete.push_back(CI);
+      continue;
     }
   }
 
@@ -135,32 +149,47 @@ bool TypeChecksOpt::runOnModule(Module &M) {
     }
   }
 
-  for(Value::use_iterator User = trackInitInst->use_begin(); User != trackInitInst->use_end(); ++User) {
-    CallInst *CI = dyn_cast<CallInst>(User);
+  // for alloca's if they are type known
+  // assume initialized with TOP
+  for(Value::use_iterator User = trackUnInitInst->use_begin(); User != trackUnInitInst->use_end(); ) {
+    CallInst *CI = dyn_cast<CallInst>(User++);
     assert(CI);
-    
+  
+    // check if operand is an alloca inst.
     if(TS->isTypeSafe(CI->getOperand(1)->stripPointerCasts(), CI->getParent()->getParent())) {
+      CI->setCalledFunction(trackInitInst);
       toDelete.push_back(CI);
     }
   }
 
-  for(Value::use_iterator User = trackArray->use_begin(); User != trackArray->use_end(); ++User) {
-    CallInst *CI = dyn_cast<CallInst>(User);
-    assert(CI);
-    
-    if(TS->isTypeSafe(CI->getOperand(1)->stripPointerCasts(), CI->getParent()->getParent())) {
-      toDelete.push_back(CI);
+  if(MallocFunc) {
+    for(Value::use_iterator User = MallocFunc->use_begin(); User != MallocFunc->use_end(); User ++) {
+      CallInst *CI = dyn_cast<CallInst>(User);
+      if(!CI)
+        continue;
+      if(TS->isTypeSafe(CI, CI->getParent()->getParent())){
+        CastInst *BCI = BitCastInst::CreatePointerCast(CI, VoidPtrTy);
+        CastInst *Size = CastInst::CreateSExtOrBitCast(CI->getOperand(1), Int64Ty);
+        Size->insertAfter(CI);
+        BCI->insertAfter(Size);
+        std::vector<Value *>Args;
+        Args.push_back(BCI);
+        Args.push_back(Size);
+        Args.push_back(ConstantInt::get(Int32Ty, 0));
+        CallInst *CINew = CallInst::Create(trackInitInst, Args.begin(), Args.end());
+        CINew->insertAfter(BCI);
+      }
     }
   }
+
+  // also do for mallocs/calloc/other allocators???
+  // other allocators??
+
   for(Value::use_iterator User = copyTypeInfo->use_begin(); User != copyTypeInfo->use_end(); ++User) {
     CallInst *CI = dyn_cast<CallInst>(User);
     assert(CI);
-    
+
     if(TS->isTypeSafe(CI->getOperand(1)->stripPointerCasts(), CI->getParent()->getParent())) {
-      toDelete.push_back(CI);
-      continue;
-    }
-    if(TS->isTypeSafe(CI->getOperand(2)->stripPointerCasts(), CI->getParent()->getParent())) {
       std::vector<Value*> Args;
       Args.push_back(CI->getOperand(1));
       Args.push_back(CI->getOperand(3)); // size
@@ -171,7 +200,7 @@ bool TypeChecksOpt::runOnModule(Module &M) {
   }
 
   numSafe += toDelete.size();
-  
+
   while(!toDelete.empty()) {
     Instruction *I = toDelete.back();
     toDelete.pop_back();
