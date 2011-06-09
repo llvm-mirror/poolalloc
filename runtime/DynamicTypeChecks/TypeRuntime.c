@@ -146,6 +146,10 @@ void trackLoadInst(void *ptr, uint8_t typeNumber, uint64_t size, uint32_t tag) {
   uintptr_t p = maskAddress(ptr);
   assert(p + size < SIZE);
 
+#if DEBUG
+  printf("Load: %p, %p = actual: %u, expect: %u | %lu  bytes %d \n", ptr, (void *)p, typeNumber, shadow_begin[p], size, tag);
+#endif
+
   /* Check if this an initialized but untyped memory.*/
   if (typeNumber != shadow_begin[p]) {
     if (shadow_begin[p] != 0xFF) {
@@ -171,10 +175,6 @@ void trackLoadInst(void *ptr, uint8_t typeNumber, uint64_t size, uint32_t tag) {
       break;
     }
   }
-#if DEBUG
-  printf("Load: %p, %p = actual: %u, expect: %u | %lu  bytes %d \n", ptr, (void *)p, typeNumber, shadow_begin[p], size, tag);
-#endif
-
 }
 
 /**
