@@ -637,6 +637,8 @@ bool TypeChecks::visitAddressTakenFunction(Module &M, Function &F) {
     CallInst *CI = dyn_cast<CallInst>(ui++);
     if(!CI)
       continue;
+    if(CI->getCalledValue()->stripPointerCasts() != &F)
+      continue;
     std::vector<Value *> Args;
     unsigned int i;
     unsigned int NumArgs = CI->getNumOperands() - 1;
