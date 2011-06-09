@@ -642,8 +642,9 @@ bool TypeChecks::visitAddressTakenFunction(Module &M, Function &F) {
     std::vector<Value *> Args;
     unsigned int i;
     unsigned int NumArgs = CI->getNumOperands() - 1;
+    inst_iterator InsPt = inst_begin(CI->getParent()->getParent());
     Value *NumArgsVal = ConstantInt::get(Int32Ty, NumArgs);
-    AllocaInst *AI = new AllocaInst(Int8Ty, NumArgsVal, "", CI);
+    AllocaInst *AI = new AllocaInst(Int8Ty, NumArgsVal, "", &*InsPt);
     // set the metadata for the varargs in AI
     for(i = 1; i <CI->getNumOperands(); i++) {
       Value *Idx[2];
@@ -877,10 +878,11 @@ bool TypeChecks::visitInternalVarArgFunction(Module &M, Function &F) {
     if(!CI)
       continue;
     std::vector<Value *> Args;
+    inst_iterator InsPt = inst_begin(CI->getParent()->getParent());
     unsigned int i;
     unsigned int NumArgs = CI->getNumOperands() - 1;
     Value *NumArgsVal = ConstantInt::get(Int32Ty, NumArgs);
-    AllocaInst *AI = new AllocaInst(Int8Ty, NumArgsVal, "", CI);
+    AllocaInst *AI = new AllocaInst(Int8Ty, NumArgsVal, "", &*CI);
     // set the metadata for the varargs in AI
     for(i = 1; i <CI->getNumOperands(); i++) {
       Value *Idx[2];
@@ -1544,7 +1546,8 @@ bool TypeChecks::visitIndirectCallSite(Module &M, Instruction *I) {
   unsigned int NumArgs = I->getNumOperands() - 1;
   Value *NumArgsVal = ConstantInt::get(Int32Ty, NumArgs);
 
-  AllocaInst *AI = new AllocaInst(Int8Ty, NumArgsVal, "", I);
+  inst_iterator InsPt = inst_begin(I->getParent()->getParent());
+  AllocaInst *AI = new AllocaInst(Int8Ty, NumArgsVal, "", &*InsPt);
   for(unsigned int i = 1; i < I->getNumOperands(); i++) {
     Value *Idx[2];
     Idx[0] = ConstantInt::get(Int32Ty, i-1);
