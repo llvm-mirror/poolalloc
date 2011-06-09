@@ -71,7 +71,7 @@ private:
   bool visitAllocaInst(Module &M, AllocaInst &AI);
 
   bool visitGlobal(Module &M, GlobalVariable &GV, 
-                   Constant *C, Instruction &I, unsigned offset);
+                   Constant *C, Instruction &I, SmallVector<Value*,8>);
   
   bool visitInternalByValFunction(Module &M, Function &F); 
   bool visitExternalByValFunction(Module &M, Function &F); 

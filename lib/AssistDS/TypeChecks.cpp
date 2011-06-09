@@ -1127,7 +1127,8 @@ bool TypeChecks::initShadow(Module &M) {
     } 
     if(!I->hasInitializer())
       continue;
-    visitGlobal(M, *I, I->getInitializer(), *InsertPt, 0);
+    SmallVector<Value*,8>index;
+    visitGlobal(M, *I, I->getInitializer(), *InsertPt, index);
   }
   //
   // Insert the run-time ctor into the ctor list.
@@ -1208,13 +1209,13 @@ bool TypeChecks::visitMain(Module &M, Function &MainFunc) {
 }
 
 bool TypeChecks::visitGlobal(Module &M, GlobalVariable &GV, 
-                             Constant *C, Instruction &I, unsigned offset) {
+                             Constant *C, Instruction &I, SmallVector<Value *,8> Indices) {
 
   if(ConstantArray *CA = dyn_cast<ConstantArray>(C)) {
     const Type * ElementType = CA->getType()->getElementType();
     // Create the type entry for the first element
     // using recursive creation till we get to the base types
-    visitGlobal(M, GV, CA->getOperand(0), I, offset);
+    visitGlobal(M, GV, CA->getOperand(0), I, Indices);
 
     // Copy the type metadata for the first element
     // over for the rest of the elements.
@@ -1233,8 +1234,9 @@ bool TypeChecks::visitGlobal(Module &M, GlobalVariable &GV,
     for (unsigned i = 0, e = CS->getNumOperands(); i != e; ++i) {
       if (SL->getElementOffset(i) < SL->getSizeInBytes()) {
         Constant * ConstElement = cast<Constant>(CS->getOperand(i));
-        unsigned field_offset = offset + (unsigned)SL->getElementOffset(i);
-        visitGlobal(M, GV, ConstElement, I, field_offset);
+        Indices.push_back(ConstantInt::get(Int32Ty, i));
+        visitGlobal(M, GV, ConstElement, I, Indices);
+        Indices.pop_back();
       }
     }
   } else if(ConstantAggregateZero *CAZ = dyn_cast<ConstantAggregateZero>(C)) {
@@ -1243,7 +1245,7 @@ bool TypeChecks::visitGlobal(Module &M, GlobalVariable &GV,
     const Type *Ty = CAZ->getType();
     if(const ArrayType * ATy = dyn_cast<ArrayType>(Ty)) {
       const Type * ElementType = ATy->getElementType();
-      visitGlobal(M, GV, Constant::getNullValue(ElementType), I, offset);
+      visitGlobal(M, GV, Constant::getNullValue(ElementType), I, Indices);
       CastInst *BCI = BitCastInst::CreatePointerCast(&GV, VoidPtrTy, "", &I);
       std::vector<Value *> Args;
       Args.push_back(BCI);
@@ -1255,20 +1257,19 @@ bool TypeChecks::visitGlobal(Module &M, GlobalVariable &GV,
       const StructLayout *SL = TD->getStructLayout(STy);
       for (unsigned i = 0, e = STy->getNumElements(); i != e; ++i) {
         if (SL->getElementOffset(i) < SL->getSizeInBytes()) {
-          unsigned field_offset = offset + (unsigned)SL->getElementOffset(i);
-          visitGlobal(M, GV, Constant::getNullValue(STy->getElementType(i)), I, field_offset);
+          Indices.push_back(ConstantInt::get(Int32Ty, i));
+          visitGlobal(M, GV, Constant::getNullValue(STy->getElementType(i)), I, Indices);
+          Indices.pop_back();
         }
       }
     } else {
       // Zeroinitializer of a primitive type
-      CastInst *BCI = BitCastInst::CreatePointerCast(&GV, VoidPtrTy, "", &I);
-      SmallVector<Value*, 8> Indices;
-      Indices.push_back(ConstantInt::get(Int32Ty, offset));
-      GetElementPtrInst *GEP = GetElementPtrInst::CreateInBounds(BCI, Indices.begin(),
+      GetElementPtrInst *GEP = GetElementPtrInst::CreateInBounds(&GV, Indices.begin(),
                                                                  Indices.end(),"", &I) ;
 
+      CastInst *BCI = BitCastInst::CreatePointerCast(GEP, VoidPtrTy, "", &I);
       std::vector<Value *> Args;
-      Args.push_back(GEP);
+      Args.push_back(BCI);
       Args.push_back(getTypeMarkerConstant(CAZ));
       Args.push_back(getSizeConstant(CAZ->getType()));
       Args.push_back(getTagCounter());
@@ -1277,20 +1278,17 @@ bool TypeChecks::visitGlobal(Module &M, GlobalVariable &GV,
   }
   else {
     // Primitive type value
-    CastInst *BCI = BitCastInst::CreatePointerCast(&GV, VoidPtrTy, "", &I);
-    SmallVector<Value*, 8> Indices;
-    Indices.push_back(ConstantInt::get(Int32Ty, offset));
-    GetElementPtrInst *GEP = GetElementPtrInst::CreateInBounds(BCI, Indices.begin(),
+    GetElementPtrInst *GEP = GetElementPtrInst::CreateInBounds(&GV, Indices.begin(),
                                                                Indices.end(),"", &I) ;
 
+    CastInst *BCI = BitCastInst::CreatePointerCast(GEP, VoidPtrTy, "", &I);
     std::vector<Value *> Args;
-    Args.push_back(GEP);
+    Args.push_back(BCI);
     Args.push_back(getTypeMarkerConstant(C));
     Args.push_back(getSizeConstant(C->getType()));
     Args.push_back(getTagCounter());
     CallInst::Create(trackGlobal, Args.begin(), Args.end(), "", &I);
   }
-
   return true;
 }
 
