@@ -171,8 +171,6 @@ bool TypeChecksOpt::runOnModule(Module &M) {
   }
 
   numSafe += toDelete.size();
-
-  numSafe += toDelete.size();
   
   while(!toDelete.empty()) {
     Instruction *I = toDelete.back();
