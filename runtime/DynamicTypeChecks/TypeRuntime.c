@@ -79,7 +79,7 @@ void trackGlobal(void *ptr, uint8_t typeNumber, uint64_t size, uint32_t tag) {
   shadow_begin[p] = typeNumber;
   memset(&shadow_begin[p + 1], 0, size - 1);
 #if DEBUG
-  printf("Global: %p, %p = %u | %lu bytes\n", ptr, (void *)p, typeNumber, size);
+  printf("Global(%d): %p, %p = %u | %lu bytes\n", tag, ptr, (void *)p, typeNumber, size);
 #endif
 }
 
@@ -105,7 +105,7 @@ void trackStoreInst(void *ptr, uint8_t typeNumber, uint64_t size, uint32_t tag) 
   shadow_begin[p] = typeNumber;
   memset(&shadow_begin[p + 1], 0, size - 1);
 #if DEBUG
-  printf("Store: %p, %p = %u | %lu bytes | %d\n", ptr, (void *)p, typeNumber, size, tag);
+  printf("Store(%d): %p, %p = %u | %lu bytes | \n", tag, ptr, (void *)p, typeNumber, size;
 #endif
 }
 
@@ -147,7 +147,7 @@ void trackLoadInst(void *ptr, uint8_t typeNumber, uint64_t size, uint32_t tag) {
   assert(p + size < SIZE);
 
 #if DEBUG
-  printf("Load: %p, %p = actual: %u, expect: %u | %lu  bytes %d \n", ptr, (void *)p, typeNumber, shadow_begin[p], size, tag);
+  printf("Load(%d): %p, %p = actual: %u, expect: %u | %lu  bytes\n", tag, ptr, (void *)p, typeNumber, shadow_begin[p], size);
 #endif
 
   /* Check if this an initialized but untyped memory.*/
@@ -208,7 +208,7 @@ void copyTypeInfo(void *dstptr, void *srcptr, uint64_t size, uint32_t tag) {
   uintptr_t s = maskAddress(srcptr);
   memcpy(&shadow_begin[d], &shadow_begin[s], size);
 #if DEBUG
-  printf("Copy: %p, %p = %u | %lu bytes | %u\n", dstptr, srcptr, shadow_begin[s], size, tag);
+  printf("Copy(%d): %p, %p = %u | %lu bytes \n", tag, dstptr, srcptr, shadow_begin[s], size);
 #endif
 }
 
