@@ -366,6 +366,10 @@ bool TypeChecks::runOnModule(Module &M) {
           continue;
         }
       }
+      if(CallInst *CI = dyn_cast<CallInst>(user)) {
+        if(CI->getCalledFunction()->isDeclaration())
+          continue;
+      }
       user->replaceUsesOfWith(F, CNew);
     }
   }
