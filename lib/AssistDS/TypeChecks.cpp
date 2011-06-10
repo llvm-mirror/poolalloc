@@ -1132,6 +1132,7 @@ bool TypeChecks::initShadow(Module &M) {
     if(!I->hasInitializer())
       continue;
     SmallVector<Value*,8>index;
+    index.push_back(ConstantInt::get(Int64Ty, 0));
     visitGlobal(M, *I, I->getInitializer(), *InsertPt, index);
   }
   //
@@ -1219,11 +1220,16 @@ bool TypeChecks::visitGlobal(Module &M, GlobalVariable &GV,
     const Type * ElementType = CA->getType()->getElementType();
     // Create the type entry for the first element
     // using recursive creation till we get to the base types
+    Indices.push_back(ConstantInt::get(Int64Ty,0));
     visitGlobal(M, GV, CA->getOperand(0), I, Indices);
+    Indices.pop_back();
+    GetElementPtrInst *GEP = GetElementPtrInst::CreateInBounds(&GV, Indices.begin(),
+                                                               Indices.end(),"", &I) ;
+
+    CastInst *BCI = BitCastInst::CreatePointerCast(GEP, VoidPtrTy, "", &I);
 
     // Copy the type metadata for the first element
     // over for the rest of the elements.
-    CastInst *BCI = BitCastInst::CreatePointerCast(&GV, VoidPtrTy, "", &I);
     std::vector<Value *> Args;
     Args.push_back(BCI);
     Args.push_back(getSizeConstant(ElementType));
@@ -1249,8 +1255,13 @@ bool TypeChecks::visitGlobal(Module &M, GlobalVariable &GV,
     const Type *Ty = CAZ->getType();
     if(const ArrayType * ATy = dyn_cast<ArrayType>(Ty)) {
       const Type * ElementType = ATy->getElementType();
+      Indices.push_back(ConstantInt::get(Int64Ty,0));
       visitGlobal(M, GV, Constant::getNullValue(ElementType), I, Indices);
-      CastInst *BCI = BitCastInst::CreatePointerCast(&GV, VoidPtrTy, "", &I);
+      Indices.pop_back();
+      GetElementPtrInst *GEP = GetElementPtrInst::CreateInBounds(&GV, Indices.begin(),
+                                                                 Indices.end(),"", &I) ;
+
+      CastInst *BCI = BitCastInst::CreatePointerCast(GEP, VoidPtrTy, "", &I);
       std::vector<Value *> Args;
       Args.push_back(BCI);
       Args.push_back(getSizeConstant(ElementType));
