@@ -870,50 +870,87 @@ bool TypeChecks::visitInternalVarArgFunction(Module &M, Function &F) {
     }
   }
 
+  std::vector<Instruction *>toDelete;
   // Find all uses of the function
   for(Value::use_iterator ui = F.use_begin(), ue = F.use_end();
-      ui != ue;)  {
+      ui != ue;ui ++)  {
     // Check for call sites
-    if(isa<InvokeInst>(ui)) {
-      //FIXME
-      ui->dump();
-    }
-    CallInst *CI = dyn_cast<CallInst>(ui++);
-    if(!CI)
-      continue;
-    std::vector<Value *> Args;
-    inst_iterator InsPt = inst_begin(CI->getParent()->getParent());
-    unsigned int i;
-    unsigned int NumArgs = CI->getNumOperands() - 1;
-    Value *NumArgsVal = ConstantInt::get(Int32Ty, NumArgs);
-    AllocaInst *AI = new AllocaInst(Int8Ty, NumArgsVal, "", &*CI);
-    // set the metadata for the varargs in AI
-    for(i = 1; i <CI->getNumOperands(); i++) {
-      Value *Idx[2];
-      Idx[0] = ConstantInt::get(Int32Ty, i - 1 );
-      // For each vararg argument, also add its type information
-      GetElementPtrInst *GEP = GetElementPtrInst::CreateInBounds(AI, 
-                                                                 Idx, 
-                                                                 Idx + 1, 
-                                                                 "", CI);
-      Constant *C = getTypeMarkerConstant(CI->getOperand(i));
-      new StoreInst(C, GEP, CI);
-    }
+    if(InvokeInst *II = dyn_cast<InvokeInst>(ui)) {
+      std::vector<Value *> Args;
+      inst_iterator InsPt = inst_begin(II->getParent()->getParent());
+      unsigned int i;
+      unsigned int NumArgs = II->getNumOperands() - 3;
+      Value *NumArgsVal = ConstantInt::get(Int32Ty, NumArgs);
+      AllocaInst *AI = new AllocaInst(Int8Ty, NumArgsVal, "", &*InsPt);
+      // set the metadata for the varargs in AI
+      for(i = 3; i <II->getNumOperands(); i++) {
+        Value *Idx[2];
+        Idx[0] = ConstantInt::get(Int32Ty, i - 3 );
+        // For each vararg argument, also add its type information
+        GetElementPtrInst *GEP = GetElementPtrInst::CreateInBounds(AI, 
+                                                                   Idx, 
+                                                                   Idx + 1, 
+                                                                   "", II);
+        Constant *C = getTypeMarkerConstant(II->getOperand(i));
+        new StoreInst(C, GEP, II);
+      }
 
-    // As the first argument pass the number of var_arg arguments
-    Args.push_back(ConstantInt::get(Int64Ty, NumArgs));
-    Args.push_back(AI);
-    for(i = 1 ;i < CI->getNumOperands(); i++) {
-      // Add the original argument
-      Args.push_back(CI->getOperand(i));
-    }
+      // As the first argument pass the number of var_arg arguments
+      Args.push_back(ConstantInt::get(Int64Ty, NumArgs));
+      Args.push_back(AI);
+      for(i = 3 ;i < II->getNumOperands(); i++) {
+        // Add the original argument
+        Args.push_back(II->getOperand(i));
+      }
 
-    // Create the new call
-    CallInst *CI_New = CallInst::Create(NewF, 
-                                        Args.begin(), Args.end(), 
-                                        "", CI);
-    CI->replaceAllUsesWith(CI_New);
-    CI->eraseFromParent();
+      // Create the new call
+      InvokeInst *II_New = InvokeInst::Create(NewF, 
+                                              II->getNormalDest(),
+                                              II->getUnwindDest(),
+                                              Args.begin(), Args.end(), 
+                                              "", II);
+      II->replaceAllUsesWith(II_New);
+      toDelete.push_back(II);
+    } else if (CallInst *CI = dyn_cast<CallInst>(ui)) {
+      std::vector<Value *> Args;
+      inst_iterator InsPt = inst_begin(CI->getParent()->getParent());
+      unsigned int i;
+      unsigned int NumArgs = CI->getNumOperands() - 1;
+      Value *NumArgsVal = ConstantInt::get(Int32Ty, NumArgs);
+      AllocaInst *AI = new AllocaInst(Int8Ty, NumArgsVal, "", &*InsPt);
+      // set the metadata for the varargs in AI
+      for(i = 1; i <CI->getNumOperands(); i++) {
+        Value *Idx[2];
+        Idx[0] = ConstantInt::get(Int32Ty, i - 1 );
+        // For each vararg argument, also add its type information
+        GetElementPtrInst *GEP = GetElementPtrInst::CreateInBounds(AI, 
+                                                                   Idx, 
+                                                                   Idx + 1, 
+                                                                   "", CI);
+        Constant *C = getTypeMarkerConstant(CI->getOperand(i));
+        new StoreInst(C, GEP, CI);
+      }
+
+      // As the first argument pass the number of var_arg arguments
+      Args.push_back(ConstantInt::get(Int64Ty, NumArgs));
+      Args.push_back(AI);
+      for(i = 1 ;i < CI->getNumOperands(); i++) {
+        // Add the original argument
+        Args.push_back(CI->getOperand(i));
+      }
+
+      // Create the new call
+      CallInst *CI_New = CallInst::Create(NewF, 
+                                          Args.begin(), Args.end(), 
+                                          "", CI);
+      CI->replaceAllUsesWith(CI_New);
+      toDelete.push_back(CI);
+    }
+  }
+  while(!toDelete.empty()) {
+    Instruction *I = toDelete.back();
+    toDelete.pop_back();
+    I->eraseFromParent();
   }
   IndFunctionsMap[&F] = NewF;
   return true;
@@ -964,17 +1001,60 @@ bool TypeChecks::visitInternalByValFunction(Module &M, Function &F) {
   }
 
   // Update the call sites
+  std::vector<Instruction *>toDelete;
   for(Value::use_iterator ui = F.use_begin(), ue = F.use_end();
-      ui != ue;)  {
-    if(isa<InvokeInst>(ui)) {
-    //FIXME
-      ui->dump();
-    }
-    if(!isa<CallInst>(ui)) {
-      ui->dump();
-    }
+      ui != ue; ui++)  {
     // Check that F is the called value
-    if(CallInst *CI = dyn_cast<CallInst>(ui++)) {
+    if(InvokeInst *II = dyn_cast<InvokeInst>(ui)) {
+      if(II->getCalledFunction() == &F) {
+        SmallVector<Value*, 8> Args;
+        SmallVector<AttributeWithIndex, 8> AttributesVec;
+
+        // Get the initial attributes of the call
+        AttrListPtr CallPAL = II->getAttributes();
+        Attributes RAttrs = CallPAL.getRetAttributes();
+        Attributes FnAttrs = CallPAL.getFnAttributes();
+
+        if (RAttrs)
+          AttributesVec.push_back(AttributeWithIndex::get(0, RAttrs));
+
+        Function::arg_iterator NI = F.arg_begin();
+        for(unsigned j =3;j<II->getNumOperands();j++, NI++) {
+          // Add the original argument
+          Args.push_back(II->getOperand(j));
+          // If there are attributes on this argument, copy them to the correct 
+          // position in the AttributesVec
+          //FIXME: copy the rest of the attributes.
+          if(NI->hasByValAttr()) 
+            continue;
+          if (Attributes Attrs = CallPAL.getParamAttributes(j)) {
+            AttributesVec.push_back(AttributeWithIndex::get(j, Attrs));
+          }
+        }
+
+        // Create the new attributes vec.
+        if (FnAttrs != Attribute::None)
+          AttributesVec.push_back(AttributeWithIndex::get(~0, FnAttrs));
+
+        AttrListPtr NewCallPAL = AttrListPtr::get(AttributesVec.begin(),
+                                                  AttributesVec.end());
+
+
+        // Create the substitute call
+        InvokeInst *CallI = InvokeInst::Create(&F,
+                                               II->getNormalDest(),
+                                               II->getUnwindDest(),
+                                               Args.begin(),
+                                               Args.end(),
+                                               "", II);
+
+        CallI->setCallingConv(II->getCallingConv());
+        CallI->setAttributes(NewCallPAL);
+        II->replaceAllUsesWith(CallI);
+        toDelete.push_back(II);
+
+      }
+    } else if(CallInst *CI = dyn_cast<CallInst>(ui)) {
       if(CI->getCalledFunction() == &F) {
         SmallVector<Value*, 8> Args;
         SmallVector<AttributeWithIndex, 8> AttributesVec;
@@ -1018,9 +1098,14 @@ bool TypeChecks::visitInternalByValFunction(Module &M, Function &F) {
         CallI->setCallingConv(CI->getCallingConv());
         CallI->setAttributes(NewCallPAL);
         CI->replaceAllUsesWith(CallI);
-        CI->eraseFromParent();
+        toDelete.push_back(CI);
       }
     }
+  }
+  while(!toDelete.empty()) {
+    Instruction *I = toDelete.back();
+    toDelete.pop_back();
+    I->eraseFromParent();
   }
 
   // remove the byval attribute from the function
@@ -1091,7 +1176,7 @@ bool TypeChecks::visitExternalByValFunction(Module &M, Function &F) {
 void TypeChecks::print(raw_ostream &OS, const Module *M) const {
   OS << "Types in use by this module:\n";
   std::map<const Type *,unsigned int>::const_iterator I = UsedTypes.begin(), 
-                                                      E = UsedTypes.end();
+    E = UsedTypes.end();
   for (; I != E; ++I) {
     OS << "  ";
     WriteTypeSymbolic(OS, I->first, M);
@@ -1557,29 +1642,6 @@ bool TypeChecks::visitCallSite(Module &M, CallSite CS) {
 
 bool TypeChecks::visitIndirectCallSite(Module &M, Instruction *I) {
   // add the number of arguments as the first argument
-
-  unsigned int NumArgs = I->getNumOperands() - 1;
-  Value *NumArgsVal = ConstantInt::get(Int32Ty, NumArgs);
-
-  inst_iterator InsPt = inst_begin(I->getParent()->getParent());
-  AllocaInst *AI = new AllocaInst(Int8Ty, NumArgsVal, "", &*InsPt);
-  for(unsigned int i = 1; i < I->getNumOperands(); i++) {
-    Value *Idx[2];
-    Idx[0] = ConstantInt::get(Int32Ty, i-1);
-    GetElementPtrInst *GEP = GetElementPtrInst::CreateInBounds(AI,
-                                                               Idx,
-                                                               Idx + 1,
-                                                               "", I);
-    Constant *C = getTypeMarkerConstant(I->getOperand(i));
-    new StoreInst(C, GEP, I);
-  }
-  std::vector<Value *> Args;
-  Args.push_back(ConstantInt::get(Int64Ty, NumArgs));
-  Args.push_back(AI);
-
-  for(unsigned int i = 1; i < I->getNumOperands(); i++)
-    Args.push_back(I->getOperand(i));
-
   const Type* OrigType = I->getOperand(0)->getType();
   assert(OrigType->isPointerTy());
   const FunctionType *FOldType = cast<FunctionType>((cast<PointerType>(OrigType))->getElementType());
@@ -1592,7 +1654,28 @@ bool TypeChecks::visitIndirectCallSite(Module &M, Instruction *I) {
 
   const FunctionType *FTy = FunctionType::get(FOldType->getReturnType(), TP, FOldType->isVarArg());
   CastInst *Func = CastInst::CreatePointerCast(I->getOperand(0), FTy->getPointerTo(), "", I);
+
+  inst_iterator InsPt = inst_begin(I->getParent()->getParent());
+
+
+
+
   if(isa<CallInst>(I)) {
+    unsigned int NumArgs = I->getNumOperands() - 1;
+    Value *NumArgsVal = ConstantInt::get(Int32Ty, NumArgs);
+
+    AllocaInst *AI = new AllocaInst(Int8Ty, NumArgsVal, "", &*InsPt);
+    for(unsigned int i = 1; i < I->getNumOperands(); i++) {
+      Value *Idx[2];
+      Idx[0] = ConstantInt::get(Int32Ty, i-1);
+      GetElementPtrInst *GEP = GetElementPtrInst::CreateInBounds(AI,
+                                                                 Idx,
+                                                                 Idx + 1,
+                                                                 "", I);
+      Constant *C = getTypeMarkerConstant(I->getOperand(i));
+      new StoreInst(C, GEP, I);
+    }
+
     std::vector<Value *> Args;
     Args.push_back(ConstantInt::get(Int64Ty, NumArgs));
     Args.push_back(AI);
@@ -1606,6 +1689,20 @@ bool TypeChecks::visitIndirectCallSite(Module &M, Instruction *I) {
     I->replaceAllUsesWith(CI_New);
     I->eraseFromParent();
   } else if(InvokeInst *II = dyn_cast<InvokeInst>(I)) {
+    unsigned int NumArgs = I->getNumOperands() - 3;
+    Value *NumArgsVal = ConstantInt::get(Int32Ty, NumArgs);
+
+    AllocaInst *AI = new AllocaInst(Int8Ty, NumArgsVal, "", &*InsPt);
+    for(unsigned int i = 3; i < I->getNumOperands(); i++) {
+      Value *Idx[2];
+      Idx[0] = ConstantInt::get(Int32Ty, i-3);
+      GetElementPtrInst *GEP = GetElementPtrInst::CreateInBounds(AI,
+                                                                 Idx,
+                                                                 Idx + 1,
+                                                                 "", I);
+      Constant *C = getTypeMarkerConstant(I->getOperand(i));
+      new StoreInst(C, GEP, I);
+    }
     std::vector<Value *> Args;
     Args.push_back(ConstantInt::get(Int64Ty, NumArgs));
     Args.push_back(AI);
