@@ -90,13 +90,6 @@ bool ArgCast::runOnModule(Module& M) {
           // by the function are the same.
           if(CI->getNumOperands() != I->arg_size() + 1)
             continue;
-          // Check that the return type of the function matches that
-          // expected by the call inst(ensures that the reason for the
-          // cast is not the return type).
-          if(CI->getType() != I->getReturnType()) {
-            if(CI->getNumUses() != 0)
-              continue;
-          }
           // If so, add to worklist
           worklist.push_back(CI);
         }
@@ -169,8 +162,15 @@ bool ArgCast::runOnModule(Module& M) {
     CallInst *CINew = CallInst::Create(F, Args.begin(), Args.end(), "", CI);
     CINew->setCallingConv(CI->getCallingConv());
     CINew->setAttributes(CI->getAttributes());
-    if(!CI->use_empty())
-      CI->replaceAllUsesWith(CINew);
+    if(!CI->use_empty()) {
+      CastInst *RetCast;
+      if(CI->getType() != CINew->getType()) {
+        RetCast = CastInst::CreatePointerCast(CINew, CI->getType(), "", CI);
+        CI->replaceAllUsesWith(RetCast);
+      } else {
+        CI->replaceAllUsesWith(CINew);
+      }
+    }
 
     // Debug printing
     DEBUG(errs() << "ARGCAST:");
