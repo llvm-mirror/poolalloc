@@ -1485,6 +1485,17 @@ bool TypeChecks::visitCallSite(Module &M, CallSite CS) {
         CallInst::Create(trackInitInst, Args.begin(), Args.end(), "", I);
         return true;
       }
+    } else if (F->getNameStr() == std::string("getrusage")) {
+      CastInst *BCI = BitCastInst::CreatePointerCast(I->getOperand(2), VoidPtrTy, "", I);
+      assert (isa<PointerType>(I->getOperand(2)->getType()));
+      const PointerType * PT = cast<PointerType>(I->getOperand(2)->getType());
+      const Type * ET = PT->getElementType();
+      Value * AllocSize = ConstantInt::get(Int64Ty, TD->getTypeAllocSize(ET));
+      std::vector<Value *>Args;
+      Args.push_back(BCI);
+      Args.push_back(AllocSize);
+      Args.push_back(getTagCounter());
+      CallInst::Create(trackInitInst, Args.begin(), Args.end(), "", I);
     } else if (F->getNameStr() == std::string("__ctype_b_loc")) {
       CastInst *BCI = BitCastInst::CreatePointerCast(I, VoidPtrTy);
       BCI->insertAfter(I);
@@ -1512,6 +1523,13 @@ bool TypeChecks::visitCallSite(Module &M, CallSite CS) {
       Constant *F = M.getOrInsertFunction("trackctype_32", VoidTy, VoidPtrTy, Int32Ty, NULL);
       CallInst *CI = CallInst::Create(F, Args.begin(), Args.end());
       CI->insertAfter(BCI);
+    } else if (F->getNameStr() == std::string("strcat")) {
+      std::vector<Value *> Args;
+      Args.push_back(I->getOperand(1));
+      Args.push_back(I->getOperand(2));
+      Args.push_back(getTagCounter());
+      Constant *F = M.getOrInsertFunction("trackStrcatInst", VoidTy, VoidPtrTy, VoidPtrTy, Int32Ty, NULL);
+      CallInst::Create(F, Args.begin(), Args.end(), "", I);
     } else if (F->getNameStr() == std::string("strcpy")) {
       std::vector<Value *> Args;
       Args.push_back(I->getOperand(1));

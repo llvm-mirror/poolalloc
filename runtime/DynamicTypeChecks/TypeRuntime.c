@@ -246,3 +246,9 @@ void trackStrncpyInst(void *dst, void *src, uint64_t size, uint32_t tag) {
 void trackStrcpyInst(void *dst, void *src, uint32_t tag) {
   copyTypeInfo(dst, src, strlen(src)+1, tag);
 }
+
+void trackStrcatInst(void *dst, void *src, uint32_t tag) {
+  uintptr_t dst_start = (uintptr_t)(dst) + strlen(dst) -1;
+  copyTypeInfo((void*)dst_start, src, strlen(src)+1, tag);
+}
+
