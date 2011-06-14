@@ -32,20 +32,21 @@ ANALYZE_OPTS +=  -instcount -disable-verify
 MEM := -track-memory -time-passes -disable-output
 
 #SAFE_OPTS := -internalize -scalarrepl -deadargelim -globaldce -basiccg -inline 
-SAFE_OPTS := -internalize  -deadargelim -globaldce -basiccg -inline
+SAFE_OPTS := -internalize -mem2reg -constprop -ipsccp -dce -deadargelim -globaldce -basiccg -inline
+SAFE_OPTS1 := -internalize  -deadargelim -globaldce -basiccg -inline
 #SAFE_OPTS := -internalize   -deadargelim -globaldce 
 
 $(PROGRAMS_TO_TEST:%=Output/%.linked1.bc): \
 Output/%.linked1.bc: Output/%.linked.rbc $(LOPT)
-	-$(RUNOPT) -disable-opt $(SAFE_OPTS) -mem2reg -dce -info-output-file=$(CURDIR)/$@.info -stats -time-passes $< -f -o $@ 
+	-$(RUNOPT) -disable-opt $(SAFE_OPTS1) -mem2reg -dce -info-output-file=$(CURDIR)/$@.info -stats -time-passes $< -f -o $@ 
 
 $(PROGRAMS_TO_TEST:%=Output/%.llvm1.bc): \
 Output/%.llvm1.bc: Output/%.linked1.bc $(LLVM_LDDPROG)
-	-$(RUNTOOLSAFELY) $(LLVMLD) -disable-opt $(SAFE_OPTS) -info-output-file=$(CURDIR)/$@.info -stats -time-passes  $(LLVMLD_FLAGS) $< -lc $(LIBS) -o Output/$*.llvm1
+	-$(RUNTOOLSAFELY) $(LLVMLD) -disable-opt $(SAFE_OPTS1) -info-output-file=$(CURDIR)/$@.info -stats -time-passes  $(LLVMLD_FLAGS) $< -lc $(LIBS) -o Output/$*.llvm1
 
 $(PROGRAMS_TO_TEST:%=Output/%.opt.bc): \
 Output/%.opt.bc: Output/%.llvm1.bc $(LOPT) $(ASSIST_SO)
-	-$(RUNOPT) -load $(ASSIST_SO) -disable-opt -info-output-file=$(CURDIR)/$@.info -instnamer -internalize -mem2reg -dce -basiccg -inline -dce -arg-cast -indclone -funcspec -ipsccp -deadargelim -simplify-gep -die -mergearrgep -die -globaldce -simplifycfg -deadargelim -arg-simplify -die -arg-cast -die -simplifycfg -globaldce -indclone -funcspec -deadargelim -globaldce -die -simplifycfg -gep-expr-arg -deadargelim -die -mergefunc -die -mergearrgep -die -globaldce -int2ptrcmp -die -dce -inline -mem2reg -dce -arg-cast -dce -sretpromotion -struct-ret -deadargelim -simplify-ev -simplify-iv -dce -ld-args -gep-expr-arg -deadargelim -mergefunc -dce -stats -time-passes $< -f -o $@ 
+	-$(RUNOPT) -load $(ASSIST_SO) -disable-opt -info-output-file=$(CURDIR)/$@.info -instnamer -internalize -mem2reg -dce -basiccg -inline -dce -arg-cast -indclone -funcspec -ipsccp -deadargelim -simplify-gep -die -mergearrgep -die -globaldce -simplifycfg -deadargelim -arg-simplify -die -arg-cast -die -simplifycfg -globaldce -indclone -funcspec -deadargelim -globaldce -die -simplifycfg -gep-expr-arg -deadargelim -die -mergefunc -die -mergearrgep -die -globaldce -int2ptrcmp -die -dce -inline -mem2reg -dce -arg-cast  -dce -sretpromotion -struct-ret -deadargelim -simplify-ev -simplify-iv -dce -ld-args -gep-expr-arg -deadargelim -mergefunc -dce -func-simplify -simplify-load -dce -stats -time-passes $< -f -o $@ 
 
 $(PROGRAMS_TO_TEST:%=Output/%.count.bc): \
 Output/%.count.bc: Output/%.opt.bc $(LOPT) $(ASSIST_SO)
@@ -69,13 +70,13 @@ Output/%.tcd.bc: Output/%.opt.bc $(LOPT) $(ASSIST_SO)
 
 $(PROGRAMS_TO_TEST:%=Output/%.tco.bc): \
 Output/%.tco.bc: Output/%.opt.bc $(LOPT) $(ASSIST_SO)
-	-$(RUNOPT) -load $(ASSIST_SO) -typechecks -enable-type-safe-opt -dce -ipsccp -dce -stats -info-output-file=$(CURDIR)/$@.info $< -f -o $@.temp 
+	-$(RUNOPT) -load $(ASSIST_SO) -typechecks -typechecks-opt -dce -ipsccp -dce -stats -info-output-file=$(CURDIR)/$@.info $< -f -o $@.temp 
 	-$(LLVMLD) -disable-opt -o $@.ld $@.temp $(TYPE_RT_BC)
 	-$(LOPT) $(SAFE_OPTS) $@.ld.bc -o $@ -f
 
 $(PROGRAMS_TO_TEST:%=Output/%.tcoo.bc): \
 Output/%.tcoo.bc: Output/%.opt.bc $(LOPT) $(ASSIST_SO)
-	-$(RUNOPT) -load $(ASSIST_SO) -typechecks -enable-type-safe-opt -enable-type-inference-opts -dsa-stdlib-no-fold -dce -ipsccp -dce -stats -info-output-file=$(CURDIR)/$@.info $< -f -o $@.temp 
+	-$(RUNOPT) -load $(ASSIST_SO) -typechecks  -enable-type-inference-opts -dsa-stdlib-no-fold -typechecks-opt -dce -ipsccp -dce -stats -info-output-file=$(CURDIR)/$@.info $< -f -o $@.temp 
 	-$(LLVMLD) -disable-opt -o $@.ld $@.temp $(TYPE_RT_BC)
 	-$(LOPT) $(SAFE_OPTS) $@.ld.bc -o $@ -f
 
@@ -254,7 +255,7 @@ Output/%.diff-count1: Output/%.out-nat Output/%.out-count1
 
 
 $(PROGRAMS_TO_TEST:%=Output/%.$(TEST).report.txt): \
-Output/%.$(TEST).report.txt: Output/%.opt.bc Output/%.LOC.txt $(LOPT) Output/%.out-nat Output/%.diff-llvm1 Output/%.diff-opt Output/%.diff-tc Output/%.diff-tcd Output/%.diff-tco Output/%.diff-tcoo Output/%.diff-count Output/%.diff-count1
+Output/%.$(TEST).report.txt: Output/%.opt.bc Output/%.LOC.txt $(LOPT) Output/%.out-nat Output/%.diff-llvm1 Output/%.diff-opt Output/%.diff-tc Output/%.diff-tco Output/%.diff-tcoo Output/%.diff-tcd Output/%.diff-count Output/%.diff-count1
 	@# Gather data
 	-($(RUNOPT)  -dsa-$(PASS) -enable-type-inference-opts -dsa-stdlib-no-fold $(ANALYZE_OPTS) $<)> $@.time.1 2>&1
 	-($(RUNOPT)  -dsa-$(PASS)  $(ANALYZE_OPTS) $<)> $@.time.2 2>&1
