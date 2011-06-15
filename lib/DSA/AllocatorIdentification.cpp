@@ -33,33 +33,33 @@ using namespace llvm;
 STATISTIC(numAllocators, "Number of malloc-like allocators");
 STATISTIC(numDeallocators, "Number of free-like deallocators");
 
-  bool AllocIdentify::flowsFrom(Value *Dest,Value *Src) {
-    if(Dest == Src)
-      return true;
-    if(ReturnInst *Ret = dyn_cast<ReturnInst>(Dest)) {    
-      return flowsFrom(Ret->getReturnValue(), Src);
-    } 
-    if(PHINode *PN = dyn_cast<PHINode>(Dest)) {
-      Function *F = PN->getParent()->getParent();
-      LoopInfo &LI = getAnalysis<LoopInfo>(*F);
-      // If this is a loop phi, ignore.
-      if(LI.isLoopHeader(PN->getParent()))
-        return false;
-      bool ret = true;
-      for (unsigned i = 0, e = PN->getNumIncomingValues(); i != e; ++i) {
-        ret = ret && flowsFrom(PN->getIncomingValue(i), Src);
-      }
-      return ret;
+bool AllocIdentify::flowsFrom(Value *Dest,Value *Src) {
+  if(Dest == Src)
+    return true;
+  if(ReturnInst *Ret = dyn_cast<ReturnInst>(Dest)) {    
+    return flowsFrom(Ret->getReturnValue(), Src);
+  } 
+  if(PHINode *PN = dyn_cast<PHINode>(Dest)) {
+    Function *F = PN->getParent()->getParent();
+    LoopInfo &LI = getAnalysis<LoopInfo>(*F);
+    // If this is a loop phi, ignore.
+    if(LI.isLoopHeader(PN->getParent()))
+      return false;
+    bool ret = true;
+    for (unsigned i = 0, e = PN->getNumIncomingValues(); i != e; ++i) {
+      ret = ret && flowsFrom(PN->getIncomingValue(i), Src);
     }
-    if(BitCastInst *BI = dyn_cast<BitCastInst>(Dest)) {
-      return flowsFrom(BI->getOperand(0), Src);
-    }
-    if(isa<ConstantPointerNull>(Dest))
-      return true;
-    return false;
+    return ret;
   }
+  if(BitCastInst *BI = dyn_cast<BitCastInst>(Dest)) {
+    return flowsFrom(BI->getOperand(0), Src);
+  }
+  if(isa<ConstantPointerNull>(Dest))
+    return true;
+  return false;
+}
 
- bool isNotStored(Value *V) {
+bool isNotStored(Value *V) {
   // check that V is not stroed to a location taht is accessible outside this fn
   for(Value::use_iterator ui = V->use_begin(), ue = V->use_end();
       ui != ue; ++ui) {
@@ -89,6 +89,7 @@ STATISTIC(numDeallocators, "Number of free-like deallocators");
 
 AllocIdentify::AllocIdentify() : ModulePass(&ID) {}
 AllocIdentify::~AllocIdentify() {}
+
 bool AllocIdentify::runOnModule(Module& M) {
 
   allocators.insert("malloc");
