@@ -13,6 +13,8 @@ RELDIR  := $(subst $(PROJ_OBJ_ROOT),,$(PROJ_OBJ_DIR))
 # Pathname to poolalloc object tree
 PADIR   := $(LLVM_OBJ_ROOT)/projects/poolalloc
 
+LLC := /localhome/aggarwa4/llvm29/llvm-obj/Debug+Asserts/bin/llc
+
 # Pathame to the DSA pass dynamic library
 DSA_SO   := $(PADIR)/$(CONFIGURATION)/lib/libLLVMDataStructure$(SHLIBEXT)
 ASSIST_SO := $(PADIR)/$(CONFIGURATION)/lib/libAssistDS$(SHLIBEXT)
@@ -67,18 +69,28 @@ Output/%.tcd.bc: Output/%.opt.bc $(LOPT) $(ASSIST_SO)
 	-$(RUNOPT) -load $(ASSIST_SO)  -typechecks -disable-ptr-type-checks -dce -ipsccp -dce -stats -info-output-file=$(CURDIR)/$@.info $< -f -o $@.temp
 	-$(LLVMLD) -disable-opt -o $@.ld $@.temp $(TYPE_RT_BC)
 	-$(LOPT) $(SAFE_OPTS) $@.ld.bc -o $@ -f
+	#-$(RUNOPT) -load $(ASSIST_SO) $(SAFE_OPTS) -typechecks-runtime-opt $@.ld.bc -o $@ -f
 
 $(PROGRAMS_TO_TEST:%=Output/%.tco.bc): \
 Output/%.tco.bc: Output/%.opt.bc $(LOPT) $(ASSIST_SO)
 	-$(RUNOPT) -load $(ASSIST_SO) -typechecks -typechecks-opt -dce -ipsccp -dce -stats -info-output-file=$(CURDIR)/$@.info $< -f -o $@.temp 
 	-$(LLVMLD) -disable-opt -o $@.ld $@.temp $(TYPE_RT_BC)
 	-$(LOPT) $(SAFE_OPTS) $@.ld.bc -o $@ -f
+	#-$(RUNOPT) -load $(ASSIST_SO) $(SAFE_OPTS) -typechecks-runtime-opt $@.ld.bc -o $@ -f
 
 $(PROGRAMS_TO_TEST:%=Output/%.tcoo.bc): \
 Output/%.tcoo.bc: Output/%.opt.bc $(LOPT) $(ASSIST_SO)
 	-$(RUNOPT) -load $(ASSIST_SO) -typechecks  -enable-type-inference-opts -dsa-stdlib-no-fold -typechecks-opt -dce -ipsccp -dce -stats -info-output-file=$(CURDIR)/$@.info $< -f -o $@.temp 
 	-$(LLVMLD) -disable-opt -o $@.ld $@.temp $(TYPE_RT_BC)
 	-$(LOPT) $(SAFE_OPTS) $@.ld.bc -o $@ -f
+	#-$(RUNOPT) -load $(ASSIST_SO) $(SAFE_OPTS) -typechecks-runtime-opt $@.ld.bc -o $@ -f
+
+$(PROGRAMS_TO_TEST:%=Output/%.tcoo1.bc): \
+Output/%.tcoo1.bc: Output/%.opt.bc $(LOPT) $(ASSIST_SO)
+	-$(RUNOPT) -load $(ASSIST_SO) -typechecks  -enable-type-inference-opts -dsa-stdlib-no-fold -typechecks-opt -typechecks-cmp-opt -dce -ipsccp -dce -stats -info-output-file=$(CURDIR)/$@.info $< -f -o $@.temp 
+	-$(LLVMLD) -disable-opt -o $@.ld $@.temp $(TYPE_RT_BC)
+	-$(LOPT) $(SAFE_OPTS) $@.ld.bc -o $@ -f
+	#-$(RUNOPT) -load $(ASSIST_SO) $(SAFE_OPTS) -typechecks-runtime-opt $@.ld.bc -o $@ -f
 
 $(PROGRAMS_TO_TEST:%=Output/%.count.s): \
 Output/%.count.s: Output/%.count.bc $(LLC)
@@ -105,6 +117,10 @@ $(PROGRAMS_TO_TEST:%=Output/%.tcoo.s): \
 Output/%.tcoo.s: Output/%.tcoo.bc $(LLC)
 	-$(LLC)  $< -o $@
 
+$(PROGRAMS_TO_TEST:%=Output/%.tcoo1.s): \
+Output/%.tcoo1.s: Output/%.tcoo1.bc $(LLC)
+	-$(LLC)  $< -o $@
+
 $(PROGRAMS_TO_TEST:%=Output/%.opt): \
 Output/%.opt: Output/%.opt.s
 	-$(CC) $(CFLAGS) $<  $(LLCLIBS) $(LDFLAGS) -o $@
@@ -119,6 +135,9 @@ Output/%.tco: Output/%.tco.s $(TYPE_RT_O)
 	-$(CC) $(CFLAGS) $<  $(LLCLIBS) $(TYPE_RT_O) $(LDFLAGS) -o $@
 $(PROGRAMS_TO_TEST:%=Output/%.tcoo): \
 Output/%.tcoo: Output/%.tcoo.s $(TYPE_RT_O)
+	-$(CC) $(CFLAGS) $<  $(LLCLIBS) $(TYPE_RT_O) $(LDFLAGS) -o $@
+$(PROGRAMS_TO_TEST:%=Output/%.tcoo1): \
+Output/%.tcoo1: Output/%.tcoo1.s $(TYPE_RT_O)
 	-$(CC) $(CFLAGS) $<  $(LLCLIBS) $(TYPE_RT_O) $(LDFLAGS) -o $@
 $(PROGRAMS_TO_TEST:%=Output/%.llvm1): \
 Output/%.llvm1: Output/%.llvm1.s 
@@ -157,6 +176,9 @@ Output/%.out-tco: Output/%.tco
 	-$(RUNSAFELY) $(STDIN_FILENAME) $@ $< $(RUN_OPTIONS)
 $(PROGRAMS_TO_TEST:%=Output/%.out-tcoo): \
 Output/%.out-tcoo: Output/%.tcoo
+	-$(RUNSAFELY) $(STDIN_FILENAME) $@ $< $(RUN_OPTIONS)
+$(PROGRAMS_TO_TEST:%=Output/%.out-tcoo1): \
+Output/%.out-tcoo1: Output/%.tcoo1
 	-$(RUNSAFELY) $(STDIN_FILENAME) $@ $< $(RUN_OPTIONS)
 
 else
@@ -202,6 +224,13 @@ Output/%.out-tcoo: Output/%.tcoo
                   ../../$< $(RUN_OPTIONS)
 	-(cd Output/tcoo-$(RUN_TYPE); cat $(LOCAL_OUTPUTS)) > $@
 	-cp Output/tcoo-$(RUN_TYPE)/$(STDOUT_FILENAME).time $@.time
+$(PROGRAMS_TO_TEST:%=Output/%.out-tcoo1): \
+Output/%.out-tcoo1: Output/%.tcoo1
+	-$(SPEC_SANDBOX) tcoo1-$(RUN_TYPE) $@ $(REF_IN_DIR) \
+             $(RUNSAFELY) $(STDIN_FILENAME) $(STDOUT_FILENAME) \
+                  ../../$< $(RUN_OPTIONS)
+	-(cd Output/tcoo1-$(RUN_TYPE); cat $(LOCAL_OUTPUTS)) > $@
+	-cp Output/tcoo1-$(RUN_TYPE)/$(STDOUT_FILENAME).time $@.time
 $(PROGRAMS_TO_TEST:%=Output/%.out-count): \
 Output/%.out-count: Output/%.count
 	-$(SPEC_SANDBOX) count-$(RUN_TYPE) $@ $(REF_IN_DIR) \
@@ -240,6 +269,10 @@ Output/%.diff-tco: Output/%.out-nat Output/%.out-tco
 $(PROGRAMS_TO_TEST:%=Output/%.diff-tcoo): \
 Output/%.diff-tcoo: Output/%.out-nat Output/%.out-tcoo
 	-$(DIFFPROG) tcoo $* $(HIDEDIFF)
+
+$(PROGRAMS_TO_TEST:%=Output/%.diff-tcoo1): \
+Output/%.diff-tcoo1: Output/%.out-nat Output/%.out-tcoo1
+	-$(DIFFPROG) tcoo1 $* $(HIDEDIFF)
 
 $(PROGRAMS_TO_TEST:%=Output/%.diff-llvm1): \
 Output/%.diff-llvm1: Output/%.out-nat Output/%.out-llvm1
@@ -368,6 +401,10 @@ Output/%.$(TEST).report.txt: Output/%.opt.bc Output/%.LOC.txt $(LOPT) Output/%.o
 	@-if test -f Output/$*.diff-tcoo; then \
 	  printf "TCOO-RUN_TIME: " >> $@;\
 	  grep 'program' Output/$*.out-tcoo.time >> $@;\
+	fi
+	@-if test -f Output/$*.diff-tcoo1; then \
+	  printf "TCOO1-RUN_TIME: " >> $@;\
+	  grep 'program' Output/$*.out-tcoo1.time >> $@;\
 	fi
 	@# Emit AssistDS stats
 	@/bin/echo -n "CLONED_FUNCSPEC: " >> $@
