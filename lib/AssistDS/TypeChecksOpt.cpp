@@ -24,7 +24,6 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/ADT/Statistic.h"
 
-#include <set>
 #include <vector>
 
 using namespace llvm;
@@ -53,7 +52,6 @@ static Constant *copyTypeInfo;
 static Constant *MallocFunc;
 
 bool TypeChecksOpt::runOnModule(Module &M) {
-  bool modified = false; // Flags whether we modified the module.
   TS = &getAnalysis<dsa::TypeSafety<TDDataStructures> >();
 
   // Create the necessary prototypes
@@ -136,7 +134,6 @@ bool TypeChecksOpt::runOnModule(Module &M) {
     
     if(TS->isTypeSafe(CI->getOperand(1)->stripPointerCasts(), CI->getParent()->getParent())) {
       toDelete.push_back(CI);
-      continue;
     }
   }
 
@@ -207,7 +204,7 @@ bool TypeChecksOpt::runOnModule(Module &M) {
     I->eraseFromParent();
   }
 
-  return modified;
+  return (numSafe > 0);
 }
 
 
