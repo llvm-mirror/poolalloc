@@ -115,7 +115,9 @@ void trackStoreInst(void *ptr, uint8_t typeNumber, uint64_t size, uint32_t tag) 
   uintptr_t p = maskAddress(ptr);
   shadow_begin[p] = typeNumber;
   memset(&shadow_begin[p + 1], 0, size - 1);
+#if DEBUG
   printf("Store(%d): %p, %p = %u | %lu bytes | \n", tag, ptr, (void *)p, typeNumber, size);
+#endif
 
 }
 
