@@ -18,8 +18,8 @@
  * machines. Need a more robust way of picking base address.
  * For now, run a version of the tool without the base fixed, and 
  * choose address.
+ #define BASE ((void *)(0x2aaaab2a5000))
  */
-//#define BASE ((void *)(0x2aaaab2a5000))
 #define BASE ((void *)(0x2aaaab7b4000))
 /*
  * Do some macro magic to get mmap macros defined properly on all platforms.
@@ -256,3 +256,6 @@ void trackStrcatInst(void *dst, void *src, uint32_t tag) {
   copyTypeInfo((void*)dst_start, src, strlen(src)+1, tag);
 }
 
+void trackgetcwd(void *ptr, uint32_t tag) {
+  trackInitInst(ptr, strlen(ptr) + 1, tag);
+}
