@@ -7,8 +7,20 @@
 #include <sys/mman.h>
 
 #define DEBUG (0)
-#define SIZE ((size_t)(70368744177664))
 
+/* Size of shadow memory.  We're hoping everything fits in 46bits. */
+#define SIZE ((size_t)(1L << 46))
+
+/* Fixed start of memory.  Needs to be page-aligned,
+ * and it needs to be large enough that program itself is loaded below it
+ * and so are the libraries. 
+ * FIXME: This address has been picked for maute. Might not work on other
+ * machines. Need a more robust way of picking base address.
+ * For now, run a version of the tool without the base fixed, and 
+ * choose address.
+ */
+//#define BASE ((void *)(0x2aaaab2a5000))
+#define BASE ((void *)(0x2aaaab7b4000))
 /*
  * Do some macro magic to get mmap macros defined properly on all platforms.
  */
@@ -16,29 +28,22 @@
 # define MAP_ANONYMOUS MAP_ANON
 #endif /* defined(MAP_ANON) && !defined(MAP_ANONYMOUS) */
 
-uint8_t *shadow_begin;
-uint8_t *shadow_end;
+uint8_t * const shadow_begin = BASE;
 
 extern char* typeNames[];
 
 void trackInitInst(void *ptr, uint64_t size, uint32_t tag);
 
-uintptr_t maskAddress(void *ptr) {
+inline uintptr_t maskAddress(void *ptr) {
   uintptr_t p = (uintptr_t)ptr;
-  uintptr_t res = (uintptr_t)ptr;
+  if (p >= (uintptr_t)BASE + SIZE) p -= SIZE;
 
-  if (p < (uintptr_t)shadow_begin) {
-    res = p;
-  } else if (p >= (uintptr_t)shadow_end) {
-    res = (p - (uintptr_t)SIZE);
-  } else {
-    fprintf(stderr, "Address out of range!\n");
-    fflush(stderr);
-    assert(0 && "MAP_FAILED");
-  }
-  assert(res < SIZE && "wrong mapped address");
-  return res;
+#if DEBUG
+  assert(p <= SIZE && "Pointer out of range!");
+#endif
+  return p;
 }
+
 
 void trackStringInput(void *ptr, uint32_t tag) {
   trackInitInst(ptr, strlen(ptr) + 1, tag);
@@ -49,14 +54,13 @@ void trackStringInput(void *ptr, uint32_t tag) {
  * Initialize the shadow memory which records the 1:1 mapping of addresses to types.
  */
 void shadowInit() {
-  shadow_begin = mmap(0, SIZE, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE, -1, 0);
+  char * res = mmap(BASE, SIZE, PROT_READ | PROT_WRITE, MAP_FIXED | MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE, -1, 0);
 
-  if (shadow_begin == MAP_FAILED) {
+  if (res == MAP_FAILED) {
     fprintf(stderr, "Failed to map the shadow memory!\n");
     fflush(stderr);
     assert(0 && "MAP_FAILED");
   }
-  shadow_end = (uint8_t*)((uintptr_t)shadow_begin + (uintptr_t)SIZE);
 }
 
 /**
