@@ -20,7 +20,7 @@
  * choose address.
  #define BASE ((void *)(0x2aaaab2a5000))
  */
-#define BASE ((void *)(0x2aaaab7b4000))
+#define BASE ((void *)(0x2aaaab88c000))
 /*
  * Do some macro magic to get mmap macros defined properly on all platforms.
  */
@@ -73,6 +73,13 @@ void trackArgvType(int argc, char **argv) {
     trackInitInst(argv[index], (strlen(argv[index]) + 1)*sizeof(char), 0);
   }
   trackInitInst(argv, (argc + 1)*sizeof(char*), 0);
+}
+
+void trackEnvpType(char **envp) {
+  int index = 0;
+  for(;envp[index] != NULL; ++index)
+    trackInitInst(envp[index], (strlen(envp[index]) + 1)*sizeof(char), 0);
+  trackInitInst(envp, (index )*sizeof(char*), 0);
 }
 
 /**

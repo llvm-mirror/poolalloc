@@ -61,6 +61,7 @@ static Constant *trackStoreInst;
 static Constant *trackLoadInst;
 static Constant *copyTypeInfo;
 static Constant *RegisterArgv;
+static Constant *RegisterEnvp;
 static Constant *compareTypeAndNumber;
 
 unsigned int TypeChecks::getTypeMarker(const Type * Ty) {
@@ -117,6 +118,10 @@ bool TypeChecks::runOnModule(Module &M) {
                                        VoidTy,
                                        Int32Ty, /*argc */
                                        VoidPtrTy->getPointerTo(),/*argv*/
+                                       NULL);
+  RegisterEnvp = M.getOrInsertFunction("trackEnvpType",
+                                       VoidTy,
+                                       VoidPtrTy->getPointerTo(),/*envp*/
                                        NULL);
   trackGlobal = M.getOrInsertFunction("trackGlobal",
                                       VoidTy,
@@ -1285,7 +1290,7 @@ bool TypeChecks::initShadow(Module &M) {
 }
 
 bool TypeChecks::visitMain(Module &M, Function &MainFunc) {
-  if(MainFunc.arg_size() != 2)
+  if(MainFunc.arg_size() < 2)
     // No need to register
     return false;
 
@@ -1299,6 +1304,13 @@ bool TypeChecks::visitMain(Module &M, Function &MainFunc) {
   fargs.push_back (Argv);
   CallInst::Create (RegisterArgv, fargs.begin(), fargs.end(), "", InsertPt);
 
+  if(MainFunc.arg_size() < 3)
+    return true;
+  
+  Value *Envp = ++AI;
+  std::vector<Value*> Args;
+  Args.push_back(Envp);
+  CallInst::Create(RegisterEnvp, Args.begin(), Args.end(), "", InsertPt);
   return true;
 }
 
@@ -1485,6 +1497,18 @@ bool TypeChecks::visitCallSite(Module &M, CallSite CS) {
         CallInst::Create(trackInitInst, Args.begin(), Args.end(), "", I);
         return true;
       }
+    } else if (F->getNameStr() == std::string("__strdup")) {
+      CastInst *BCI_Dest = BitCastInst::CreatePointerCast(I, VoidPtrTy);
+      BCI_Dest->insertAfter(I);
+      CastInst *BCI_Src = BitCastInst::CreatePointerCast(I->getOperand(1), VoidPtrTy);
+      BCI_Src->insertAfter(BCI_Dest);
+      std::vector<Value *> Args;
+      Args.push_back(BCI_Dest);
+      Args.push_back(BCI_Src);
+      Args.push_back(getTagCounter());
+      Constant *F = M.getOrInsertFunction("trackStrcpyInst", VoidTy, VoidPtrTy, VoidPtrTy, Int32Ty, NULL);
+      CallInst *CI = CallInst::Create(F, Args.begin(), Args.end());
+      CI->insertAfter(BCI_Src);
     } else if (F->getNameStr() == std::string("gettimeofday")) {
       CastInst *BCI = BitCastInst::CreatePointerCast(I->getOperand(1), VoidPtrTy, "", I);
       assert (isa<PointerType>(I->getOperand(1)->getType()));
