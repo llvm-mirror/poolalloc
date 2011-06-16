@@ -1522,6 +1522,8 @@ bool TypeChecks::visitCallSite(Module &M, CallSite CS) {
       Args.push_back(getTagCounter());
       CallInst::Create(trackInitInst, Args.begin(), Args.end(), "", I);
     } else if (F->getNameStr() == std::string("getpwuid") ||
+               F->getNameStr() == std::string("getgruid") ||
+               F->getNameStr() == std::string("getgrnam") ||
                F->getNameStr() == std::string("getpwnam")) {
       CastInst *BCI  = BitCastInst::CreatePointerCast(I, VoidPtrTy);
       assert (isa<PointerType>(I->getType()));
