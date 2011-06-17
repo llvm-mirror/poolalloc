@@ -23,6 +23,7 @@
 #include "llvm/Support/Debug.h"
 #include "llvm/Use.h"
 #include <vector>
+#include <set>
 #include <map>
 
 // Pass statistics
@@ -48,11 +49,12 @@ using namespace llvm;
 //  false - The module was not modified.
 //
 bool LoadArgs::runOnModule(Module& M) {
+  std::map<std::pair<Function*, const Type * > , Function* > fnCache;
   bool changed;
   do { 
     changed = false;
-    for (Module::iterator F = M.begin(); F != M.end(); ++F){
-      for (Function::iterator B = F->begin(), FE = F->end(); B != FE; ++B) {
+    for (Module::iterator Func = M.begin(); Func != M.end(); ++Func) {
+      for (Function::iterator B = Func->begin(), FE = Func->end(); B != FE; ++B) {
         for (BasicBlock::iterator I = B->begin(), BE = B->end(); I != BE;) {
           CallInst *CI = dyn_cast<CallInst>(I++);
           if(!CI)
@@ -63,7 +65,6 @@ bool LoadArgs::runOnModule(Module& M) {
           // if the CallInst calls a function, that is externally defined,
           // or might be changed, ignore this call site.
           Function *F = CI->getCalledFunction();
-
           if (!F || (F->isDeclaration() || F->mayBeOverridden())) 
             continue;
           if(F->hasStructRetAttr())
@@ -113,67 +114,78 @@ bool LoadArgs::runOnModule(Module& M) {
           // Construct the new Type
           // Appends the struct Type at the beginning
           std::vector<const Type*>TP;
-          TP.push_back(LI->getOperand(0)->getType());
           for(unsigned c = 1; c < CI->getNumOperands();c++) {
+            if(c == argNum)
+              TP.push_back(LI->getOperand(0)->getType());
             TP.push_back(CI->getOperand(c)->getType());
           }
 
           //return type is same as that of original instruction
           const FunctionType *NewFTy = FunctionType::get(CI->getType(), TP, false);
           numSimplified++;
-          if(numSimplified > 400)
-            return true;
+          //if(numSimplified > 1000)
+            //return true;
 
-          Function *NewF = Function::Create(NewFTy,
-                                            GlobalValue::InternalLinkage,
-                                            F->getNameStr() + ".TEST",
-                                            &M);
+          Function *NewF;
+          std::map<std::pair<Function*, const Type* > , Function* >::iterator Test;
+          Test = fnCache.find(std::make_pair(F, NewFTy));
+          if(Test != fnCache.end()) {
+            NewF = Test->second;
+          } else {
+            NewF = Function::Create(NewFTy,
+                                    GlobalValue::InternalLinkage,
+                                    F->getNameStr() + ".TEST",
+                                    &M);
 
-          Function::arg_iterator NI = NewF->arg_begin();
-          NI->setName("LDarg");
-          ++NI;
+            fnCache[std::make_pair(F, NewFTy)] = NewF;
+            Function::arg_iterator NI = NewF->arg_begin();
 
-          DenseMap<const Value*, Value*> ValueMap;
+            DenseMap<const Value*, Value*> ValueMap;
 
-          for (Function::arg_iterator II = F->arg_begin(); NI != NewF->arg_end(); ++II, ++NI) {
-            ValueMap[II] = NI;
-            NI->setName(II->getName());
-            NI->addAttr(F->getAttributes().getParamAttributes(II->getArgNo() + 1));
+            unsigned count = 1;
+            for (Function::arg_iterator II = F->arg_begin(); NI != NewF->arg_end(); ++count, ++NI) {
+              if(count == argNum) {
+                NI->setName("LDarg");
+                continue;
+              }
+              ValueMap[II] = NI;
+              NI->setName(II->getName());
+              NI->addAttr(F->getAttributes().getParamAttributes(II->getArgNo() + 1));
+              ++II;
+            }
+            // Perform the cloning.
+            SmallVector<ReturnInst*,100> Returns;
+            CloneFunctionInto(NewF, F, ValueMap, Returns);
+            std::vector<Value*> fargs;
+            for(Function::arg_iterator ai = NewF->arg_begin(), 
+                ae= NewF->arg_end(); ai != ae; ++ai) {
+              fargs.push_back(ai);
+            }
+
+            NewF->setAttributes(NewF->getAttributes().addAttr(
+                0, F->getAttributes().getRetAttributes()));
+            NewF->setAttributes(NewF->getAttributes().addAttr(
+                ~0, F->getAttributes().getFnAttributes()));
+            //Get the point to insert the GEP instr.
+            SmallVector<Value*, 8> Ops(CI->op_begin()+1, CI->op_end());
+            Instruction *InsertPoint;
+            for (BasicBlock::iterator insrt = NewF->front().begin(); isa<AllocaInst>(InsertPoint = insrt); ++insrt) {;}
+            LoadInst *LI_new = new LoadInst(fargs.at(argNum-1), "", InsertPoint);
+            fargs.at(argNum)->replaceAllUsesWith(LI_new);
           }
-          // Perform the cloning.
-          SmallVector<ReturnInst*,100> Returns;
-          CloneFunctionInto(NewF, F, ValueMap, Returns);
-          std::vector<Value*> fargs;
-          for(Function::arg_iterator ai = NewF->arg_begin(), 
-              ae= NewF->arg_end(); ai != ae; ++ai) {
-            fargs.push_back(ai);
-          }
-
-          NewF->setAttributes(NewF->getAttributes().addAttr(
-              0, F->getAttributes().getRetAttributes()));
-          NewF->setAttributes(NewF->getAttributes().addAttr(
-              ~0, F->getAttributes().getFnAttributes()));
-          //Get the point to insert the GEP instr.
-          SmallVector<Value*, 8> Ops(CI->op_begin()+1, CI->op_end());
-          Instruction *InsertPoint;
-          for (BasicBlock::iterator insrt = NewF->front().begin(); isa<AllocaInst>(InsertPoint = insrt); ++insrt) {;}
-
-          NI = NewF->arg_begin();
-          LoadInst *LI_new = new LoadInst(cast<Value>(NI), "", InsertPoint);
-          fargs.at(argNum)->replaceAllUsesWith(LI_new);
-
           SmallVector<AttributeWithIndex, 8> AttributesVec;
-
           // Get the initial attributes of the call
           AttrListPtr CallPAL = CI->getAttributes();
           Attributes RAttrs = CallPAL.getRetAttributes();
           Attributes FnAttrs = CallPAL.getFnAttributes();
           if (RAttrs)
             AttributesVec.push_back(AttributeWithIndex::get(0, RAttrs));
-          
+
           SmallVector<Value*, 8> Args;
-          Args.push_back(LI->getOperand(0));
           for(unsigned j =1;j<CI->getNumOperands();j++) {
+            if(j == argNum) {
+              Args.push_back(LI->getOperand(0));
+            }
             Args.push_back(CI->getOperand(j));
             // position in the AttributesVec
             if (Attributes Attrs = CallPAL.getParamAttributes(j))
