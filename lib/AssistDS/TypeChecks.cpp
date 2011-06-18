@@ -334,23 +334,26 @@ bool TypeChecks::runOnModule(Module &M) {
   FI = IndFunctionsMap.begin(), FE = IndFunctionsMap.end();
   for(;FI!=FE;++FI) {
     Function *F = FI->first;
-    std::vector<User *> toReplace;
+
+    Constant *CNew = ConstantExpr::getBitCast(FI->second, F->getType());
+    
+    std::set<User *> toReplace;
     for(Function::use_iterator User = F->use_begin();
         User != F->use_end();++User) {
-      toReplace.push_back(*User);
+      toReplace.insert(*User);
     }
-    Constant *CNew = ConstantExpr::getBitCast(FI->second, F->getType());
-    while (toReplace.size()) {
-      llvm::User * user = toReplace.back();
-      toReplace.pop_back(); 
+    for(std::set<llvm::User *>::iterator userI = toReplace.begin(); userI != toReplace.end(); ++userI) {
+      llvm::User * user = *userI;
       if(Constant *C = dyn_cast<Constant>(user)) {
         if(!isa<GlobalValue>(C)) {
           bool changeUse = true;
           for(Value::use_iterator II = user->use_begin();
               II != user->use_end(); II++) {
             if(CallInst *CI = dyn_cast<CallInst>(II))
-              if(CI->getCalledFunction()->isDeclaration())
-                changeUse = false;
+              if(CI->getCalledFunction()) {
+                if(CI->getCalledFunction()->isDeclaration())
+                  changeUse = false;
+              }
           }
           if(!changeUse)
             continue;
@@ -365,15 +368,21 @@ bool TypeChecks::runOnModule(Module &M) {
 
           //
           // Do replacements in the worklist.
+          // FIXME: I believe there is a bug here, triggered by 253.perl
+          // It works fine as long as we have only one element in ReplaceWorkist
+          // Temporary fix. Revisit.
           //
-          for (unsigned index = 0; index < ReplaceWorklist.size(); ++index)
-            C->replaceUsesOfWithOnConstant(F, CNew, ReplaceWorklist[index]);
+          //for (unsigned index = 0; index < ReplaceWorklist.size(); ++index) {
+            C->replaceUsesOfWithOnConstant(F, CNew, ReplaceWorklist[0]);
+          //}
           continue;
         }
       }
       if(CallInst *CI = dyn_cast<CallInst>(user)) {
-        if(CI->getCalledFunction()->isDeclaration())
-          continue;
+        if(CI->getCalledFunction()) {
+          if(CI->getCalledFunction()->isDeclaration())
+            continue;
+        }
       }
       user->replaceUsesOfWith(F, CNew);
     }
@@ -638,7 +647,7 @@ bool TypeChecks::visitAddressTakenFunction(Module &M, Function &F) {
   SmallVector<ReturnInst*, 100>Returns;
   CloneFunctionInto(NewF, &F, ValueMap, Returns);
   IndFunctionsMap[&F] = NewF;
-  
+
   // Find all uses of the function
   for(Value::use_iterator ui = F.use_begin(), ue = F.use_end();
       ui != ue;)  {
@@ -1306,7 +1315,7 @@ bool TypeChecks::visitMain(Module &M, Function &MainFunc) {
 
   if(MainFunc.arg_size() < 3)
     return true;
-  
+
   Value *Envp = ++AI;
   std::vector<Value*> Args;
   Args.push_back(Envp);
@@ -1544,6 +1553,15 @@ bool TypeChecks::visitCallSite(Module &M, CallSite CS) {
       Args.push_back(BCI);
       Args.push_back(getTagCounter());
       Constant *F = M.getOrInsertFunction("trackgethostname", VoidTy, VoidPtrTy, Int32Ty, NULL);
+      CallInst *CI = CallInst::Create(F, Args.begin(), Args.end());
+      CI->insertAfter(BCI);
+    } else if (F->getNameStr() == std::string("getenv")) {
+      CastInst *BCI = BitCastInst::CreatePointerCast(I, VoidPtrTy);
+      BCI->insertAfter(I);
+      std::vector<Value *>Args;
+      Args.push_back(BCI);
+      Args.push_back(getTagCounter());
+      Constant *F = M.getOrInsertFunction("trackgetcwd", VoidTy, VoidPtrTy, Int32Ty, NULL);
       CallInst *CI = CallInst::Create(F, Args.begin(), Args.end());
       CI->insertAfter(BCI);
     } else if (F->getNameStr() == std::string("getcwd")) {
