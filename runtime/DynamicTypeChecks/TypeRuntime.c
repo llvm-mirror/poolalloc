@@ -265,6 +265,8 @@ void trackStrcatInst(void *dst, void *src, uint32_t tag) {
 }
 
 void trackgetcwd(void *ptr, uint32_t tag) {
+  if(!ptr)
+    return;
   trackInitInst(ptr, strlen(ptr) + 1, tag);
 }
 
