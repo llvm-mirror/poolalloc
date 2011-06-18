@@ -61,9 +61,9 @@ bool ArgCast::runOnModule(Module& M) {
       ConstantExpr *CE = dyn_cast<ConstantExpr>(ui++);
       if(!CE)
         continue;
-      if (CE->getOpcode() != Instruction::BitCast) 
+      if (CE->getOpcode() != Instruction::BitCast)
         continue;
-      if(CE->getOperand(0) != I) 
+      if(CE->getOperand(0) != I)
         continue;
       const PointerType *PTy = dyn_cast<PointerType>(CE->getType());
       if (!PTy)
@@ -88,8 +88,13 @@ bool ArgCast::runOnModule(Module& M) {
             continue;
           // Check that the number of arguments passed, and expected
           // by the function are the same.
-          if(CI->getNumOperands() != I->arg_size() + 1)
-            continue;
+          if(!I->isVarArg()) {
+            if(CI->getNumOperands() != I->arg_size() + 1)
+              continue;
+          } else {
+            if(CI->getNumOperands() < I->arg_size() + 1)
+              continue;
+          }
           // If so, add to worklist
           worklist.push_back(CI);
         }
@@ -155,8 +160,15 @@ bool ArgCast::runOnModule(Module& M) {
     }
 
     // If we found an argument we could not cast, try the next instruction
-    if(i != FTy->getNumParams())
+    if(i != FTy->getNumParams()) {
       continue;
+    }
+
+    if(FTy->isVarArg()) {
+      for(; i< CI->getNumOperands() - 1 ;i++) {
+        Args.push_back(CI->getOperand(i+1));
+      }
+    }
 
     // else replace the call instruction
     CallInst *CINew = CallInst::Create(F, Args.begin(), Args.end(), "", CI);
@@ -165,7 +177,14 @@ bool ArgCast::runOnModule(Module& M) {
     if(!CI->use_empty()) {
       CastInst *RetCast;
       if(CI->getType() != CINew->getType()) {
-        RetCast = CastInst::CreatePointerCast(CINew, CI->getType(), "", CI);
+        if(CI->getType()->isPointerTy() && CINew->getType()->isPointerTy())
+          RetCast = CastInst::CreatePointerCast(CINew, CI->getType(), "", CI);
+        else if(CI->getType()->isIntOrIntVectorTy() && CINew->getType()->isIntOrIntVectorTy())
+          RetCast = CastInst::CreateIntegerCast(CINew, CI->getType(), false, "", CI);
+        else if(CI->getType()->isIntOrIntVectorTy() && CINew->getType()->isPointerTy())
+          RetCast = CastInst::CreatePointerCast(CINew, CI->getType(), "", CI);
+        else if(CI->getType()->isPointerTy() && CINew->getType()->isIntOrIntVectorTy()) 
+          RetCast = new IntToPtrInst(CINew, CI->getType(), "", CI);
         CI->replaceAllUsesWith(RetCast);
       } else {
         CI->replaceAllUsesWith(CINew);
