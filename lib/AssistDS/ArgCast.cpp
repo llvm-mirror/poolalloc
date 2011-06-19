@@ -185,6 +185,10 @@ bool ArgCast::runOnModule(Module& M) {
           RetCast = CastInst::CreatePointerCast(CINew, CI->getType(), "", CI);
         else if(CI->getType()->isPointerTy() && CINew->getType()->isIntOrIntVectorTy()) 
           RetCast = new IntToPtrInst(CINew, CI->getType(), "", CI);
+        else {
+          // TODO: I'm not sure what right behavior is here, but this case should be handled.
+          assert(0 && "Unexpected type conversion in call!");
+        }
         CI->replaceAllUsesWith(RetCast);
       } else {
         CI->replaceAllUsesWith(CINew);
