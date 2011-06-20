@@ -63,10 +63,6 @@ bool SimplifyLoad::runOnModule(Module& M) {
                   if(const PointerType *PTy = dyn_cast<PointerType>(CE->getOperand(0)->getType()))
                     if(PTy->getElementType() == CI->getType()) {
                       LoadInst *LINew = new LoadInst(CE->getOperand(0), "", LI);
-                      LINew->dump();
-                      LI->dump();
-                      CI->dump();
-                      CE->dump();
                       CI->replaceAllUsesWith(LINew);
                     }
                 }
