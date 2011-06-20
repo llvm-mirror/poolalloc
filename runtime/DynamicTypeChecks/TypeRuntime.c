@@ -150,29 +150,26 @@ void compareTypeAndNumber(uint64_t NumArgsPassed, uint64_t ArgAccessed, uint8_t 
   compareTypes(TypeAccessed, ((uint8_t*)MD)[ArgAccessed], tag);
 }
 
-/**
- * Check the loaded type against the type recorded in the shadow memory.
- */
-void trackLoadInst(void *ptr, uint8_t typeNumber, uint64_t size, uint32_t tag) {
-  uint8_t i = 1;
+void getTypeTag(void *ptr, uint64_t size, uint8_t *dest) {
   uintptr_t p = maskAddress(ptr);
   assert(p + size < SIZE);
 
-#if DEBUG
-  printf("Load(%d): %p, %p = actual: %u, expect: %u | %lu  bytes\n", tag, ptr, (void *)p, typeNumber, shadow_begin[p], size);
-#endif
+  memcpy(dest, &shadow_begin[p], size);
+}
 
+void checkType(uint8_t typeNumber, uint64_t size, uint8_t *metadata, void *ptr, uint32_t tag) {
+  uint8_t i = 1;
   /* Check if this an initialized but untyped memory.*/
-  if (typeNumber != shadow_begin[p]) {
-    if (shadow_begin[p] != 0xFF) {
-      printf("Type mismatch(%u): %p expecting %s, found %s!\n", tag, ptr, typeNames[typeNumber], typeNames[shadow_begin[p]]);
+  if (typeNumber != metadata[0]) {
+    if (metadata[0] != 0xFF) {
+      printf("Type mismatch(%u): %p expecting %s, found %s!\n", tag, ptr, typeNames[typeNumber], typeNames[metadata[0]]);
       return;
     } else {
       /* If so, set type to the type being read.
          Check that none of the bytes are typed.*/
       for (; i < size; ++i) {
-        if (0xFF != shadow_begin[p + i]) {
-          printf("Type alignment mismatch(%u): expecting %s, found %s!\n", tag, typeNames[typeNumber], typeNames[shadow_begin[p+i]]);
+        if (0xFF != metadata[i]) {
+          printf("Type alignment mismatch(%u): expecting %s, found %s!\n", tag, typeNames[typeNumber], typeNames[metadata[i]]);
           break;
         }
       }
@@ -182,12 +179,29 @@ void trackLoadInst(void *ptr, uint8_t typeNumber, uint64_t size, uint32_t tag) {
   }
 
   for (; i < size; ++i) {
-    if (0 != shadow_begin[p + i]) {
-      printf("Type alignment mismatch(%u): expecting %s, found %s!\n", tag, typeNames[typeNumber], typeNames[shadow_begin[p]]);
+    if (0 != metadata[i]) {
+      printf("Type alignment mismatch(%u): expecting %s, found %s!\n", tag, typeNames[typeNumber], typeNames[metadata[0]]);
       break;
     }
   }
+
 }
+/**
+ * Check the loaded type against the type recorded in the shadow memory.
+ */
+void trackLoadInst(void *ptr, uint8_t typeNumber, uint64_t size, uint32_t tag) {
+  uint8_t *metadata = malloc(size);
+
+  getTypeTag(ptr, size, metadata);
+
+  checkType(typeNumber, size ,metadata, ptr, tag);
+#if DEBUG
+  printf("Load(%d): %p, %p = actual: %u, expect: %u | %lu  bytes\n", tag, ptr, (void *)p, typeNumber, shadow_begin[p], size);
+#endif
+
+  free(metadata);
+}
+
 
 /**
  *  For memset type instructions, that set values. 
