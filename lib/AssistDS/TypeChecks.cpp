@@ -260,6 +260,7 @@ bool TypeChecks::runOnModule(Module &M) {
     ByValFunctions.pop_back();
     modified |= visitByValFunction(M, *F);
   }
+  
 
   // NOTE:must visit before VAArgFunctions, to populate the map with the
   // correct cloned functions.
@@ -468,10 +469,24 @@ void TypeChecks::visitVAListCall(Function *F) {
       Function *CalledF = dyn_cast<Function>(CI->getCalledFunction());
       if(VAListFunctionsMap.find(CalledF) == VAListFunctionsMap.end())
         continue;
+      const Type *ListType  = F->getParent()->getTypeByName("struct.__va_list_tag");
+      const Type *ListPtrType = ListType->getPointerTo();
+      unsigned VAListArgNum = 0;
+      for (Function::arg_iterator I = CalledF->arg_begin(); 
+           I != CalledF->arg_end(); ++I) {
+        VAListArgNum ++;
+        if(I->getType() == ListPtrType) {
+          break;
+        }
+      }
+
       Function::arg_iterator NII = F->arg_begin();
       std::vector<Value *>Args;
       Args.push_back(NII++); // total count
-      Args.push_back(NII++); // current count
+      Value *CounterSrc = CounterMap[CI->getOperand(VAListArgNum)->stripPointerCasts()];
+      LoadInst *CountValue = new LoadInst(CounterSrc, "count", CI);
+      Args.push_back(CountValue); // current count
+      NII++;
       Args.push_back(NII); // MD
       for(unsigned i = 1 ;i < CI->getNumOperands(); i++) {
         // Add the original argument
@@ -559,6 +574,7 @@ bool TypeChecks::visitVAListFunction(Module &M, Function &F_orig) {
   VAListFunctionsMap[&F_orig] =  F;
   inst_iterator InsPt = inst_begin(F);
 
+  
   // Store the information
   Function::arg_iterator NII = F->arg_begin();
   AllocaInst *VASizeLoc = new AllocaInst(Int64Ty, "", &*InsPt);
@@ -566,9 +582,33 @@ bool TypeChecks::visitVAListFunction(Module &M, Function &F_orig) {
   NII++;
   AllocaInst *Counter = new AllocaInst(Int64Ty, "",&*InsPt);
   new StoreInst(NII, Counter, &*InsPt); 
+  CounterMap[NII] = Counter;
   NII++;
   AllocaInst *VAMDLoc = new AllocaInst(VoidPtrTy, "", &*InsPt);
   new StoreInst(NII, VAMDLoc, &*InsPt);
+  
+  // Find all va_copy calls
+  for (Function::iterator B = F->begin(), FE = F->end(); B != FE; ++B) {
+    for (BasicBlock::iterator I = B->begin(), BE = B->end(); I != BE;I++) {
+      CallInst *CI = dyn_cast<CallInst>(I);
+      if(!CI)
+        continue;
+      Function *CalledF = dyn_cast<Function>(CI->getCalledFunction());
+      if(!CalledF)
+        continue;
+      if(!CalledF->isIntrinsic())
+        continue;
+      if(CalledF->getIntrinsicID() != Intrinsic::vacopy) 
+        continue;
+      // Reinitialize the counter
+      AllocaInst *CounterDest = new AllocaInst(Int64Ty, "",&*InsPt);
+      Value *CounterSource = CounterMap[CI->getOperand(2)->stripPointerCasts()];
+      LoadInst *CurrentValue = new LoadInst(CounterSource, "count", CI);
+      new StoreInst(CurrentValue, CounterDest, CI);
+      CounterMap[CI->getOperand(1)->stripPointerCasts()] = CounterDest;
+    }
+  }
+
 
   // instrument va_arg to increment the counter
   for (Function::iterator B = F->begin(), FE = F->end(); B != FE; ++B) {
@@ -577,13 +617,14 @@ bool TypeChecks::visitVAListFunction(Module &M, Function &F_orig) {
       if(!VI)
         continue;
       Constant *One = ConstantInt::get(Int64Ty, 1);
-      LoadInst *OldValue = new LoadInst(Counter, "count", VI);
+      Value *CounterSrc = CounterMap[VI->getOperand(0)->stripPointerCasts()];
+      LoadInst *OldValue = new LoadInst(CounterSrc, "count", VI);
       Instruction *NewValue = BinaryOperator::Create(BinaryOperator::Add,
                                                      OldValue,
                                                      One,
                                                      "count",
                                                      VI);
-      new StoreInst(NewValue, Counter, VI);
+      new StoreInst(NewValue, CounterSrc, VI);
       std::vector<Value *> Args;
       Instruction *VASize = new LoadInst(VASizeLoc, "", VI);
       Instruction *VAMetaData = new LoadInst(VAMDLoc, "", VI);
@@ -804,6 +845,49 @@ bool TypeChecks::visitInternalVarArgFunction(Module &M, Function &F) {
   AllocaInst *Counter = new AllocaInst(Int64Ty, "",&*InsPt);
   new StoreInst(ConstantInt::get(Int64Ty, 0), Counter, &*InsPt); 
 
+
+  // visit all VAStarts and initialize the counter
+  for (Function::iterator B = NewF->begin(), FE = NewF->end(); B != FE; ++B) {
+    for (BasicBlock::iterator I = B->begin(), BE = B->end(); I != BE;I++) {
+      CallInst *CI = dyn_cast<CallInst>(I);
+      if(!CI)
+        continue;
+      Function *CalledF = dyn_cast<Function>(CI->getCalledFunction());
+      if(!CalledF)
+        continue;
+      if(!CalledF->isIntrinsic())
+        continue;
+      if(CalledF->getIntrinsicID() != Intrinsic::vastart) 
+        continue;
+      // Reinitialize the counter
+      StoreInst *SI3 = new StoreInst(ConstantInt::get(Int64Ty, 0), Counter);
+      SI3->insertAfter(CI);
+      CounterMap[CI->getOperand(1)->stripPointerCasts()] = Counter;
+    }
+  }
+
+  // Find all va_copy calls
+  for (Function::iterator B = NewF->begin(), FE = NewF->end(); B != FE; ++B) {
+    for (BasicBlock::iterator I = B->begin(), BE = B->end(); I != BE;I++) {
+      CallInst *CI = dyn_cast<CallInst>(I);
+      if(!CI)
+        continue;
+      Function *CalledF = dyn_cast<Function>(CI->getCalledFunction());
+      if(!CalledF)
+        continue;
+      if(!CalledF->isIntrinsic())
+        continue;
+      if(CalledF->getIntrinsicID() != Intrinsic::vacopy) 
+        continue;
+      // Reinitialize the counter
+      AllocaInst *CounterDest = new AllocaInst(Int64Ty, "",&*InsPt);
+      Value *CounterSource = CounterMap[CI->getOperand(2)->stripPointerCasts()];
+      LoadInst *CurrentValue = new LoadInst(CounterSource, "count", CI);
+      new StoreInst(CurrentValue, CounterDest, CI);
+      CounterMap[CI->getOperand(1)->stripPointerCasts()] = CounterDest;
+    }
+  }
+
   // Modify function to add checks on every var_arg call to ensure that we
   // are not accessing more arguments than we passed in.
 
@@ -814,13 +898,14 @@ bool TypeChecks::visitInternalVarArgFunction(Module &M, Function &F) {
       if(!VI)
         continue;
       Constant *One = ConstantInt::get(Int64Ty, 1);
-      LoadInst *OldValue = new LoadInst(Counter, "count", VI);
+      Value *CounterSrc = CounterMap[VI->getOperand(0)->stripPointerCasts()];
+      LoadInst *OldValue = new LoadInst(CounterSrc, "count", VI);
       Instruction *NewValue = BinaryOperator::Create(BinaryOperator::Add,
                                                      OldValue,
                                                      One,
                                                      "count",
                                                      VI);
-      new StoreInst(NewValue, Counter, VI);
+      new StoreInst(NewValue, CounterSrc, VI);
       std::vector<Value *> Args;
       Instruction *VASize = new LoadInst(VASizeLoc, "", VI);
       Instruction *VAMetaData = new LoadInst(VAMDLoc, "", VI);
@@ -836,26 +921,6 @@ bool TypeChecks::visitInternalVarArgFunction(Module &M, Function &F) {
     }
   }
 
-  // visit all VAStarts and initialize the counter
-  CallInst *VAStart = NULL;
-  for (Function::iterator B = NewF->begin(), FE = NewF->end(); B != FE; ++B) {
-    for (BasicBlock::iterator I = B->begin(), BE = B->end(); I != BE;) {
-      CallInst *CI = dyn_cast<CallInst>(I++);
-      if(!CI)
-        continue;
-      Function *CalledF = dyn_cast<Function>(CI->getCalledFunction());
-      if(!CalledF)
-        continue;
-      if(!CalledF->isIntrinsic())
-        continue;
-      if(CalledF->getIntrinsicID() != Intrinsic::vastart) 
-        continue;
-      VAStart = CI;
-      // Reinitialize the counter
-      StoreInst *SI3 = new StoreInst(ConstantInt::get(Int64Ty, 0), Counter);
-      SI3->insertAfter(CI);
-    }
-  }
 
   // modify calls to va list functions to pass the metadata
   for (Function::iterator B = NewF->begin(), FE = NewF->end(); B != FE; ++B) {
@@ -864,11 +929,24 @@ bool TypeChecks::visitInternalVarArgFunction(Module &M, Function &F) {
       if(!CI)
         continue;
       Function *CalledF = dyn_cast<Function>(CI->getCalledFunction());
+
       if(VAListFunctionsMap.find(CalledF) == VAListFunctionsMap.end())
         continue;
+      const Type *ListType  = M.getTypeByName("struct.__va_list_tag");
+      const Type *ListPtrType = ListType->getPointerTo();
+      unsigned VAListArgNum = 0;
+      for (Function::arg_iterator I = CalledF->arg_begin(); 
+           I != CalledF->arg_end(); ++I) {
+        VAListArgNum ++;
+        if(I->getType() == ListPtrType) {
+          break;
+        }
+      }
       std::vector<Value *>Args;
+
+      Value *CounterSrc = CounterMap[CI->getOperand(VAListArgNum)->stripPointerCasts()];
       Instruction *VASize = new LoadInst(VASizeLoc, "", CI);
-      Instruction *VACounter = new LoadInst(Counter, "", CI);
+      Instruction *VACounter = new LoadInst(CounterSrc, "", CI);
       Instruction *VAMetaData = new LoadInst(VAMDLoc, "", CI);
       Args.push_back(VASize); // toatl count
       Args.push_back(VACounter); // current count

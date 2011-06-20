@@ -42,6 +42,8 @@ private:
   std::list<Function *> ByValFunctions;
   std::list<Function *> AddressTakenFunctions;
   std::set<Instruction*> IndCalls;
+  // Map of VAList to current count
+  std::map<Value*, Value*> CounterMap;
 
   // Analysis from other passes.
   TargetData *TD;
