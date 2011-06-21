@@ -874,7 +874,8 @@ void FuncTransform::visitCallSite(CallSite& CS) {
                (CF->getName() == "sc.pool_unregister") ||
                (CF->getName() == "sc.get_actual_val") ||
                (CF->getName() == "__if_pool_get_label") ||
-               (CF->getName() == "__if_pool_set_label")) {
+               (CF->getName() == "__if_pool_set_label") ||
+               (CF->getName() == "sc.fsparameter")) {
       visitRuntimeCheck (CS);
     } else if ((argc = PAInfo.getCStdLibPoolArguments(CF->getName())) > 0) {
       visitCStdLibCheck(CS, argc);

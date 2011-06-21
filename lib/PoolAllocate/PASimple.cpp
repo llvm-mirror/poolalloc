@@ -101,7 +101,8 @@ initialPoolArguments(const std::string & funcname) {
       (funcname == "sc.pool_unregister") ||
       (funcname == "sc.get_actual_val") ||
       (funcname == "__if_pool_get_label") ||
-      (funcname == "__if_pool_set_label")) {
+      (funcname == "__if_pool_set_label") ||
+      (funcname == "sc.fsparameter")) {
     return 1;
   }
   
