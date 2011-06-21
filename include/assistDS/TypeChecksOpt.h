@@ -14,7 +14,6 @@
 #ifndef TYPE_CHECKS_OPT_H
 #define TYPE_CHECKS_OPT_H
 
-#include "assistDS/TypeAnalysis.h"
 #include "dsa/TypeSafety.h"
 #include "dsa/AddressTakenAnalysis.h"
 

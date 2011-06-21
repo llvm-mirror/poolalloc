@@ -49,6 +49,8 @@ static Constant *trackUnInitInst;
 static Constant *trackStoreInst;
 static Constant *trackLoadInst;
 static Constant *copyTypeInfo;
+static Constant *setTypeInfo;
+static Constant *checkTypeInst;
 static Constant *MallocFunc;
 
 bool TypeChecksOpt::runOnModule(Module &M) {
@@ -94,6 +96,14 @@ bool TypeChecksOpt::runOnModule(Module &M) {
                                          Int64Ty,/*size*/
                                          Int32Ty,/*tag*/
                                          NULL);
+  checkTypeInst = M.getOrInsertFunction("checkType",
+                                        VoidTy,
+                                        Int8Ty,/*type*/
+                                        Int64Ty,/*size*/
+                                        VoidPtrTy,
+                                        VoidPtrTy,/*ptr*/
+                                        Int32Ty,/*tag*/
+                                        NULL);
   trackLoadInst = M.getOrInsertFunction("trackLoadInst",
                                         VoidTy,
                                         VoidPtrTy,/*ptr*/
@@ -105,6 +115,13 @@ bool TypeChecksOpt::runOnModule(Module &M) {
                                        VoidTy,
                                        VoidPtrTy,/*dest ptr*/
                                        VoidPtrTy,/*src ptr*/
+                                       Int64Ty,/*size*/
+                                       Int32Ty,/*tag*/
+                                       NULL);
+  setTypeInfo = M.getOrInsertFunction("setTypeInfo",
+                                       VoidTy,
+                                       VoidPtrTy,/*dest ptr*/
+                                       VoidPtrTy,/*metadata*/
                                        Int64Ty,/*size*/
                                        Int32Ty,/*tag*/
                                        NULL);
@@ -128,11 +145,11 @@ bool TypeChecksOpt::runOnModule(Module &M) {
     }
   }
 
-  for(Value::use_iterator User = trackLoadInst->use_begin(); User != trackLoadInst->use_end(); ++User) {
+  for(Value::use_iterator User = checkTypeInst->use_begin(); User != checkTypeInst->use_end(); ++User) {
     CallInst *CI = dyn_cast<CallInst>(User);
     assert(CI);
     
-    if(TS->isTypeSafe(CI->getOperand(1)->stripPointerCasts(), CI->getParent()->getParent())) {
+    if(TS->isTypeSafe(CI->getOperand(4)->stripPointerCasts(), CI->getParent()->getParent())) {
       toDelete.push_back(CI);
     }
   }
@@ -183,6 +200,19 @@ bool TypeChecksOpt::runOnModule(Module &M) {
   // other allocators??
 
   for(Value::use_iterator User = copyTypeInfo->use_begin(); User != copyTypeInfo->use_end(); ++User) {
+    CallInst *CI = dyn_cast<CallInst>(User);
+    assert(CI);
+
+    if(TS->isTypeSafe(CI->getOperand(1)->stripPointerCasts(), CI->getParent()->getParent())) {
+      std::vector<Value*> Args;
+      Args.push_back(CI->getOperand(1));
+      Args.push_back(CI->getOperand(3)); // size
+      Args.push_back(CI->getOperand(4));
+      CallInst::Create(trackInitInst, Args.begin(), Args.end(), "", CI);
+      toDelete.push_back(CI);
+    }
+  }
+  for(Value::use_iterator User = setTypeInfo->use_begin(); User != setTypeInfo->use_end(); ++User) {
     CallInst *CI = dyn_cast<CallInst>(User);
     assert(CI);
 

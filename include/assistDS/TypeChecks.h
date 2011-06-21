@@ -14,7 +14,6 @@
 #ifndef TYPE_CHECKS_H
 #define TYPE_CHECKS_H
 
-#include "assistDS/TypeAnalysis.h"
 #include "dsa/AddressTakenAnalysis.h"
 
 #include "llvm/Instructions.h"
@@ -47,7 +46,6 @@ private:
 
   // Analysis from other passes.
   TargetData *TD;
-  TypeAnalysis *TA;
   AddressTakenAnalysis* addrAnalysis;
   
   unsigned int getTypeMarker(const Type*);
@@ -69,7 +67,6 @@ private:
 
   bool visitLoadInst(Module &M, LoadInst &LI);
   bool visitStoreInst(Module &M, StoreInst &SI);
-  bool visitCopyingStoreInst(Module &M, StoreInst &SI, Value *SS);
   bool visitAllocaInst(Module &M, AllocaInst &AI);
 
   bool visitGlobal(Module &M, GlobalVariable &GV, 
@@ -97,7 +94,6 @@ public:
 
   virtual void getAnalysisUsage(AnalysisUsage &AU) const {
     AU.addRequired<TargetData>();
-    AU.addRequired<TypeAnalysis>();
     AU.addRequired<AddressTakenAnalysis>();
   }
 

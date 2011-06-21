@@ -44,6 +44,14 @@ namespace {
          cl::desc("DONT Distinguish pointer types"),
          cl::Hidden,
          cl::init(false));
+  static cl::opt<bool> DisablePtrCmpChecks("no-ptr-cmp-checks",
+         cl::desc("Dont instrument cmp statements"),
+         cl::Hidden,
+         cl::init(false));
+  static cl::opt<bool> TrackAllLoads("track-all-loads",
+         cl::desc("Check at all loads irrespective of use"),
+         cl::Hidden,
+         cl::init(false));
 }
 
 static int tagCounter = 0;
@@ -58,8 +66,9 @@ static Constant *trackArray;
 static Constant *trackInitInst;
 static Constant *trackUnInitInst;
 static Constant *trackStoreInst;
-static Constant *trackLoadInst;
+static Constant *checkTypeInst;
 static Constant *copyTypeInfo;
+static Constant *setTypeInfo;
 static Constant *RegisterArgv;
 static Constant *RegisterEnvp;
 static Constant *compareTypeAndNumber;
@@ -105,7 +114,6 @@ bool TypeChecks::runOnModule(Module &M) {
   bool modified = false; // Flags whether we modified the module.
 
   TD = &getAnalysis<TargetData>();
-  TA = &getAnalysis<TypeAnalysis>();
   addrAnalysis = &getAnalysis<AddressTakenAnalysis>();
 
   // Create the necessary prototypes
@@ -163,7 +171,7 @@ bool TypeChecks::runOnModule(Module &M) {
                                      Int64Ty, /*size*/
                                      VoidPtrTy, /*dest for type tag*/
                                      NULL);
-  trackLoadInst = M.getOrInsertFunction("checkType",
+  checkTypeInst = M.getOrInsertFunction("checkType",
                                         VoidTy,
                                         Int8Ty,/*type*/
                                         Int64Ty,/*size*/
@@ -171,6 +179,13 @@ bool TypeChecks::runOnModule(Module &M) {
                                         VoidPtrTy,/*ptr*/
                                         Int32Ty,/*tag*/
                                         NULL);
+  setTypeInfo = M.getOrInsertFunction("setTypeInfo",
+                                       VoidTy,
+                                       VoidPtrTy,/*dest ptr*/
+                                       VoidPtrTy,/*metadata*/
+                                       Int64Ty,/*size*/
+                                       Int32Ty,/*tag*/
+                                       NULL);
   copyTypeInfo = M.getOrInsertFunction("copyTypeInfo",
                                        VoidTy,
                                        VoidPtrTy,/*dest ptr*/
@@ -310,18 +325,10 @@ bool TypeChecks::runOnModule(Module &M) {
     for (inst_iterator II = inst_begin(F), IE = inst_end(F); II != IE;++II) {
       Instruction &I = *II;
       if (StoreInst *SI = dyn_cast<StoreInst>(&I)) {
-        if (TA->isCopyingStore(SI)) {
-          Value *SS = TA->getStoreSource(SI);
-          if (SS != NULL) {
-            modified |= visitCopyingStoreInst(M, *SI, SS);
-          }
-        } else {
+        if(!isa<LoadInst>(SI->getOperand(0)))
           modified |= visitStoreInst(M, *SI);
-        }
       } else if (LoadInst *LI = dyn_cast<LoadInst>(&I)) {
-        if (!TA->isCopyingLoad(LI)) {
           modified |= visitLoadInst(M, *LI);
-        }
       } else if (CallInst *CI = dyn_cast<CallInst>(&I)) {
         modified |= visitCallInst(M, *CI);
       } else if (InvokeInst *II = dyn_cast<InvokeInst>(&I)) {
@@ -590,11 +597,12 @@ void TypeChecks::visitVAListCall(Function *F) {
     NII++;
     AllocaInst *Counter = new AllocaInst(Int64Ty, "",&*InsPt);
     new StoreInst(NII, Counter, &*InsPt); 
-    CounterMap[NII] = Counter;
+    errs() << F->getNameStr() <<"\n";
     NII++;
     AllocaInst *VAMDLoc = new AllocaInst(VoidPtrTy, "", &*InsPt);
     new StoreInst(NII, VAMDLoc, &*InsPt);
 
+    CounterMap[ValueMap[VAListArg]] = Counter;
     // Find all va_copy calls
     for (Function::iterator B = F->begin(), FE = F->end(); B != FE; ++B) {
       for (BasicBlock::iterator I = B->begin(), BE = B->end(); I != BE;I++) {
@@ -625,7 +633,9 @@ void TypeChecks::visitVAListCall(Function *F) {
         if(!VI)
           continue;
         Constant *One = ConstantInt::get(Int64Ty, 1);
+        VI->getOperand(0)->stripPointerCasts()->dump();
         Value *CounterSrc = CounterMap[VI->getOperand(0)->stripPointerCasts()];
+        CounterSrc->dump();
         LoadInst *OldValue = new LoadInst(CounterSrc, "count", VI);
         Instruction *NewValue = BinaryOperator::Create(BinaryOperator::Add,
                                                        OldValue,
@@ -1976,28 +1986,56 @@ bool TypeChecks::visitLoadInst(Module &M, LoadInst &LI) {
   Args1.push_back(BCI);
   Args1.push_back(getSizeConstant(LI.getType()));
   Args1.push_back(BCI_MD);
-  CallInst::Create(getTypeTag, Args1.begin(), Args1.end(), "", &LI);
-  std::vector<Value *> Args;
-  Args.push_back(getTypeMarkerConstant(&LI));
-  Args.push_back(getSizeConstant(LI.getType()));
-  Args.push_back(BCI_MD);
-  Args.push_back(BCI);
-  Args.push_back(getTagCounter());
-  CallInst::Create(trackLoadInst, Args.begin(), Args.end(), "", &LI);
-
-  /*for(Value::use_iterator II = LI.use_begin(); II != LI.use_end(); ++II) {
-
+  CallInst *getTypeCall = CallInst::Create(getTypeTag, Args1.begin(), Args1.end(), "", &LI);
+  if(TrackAllLoads) {
     std::vector<Value *> Args;
     Args.push_back(getTypeMarkerConstant(&LI));
     Args.push_back(getSizeConstant(LI.getType()));
     Args.push_back(BCI_MD);
     Args.push_back(BCI);
     Args.push_back(getTagCounter());
-    CallInst::Create(trackLoadInst, Args.begin(), Args.end(), "", cast<Instruction>(II.getUse().getUser()));
-  }*/
+    CallInst::Create(checkTypeInst, Args.begin(), Args.end(), "", &LI);
+  }
+
+  for(Value::use_iterator II = LI.use_begin(); II != LI.use_end(); ++II) {
+    if(DisablePtrCmpChecks) {
+      if(isa<CmpInst>(II)) {
+        if(LI.getType()->isPointerTy())
+          continue;
+      }
+    }
+    std::vector<Value *> Args;
+    Args.push_back(getTypeMarkerConstant(&LI));
+    Args.push_back(getSizeConstant(LI.getType()));
+    Args.push_back(BCI_MD);
+    Args.push_back(BCI);
+    Args.push_back(getTagCounter());
+    if(StoreInst *SI = dyn_cast<StoreInst>(II)) {
+      // Cast the pointer operand to i8* for the runtime function.
+      CastInst *BCI_Dest = BitCastInst::CreatePointerCast(SI->getPointerOperand(), VoidPtrTy, "", SI);
+
+      std::vector<Value *> Args;
+      Args.push_back(BCI_Dest);
+      Args.push_back(BCI_MD);
+      Args.push_back(getSizeConstant(SI->getOperand(0)->getType()));
+      Args.push_back(getTagCounter());
+      // Create the call to the runtime check and place it before the copying store instruction.
+      CallInst::Create(setTypeInfo, Args.begin(), Args.end(), "", SI);
+    }
+    else if(PHINode *PH = dyn_cast<PHINode>(II)) {
+      BasicBlock *BB = PH->getIncomingBlock(II);
+      CallInst::Create(checkTypeInst, Args.begin(), Args.end(), "", BB->getTerminator());
+    } else {
+      CallInst::Create(checkTypeInst, Args.begin(), Args.end(), "", cast<Instruction>(II.getUse().getUser()));
+    }
+  }
+  if(BCI_MD->getNumUses() == 1) {
+    // No uses needed checks
+    getTypeCall->eraseFromParent();
+  }
+
 
   // Create the call to the runtime check and place it before the load instruction.
-  //CallInst::Create(trackLoadInst, Args.begin(), Args.end(), "", &LI);
   numLoadChecks++;
   return true;
 }
@@ -2020,21 +2058,3 @@ bool TypeChecks::visitStoreInst(Module &M, StoreInst &SI) {
   return true;
 }
 
-// Insert runtime checks before copying store instructions.
-bool TypeChecks::visitCopyingStoreInst(Module &M, StoreInst &SI, Value *SS) {
-  // Cast the pointer operand to i8* for the runtime function.
-  CastInst *BCI_Dest = BitCastInst::CreatePointerCast(SI.getPointerOperand(), VoidPtrTy, "", &SI);
-  CastInst *BCI_Src = BitCastInst::CreatePointerCast(SS, VoidPtrTy, "", &SI);
-
-  std::vector<Value *> Args;
-  Args.push_back(BCI_Dest);
-  Args.push_back(BCI_Src);
-  Args.push_back(getSizeConstant(SI.getOperand(0)->getType()));
-  Args.push_back(getTagCounter());
-
-  // Create the call to the runtime check and place it before the copying store instruction.
-  CallInst::Create(copyTypeInfo, Args.begin(), Args.end(), "", &SI);
-  numStoreChecks++;
-
-  return true;
-}
