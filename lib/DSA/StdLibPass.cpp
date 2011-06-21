@@ -306,8 +306,11 @@ const struct {
   // Type Checks
   {"trackGlobal",          {NRET_NARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS,   false}},
   {"trackLoadInst",        {NRET_NARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS,   false}},
+  {"checkType",        {NRET_NARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS,   false}},
+  {"getTypeTag",        {NRET_NARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS,   false}},
   {"trackStoreInst",       {NRET_NARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS,   false}},
   {"copyTypeInfo",         {NRET_NARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS,   false}},
+  {"setTypeInfo",         {NRET_NARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS,   false}},
   {"trackInitInst",        {NRET_NARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS,   false}},
   {"trackUnInitInst",      {NRET_NARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS,   false}},
   {"trackArray",           {NRET_NARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS,   false}},
