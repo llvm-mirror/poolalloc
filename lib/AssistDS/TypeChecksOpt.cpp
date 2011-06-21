@@ -47,11 +47,11 @@ static Constant *trackArray;
 static Constant *trackInitInst;
 static Constant *trackUnInitInst;
 static Constant *trackStoreInst;
-static Constant *trackLoadInst;
 static Constant *copyTypeInfo;
 static Constant *setTypeInfo;
 static Constant *checkTypeInst;
 static Constant *MallocFunc;
+static Constant *getTypeTag;
 
 bool TypeChecksOpt::runOnModule(Module &M) {
   TS = &getAnalysis<dsa::TypeSafety<TDDataStructures> >();
@@ -63,6 +63,12 @@ bool TypeChecksOpt::runOnModule(Module &M) {
   Int64Ty = IntegerType::getInt64Ty(M.getContext());
   VoidPtrTy = PointerType::getUnqual(Int8Ty);
 
+  getTypeTag = M.getOrInsertFunction("getTypeTag",
+                                     VoidTy,
+                                     VoidPtrTy, /*ptr*/
+                                     Int64Ty, /*size*/
+                                     VoidPtrTy, /*dest for type tag*/
+                                     NULL);
   trackGlobal = M.getOrInsertFunction("trackGlobal",
                                       VoidTy,
                                       VoidPtrTy,/*ptr*/
@@ -102,13 +108,6 @@ bool TypeChecksOpt::runOnModule(Module &M) {
                                         Int64Ty,/*size*/
                                         VoidPtrTy,
                                         VoidPtrTy,/*ptr*/
-                                        Int32Ty,/*tag*/
-                                        NULL);
-  trackLoadInst = M.getOrInsertFunction("trackLoadInst",
-                                        VoidTy,
-                                        VoidPtrTy,/*ptr*/
-                                        Int8Ty,/*type*/
-                                        Int64Ty,/*size*/
                                         Int32Ty,/*tag*/
                                         NULL);
   copyTypeInfo = M.getOrInsertFunction("copyTypeInfo",

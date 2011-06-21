@@ -1602,6 +1602,34 @@ bool TypeChecks::visitCallSite(Module &M, CallSite CS) {
         CallInst::Create(trackInitInst, Args.begin(), Args.end(), "", I);
         return true;
       }
+    } else if (F->getNameStr() == std::string("accept")) {
+      CastInst *BCI = BitCastInst::CreatePointerCast(I->getOperand(2), VoidPtrTy);
+      BCI->insertAfter(I);
+      std::vector<Value *>Args;
+      Args.push_back(BCI);
+      Args.push_back(getTagCounter());
+      Constant *F = M.getOrInsertFunction("trackaccept", VoidTy, VoidPtrTy, Int32Ty, NULL);
+      CallInst *CI = CallInst::Create(F, Args.begin(), Args.end());
+      CI->insertAfter(BCI);
+    } else if (F->getNameStr() == std::string("poll")) {
+      CastInst *BCI = BitCastInst::CreatePointerCast(I->getOperand(1), VoidPtrTy);
+      BCI->insertAfter(I);
+      std::vector<Value*>Args;
+      Args.push_back(BCI);
+      Args.push_back(I->getOperand(2));
+      Args.push_back(getTagCounter());
+      Constant *F = M.getOrInsertFunction("trackpoll", VoidTy, VoidPtrTy, Int64Ty, Int32Ty, NULL);
+      CallInst *CI = CallInst::Create(F, Args.begin(), Args.end());
+      CI->insertAfter(BCI);
+    } else if (F->getNameStr() == std::string("getaddrinfo")) {
+      CastInst *BCI = BitCastInst::CreatePointerCast(I->getOperand(4), VoidPtrTy);
+      BCI->insertAfter(I);
+      std::vector<Value *>Args;
+      Args.push_back(BCI);
+      Args.push_back(getTagCounter());
+      Constant *F = M.getOrInsertFunction("trackgetaddrinfo", VoidTy, VoidPtrTy, Int32Ty, NULL);
+      CallInst *CI = CallInst::Create(F, Args.begin(), Args.end());
+      CI->insertAfter(BCI);
     } else if (F->getNameStr() == std::string("__strdup")) {
       CastInst *BCI_Dest = BitCastInst::CreatePointerCast(I, VoidPtrTy);
       BCI_Dest->insertAfter(I);
@@ -1743,7 +1771,8 @@ bool TypeChecks::visitCallSite(Module &M, CallSite CS) {
       Args.push_back(getTagCounter());
       Constant *F = M.getOrInsertFunction("trackStrncpyInst", VoidTy, VoidPtrTy, VoidPtrTy, I->getOperand(3)->getType(), Int32Ty, NULL);
       CallInst::Create(F, Args.begin(), Args.end(), "", I);
-    } else if(F->getNameStr() == std::string("ftime")) {
+    } else if(F->getNameStr() == std::string("ftime") ||
+              F->getNameStr() == std::string("gettimeofday")) {
       CastInst *BCI = BitCastInst::CreatePointerCast(I->getOperand(1), VoidPtrTy, "", I);
       const PointerType *PTy = cast<PointerType>(I->getOperand(1)->getType());
       const Type * ElementType = PTy->getElementType();
