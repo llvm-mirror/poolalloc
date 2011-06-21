@@ -4,6 +4,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <netdb.h>
+#include <poll.h>
+#include <sys/types.h>
+#include <sys/socket.h>
 #include <sys/mman.h>
 
 #define DEBUG (0)
@@ -115,9 +119,7 @@ void trackStoreInst(void *ptr, uint8_t typeNumber, uint64_t size, uint32_t tag) 
   uintptr_t p = maskAddress(ptr);
   shadow_begin[p] = typeNumber;
   memset(&shadow_begin[p + 1], 0, size - 1);
-#if DEBUG
   printf("Store(%d): %p, %p = %u | %lu bytes | \n", tag, ptr, (void *)p, typeNumber, size);
-#endif
 
 }
 
@@ -186,22 +188,6 @@ void checkType(uint8_t typeNumber, uint64_t size, uint8_t *metadata, void *ptr, 
   }
 
 }
-/**
- * Check the loaded type against the type recorded in the shadow memory.
- */
-void trackLoadInst(void *ptr, uint8_t typeNumber, uint64_t size, uint32_t tag) {
-  uint8_t *metadata = malloc(size);
-
-  getTypeTag(ptr, size, metadata);
-
-  checkType(typeNumber, size ,metadata, ptr, tag);
-#if DEBUG
-  printf("Load(%d): %p, %p = actual: %u, expect: %u | %lu  bytes\n", tag, ptr, (void *)p, typeNumber, shadow_begin[p], size);
-#endif
-
-  free(metadata);
-}
-
 
 /**
  *  For memset type instructions, that set values. 
@@ -236,6 +222,10 @@ void copyTypeInfo(void *dstptr, void *srcptr, uint64_t size, uint32_t tag) {
 #if DEBUG
   printf("Copy(%d): %p, %p = %u | %lu bytes \n", tag, dstptr, srcptr, shadow_begin[s], size);
 #endif
+}
+void setTypeInfo(void *dstptr, void *metadata, uint64_t size, uint32_t tag) {
+  uintptr_t d = maskAddress(dstptr);
+  memcpy(&shadow_begin[d], metadata, size);
 }
 
 /**
@@ -286,4 +276,28 @@ void trackgetcwd(void *ptr, uint32_t tag) {
 
 void trackgethostname(void *ptr, uint32_t tag) {
   trackInitInst(ptr, strlen(ptr) + 1, tag);
+}
+
+void trackgetaddrinfo(void *ptr, uint32_t tag) {
+  struct addrinfo *res;
+  struct addrinfo ** result = (struct addrinfo **)ptr;
+  for(res = *result; res != NULL; res = res->ai_next) {
+    trackInitInst(res->ai_addr, sizeof(struct sockaddr), tag);
+    trackInitInst(res, sizeof(struct addrinfo), tag);
+  }
+
+  trackInitInst(result, sizeof(struct addrinfo*), tag);
+}
+
+void trackaccept(void *ptr, uint32_t tag) {
+  trackInitInst(ptr, sizeof(struct sockaddr), tag);
+}
+
+void trackpoll(void *ptr, uint64_t nfds, uint32_t tag) {
+  struct pollfd *fds = (struct pollfd *)ptr;
+  unsigned i = 0;
+  while (i < nfds) {
+    trackInitInst(&fds[i], sizeof(struct pollfd), tag);
+    i++;
+  }
 }
