@@ -10,6 +10,8 @@
 #include <sys/socket.h>
 #include <sys/mman.h>
 
+#include <map>
+
 #define DEBUG (0)
 
 /* Size of shadow memory.  We're hoping everything fits in 46bits. */
@@ -22,9 +24,8 @@
  * machines. Need a more robust way of picking base address.
  * For now, run a version of the tool without the base fixed, and 
  * choose address.
- #define BASE ((void *)(0x2aaaab2a5000))
  */
-#define BASE ((void *)(0x2aaaab88c000))
+#define BASE ((uint8_t *)(0x2aaaab88c000))
 /*
  * Do some macro magic to get mmap macros defined properly on all platforms.
  */
@@ -32,9 +33,53 @@
 # define MAP_ANONYMOUS MAP_ANON
 #endif /* defined(MAP_ANON) && !defined(MAP_ANONYMOUS) */
 
+struct va_info {
+  uint64_t numElements;
+  uint64_t counter;
+  uint8_t *metadata;
+};
+
+// Map to store info about va lists
+std::map<void *, struct va_info> VA_InfoMap;
+
+// Pointer to the shadow_memory
 uint8_t * const shadow_begin = BASE;
 
+// Map from type numbers to type names.
 extern char* typeNames[];
+
+extern "C" {
+  void trackInitInst(void *ptr, uint64_t size, uint32_t tag);
+  void shadowInit();
+  void trackArgvType(int argc, char **argv) ;
+  void trackEnvpType(char **envp) ;
+  void trackGlobal(void *ptr, uint8_t typeNumber, uint64_t size, uint32_t tag) ;
+  void trackArray(void *ptr, uint64_t size, uint64_t count, uint32_t tag) ;
+  void trackStoreInst(void *ptr, uint8_t typeNumber, uint64_t size, uint32_t tag) ;
+  void trackStringInput(void *ptr, uint32_t tag) ;
+  void compareTypes(uint8_t typeNumberSrc, uint8_t typeNumberDest, uint32_t tag) ;
+  void compareNumber(uint64_t NumArgsPassed, uint64_t ArgAccessed, uint32_t tag);
+  void compareTypeAndNumber(uint64_t NumArgsPassed, uint64_t ArgAccessed, uint8_t TypeAccessed, void *MD, uint32_t tag) ;
+  void checkVAArgType(void *va_list, uint8_t TypeAccessed, uint32_t tag) ;
+  void getTypeTag(void *ptr, uint64_t size, uint8_t *dest) ;
+  void checkType(uint8_t typeNumber, uint64_t size, uint8_t *metadata, void *ptr, uint32_t tag);
+  void trackInitInst(void *ptr, uint64_t size, uint32_t tag) ;
+  void trackUnInitInst(void *ptr, uint64_t size, uint32_t tag) ;
+  void copyTypeInfo(void *dstptr, void *srcptr, uint64_t size, uint32_t tag) ;
+  void setTypeInfo(void *dstptr, void *metadata, uint64_t size, uint32_t tag) ;
+  void setVAInfo(void *va_list, uint64_t totalCount, uint8_t *metadata_ptr) ;
+  void copyVAInfo(void *va_list_dst, uint8_t *va_list_src) ;
+  void trackctype(void *ptr, uint32_t tag) ;
+  void trackctype_32(void *ptr, uint32_t tag) ;
+  void trackStrncpyInst(void *dst, void *src, uint64_t size, uint32_t tag) ;
+  void trackStrcpyInst(void *dst, void *src, uint32_t tag) ;
+  void trackStrcatInst(void *dst, void *src, uint32_t tag) ;
+  void trackgetcwd(void *ptr, uint32_t tag) ;
+  void trackgethostname(void *ptr, uint32_t tag) ;
+  void trackgetaddrinfo(void *ptr, uint32_t tag) ;
+  void trackaccept(void *ptr, uint32_t tag) ;
+  void trackpoll(void *ptr, uint64_t nfds, uint32_t tag) ;
+}
 
 void trackInitInst(void *ptr, uint64_t size, uint32_t tag);
 
@@ -48,28 +93,22 @@ inline uintptr_t maskAddress(void *ptr) {
   return p;
 }
 
-
-void trackStringInput(void *ptr, uint32_t tag) {
-  trackInitInst(ptr, strlen(ptr) + 1, tag);
-}
-
-
 /**
  * Initialize the shadow memory which records the 1:1 mapping of addresses to types.
  */
 void shadowInit() {
-  char * res = mmap(BASE, SIZE, PROT_READ | PROT_WRITE, MAP_FIXED | MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE, -1, 0);
+  void * res = mmap(BASE, SIZE, PROT_READ | PROT_WRITE, MAP_FIXED | MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE, -1, 0);
 
   if (res == MAP_FAILED) {
     fprintf(stderr, "Failed to map the shadow memory!\n");
     fflush(stderr);
     assert(0 && "MAP_FAILED");
   }
+  VA_InfoMap.clear();
 }
 
 /**
- * Copy arguments into a new array, and initialize
- * metadata for that location to TOP/initialized.
+ * initialize metadata to TOP/initialized.
  */
 void trackArgvType(int argc, char **argv) {
   int index = 0;
@@ -79,6 +118,9 @@ void trackArgvType(int argc, char **argv) {
   trackInitInst(argv, (argc + 1)*sizeof(char*), 0);
 }
 
+/**
+ * initialize metadata to TOP/initialized.
+ */
 void trackEnvpType(char **envp) {
   int index = 0;
   for(;envp[index] != NULL; ++index)
@@ -119,8 +161,17 @@ void trackStoreInst(void *ptr, uint8_t typeNumber, uint64_t size, uint32_t tag) 
   uintptr_t p = maskAddress(ptr);
   shadow_begin[p] = typeNumber;
   memset(&shadow_begin[p + 1], 0, size - 1);
+#if DEBUG
   printf("Store(%d): %p, %p = %u | %lu bytes | \n", tag, ptr, (void *)p, typeNumber, size);
+#endif
 
+}
+
+/**
+ * Record that a string is stored at ptr
+ */
+void trackStringInput(void *ptr, uint32_t tag) {
+  trackInitInst(ptr, strlen((const char *)ptr) + 1, tag);
 }
 
 /** 
@@ -145,13 +196,19 @@ void compareNumber(uint64_t NumArgsPassed, uint64_t ArgAccessed, uint32_t tag){
  * Combined check for Va_arg. 
  * Check that no. of arguments is less than passed
  * Check that the type being accessed is correct
- * MD : pointer to array of metadata for each argument passed
  */
-void compareTypeAndNumber(uint64_t NumArgsPassed, uint64_t ArgAccessed, uint8_t TypeAccessed, void *MD, uint32_t tag) {
-  compareNumber(NumArgsPassed, ArgAccessed, tag);
-  compareTypes(TypeAccessed, ((uint8_t*)MD)[ArgAccessed], tag);
+void checkVAArgType(void *va_list, uint8_t TypeAccessed, uint32_t tag) {
+  va_info v = VA_InfoMap[va_list];
+  compareNumber(v.numElements, v.counter, tag);
+  compareTypes(TypeAccessed, v.metadata[v.counter], tag);
+  v.counter++;
+  VA_InfoMap[va_list] = v;
 }
 
+/**
+ * For loads, return the metadata(for size bytes) stored at the ptr
+ * Store it in dest
+ */
 void getTypeTag(void *ptr, uint64_t size, uint8_t *dest) {
   uintptr_t p = maskAddress(ptr);
   assert(p + size < SIZE);
@@ -159,8 +216,12 @@ void getTypeTag(void *ptr, uint64_t size, uint8_t *dest) {
   memcpy(dest, &shadow_begin[p], size);
 }
 
-void checkType(uint8_t typeNumber, uint64_t size, uint8_t *metadata, void *ptr, uint32_t tag) {
-  uint8_t i = 1;
+/**
+ * Compare the typeNumber with the type info(for given size) stored at the metadata ptr.
+ * ptr and tag are for debugging
+ */
+void __attribute__((always_inline))
+checkType(uint8_t typeNumber, uint64_t size, uint8_t *metadata, void *ptr, uint32_t tag) {
   /* Check if this an initialized but untyped memory.*/
   if (typeNumber != metadata[0]) {
     if (metadata[0] != 0xFF) {
@@ -169,7 +230,7 @@ void checkType(uint8_t typeNumber, uint64_t size, uint8_t *metadata, void *ptr, 
     } else {
       /* If so, set type to the type being read.
          Check that none of the bytes are typed.*/
-      for (; i < size; ++i) {
+      for (unsigned i = 1; i < size; ++i) {
         if (0xFF != metadata[i]) {
           printf("Type alignment mismatch(%u): expecting %s, found %s!\n", tag, typeNames[typeNumber], typeNames[metadata[i]]);
           break;
@@ -180,13 +241,12 @@ void checkType(uint8_t typeNumber, uint64_t size, uint8_t *metadata, void *ptr, 
     }
   }
 
-  for (; i < size; ++i) {
+  for (unsigned i = 1 ; i < size; ++i) {
     if (0 != metadata[i]) {
       printf("Type alignment mismatch(%u): expecting %s, found %s!\n", tag, typeNames[typeNumber], typeNames[metadata[0]]);
       break;
     }
   }
-
 }
 
 /**
@@ -213,7 +273,7 @@ void trackUnInitInst(void *ptr, uint64_t size, uint32_t tag) {
 }
 
 /**
- * Copy size bits of metadata from src ptr to dest ptr.
+ * Copy size bytes of metadata from src ptr to dest ptr.
  */
 void copyTypeInfo(void *dstptr, void *srcptr, uint64_t size, uint32_t tag) {
   uintptr_t d = maskAddress(dstptr);
@@ -223,9 +283,28 @@ void copyTypeInfo(void *dstptr, void *srcptr, uint64_t size, uint32_t tag) {
   printf("Copy(%d): %p, %p = %u | %lu bytes \n", tag, dstptr, srcptr, shadow_begin[s], size);
 #endif
 }
+
+/**
+ * Copy size bytes of metadata from metadata to dest ptr
+ */
 void setTypeInfo(void *dstptr, void *metadata, uint64_t size, uint32_t tag) {
   uintptr_t d = maskAddress(dstptr);
   memcpy(&shadow_begin[d], metadata, size);
+}
+
+/**
+ * Initialize the metadata for a given VAList
+ */
+void setVAInfo(void *va_list, uint64_t totalCount, uint8_t *metadata_ptr, uint32_t tag) {
+  struct va_info v = {totalCount, 0, metadata_ptr};
+  VA_InfoMap[va_list] = v;
+}
+
+/**
+ * Copy va list metadata from one list to the other.
+ */
+void copyVAInfo(void *va_list_dst, uint8_t *va_list_src, uint32_t tag) {
+  VA_InfoMap[va_list_dst] = VA_InfoMap[va_list_src];
 }
 
 /**
@@ -251,8 +330,8 @@ void trackctype_32(void *ptr, uint32_t tag) {
  * Initialize metadata for the dst pointer of strncpy
  */
 void trackStrncpyInst(void *dst, void *src, uint64_t size, uint32_t tag) {
-  if(strlen(src) < size)
-    size = strlen(src) + 1;
+  if(strlen((const char *)src) < size)
+    size = strlen((const char *)src) + 1;
   copyTypeInfo(dst, src, size, tag);
 }
 
@@ -260,22 +339,29 @@ void trackStrncpyInst(void *dst, void *src, uint64_t size, uint32_t tag) {
  * Initialize metadata for the dst pointer of strcpy
  */
 void trackStrcpyInst(void *dst, void *src, uint32_t tag) {
-  copyTypeInfo(dst, src, strlen(src)+1, tag);
+  copyTypeInfo(dst, src, strlen((const char *)src)+1, tag);
 }
 
+/**
+ * Initialize the metadata fr dst pointer of strcap
+ */
 void trackStrcatInst(void *dst, void *src, uint32_t tag) {
-  uintptr_t dst_start = (uintptr_t)(dst) + strlen(dst) -1;
-  copyTypeInfo((void*)dst_start, src, strlen(src)+1, tag);
+  uintptr_t dst_start = (uintptr_t)(dst) + strlen((const char *)dst) -1;
+  copyTypeInfo((void*)dst_start, src, strlen((const char *)src)+1, tag);
 }
+
+/**
+ * Initialize metadata for some library functions
+ */
 
 void trackgetcwd(void *ptr, uint32_t tag) {
   if(!ptr)
     return;
-  trackInitInst(ptr, strlen(ptr) + 1, tag);
+  trackInitInst(ptr, strlen((const char *)ptr) + 1, tag);
 }
 
 void trackgethostname(void *ptr, uint32_t tag) {
-  trackInitInst(ptr, strlen(ptr) + 1, tag);
+  trackInitInst(ptr, strlen((const char *)ptr) + 1, tag);
 }
 
 void trackgetaddrinfo(void *ptr, uint32_t tag) {

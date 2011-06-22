@@ -34,15 +34,11 @@ class Value;
 class TypeChecks : public ModulePass {
 private:
   std::map<const Type *, unsigned int> UsedTypes;
-  std::map<Function *, Function *> VAListFunctionsMap;
   std::map<Function *, Function *> IndFunctionsMap;
   std::list<Function *> VAArgFunctions;
-  std::list<Function *> VAListFunctions;
   std::list<Function *> ByValFunctions;
   std::list<Function *> AddressTakenFunctions;
   std::set<Instruction*> IndCalls;
-  // Map of VAList to current count
-  std::map<Value*, Value*> CounterMap;
 
   // Analysis from other passes.
   TargetData *TD;
@@ -68,6 +64,7 @@ private:
   bool visitLoadInst(Module &M, LoadInst &LI);
   bool visitStoreInst(Module &M, StoreInst &SI);
   bool visitAllocaInst(Module &M, AllocaInst &AI);
+  bool visitVAArgInst(Module &M, VAArgInst &VI);
 
   bool visitGlobal(Module &M, GlobalVariable &GV, 
                    Constant *C, Instruction &I, SmallVector<Value*,8>);
@@ -80,8 +77,6 @@ private:
 
 
   bool visitVarArgFunction(Module &M, Function &F); 
-  bool visitVAListFunction(Module &M, Function &F); 
-  void visitVAListCall(Function *F);
   bool visitInternalVarArgFunction(Module &M, Function &F); 
 
   bool visitInputFunctionValue(Module &M, Value *V, Instruction *CI);
