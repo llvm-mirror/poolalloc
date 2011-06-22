@@ -25,7 +25,7 @@
  * For now, run a version of the tool without the base fixed, and 
  * choose address.
  */
-#define BASE ((uint8_t *)(0x2aaaab88c000))
+#define BASE ((TypeTagTy *)(0x2aaaab88c000))
 /*
  * Do some macro magic to get mmap macros defined properly on all platforms.
  */
@@ -33,17 +33,19 @@
 # define MAP_ANONYMOUS MAP_ANON
 #endif /* defined(MAP_ANON) && !defined(MAP_ANONYMOUS) */
 
+typedef uint8_t TypeTagTy ;
+
 struct va_info {
   uint64_t numElements;
   uint64_t counter;
-  uint8_t *metadata;
+  TypeTagTy *metadata;
 };
 
 // Map to store info about va lists
 std::map<void *, struct va_info> VA_InfoMap;
 
 // Pointer to the shadow_memory
-uint8_t * const shadow_begin = BASE;
+TypeTagTy * const shadow_begin = BASE;
 
 // Map from type numbers to type names.
 extern char* typeNames[];
@@ -53,22 +55,22 @@ extern "C" {
   void shadowInit();
   void trackArgvType(int argc, char **argv) ;
   void trackEnvpType(char **envp) ;
-  void trackGlobal(void *ptr, uint8_t typeNumber, uint64_t size, uint32_t tag) ;
+  void trackGlobal(void *ptr, TypeTagTy typeNumber, uint64_t size, uint32_t tag) ;
   void trackArray(void *ptr, uint64_t size, uint64_t count, uint32_t tag) ;
-  void trackStoreInst(void *ptr, uint8_t typeNumber, uint64_t size, uint32_t tag) ;
+  void trackStoreInst(void *ptr, TypeTagTy typeNumber, uint64_t size, uint32_t tag) ;
   void trackStringInput(void *ptr, uint32_t tag) ;
-  void compareTypes(uint8_t typeNumberSrc, uint8_t typeNumberDest, uint32_t tag) ;
+  void compareTypes(TypeTagTy typeNumberSrc, TypeTagTy typeNumberDest, uint32_t tag) ;
   void compareNumber(uint64_t NumArgsPassed, uint64_t ArgAccessed, uint32_t tag);
   void compareTypeAndNumber(uint64_t NumArgsPassed, uint64_t ArgAccessed, uint8_t TypeAccessed, void *MD, uint32_t tag) ;
-  void checkVAArgType(void *va_list, uint8_t TypeAccessed, uint32_t tag) ;
-  void getTypeTag(void *ptr, uint64_t size, uint8_t *dest) ;
-  void checkType(uint8_t typeNumber, uint64_t size, uint8_t *metadata, void *ptr, uint32_t tag);
+  void checkVAArgType(void *va_list, TypeTagTy TypeAccessed, uint32_t tag) ;
+  void getTypeTag(void *ptr, uint64_t size, TypeTagTy *dest) ;
+  void checkType(TypeTagTy typeNumber, uint64_t size, TypeTagTy *metadata, void *ptr, uint32_t tag);
   void trackInitInst(void *ptr, uint64_t size, uint32_t tag) ;
   void trackUnInitInst(void *ptr, uint64_t size, uint32_t tag) ;
   void copyTypeInfo(void *dstptr, void *srcptr, uint64_t size, uint32_t tag) ;
   void setTypeInfo(void *dstptr, void *metadata, uint64_t size, uint32_t tag) ;
-  void setVAInfo(void *va_list, uint64_t totalCount, uint8_t *metadata_ptr) ;
-  void copyVAInfo(void *va_list_dst, uint8_t *va_list_src) ;
+  void setVAInfo(void *va_list, uint64_t totalCount, TypeTagTy *metadata_ptr) ;
+  void copyVAInfo(void *va_list_dst, void *va_list_src) ;
   void trackctype(void *ptr, uint32_t tag) ;
   void trackctype_32(void *ptr, uint32_t tag) ;
   void trackStrncpyInst(void *dst, void *src, uint64_t size, uint32_t tag) ;
@@ -131,7 +133,7 @@ void trackEnvpType(char **envp) {
 /**
  * Record the global type and address in the shadow memory.
  */
-void trackGlobal(void *ptr, uint8_t typeNumber, uint64_t size, uint32_t tag) {
+void trackGlobal(void *ptr, TypeTagTy typeNumber, uint64_t size, uint32_t tag) {
   uintptr_t p = maskAddress(ptr);
   shadow_begin[p] = typeNumber;
   memset(&shadow_begin[p + 1], 0, size - 1);
@@ -157,7 +159,7 @@ void trackArray(void *ptr, uint64_t size, uint64_t count, uint32_t tag) {
 /**
  * Record the stored type and address in the shadow memory.
  */
-void trackStoreInst(void *ptr, uint8_t typeNumber, uint64_t size, uint32_t tag) {
+void trackStoreInst(void *ptr, TypeTagTy typeNumber, uint64_t size, uint32_t tag) {
   uintptr_t p = maskAddress(ptr);
   shadow_begin[p] = typeNumber;
   memset(&shadow_begin[p + 1], 0, size - 1);
@@ -177,7 +179,7 @@ void trackStringInput(void *ptr, uint32_t tag) {
 /** 
  * Check that the two types match
  */
-void compareTypes(uint8_t typeNumberSrc, uint8_t typeNumberDest, uint32_t tag) {
+void compareTypes(TypeTagTy typeNumberSrc, TypeTagTy typeNumberDest, uint32_t tag) {
   if(typeNumberSrc != typeNumberDest) {
     printf("Type mismatch(%u): expecting %s, found %s! \n", tag, typeNames[typeNumberDest], typeNames[typeNumberSrc]);
   }
@@ -197,7 +199,7 @@ void compareNumber(uint64_t NumArgsPassed, uint64_t ArgAccessed, uint32_t tag){
  * Check that no. of arguments is less than passed
  * Check that the type being accessed is correct
  */
-void checkVAArgType(void *va_list, uint8_t TypeAccessed, uint32_t tag) {
+void checkVAArgType(void *va_list, TypeTagTy TypeAccessed, uint32_t tag) {
   va_info v = VA_InfoMap[va_list];
   compareNumber(v.numElements, v.counter, tag);
   compareTypes(TypeAccessed, v.metadata[v.counter], tag);
@@ -209,7 +211,7 @@ void checkVAArgType(void *va_list, uint8_t TypeAccessed, uint32_t tag) {
  * For loads, return the metadata(for size bytes) stored at the ptr
  * Store it in dest
  */
-void getTypeTag(void *ptr, uint64_t size, uint8_t *dest) {
+void getTypeTag(void *ptr, uint64_t size, TypeTagTy *dest) {
   uintptr_t p = maskAddress(ptr);
   assert(p + size < SIZE);
 
@@ -221,7 +223,7 @@ void getTypeTag(void *ptr, uint64_t size, uint8_t *dest) {
  * ptr and tag are for debugging
  */
 void __attribute__((always_inline))
-checkType(uint8_t typeNumber, uint64_t size, uint8_t *metadata, void *ptr, uint32_t tag) {
+checkType(TypeTagTy typeNumber, uint64_t size, TypeTagTy *metadata, void *ptr, uint32_t tag) {
   /* Check if this an initialized but untyped memory.*/
   if (typeNumber != metadata[0]) {
     if (metadata[0] != 0xFF) {
@@ -295,7 +297,7 @@ void setTypeInfo(void *dstptr, void *metadata, uint64_t size, uint32_t tag) {
 /**
  * Initialize the metadata for a given VAList
  */
-void setVAInfo(void *va_list, uint64_t totalCount, uint8_t *metadata_ptr, uint32_t tag) {
+void setVAInfo(void *va_list, uint64_t totalCount, TypeTagTy *metadata_ptr, uint32_t tag) {
   struct va_info v = {totalCount, 0, metadata_ptr};
   VA_InfoMap[va_list] = v;
 }
@@ -303,7 +305,7 @@ void setVAInfo(void *va_list, uint64_t totalCount, uint8_t *metadata_ptr, uint32
 /**
  * Copy va list metadata from one list to the other.
  */
-void copyVAInfo(void *va_list_dst, uint8_t *va_list_src, uint32_t tag) {
+void copyVAInfo(void *va_list_dst, void *va_list_src, uint32_t tag) {
   VA_InfoMap[va_list_dst] = VA_InfoMap[va_list_src];
 }
 

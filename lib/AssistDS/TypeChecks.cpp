@@ -60,6 +60,10 @@ static const Type *Int8Ty = 0;
 static const Type *Int32Ty = 0;
 static const Type *Int64Ty = 0;
 static const PointerType *VoidPtrTy = 0;
+
+static const Type *TypeTagTy = 0;
+static const Type *TypeTagPtrTy = 0;
+
 static Constant *One = 0;
 static Constant *Zero = 0;
 static Constant *RegisterArgv;
@@ -112,11 +116,11 @@ static Constant *getTagCounter() {
 }
 
 Constant *TypeChecks::getTypeMarkerConstant(Value * V) {
-  return ConstantInt::get(Int8Ty, getTypeMarker(V));
+  return ConstantInt::get(TypeTagTy, getTypeMarker(V));
 }
 
 Constant *TypeChecks::getTypeMarkerConstant(const Type *T) {
-  return ConstantInt::get(Int8Ty, getTypeMarker(T));
+  return ConstantInt::get(TypeTagTy, getTypeMarker(T));
 }
 
 bool TypeChecks::runOnModule(Module &M) {
@@ -131,6 +135,10 @@ bool TypeChecks::runOnModule(Module &M) {
   Int32Ty = IntegerType::getInt32Ty(M.getContext());
   Int64Ty = IntegerType::getInt64Ty(M.getContext());
   VoidPtrTy = PointerType::getUnqual(Int8Ty);
+
+  TypeTagTy = Int8Ty;
+  TypeTagPtrTy = PointerType::getUnqual(TypeTagTy);
+
   One = ConstantInt::get(Int64Ty, 1);
   Zero = ConstantInt::get(Int64Ty, 0);
 
@@ -146,7 +154,7 @@ bool TypeChecks::runOnModule(Module &M) {
   trackGlobal = M.getOrInsertFunction("trackGlobal",
                                       VoidTy,
                                       VoidPtrTy,/*ptr*/
-                                      Int8Ty,/*type*/
+                                      TypeTagTy,/*type*/
                                       Int64Ty,/*size*/
                                       Int32Ty,/*tag*/
                                       NULL);
@@ -172,7 +180,7 @@ bool TypeChecks::runOnModule(Module &M) {
   trackStoreInst = M.getOrInsertFunction("trackStoreInst",
                                          VoidTy,
                                          VoidPtrTy,/*ptr*/
-                                         Int8Ty,/*type*/
+                                         TypeTagTy,/*type*/
                                          Int64Ty,/*size*/
                                          Int32Ty,/*tag*/
                                          NULL);
@@ -180,20 +188,20 @@ bool TypeChecks::runOnModule(Module &M) {
                                      VoidTy,
                                      VoidPtrTy, /*ptr*/
                                      Int64Ty, /*size*/
-                                     VoidPtrTy, /*dest for type tag*/
+                                     TypeTagPtrTy, /*dest for type tag*/
                                      NULL);
   checkTypeInst = M.getOrInsertFunction("checkType",
                                         VoidTy,
-                                        Int8Ty,/*type*/
+                                        TypeTagTy,/*type*/
                                         Int64Ty,/*size*/
-                                        VoidPtrTy,
+                                        TypeTagPtrTy,/*ptr to metadata*/
                                         VoidPtrTy,/*ptr*/
                                         Int32Ty,/*tag*/
                                         NULL);
   setTypeInfo = M.getOrInsertFunction("setTypeInfo",
                                        VoidTy,
                                        VoidPtrTy,/*dest ptr*/
-                                       VoidPtrTy,/*metadata*/
+                                       TypeTagPtrTy,/*metadata*/
                                        Int64Ty,/*size*/
                                        Int32Ty,/*tag*/
                                        NULL);
@@ -213,7 +221,7 @@ bool TypeChecks::runOnModule(Module &M) {
                                     VoidTy,
                                     VoidPtrTy,/*va_list ptr*/
                                     Int64Ty,/*total num of elements in va_list */
-                                    VoidPtrTy,/*ptr to metadta*/
+                                    TypeTagPtrTy,/*ptr to metadta*/
                                     Int32Ty,/*tag*/
                                     NULL);
   copyVAInfo = M.getOrInsertFunction("copyVAInfo",
@@ -225,7 +233,7 @@ bool TypeChecks::runOnModule(Module &M) {
   checkVAArg = M.getOrInsertFunction("checkVAArgType",
                                      VoidTy,
                                      VoidPtrTy,/*va_list ptr*/
-                                     Int8Ty,/*type*/
+                                     TypeTagTy,/*type*/
                                      Int32Ty,/*tag*/
                                      NULL);
 
@@ -527,7 +535,7 @@ bool TypeChecks::visitAddressTakenFunction(Module &M, Function &F) {
     unsigned int NumArgs = CI->getNumOperands() - 1;
     inst_iterator InsPt = inst_begin(CI->getParent()->getParent());
     Value *NumArgsVal = ConstantInt::get(Int32Ty, NumArgs);
-    AllocaInst *AI = new AllocaInst(Int8Ty, NumArgsVal, "", &*InsPt);
+    AllocaInst *AI = new AllocaInst(TypeTagTy, NumArgsVal, "", &*InsPt);
     // set the metadata for the varargs in AI
     for(i = 1; i <CI->getNumOperands(); i++) {
       Value *Idx[2];
@@ -599,7 +607,7 @@ bool TypeChecks::visitInternalVarArgFunction(Module &M, Function &F) {
   // 1. Create the new argument types vector
   std::vector<const Type*> TP;
   TP.push_back(Int64Ty); // for count
-  TP.push_back(VoidPtrTy); // for MD
+  TP.push_back(TypeTagPtrTy); // for MD
   for(Function::arg_iterator I = F.arg_begin(); I !=F.arg_end(); ++I) {
     TP.push_back(I->getType());
   }
@@ -719,7 +727,7 @@ bool TypeChecks::visitInternalVarArgFunction(Module &M, Function &F) {
       unsigned int i;
       unsigned int NumArgs = II->getNumOperands() - 3;
       Value *NumArgsVal = ConstantInt::get(Int32Ty, NumArgs);
-      AllocaInst *AI = new AllocaInst(Int8Ty, NumArgsVal, "", &*InsPt);
+      AllocaInst *AI = new AllocaInst(TypeTagTy, NumArgsVal, "", &*InsPt);
       // set the metadata for the varargs in AI
       for(i = 3; i <II->getNumOperands(); i++) {
         Value *Idx[2];
@@ -755,7 +763,7 @@ bool TypeChecks::visitInternalVarArgFunction(Module &M, Function &F) {
       unsigned int i;
       unsigned int NumArgs = CI->getNumOperands() - 1;
       Value *NumArgsVal = ConstantInt::get(Int32Ty, NumArgs);
-      AllocaInst *AI = new AllocaInst(Int8Ty, NumArgsVal, "", &*InsPt);
+      AllocaInst *AI = new AllocaInst(TypeTagTy, NumArgsVal, "", &*InsPt);
       // set the metadata for the varargs in AI
       for(i = 1; i <CI->getNumOperands(); i++) {
         Value *Idx[2];
@@ -1122,30 +1130,30 @@ bool TypeChecks::initShadow(Module &M) {
   return true;
 }
 
-  bool TypeChecks::visitMain(Module &M, Function &MainFunc) {
-    if(MainFunc.arg_size() < 2)
-      // No need to register
-      return false;
+bool TypeChecks::visitMain(Module &M, Function &MainFunc) {
+  if(MainFunc.arg_size() < 2)
+    // No need to register
+    return false;
 
-    Function::arg_iterator AI = MainFunc.arg_begin();
-    Value *Argc = AI;
-    Value *Argv = ++AI;
+  Function::arg_iterator AI = MainFunc.arg_begin();
+  Value *Argc = AI;
+  Value *Argv = ++AI;
 
-    Instruction *InsertPt = MainFunc.front().begin();
-    std::vector<Value *> fargs;
-    fargs.push_back (Argc);
-    fargs.push_back (Argv);
-    CallInst::Create (RegisterArgv, fargs.begin(), fargs.end(), "", InsertPt);
+  Instruction *InsertPt = MainFunc.front().begin();
+  std::vector<Value *> fargs;
+  fargs.push_back (Argc);
+  fargs.push_back (Argv);
+  CallInst::Create (RegisterArgv, fargs.begin(), fargs.end(), "", InsertPt);
 
-    if(MainFunc.arg_size() < 3)
-      return true;
-
-    Value *Envp = ++AI;
-    std::vector<Value*> Args;
-    Args.push_back(Envp);
-    CallInst::Create(RegisterEnvp, Args.begin(), Args.end(), "", InsertPt);
+  if(MainFunc.arg_size() < 3)
     return true;
-  }
+
+  Value *Envp = ++AI;
+  std::vector<Value*> Args;
+  Args.push_back(Envp);
+  CallInst::Create(RegisterEnvp, Args.begin(), Args.end(), "", InsertPt);
+  return true;
+}
 
 bool TypeChecks::visitGlobal(Module &M, GlobalVariable &GV, 
                              Constant *C, Instruction &I, SmallVector<Value *,8> Indices) {
@@ -1240,17 +1248,17 @@ bool TypeChecks::visitGlobal(Module &M, GlobalVariable &GV,
   }
   return true;
 }
-bool TypeChecks::visitVAArgInst(Module &M, VAArgInst &VI) {
-  if(!VI.getParent()->getParent()->hasInternalLinkage())
+  bool TypeChecks::visitVAArgInst(Module &M, VAArgInst &VI) {
+    if(!VI.getParent()->getParent()->hasInternalLinkage())
+      return false;
+    CastInst *BCI = BitCastInst::CreatePointerCast(VI.getOperand(0), VoidPtrTy, "", &VI);
+    std::vector<Value *>Args;
+    Args.push_back(BCI);
+    Args.push_back(getTypeMarkerConstant(&VI));
+    Args.push_back(getTagCounter());
+    CallInst::Create(checkVAArg, Args.begin(), Args.end(), "", &VI);
     return false;
-  CastInst *BCI = BitCastInst::CreatePointerCast(VI.getOperand(0), VoidPtrTy, "", &VI);
-  std::vector<Value *>Args;
-  Args.push_back(BCI);
-  Args.push_back(getTypeMarkerConstant(&VI));
-  Args.push_back(getTagCounter());
-  CallInst::Create(checkVAArg, Args.begin(), Args.end(), "", &VI);
-  return false;
-}
+  }
 
 // Insert code to initialize meta data to bottom
 // Insert code to set objects to 0
@@ -1630,7 +1638,7 @@ bool TypeChecks::visitIndirectCallSite(Module &M, Instruction *I) {
   const FunctionType *FOldType = cast<FunctionType>((cast<PointerType>(OrigType))->getElementType());
   std::vector<const Type*>TP;
   TP.push_back(Int64Ty);
-  TP.push_back(VoidPtrTy);
+  TP.push_back(TypeTagPtrTy);
 
   for(llvm::FunctionType::param_iterator ArgI = FOldType->param_begin(); ArgI != FOldType->param_end(); ++ArgI)
     TP.push_back(*ArgI);
@@ -1640,14 +1648,11 @@ bool TypeChecks::visitIndirectCallSite(Module &M, Instruction *I) {
 
   inst_iterator InsPt = inst_begin(I->getParent()->getParent());
 
-
-
-
   if(isa<CallInst>(I)) {
     unsigned int NumArgs = I->getNumOperands() - 1;
     Value *NumArgsVal = ConstantInt::get(Int32Ty, NumArgs);
 
-    AllocaInst *AI = new AllocaInst(Int8Ty, NumArgsVal, "", &*InsPt);
+    AllocaInst *AI = new AllocaInst(TypeTagTy, NumArgsVal, "", &*InsPt);
     for(unsigned int i = 1; i < I->getNumOperands(); i++) {
       Value *Idx[2];
       Idx[0] = ConstantInt::get(Int32Ty, i-1);
@@ -1675,7 +1680,7 @@ bool TypeChecks::visitIndirectCallSite(Module &M, Instruction *I) {
     unsigned int NumArgs = I->getNumOperands() - 3;
     Value *NumArgsVal = ConstantInt::get(Int32Ty, NumArgs);
 
-    AllocaInst *AI = new AllocaInst(Int8Ty, NumArgsVal, "", &*InsPt);
+    AllocaInst *AI = new AllocaInst(TypeTagTy, NumArgsVal, "", &*InsPt);
     for(unsigned int i = 3; i < I->getNumOperands(); i++) {
       Value *Idx[2];
       Idx[0] = ConstantInt::get(Int32Ty, i-3);
@@ -1746,7 +1751,7 @@ bool TypeChecks::visitLoadInst(Module &M, LoadInst &LI) {
   CastInst *BCI = BitCastInst::CreatePointerCast(LI.getPointerOperand(), VoidPtrTy, "", &LI);
 
   Value *Size = ConstantInt::get(Int32Ty, getSize(LI.getType()));
-  AllocaInst *AI = new AllocaInst(Int8Ty, Size, "", &*InsPt);
+  AllocaInst *AI = new AllocaInst(TypeTagTy, Size, "", &*InsPt);
   CastInst *BCI_MD = BitCastInst::CreatePointerCast(AI, VoidPtrTy, "", &*InsPt);
 
   std::vector<Value *>Args1;
@@ -1800,7 +1805,6 @@ bool TypeChecks::visitLoadInst(Module &M, LoadInst &LI) {
     // No uses needed checks
     getTypeCall->eraseFromParent();
   }
-
 
   // Create the call to the runtime check and place it before the load instruction.
   numLoadChecks++;
