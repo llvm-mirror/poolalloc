@@ -40,8 +40,8 @@ STATISTIC(numStoreChecks, "Number of Store Insts that need type checks");
 STATISTIC(numTypes, "Number of Types used in the module");
 
 namespace {
-  static cl::opt<bool> DisablePointerTypeChecks("disable-ptr-type-checks",
-         cl::desc("DONT Distinguish pointer types"),
+  static cl::opt<bool> EnablePointerTypeChecks("enable-ptr-type-checks",
+         cl::desc("Distinguish pointer types in loads"),
          cl::Hidden,
          cl::init(false));
   static cl::opt<bool> DisablePtrCmpChecks("no-ptr-cmp-checks",
@@ -88,7 +88,7 @@ static Constant *copyVAInfo;
 static Constant *checkVAArg;
 
 unsigned int TypeChecks::getTypeMarker(const Type * Ty) {
-  if(DisablePointerTypeChecks) {
+  if(!EnablePointerTypeChecks) {
     if(Ty->isPointerTy()) {
       Ty = VoidPtrTy;
     }

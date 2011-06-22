@@ -13,8 +13,6 @@ RELDIR  := $(subst $(PROJ_OBJ_ROOT),,$(PROJ_OBJ_DIR))
 # Pathname to poolalloc object tree
 PADIR   := $(LLVM_OBJ_ROOT)/projects/poolalloc
 
-LLC := /localhome/aggarwa4/llvm29/llvm-obj/Debug+Asserts/bin/llc
-
 # Pathame to the DSA pass dynamic library
 DSA_SO   := $(PADIR)/$(CONFIGURATION)/lib/libLLVMDataStructure$(SHLIBEXT)
 ASSIST_SO := $(PADIR)/$(CONFIGURATION)/lib/libAssistDS$(SHLIBEXT)
@@ -32,6 +30,8 @@ ANALYZE_OPTS := -stats -time-passes -disable-output -dsstats
 #ANALYZE_OPTS := -stats -time-passes -dsstats 
 ANALYZE_OPTS +=  -instcount -disable-verify 
 MEM := -track-memory -time-passes -disable-output
+
+LDFLAGS += -lstdc++
 
 #SAFE_OPTS := -internalize -scalarrepl -deadargelim -globaldce -basiccg -inline 
 SAFE_OPTS := -internalize -mem2reg -constprop -ipsccp -dce -deadargelim -globaldce -basiccg -inline
@@ -66,7 +66,7 @@ Output/%.tc.bc: Output/%.opt.bc $(LOPT) $(ASSIST_SO)
 
 $(PROGRAMS_TO_TEST:%=Output/%.tcd.bc): \
 Output/%.tcd.bc: Output/%.opt.bc $(LOPT) $(ASSIST_SO)
-	-$(RUNOPT) -load $(ASSIST_SO)  -typechecks -disable-ptr-type-checks -dce -ipsccp -dce -stats -info-output-file=$(CURDIR)/$@.info $< -f -o $@.temp
+	-$(RUNOPT) -load $(ASSIST_SO)  -typechecks -enable-ptr-type-checks -dce -ipsccp -dce -stats -info-output-file=$(CURDIR)/$@.info $< -f -o $@.temp
 	-$(LLVMLD) -disable-opt -o $@.ld $@.temp $(TYPE_RT_BC)
 	-$(LOPT) $(SAFE_OPTS) $@.ld.bc -o $@ -f
 	#-$(RUNOPT) -load $(ASSIST_SO) $(SAFE_OPTS) -typechecks-runtime-opt $@.ld.bc -o $@ -f
@@ -87,7 +87,7 @@ Output/%.tcoo.bc: Output/%.opt.bc $(LOPT) $(ASSIST_SO)
 
 $(PROGRAMS_TO_TEST:%=Output/%.tcoo1.bc): \
 Output/%.tcoo1.bc: Output/%.opt.bc $(LOPT) $(ASSIST_SO)
-	-$(RUNOPT) -load $(ASSIST_SO) -typechecks  -enable-type-inference-opts -dsa-stdlib-no-fold -typechecks-opt -typechecks-cmp-opt -dce -ipsccp -dce -stats -info-output-file=$(CURDIR)/$@.info $< -f -o $@.temp 
+	-$(RUNOPT) -load $(ASSIST_SO) -typechecks  -no-ptr-cmp-checks -enable-type-inference-opts -dsa-stdlib-no-fold -typechecks-opt -dce -ipsccp -dce -stats -info-output-file=$(CURDIR)/$@.info $< -f -o $@.temp 
 	-$(LLVMLD) -disable-opt -o $@.ld $@.temp $(TYPE_RT_BC)
 	-$(LOPT) $(SAFE_OPTS) $@.ld.bc -o $@ -f
 	#-$(RUNOPT) -load $(ASSIST_SO) $(SAFE_OPTS) -typechecks-runtime-opt $@.ld.bc -o $@ -f
@@ -288,7 +288,7 @@ Output/%.diff-count1: Output/%.out-nat Output/%.out-count1
 
 
 $(PROGRAMS_TO_TEST:%=Output/%.$(TEST).report.txt): \
-Output/%.$(TEST).report.txt: Output/%.opt.bc Output/%.LOC.txt $(LOPT) Output/%.out-nat Output/%.diff-llvm1 Output/%.diff-opt Output/%.diff-tc Output/%.diff-tco Output/%.diff-tcoo Output/%.diff-tcd Output/%.diff-count Output/%.diff-count1
+Output/%.$(TEST).report.txt: Output/%.opt.bc Output/%.LOC.txt $(LOPT) Output/%.out-nat Output/%.diff-llvm1 Output/%.diff-opt Output/%.diff-tc Output/%.diff-tco Output/%.diff-tcoo Output/%.diff-tcd Output/%.diff-count Output/%.diff-count1 Output/%.diff-tcoo1
 	@# Gather data
 	-($(RUNOPT)  -dsa-$(PASS) -enable-type-inference-opts -dsa-stdlib-no-fold $(ANALYZE_OPTS) $<)> $@.time.1 2>&1
 	-($(RUNOPT)  -dsa-$(PASS)  $(ANALYZE_OPTS) $<)> $@.time.2 2>&1
