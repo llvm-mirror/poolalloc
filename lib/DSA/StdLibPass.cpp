@@ -302,6 +302,9 @@ const struct {
   {"sc.fsparameter",  {NRET_NARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
   {"sc.fscallinfo",   {NRET_YARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
   {"pool_printf",     {NRET_YARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
+  {"pool_fprintf",    {NRET_YARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
+  {"pool_sprintf",    {NRET_YARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
+  {"pool_snprintf",   {NRET_YARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
   
   // Type Checks
   {"trackGlobal",          {NRET_NARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS,   false}},
