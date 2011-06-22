@@ -69,8 +69,8 @@ extern "C" {
   void trackUnInitInst(void *ptr, uint64_t size, uint32_t tag) ;
   void copyTypeInfo(void *dstptr, void *srcptr, uint64_t size, uint32_t tag) ;
   void setTypeInfo(void *dstptr, void *metadata, uint64_t size, uint32_t tag) ;
-  void setVAInfo(void *va_list, uint64_t totalCount, TypeTagTy *metadata_ptr) ;
-  void copyVAInfo(void *va_list_dst, void *va_list_src) ;
+  void setVAInfo(void *va_list, uint64_t totalCount, TypeTagTy *metadata_ptr, uint32_t tag) ;
+  void copyVAInfo(void *va_list_dst, void *va_list_src, uint32_t tag) ;
   void trackctype(void *ptr, uint32_t tag) ;
   void trackctype_32(void *ptr, uint32_t tag) ;
   void trackStrncpyInst(void *dst, void *src, uint64_t size, uint32_t tag) ;
