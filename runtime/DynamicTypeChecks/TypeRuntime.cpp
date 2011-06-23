@@ -2,6 +2,7 @@
 #include <inttypes.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <iostream.h>
 #include <stdlib.h>
 #include <string.h>
 #include <netdb.h>
@@ -140,7 +141,7 @@ void trackGlobal(void *ptr, TypeTagTy typeNumber, uint64_t size, uint32_t tag) {
   shadow_begin[p] = typeNumber;
   memset(&shadow_begin[p + 1], 0, size - 1);
 #if DEBUG
-  printf("Global(%d): %p, %p = %u | %lu bytes\n", tag, ptr, (void *)p, typeNumber, size);
+  cerr << "Global(" << tag << "): " << ptr << "= " << typeNumber << " " << size << "bytes\n";
 #endif
 }
 
@@ -166,7 +167,7 @@ void trackStoreInst(void *ptr, TypeTagTy typeNumber, uint64_t size, uint32_t tag
   shadow_begin[p] = typeNumber;
   memset(&shadow_begin[p + 1], 0, size - 1);
 #if DEBUG
-  printf("Store(%d): %p, %p = %u | %lu bytes | \n", tag, ptr, (void *)p, typeNumber, size);
+  cerr << "Store(" << tag << "): " << ptr << "= " << typeNumber << " " << size << "bytes\n";
 #endif
 }
 
@@ -191,7 +192,7 @@ void compareTypes(TypeTagTy typeNumberSrc, TypeTagTy typeNumberDest, uint32_t ta
  */
 void compareNumber(uint64_t NumArgsPassed, uint64_t ArgAccessed, uint32_t tag){
   if(ArgAccessed > NumArgsPassed) {
-    printf("Type mismatch(%u): Accessing variable %lu, passed only %lu! \n", tag, ArgAccessed, NumArgsPassed);
+    cerr << "Type mismatch " << tag << "Accessing variable " << ArgAccessed << "passed only " << NumArgsPassed;
   }
 }
 
@@ -260,7 +261,7 @@ void trackInitInst(void *ptr, uint64_t size, uint32_t tag) {
   uintptr_t p = maskAddress(ptr);
   memset(&shadow_begin[p], 0xFF, size);
 #if DEBUG
-  printf("Initialize: %p, %p | %lu bytes | %u\n", ptr, (void *)p, size, tag);
+  cerr << "Initialize(" << tag << "): " << ptr << " " << size << "bytes\n";
 #endif
 }
 
@@ -271,7 +272,7 @@ void trackUnInitInst(void *ptr, uint64_t size, uint32_t tag) {
   uintptr_t p = maskAddress(ptr);
   memset(&shadow_begin[p], 0x00, size);
 #if DEBUG
-  printf("Unitialize: %p, %p | %lu bytes | %u\n", ptr, (void *)p, size, tag);
+  cerr << "Uninitialize(" << tag << "): " << ptr << " " << size << "bytes\n";
 #endif
 }
 
@@ -283,7 +284,7 @@ void copyTypeInfo(void *dstptr, void *srcptr, uint64_t size, uint32_t tag) {
   uintptr_t s = maskAddress(srcptr);
   memcpy(&shadow_begin[d], &shadow_begin[s], size);
 #if DEBUG
-  printf("Copy(%d): %p, %p = %u | %lu bytes \n", tag, dstptr, srcptr, shadow_begin[s], size);
+  cerr << "Copy(" << tag << "): Dest = " << dstptr << " Source = " << srcptr << " " << size << "bytes\n";
 #endif
 }
 
@@ -294,7 +295,7 @@ void setTypeInfo(void *dstptr, TypeTagTy *metadata, uint64_t size, uint32_t tag)
   uintptr_t d = maskAddress(dstptr);
   memcpy(&shadow_begin[d], metadata, size);
 #if DEBUG
-  printf("Set(%d): %p, %p | %lu bytes \n", tag, dstptr, metadata, size);
+  cerr << "Set(" << tag << "): Dest = " << dstptr << " Source = " << metadata << " " << size << "bytes\n";
 #endif
 }
 
