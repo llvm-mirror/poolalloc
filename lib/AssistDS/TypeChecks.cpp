@@ -1778,17 +1778,31 @@ bool TypeChecks::visitLoadInst(Module &M, LoadInst &LI) {
     Args.push_back(getTagCounter());
     CallInst::Create(checkTypeInst, Args.begin(), Args.end(), "", &LI);
   }
+  visitUses(&LI, AI, BCI);
 
-  for(Value::use_iterator II = LI.use_begin(); II != LI.use_end(); ++II) {
+  if(AI->getNumUses() == 1) {
+    // No uses needed checks
+    getTypeCall->eraseFromParent();
+  }
+
+  // Create the call to the runtime check and place it before the load instruction.
+  numLoadChecks++;
+  return true;
+}
+// AI - metadata
+// BCI - ptr
+bool TypeChecks::visitUses(Instruction *I, AllocaInst *AI, CastInst *BCI) {
+  for(Value::use_iterator II = I->use_begin(); II != I->use_end(); ++II) {
     if(DisablePtrCmpChecks) {
       if(isa<CmpInst>(II)) {
-        if(LI.getType()->isPointerTy())
+        if(I->getType()->isPointerTy())
           continue;
       }
     }
+
     std::vector<Value *> Args;
-    Args.push_back(getTypeMarkerConstant(&LI));
-    Args.push_back(getSizeConstant(LI.getType()));
+    Args.push_back(getTypeMarkerConstant(I));
+    Args.push_back(getSizeConstant(I->getType()));
     Args.push_back(AI);
     Args.push_back(BCI);
     Args.push_back(getTagCounter());
@@ -1803,24 +1817,18 @@ bool TypeChecks::visitLoadInst(Module &M, LoadInst &LI) {
       Args.push_back(getTagCounter());
       // Create the call to the runtime check and place it before the copying store instruction.
       CallInst::Create(setTypeInfo, Args.begin(), Args.end(), "", SI);
-    }
-    else if(PHINode *PH = dyn_cast<PHINode>(II)) {
+    } else if(PHINode *PH = dyn_cast<PHINode>(II)) {
       BasicBlock *BB = PH->getIncomingBlock(II);
       CallInst::Create(checkTypeInst, Args.begin(), Args.end(), "", BB->getTerminator());
+    } else if(BitCastInst *BI = dyn_cast<BitCastInst>(II)) {
+      visitUses(BI, AI, BCI);
+      //CallInst::Create(checkTypeInst, Args.begin(), Args.end(), "", cast<Instruction>(II.getUse().getUser()));
     } else {
       CallInst::Create(checkTypeInst, Args.begin(), Args.end(), "", cast<Instruction>(II.getUse().getUser()));
     }
   }
-  if(AI->getNumUses() == 1) {
-    // No uses needed checks
-    getTypeCall->eraseFromParent();
-  }
-
-  // Create the call to the runtime check and place it before the load instruction.
-  numLoadChecks++;
   return true;
 }
-
 // Insert runtime checks before all store instructions.
 bool TypeChecks::visitStoreInst(Module &M, StoreInst &SI) {
   // Cast the pointer operand to i8* for the runtime function.
