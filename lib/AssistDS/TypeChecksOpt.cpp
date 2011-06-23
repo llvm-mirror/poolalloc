@@ -41,6 +41,8 @@ static const Type *Int8Ty = 0;
 static const Type *Int32Ty = 0;
 static const Type *Int64Ty = 0;
 static const PointerType *VoidPtrTy = 0;
+static const Type *TypeTagTy = 0;
+static const Type *TypeTagPtrTy = 0;
 static Constant *trackGlobal;
 static Constant *trackStringInput;
 static Constant *trackInitInst;
@@ -60,11 +62,13 @@ bool TypeChecksOpt::runOnModule(Module &M) {
   Int32Ty = IntegerType::getInt32Ty(M.getContext());
   Int64Ty = IntegerType::getInt64Ty(M.getContext());
   VoidPtrTy = PointerType::getUnqual(Int8Ty);
+  TypeTagTy = Int8Ty;
+  TypeTagPtrTy = PointerType::getUnqual(TypeTagTy);
 
   trackGlobal = M.getOrInsertFunction("trackGlobal",
                                       VoidTy,
                                       VoidPtrTy,/*ptr*/
-                                      Int8Ty,/*type*/
+                                      TypeTagTy,/*type*/
                                       Int64Ty,/*size*/
                                       Int32Ty,/*tag*/
                                       NULL);
@@ -83,13 +87,13 @@ bool TypeChecksOpt::runOnModule(Module &M) {
   trackStoreInst = M.getOrInsertFunction("trackStoreInst",
                                          VoidTy,
                                          VoidPtrTy,/*ptr*/
-                                         Int8Ty,/*type*/
+                                         TypeTagTy,/*type*/
                                          Int64Ty,/*size*/
                                          Int32Ty,/*tag*/
                                          NULL);
   checkTypeInst = M.getOrInsertFunction("checkType",
                                         VoidTy,
-                                        Int8Ty,/*type*/
+                                        TypeTagTy,/*type*/
                                         Int64Ty,/*size*/
                                         VoidPtrTy,
                                         VoidPtrTy,/*ptr*/
@@ -105,7 +109,7 @@ bool TypeChecksOpt::runOnModule(Module &M) {
   setTypeInfo = M.getOrInsertFunction("setTypeInfo",
                                        VoidTy,
                                        VoidPtrTy,/*dest ptr*/
-                                       VoidPtrTy,/*metadata*/
+                                       TypeTagPtrTy,/*metadata*/
                                        Int64Ty,/*size*/
                                        Int32Ty,/*tag*/
                                        NULL);
