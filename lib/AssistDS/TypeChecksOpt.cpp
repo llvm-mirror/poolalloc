@@ -51,6 +51,7 @@ static Constant *trackStoreInst;
 static Constant *copyTypeInfo;
 static Constant *setTypeInfo;
 static Constant *checkTypeInst;
+static Constant *getTypeTag;
 static Constant *MallocFunc;
 
 bool TypeChecksOpt::runOnModule(Module &M) {
@@ -118,6 +119,12 @@ bool TypeChecksOpt::runOnModule(Module &M) {
                                            VoidPtrTy,
                                            Int32Ty,
                                            NULL);
+  getTypeTag = M.getOrInsertFunction("getTypeTag",
+                                     VoidTy,
+                                     VoidPtrTy, /*ptr*/
+                                     Int64Ty, /*size*/
+                                     TypeTagPtrTy, /*dest for type tag*/
+                                     NULL);
   MallocFunc = M.getFunction("malloc");
 
   for(Value::use_iterator User = trackGlobal->use_begin(); User != trackGlobal->use_end(); ++User) {
@@ -210,6 +217,14 @@ bool TypeChecksOpt::runOnModule(Module &M) {
       Args.push_back(CI->getOperand(3)); // size
       Args.push_back(CI->getOperand(4));
       CallInst::Create(trackInitInst, Args.begin(), Args.end(), "", CI);
+      toDelete.push_back(CI);
+    }
+  }
+
+  for(Value::use_iterator User = getTypeTag->use_begin(); User != getTypeTag->use_end(); ++User) {
+    CallInst *CI = dyn_cast<CallInst>(User);
+    assert(CI);
+    if(TS->isTypeSafe(CI->getOperand(1)->stripPointerCasts(), CI->getParent()->getParent())) {
       toDelete.push_back(CI);
     }
   }
