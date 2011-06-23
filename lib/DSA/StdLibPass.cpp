@@ -305,6 +305,11 @@ const struct {
   {"pool_fprintf",    {NRET_YARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
   {"pool_sprintf",    {NRET_YARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
   {"pool_snprintf",   {NRET_YARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
+  {"pool_err",        {NRET_YARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
+  {"pool_errx",       {NRET_YARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
+  {"pool_warn",       {NRET_YARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
+  {"pool_warnx",      {NRET_YARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
+  {"pool_syslog",     {NRET_YARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
   
   // Type Checks
   {"trackGlobal",          {NRET_NARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS,   false}},
