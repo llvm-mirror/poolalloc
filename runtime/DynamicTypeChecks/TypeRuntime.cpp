@@ -6,6 +6,7 @@
 #include <string.h>
 #include <netdb.h>
 #include <poll.h>
+#include <pwd.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/mman.h>
@@ -77,6 +78,7 @@ extern "C" {
   void trackStrcpyInst(void *dst, void *src, uint32_t tag) ;
   void trackStrcatInst(void *dst, void *src, uint32_t tag) ;
   void trackgetcwd(void *ptr, uint32_t tag) ;
+  void trackgetpwuid(void *ptr, uint32_t tag) ;
   void trackgethostname(void *ptr, uint32_t tag) ;
   void trackgetaddrinfo(void *ptr, uint32_t tag) ;
   void trackaccept(void *ptr, uint32_t tag) ;
@@ -166,7 +168,6 @@ void trackStoreInst(void *ptr, TypeTagTy typeNumber, uint64_t size, uint32_t tag
 #if DEBUG
   printf("Store(%d): %p, %p = %u | %lu bytes | \n", tag, ptr, (void *)p, typeNumber, size);
 #endif
-
 }
 
 /**
@@ -181,7 +182,7 @@ void trackStringInput(void *ptr, uint32_t tag) {
  */
 void compareTypes(TypeTagTy typeNumberSrc, TypeTagTy typeNumberDest, uint32_t tag) {
   if(typeNumberSrc != typeNumberDest) {
-    printf("Type mismatch(%u): expecting %s, found %s! \n", tag, typeNames[typeNumberDest], typeNames[typeNumberSrc]);
+    printf("Type mismatch(%u): expecting %s, found %s! \n", tag, typeNames[typeNumberSrc], typeNames[typeNumberDest]);
   }
 }
 
@@ -222,7 +223,7 @@ void getTypeTag(void *ptr, uint64_t size, TypeTagTy *dest) {
  * Compare the typeNumber with the type info(for given size) stored at the metadata ptr.
  * ptr and tag are for debugging
  */
-void __attribute__((always_inline))
+void 
 checkType(TypeTagTy typeNumber, uint64_t size, TypeTagTy *metadata, void *ptr, uint32_t tag) {
   /* Check if this an initialized but untyped memory.*/
   if (typeNumber != metadata[0]) {
@@ -360,6 +361,14 @@ void trackgetcwd(void *ptr, uint32_t tag) {
   if(!ptr)
     return;
   trackInitInst(ptr, strlen((const char *)ptr) + 1, tag);
+}
+
+void trackgetpwuid(void *ptr, uint32_t tag) {
+  struct passwd *p = (struct passwd *)ptr;
+  trackInitInst(p->pw_name, strlen(p->pw_name) + 1, tag);
+  trackInitInst(p->pw_dir, strlen(p->pw_dir) + 1, tag);
+  trackInitInst(p->pw_shell, strlen(p->pw_shell) + 1, tag);
+  trackInitInst(p, sizeof(struct passwd), tag);
 }
 
 void trackgethostname(void *ptr, uint32_t tag) {
