@@ -1761,18 +1761,17 @@ bool TypeChecks::visitLoadInst(Module &M, LoadInst &LI) {
 
   Value *Size = ConstantInt::get(Int32Ty, getSize(LI.getType()));
   AllocaInst *AI = new AllocaInst(TypeTagTy, Size, "", &*InsPt);
-  CastInst *BCI_MD = BitCastInst::CreatePointerCast(AI, VoidPtrTy, "", &*InsPt);
 
   std::vector<Value *>Args1;
   Args1.push_back(BCI);
   Args1.push_back(getSizeConstant(LI.getType()));
-  Args1.push_back(BCI_MD);
+  Args1.push_back(AI);
   CallInst *getTypeCall = CallInst::Create(getTypeTag, Args1.begin(), Args1.end(), "", &LI);
   if(TrackAllLoads) {
     std::vector<Value *> Args;
     Args.push_back(getTypeMarkerConstant(&LI));
     Args.push_back(getSizeConstant(LI.getType()));
-    Args.push_back(BCI_MD);
+    Args.push_back(AI);
     Args.push_back(BCI);
     Args.push_back(getTagCounter());
     CallInst::Create(checkTypeInst, Args.begin(), Args.end(), "", &LI);
@@ -1788,7 +1787,7 @@ bool TypeChecks::visitLoadInst(Module &M, LoadInst &LI) {
     std::vector<Value *> Args;
     Args.push_back(getTypeMarkerConstant(&LI));
     Args.push_back(getSizeConstant(LI.getType()));
-    Args.push_back(BCI_MD);
+    Args.push_back(AI);
     Args.push_back(BCI);
     Args.push_back(getTagCounter());
     if(StoreInst *SI = dyn_cast<StoreInst>(II)) {
@@ -1797,7 +1796,7 @@ bool TypeChecks::visitLoadInst(Module &M, LoadInst &LI) {
 
       std::vector<Value *> Args;
       Args.push_back(BCI_Dest);
-      Args.push_back(BCI_MD);
+      Args.push_back(AI);
       Args.push_back(getSizeConstant(SI->getOperand(0)->getType()));
       Args.push_back(getTagCounter());
       // Create the call to the runtime check and place it before the copying store instruction.
@@ -1810,7 +1809,7 @@ bool TypeChecks::visitLoadInst(Module &M, LoadInst &LI) {
       CallInst::Create(checkTypeInst, Args.begin(), Args.end(), "", cast<Instruction>(II.getUse().getUser()));
     }
   }
-  if(BCI_MD->getNumUses() == 1) {
+  if(AI->getNumUses() == 1) {
     // No uses needed checks
     getTypeCall->eraseFromParent();
   }
