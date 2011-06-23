@@ -65,6 +65,8 @@ private:
   bool visitStoreInst(Module &M, StoreInst &SI);
   bool visitAllocaInst(Module &M, AllocaInst &AI);
   bool visitVAArgInst(Module &M, VAArgInst &VI);
+  
+  bool visitUses(Instruction *I, AllocaInst *AI, CastInst *BCI);
 
   bool visitGlobal(Module &M, GlobalVariable &GV, 
                    Constant *C, Instruction &I, SmallVector<Value*,8>);
