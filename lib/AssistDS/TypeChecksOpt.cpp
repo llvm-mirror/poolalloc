@@ -96,7 +96,7 @@ bool TypeChecksOpt::runOnModule(Module &M) {
                                         VoidTy,
                                         TypeTagTy,/*type*/
                                         Int64Ty,/*size*/
-                                        VoidPtrTy,
+                                        TypeTagPtrTy,
                                         VoidPtrTy,/*ptr*/
                                         Int32Ty,/*tag*/
                                         NULL);

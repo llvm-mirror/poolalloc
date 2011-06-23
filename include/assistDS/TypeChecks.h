@@ -21,6 +21,7 @@
 #include "llvm/Pass.h"
 #include "llvm/Target/TargetData.h"
 #include "llvm/Support/CallSite.h"
+#include "llvm/Analysis/Dominators.h"
 
 #include <map>
 #include <list>
@@ -53,6 +54,7 @@ private:
   
   bool initShadow(Module &M);
   void addTypeMap(Module &M) ;
+  void optimizeChecks(Module &M);
   
   bool visitMain(Module &M, Function &F); 
 
@@ -91,6 +93,7 @@ public:
 
   virtual void getAnalysisUsage(AnalysisUsage &AU) const {
     AU.addRequired<TargetData>();
+    AU.addRequired<DominatorTree>();
     AU.addRequired<AddressTakenAnalysis>();
   }
 

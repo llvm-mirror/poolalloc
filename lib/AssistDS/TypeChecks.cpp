@@ -298,7 +298,6 @@ bool TypeChecks::runOnModule(Module &M) {
     modified |= visitByValFunction(M, *F);
   }
 
-
   while(!VAArgFunctions.empty()) {
     Function *F = VAArgFunctions.back();
     VAArgFunctions.pop_back();
@@ -405,6 +404,7 @@ bool TypeChecks::runOnModule(Module &M) {
     }
   }
 
+  optimizeChecks(M);
 
   // add a global that contains the mapping from metadata to strings
   addTypeMap(M);
@@ -415,6 +415,46 @@ bool TypeChecks::runOnModule(Module &M) {
   return modified;
 }
 
+void TypeChecks::optimizeChecks(Module &M) {
+  for (Module::iterator MI = M.begin(), ME = M.end(); MI != ME; ++MI) {
+    Function &F = *MI;
+    if(F.isDeclaration())
+      continue;
+    for (Function::iterator B = F.begin(), FE = F.end(); B != FE; ++B) {
+      DominatorTree & DT = getAnalysis<DominatorTree>(F);
+      for (BasicBlock::iterator bi = B->begin(); bi != B->end(); ++bi) {
+        CallInst *CI = dyn_cast<CallInst>(bi);
+        if(!CI)
+          continue;
+        if(CI->getCalledFunction() != checkTypeInst)
+          continue;
+        std::list<Instruction *>toDelete;
+        for(Value::use_iterator User = checkTypeInst->use_begin(); User != checkTypeInst->use_end(); ++User) {
+          CallInst *CI2 = dyn_cast<CallInst>(User);
+          if(CI2 == CI)
+            continue;
+          if(CI2->getParent()->getParent() != &F)
+            continue;
+          if(CI->getOperand(4) != CI2->getOperand(4))
+            continue;
+          if(CI->getOperand(3) != CI2->getOperand(3))
+            continue;
+          if(!DT.dominates(CI, CI2))
+            continue;
+          CI->dump();
+          CI2->dump();
+          toDelete.push_back(CI2);
+        }
+        while(!toDelete.empty()) {
+          Instruction *I = toDelete.back();
+          toDelete.pop_back();
+          I->eraseFromParent();
+        }
+      }
+    }
+  }
+
+}
 
 // add a global that has the metadata -> typeString mapping
 void TypeChecks::addTypeMap(Module &M) {

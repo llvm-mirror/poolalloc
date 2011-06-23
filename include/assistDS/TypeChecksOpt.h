@@ -15,14 +15,13 @@
 #define TYPE_CHECKS_OPT_H
 
 #include "dsa/TypeSafety.h"
-#include "dsa/AddressTakenAnalysis.h"
 
 #include "llvm/Instructions.h"
 #include "llvm/Pass.h"
 #include "llvm/Target/TargetData.h"
 #include "llvm/Support/CallSite.h"
 
-#include <map>
+#include <list>
 
 namespace llvm {
 
