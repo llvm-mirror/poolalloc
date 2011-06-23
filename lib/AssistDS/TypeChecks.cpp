@@ -1401,10 +1401,19 @@ bool TypeChecks::visitCallSite(Module &M, CallSite CS) {
       Args.push_back(AllocSize);
       Args.push_back(getTagCounter());
       CallInst::Create(trackInitInst, Args.begin(), Args.end(), "", I);
-    } else if (F->getNameStr() == std::string("getpwuid") ||
-               F->getNameStr() == std::string("getgruid") ||
+    } else if (F->getNameStr() == std::string("getpwuid")) {
+      CastInst *BCI = BitCastInst::CreatePointerCast(I, VoidPtrTy);
+      BCI->insertAfter(I);
+      std::vector<Value *>Args;
+      Args.push_back(BCI);
+      Args.push_back(getTagCounter());
+      Constant *F = M.getOrInsertFunction("trackgetpwuid", VoidTy, VoidPtrTy, Int32Ty, NULL);
+      CallInst *CI = CallInst::Create(F, Args.begin(), Args.end());
+      CI->insertAfter(BCI);
+    } else if (F->getNameStr() == std::string("getgruid") ||
                F->getNameStr() == std::string("getgrnam") ||
-               F->getNameStr() == std::string("getpwnam")) {
+               F->getNameStr() == std::string("getpwnam") ||
+               F->getNameStr() == std::string("__errno_location")) {
       CastInst *BCI  = BitCastInst::CreatePointerCast(I, VoidPtrTy);
       assert (isa<PointerType>(I->getType()));
       const PointerType * PT = cast<PointerType>(I->getType());
