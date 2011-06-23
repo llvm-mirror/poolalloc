@@ -236,7 +236,7 @@ bool TypeChecksOpt::runOnModule(Module &M) {
       assert(AI);
       std::vector<Value*>Args;
       Args.push_back(CI->getOperand(3));
-      Args.push_back(ConstantInt::get(Int8Ty, 1));
+      Args.push_back(ConstantInt::get(Int8Ty, 255));
       Args.push_back(CI->getOperand(2));
       Args.push_back(ConstantInt::get(Int32Ty, AI->getAlignment()));
       CallInst::Create(memsetF, Args.begin(), Args.end(), "", CI);
