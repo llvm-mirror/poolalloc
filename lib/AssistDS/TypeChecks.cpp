@@ -189,6 +189,7 @@ bool TypeChecks::runOnModule(Module &M) {
                                      VoidPtrTy, /*ptr*/
                                      Int64Ty, /*size*/
                                      TypeTagPtrTy, /*dest for type tag*/
+                                     Int32Ty, /*tag*/
                                      NULL);
   checkTypeInst = M.getOrInsertFunction("checkType",
                                         VoidTy,
@@ -1766,6 +1767,7 @@ bool TypeChecks::visitLoadInst(Module &M, LoadInst &LI) {
   Args1.push_back(BCI);
   Args1.push_back(getSizeConstant(LI.getType()));
   Args1.push_back(AI);
+  Args1.push_back(getTagCounter());
   CallInst *getTypeCall = CallInst::Create(getTypeTag, Args1.begin(), Args1.end(), "", &LI);
   if(TrackAllLoads) {
     std::vector<Value *> Args;

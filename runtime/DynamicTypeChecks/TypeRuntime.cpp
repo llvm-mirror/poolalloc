@@ -64,7 +64,7 @@ extern "C" {
   void compareNumber(uint64_t NumArgsPassed, uint64_t ArgAccessed, uint32_t tag);
   void compareTypeAndNumber(uint64_t NumArgsPassed, uint64_t ArgAccessed, uint8_t TypeAccessed, void *MD, uint32_t tag) ;
   void checkVAArgType(void *va_list, TypeTagTy TypeAccessed, uint32_t tag) ;
-  void getTypeTag(void *ptr, uint64_t size, TypeTagTy *dest) ;
+  void getTypeTag(void *ptr, uint64_t size, TypeTagTy *dest, uint32_t tag) ;
   void checkType(TypeTagTy typeNumber, uint64_t size, TypeTagTy *metadata, void *ptr, uint32_t tag);
   void trackInitInst(void *ptr, uint64_t size, uint32_t tag) ;
   void trackUnInitInst(void *ptr, uint64_t size, uint32_t tag) ;
@@ -212,7 +212,7 @@ void checkVAArgType(void *va_list, TypeTagTy TypeAccessed, uint32_t tag) {
  * For loads, return the metadata(for size bytes) stored at the ptr
  * Store it in dest
  */
-void getTypeTag(void *ptr, uint64_t size, TypeTagTy *dest) {
+void getTypeTag(void *ptr, uint64_t size, TypeTagTy *dest, uint32_t tag) {
   uintptr_t p = maskAddress(ptr);
   assert(p + size < SIZE);
 
