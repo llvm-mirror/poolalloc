@@ -293,6 +293,9 @@ void copyTypeInfo(void *dstptr, void *srcptr, uint64_t size, uint32_t tag) {
 void setTypeInfo(void *dstptr, TypeTagTy *metadata, uint64_t size, uint32_t tag) {
   uintptr_t d = maskAddress(dstptr);
   memcpy(&shadow_begin[d], metadata, size);
+#if DEBUG
+  printf("Set(%d): %p, %p | %lu bytes \n", tag, dstptr, metadata, size);
+#endif
 }
 
 /**
