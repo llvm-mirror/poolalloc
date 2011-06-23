@@ -124,6 +124,7 @@ bool TypeChecksOpt::runOnModule(Module &M) {
                                      VoidPtrTy, /*ptr*/
                                      Int64Ty, /*size*/
                                      TypeTagPtrTy, /*dest for type tag*/
+                                     Int32Ty, /*tag*/
                                      NULL);
   MallocFunc = M.getFunction("malloc");
 
@@ -225,6 +226,20 @@ bool TypeChecksOpt::runOnModule(Module &M) {
     CallInst *CI = dyn_cast<CallInst>(User);
     assert(CI);
     if(TS->isTypeSafe(CI->getOperand(1)->stripPointerCasts(), CI->getParent()->getParent())) {
+      Constant *memsetF = M.getOrInsertFunction ("llvm.memset.i64", VoidTy,
+                                                 VoidPtrTy,
+                                                 Int8Ty,
+                                                 Int64Ty,
+                                                 Int32Ty,
+                                                 NULL);
+      AllocaInst *AI = dyn_cast<AllocaInst>(CI->getOperand(3)->stripPointerCasts());
+      assert(AI);
+      std::vector<Value*>Args;
+      Args.push_back(CI->getOperand(3));
+      Args.push_back(ConstantInt::get(Int8Ty, 1));
+      Args.push_back(CI->getOperand(2));
+      Args.push_back(ConstantInt::get(Int32Ty, AI->getAlignment()));
+      CallInst::Create(memsetF, Args.begin(), Args.end(), "", CI);
       toDelete.push_back(CI);
     }
   }
