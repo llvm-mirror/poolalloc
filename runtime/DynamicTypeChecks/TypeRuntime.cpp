@@ -139,7 +139,7 @@ void trackEnvpType(char **envp) {
 void trackGlobal(void *ptr, TypeTagTy typeNumber, uint64_t size, uint32_t tag) {
   uintptr_t p = maskAddress(ptr);
   shadow_begin[p] = typeNumber;
-  memset(&shadow_begin[p + 1], 0, size - 1);
+  memset(&shadow_begin[p + 1], 0xFE, size - 1);
 #if DEBUG
   cerr << "Global(" << tag << "): " << ptr << "= " << typeNumber << " " << size << "bytes\n";
 #endif
@@ -165,7 +165,7 @@ void trackArray(void *ptr, uint64_t size, uint64_t count, uint32_t tag) {
 void trackStoreInst(void *ptr, TypeTagTy typeNumber, uint64_t size, uint32_t tag) {
   uintptr_t p = maskAddress(ptr);
   shadow_begin[p] = typeNumber;
-  memset(&shadow_begin[p + 1], 0, size - 1);
+  memset(&shadow_begin[p + 1], 0xFE, size - 1);
 #if DEBUG
   cerr << "Store(" << tag << "): " << ptr << "= " << typeNumber << " " << size << "bytes\n";
 #endif
@@ -227,7 +227,7 @@ void getTypeTag(void *ptr, uint64_t size, TypeTagTy *dest, uint32_t tag) {
 void 
 checkType(TypeTagTy typeNumber, uint64_t size, TypeTagTy *metadata, void *ptr, uint32_t tag) {
   /* Check if this an initialized but untyped memory.*/
-  if (typeNumber != metadata[0]) {
+  if (typeNumber != metadata[0] && metadata[0] != 0xFE) {
     if (metadata[0] != 0xFF) {
       printf("Type mismatch(%u): %p expecting %s, found %s!\n", tag, ptr, typeNames[typeNumber], typeNames[metadata[0]]);
       return;
@@ -246,7 +246,7 @@ checkType(TypeTagTy typeNumber, uint64_t size, TypeTagTy *metadata, void *ptr, u
   }
 
   for (unsigned i = 1 ; i < size; ++i) {
-    if (0 != metadata[i]) {
+    if (0xFE != metadata[i]) {
       printf("Type alignment mismatch(%u): expecting %s, found %s!\n", tag, typeNames[typeNumber], typeNames[metadata[0]]);
       break;
     }
