@@ -501,11 +501,11 @@ void TypeChecks::optimizeChecks(Module &M) {
         if(CI->getCalledFunction() != checkTypeInst)
           continue;
         std::list<Instruction *>toDelete;
-        for(Value::use_iterator User = checkTypeInst->use_begin(); User != checkTypeInst->use_end(); ++User) {
+        for(Value::use_iterator User = CI->getOperand(3)->use_begin(); User != CI->getOperand(3)->use_end(); ++User) {
           CallInst *CI2 = dyn_cast<CallInst>(User);
-          if(CI2 == CI)
+          if(!CI2)
             continue;
-          if(CI2->getParent()->getParent() != &F)
+          if(CI2 == CI)
             continue;
           // Check that they are refering to the same pointer
           if(CI->getOperand(4) != CI2->getOperand(4))
@@ -513,9 +513,9 @@ void TypeChecks::optimizeChecks(Module &M) {
           // Check that they are using the same metadata for comparison.
           if(CI->getOperand(3) != CI2->getOperand(3))
             continue;
-          // if CI, dominates CI2, delete CI2
           if(!DT.dominates(CI, CI2))
             continue;
+          // if CI, dominates CI2, delete CI2
           toDelete.push_back(CI2);
         }
         while(!toDelete.empty()) {
