@@ -55,6 +55,7 @@ private:
   bool initShadow(Module &M);
   void addTypeMap(Module &M) ;
   void optimizeChecks(Module &M);
+  void initRuntimeCheckPrototypes(Module &M);
   
   bool visitMain(Module &M, Function &F); 
 

@@ -26,6 +26,7 @@
 
 #include <set>
 #include <vector>
+#include <deque>
 
 using namespace llvm;
 
@@ -66,6 +67,7 @@ static const Type *TypeTagPtrTy = 0;
 
 static Constant *One = 0;
 static Constant *Zero = 0;
+
 static Constant *RegisterArgv;
 static Constant *RegisterEnvp;
 
@@ -96,6 +98,7 @@ unsigned int TypeChecks::getTypeMarker(const Type * Ty) {
   if(UsedTypes.find(Ty) == UsedTypes.end())
     UsedTypes[Ty] = UsedTypes.size();
 
+  assert((UsedTypes.size() < 254) && "Too many types found. Not enough metadata bits");
   return UsedTypes[Ty];
 }
 
@@ -142,15 +145,203 @@ bool TypeChecks::runOnModule(Module &M) {
   One = ConstantInt::get(Int64Ty, 1);
   Zero = ConstantInt::get(Int64Ty, 0);
 
+  // Add prototypes for the dynamic type checking functions
+  initRuntimeCheckPrototypes(M);
+
+  UsedTypes.clear(); // Reset if run multiple times.
+  VAArgFunctions.clear();
+  ByValFunctions.clear();
+  AddressTakenFunctions.clear();
+
+  // Only works for whole program analysis
+  Function *MainF = M.getFunction("main");
+  if (MainF == 0 || MainF->isDeclaration()) {
+    assert(0 && "No main function found");
+    return false;
+  }
+
+  // Insert the shadow initialization function.
+  modified |= initShadow(M);
+
+  // Record argv/envp
+  modified |= visitMain(M, *MainF);
+
+  // Recognize special cases
+  for (Module::iterator MI = M.begin(), ME = M.end(); MI != ME; ++MI) {
+    Function &F = *MI;
+    if(F.isDeclaration())
+      continue;
+
+    std::string name = F.getName();
+    if (strncmp(name.c_str(), "tc.", 3) == 0) continue;
+    if (strncmp(name.c_str(), "main", 4) == 0) continue;
+
+    // Iterate and find all byval functions
+    bool hasByValArg = false;
+    for (Function::arg_iterator I = F.arg_begin(); I != F.arg_end(); ++I) {
+      if (I->hasByValAttr()) {
+        hasByValArg = true;
+        break;
+      }
+    }
+    if(hasByValArg) {
+      ByValFunctions.push_back(&F);
+    }
+
+    // Iterate and find all address taken functions
+    if(addrAnalysis->hasAddressTaken(&F)) {
+      AddressTakenFunctions.push_back(&F);
+    }
+
+    // Iterate and find all varargs functions
+    if(F.isVarArg()) {
+      VAArgFunctions.push_back(&F);
+      continue;
+    }
+  }
+
+  // Modify all byval functions
+  while(!ByValFunctions.empty()) {
+    Function *F = ByValFunctions.back();
+    ByValFunctions.pop_back();
+    modified |= visitByValFunction(M, *F);
+  }
+
+  // Modify all the var arg functions
+  while(!VAArgFunctions.empty()) {
+    Function *F = VAArgFunctions.back();
+    VAArgFunctions.pop_back();
+    assert(F->isVarArg());
+    modified |= visitVarArgFunction(M, *F);
+  }
+
+  // Modify all the address taken functions
+  while(!AddressTakenFunctions.empty()) {
+    Function *F = AddressTakenFunctions.back();
+    AddressTakenFunctions.pop_back();
+    if(F->isVarArg())
+      continue;
+    visitAddressTakenFunction(M, *F);
+  }
+
+  for (Module::iterator MI = M.begin(), ME = M.end(); MI != ME; ++MI) {
+    Function &F = *MI;
+    if(F.isDeclaration())
+      continue;
+
+    // Loop over all of the instructions in the function,
+    // adding instrumentation where needed.
+    for (inst_iterator II = inst_begin(F), IE = inst_end(F); II != IE;++II) {
+      Instruction &I = *II;
+      if (StoreInst *SI = dyn_cast<StoreInst>(&I)) {
+        if(!isa<LoadInst>(SI->getOperand(0)))
+          modified |= visitStoreInst(M, *SI);
+      } else if (LoadInst *LI = dyn_cast<LoadInst>(&I)) {
+          modified |= visitLoadInst(M, *LI);
+      } else if (CallInst *CI = dyn_cast<CallInst>(&I)) {
+        modified |= visitCallInst(M, *CI);
+      } else if (InvokeInst *II = dyn_cast<InvokeInst>(&I)) {
+        modified |= visitInvokeInst(M, *II);
+      } else if (AllocaInst *AI = dyn_cast<AllocaInst>(&I)) {
+        modified |= visitAllocaInst(M, *AI);
+      } else if (VAArgInst *VI = dyn_cast<VAArgInst>(&I)) {
+        modified |= visitVAArgInst(M, *VI);
+      }
+    }
+  }
+
+  // visit all the indirect call sites
+  std::set<Instruction*>::iterator II = IndCalls.begin();
+  for(; II != IndCalls.end();) {
+    Instruction *I = *II++;
+    modified |= visitIndirectCallSite(M,I);
+  }
+
+  // visit all the uses of the address taken functions and modify if
+  // not being passed to external code
+  std::map<Function *, Function * >::iterator FI = IndFunctionsMap.begin(), FE = IndFunctionsMap.end();
+  for(;FI!=FE;++FI) {
+    Function *F = FI->first;
+
+    Constant *CNew = ConstantExpr::getBitCast(FI->second, F->getType());
+
+    std::set<User *> toReplace;
+    for(Function::use_iterator User = F->use_begin();
+        User != F->use_end();++User) {
+      toReplace.insert(*User);
+    }
+    for(std::set<llvm::User *>::iterator userI = toReplace.begin(); userI != toReplace.end(); ++userI) {
+      llvm::User * user = *userI;
+      if(Constant *C = dyn_cast<Constant>(user)) {
+        if(!isa<GlobalValue>(C)) {
+          bool changeUse = true;
+          for(Value::use_iterator II = user->use_begin();
+              II != user->use_end(); II++) {
+            if(CallInst *CI = dyn_cast<CallInst>(II))
+              if(CI->getCalledFunction()) {
+                if(CI->getCalledFunction()->isDeclaration())
+                  changeUse = false;
+              }
+          }
+          if(!changeUse)
+            continue;
+          std::vector<Use *> ReplaceWorklist;
+          for (User::op_iterator use = user->op_begin();
+               use != user->op_end();
+               ++use) {
+            if (use->get() == F) {
+              ReplaceWorklist.push_back (use);
+            }
+          }
+
+          //
+          // Do replacements in the worklist.
+          // FIXME: I believe there is a bug here, triggered by 253.perl
+          // It works fine as long as we have only one element in ReplaceWorkist
+          // Temporary fix. Revisit.
+          //
+          //for (unsigned index = 0; index < ReplaceWorklist.size(); ++index) {
+          C->replaceUsesOfWithOnConstant(F, CNew, ReplaceWorklist[0]);
+          //}
+          continue;
+        }
+      }
+      if(CallInst *CI = dyn_cast<CallInst>(user)) {
+        if(CI->getCalledFunction()) {
+          if(CI->getCalledFunction()->isDeclaration())
+            continue;
+        }
+      }
+      user->replaceUsesOfWith(F, CNew);
+    }
+  }
+
+  // remove redundant checks, caused due to insturmenting uses of loads
+  // Remove a check if it is dominated by another check for the same instruction
+  optimizeChecks(M);
+
+  // add a global that contains the mapping from metadata to strings
+  addTypeMap(M);
+
+  // Update stats
+  numTypes += UsedTypes.size();
+
+  return modified;
+}
+
+void TypeChecks::initRuntimeCheckPrototypes(Module &M) {
+  
   RegisterArgv = M.getOrInsertFunction("trackArgvType",
                                        VoidTy,
                                        Int32Ty, /*argc */
                                        VoidPtrTy->getPointerTo(),/*argv*/
                                        NULL);
+
   RegisterEnvp = M.getOrInsertFunction("trackEnvpType",
                                        VoidTy,
                                        VoidPtrTy->getPointerTo(),/*envp*/
                                        NULL);
+  
   trackGlobal = M.getOrInsertFunction("trackGlobal",
                                       VoidTy,
                                       VoidPtrTy,/*ptr*/
@@ -158,6 +349,7 @@ bool TypeChecks::runOnModule(Module &M) {
                                       Int64Ty,/*size*/
                                       Int32Ty,/*tag*/
                                       NULL);
+
   trackArray = M.getOrInsertFunction("trackArray",
                                      VoidTy,
                                      VoidPtrTy,/*ptr*/
@@ -165,18 +357,21 @@ bool TypeChecks::runOnModule(Module &M) {
                                      Int64Ty,/*count*/
                                      Int32Ty,/*tag*/
                                      NULL);
+  
   trackInitInst = M.getOrInsertFunction("trackInitInst",
                                         VoidTy,
                                         VoidPtrTy,/*ptr*/
                                         Int64Ty,/*size*/
                                         Int32Ty,/*tag*/
                                         NULL);
+
   trackUnInitInst = M.getOrInsertFunction("trackUnInitInst",
                                           VoidTy,
                                           VoidPtrTy,/*ptr*/
                                           Int64Ty,/*size*/
                                           Int32Ty,/*tag*/
                                           NULL);
+
   trackStoreInst = M.getOrInsertFunction("trackStoreInst",
                                          VoidTy,
                                          VoidPtrTy,/*ptr*/
@@ -238,184 +433,14 @@ bool TypeChecks::runOnModule(Module &M) {
                                      Int32Ty,/*tag*/
                                      NULL);
 
-
-  UsedTypes.clear(); // Reset if run multiple times.
-  VAArgFunctions.clear();
-  ByValFunctions.clear();
-  AddressTakenFunctions.clear();
-
-  // Only works for whole program analysis
-  Function *MainF = M.getFunction("main");
-  if (MainF == 0 || MainF->isDeclaration()) {
-    assert(0 && "No main function found");
-    return false;
-  }
-
-  // Insert the shadow initialization function.
-  modified |= initShadow(M);
-
-  // Record argv
-  modified |= visitMain(M, *MainF);
-
-  // Recognize special cases
-  for (Module::iterator MI = M.begin(), ME = M.end(); MI != ME; ++MI) {
-    Function &F = *MI;
-    if(F.isDeclaration())
-      continue;
-
-    std::string name = F.getName();
-    if (strncmp(name.c_str(), "tc.", 3) == 0) continue;
-    if (strncmp(name.c_str(), "main", 4) == 0) continue;
-
-    // Iterate and find all byval functions
-    bool hasByValArg = false;
-    for (Function::arg_iterator I = F.arg_begin(); I != F.arg_end(); ++I) {
-      if (I->hasByValAttr()) {
-        hasByValArg = true;
-        break;
-      }
-    }
-    if(hasByValArg) {
-      ByValFunctions.push_back(&F);
-    }
-
-    // Iterate and find all address taken functions
-    if(addrAnalysis->hasAddressTaken(&F)) {
-      AddressTakenFunctions.push_back(&F);
-    }
-
-    // Iterate and find all varargs functions
-    if(F.isVarArg()) {
-      VAArgFunctions.push_back(&F);
-      continue;
-    }
-  }
-
-  // Modify all byval functions
-  while(!ByValFunctions.empty()) {
-    Function *F = ByValFunctions.back();
-    ByValFunctions.pop_back();
-    modified |= visitByValFunction(M, *F);
-  }
-
-  while(!VAArgFunctions.empty()) {
-    Function *F = VAArgFunctions.back();
-    VAArgFunctions.pop_back();
-    assert(F->isVarArg());
-    modified |= visitVarArgFunction(M, *F);
-  }
-
-  while(!AddressTakenFunctions.empty()) {
-    Function *F = AddressTakenFunctions.back();
-    AddressTakenFunctions.pop_back();
-    if(F->isVarArg())
-      continue;
-    visitAddressTakenFunction(M, *F);
-  }
-
-  for (Module::iterator MI = M.begin(), ME = M.end(); MI != ME; ++MI) {
-    Function &F = *MI;
-    if(F.isDeclaration())
-      continue;
-
-    // Loop over all of the instructions in the function, 
-    // adding their return type as well as the types of their operands.
-    for (inst_iterator II = inst_begin(F), IE = inst_end(F); II != IE;++II) {
-      Instruction &I = *II;
-      if (StoreInst *SI = dyn_cast<StoreInst>(&I)) {
-        if(!isa<LoadInst>(SI->getOperand(0)))
-          modified |= visitStoreInst(M, *SI);
-      } else if (LoadInst *LI = dyn_cast<LoadInst>(&I)) {
-          modified |= visitLoadInst(M, *LI);
-      } else if (CallInst *CI = dyn_cast<CallInst>(&I)) {
-        modified |= visitCallInst(M, *CI);
-      } else if (InvokeInst *II = dyn_cast<InvokeInst>(&I)) {
-        modified |= visitInvokeInst(M, *II);
-      } else if (AllocaInst *AI = dyn_cast<AllocaInst>(&I)) {
-        modified |= visitAllocaInst(M, *AI);
-      } else if (VAArgInst *VI = dyn_cast<VAArgInst>(&I)) {
-        modified |= visitVAArgInst(M, *VI);
-      }
-    }
-  }
-
-  // visit all the uses of the address taken functions and modify if
-  // visit all the indirect call sites
-  std::set<Instruction*>::iterator II = IndCalls.begin();
-  for(; II != IndCalls.end();) {
-    Instruction *I = *II++;
-    modified |= visitIndirectCallSite(M,I);
-  }
-
-  std::map<Function *, Function * >::iterator FI = IndFunctionsMap.begin(), FE = IndFunctionsMap.end();
-  for(;FI!=FE;++FI) {
-    Function *F = FI->first;
-
-    Constant *CNew = ConstantExpr::getBitCast(FI->second, F->getType());
-
-    std::set<User *> toReplace;
-    for(Function::use_iterator User = F->use_begin();
-        User != F->use_end();++User) {
-      toReplace.insert(*User);
-    }
-    for(std::set<llvm::User *>::iterator userI = toReplace.begin(); userI != toReplace.end(); ++userI) {
-      llvm::User * user = *userI;
-      if(Constant *C = dyn_cast<Constant>(user)) {
-        if(!isa<GlobalValue>(C)) {
-          bool changeUse = true;
-          for(Value::use_iterator II = user->use_begin();
-              II != user->use_end(); II++) {
-            if(CallInst *CI = dyn_cast<CallInst>(II))
-              if(CI->getCalledFunction()) {
-                if(CI->getCalledFunction()->isDeclaration())
-                  changeUse = false;
-              }
-          }
-          if(!changeUse)
-            continue;
-          std::vector<Use *> ReplaceWorklist;
-          for (User::op_iterator use = user->op_begin();
-               use != user->op_end();
-               ++use) {
-            if (use->get() == F) {
-              ReplaceWorklist.push_back (use);
-            }
-          }
-
-          //
-          // Do replacements in the worklist.
-          // FIXME: I believe there is a bug here, triggered by 253.perl
-          // It works fine as long as we have only one element in ReplaceWorkist
-          // Temporary fix. Revisit.
-          //
-          //for (unsigned index = 0; index < ReplaceWorklist.size(); ++index) {
-          C->replaceUsesOfWithOnConstant(F, CNew, ReplaceWorklist[0]);
-          //}
-          continue;
-        }
-      }
-      if(CallInst *CI = dyn_cast<CallInst>(user)) {
-        if(CI->getCalledFunction()) {
-          if(CI->getCalledFunction()->isDeclaration())
-            continue;
-        }
-      }
-      user->replaceUsesOfWith(F, CNew);
-    }
-  }
-
-  optimizeChecks(M);
-
-  // add a global that contains the mapping from metadata to strings
-  addTypeMap(M);
-
-  // Update stats
-  numTypes += UsedTypes.size();
-
-  return modified;
 }
 
+// Delete checks, if it is dominated by another check for the same value.
+// We might get multiple checks on a path, if there are multiple uses of
+// a load inst.
+/*
 void TypeChecks::optimizeChecks(Module &M) {
+  // TODO: visit in dominator tree order
   for (Module::iterator MI = M.begin(), ME = M.end(); MI != ME; ++MI) {
     Function &F = *MI;
     if(F.isDeclaration())
@@ -435,13 +460,15 @@ void TypeChecks::optimizeChecks(Module &M) {
             continue;
           if(CI2->getParent()->getParent() != &F)
             continue;
+          // Check that they are refering to the same pointer
           if(CI->getOperand(4) != CI2->getOperand(4))
             continue;
+          // Check that they are using the same metadata for comparison.
           if(CI->getOperand(3) != CI2->getOperand(3))
             continue;
+          // if CI, dominates CI2, delete CI2
           if(!DT.dominates(CI, CI2))
             continue;
-          CI->dump();
           CI2->dump();
           toDelete.push_back(CI2);
         }
@@ -453,7 +480,53 @@ void TypeChecks::optimizeChecks(Module &M) {
       }
     }
   }
+}*/
 
+void TypeChecks::optimizeChecks(Module &M) {
+  for (Module::iterator MI = M.begin(), ME = M.end(); MI != ME; ++MI) {
+    Function &F = *MI;
+    if(F.isDeclaration())
+      continue;
+    DominatorTree & DT = getAnalysis<DominatorTree>(F);
+    std::deque<DomTreeNode *> Worklist;
+    Worklist.push_back (DT.getRootNode());
+    while(Worklist.size()) {
+      DomTreeNode * Node = Worklist.front();
+      Worklist.pop_front();
+      BasicBlock *BB = Node->getBlock();
+      for (BasicBlock::iterator bi = BB->begin(); bi != BB->end(); ++bi) {
+        CallInst *CI = dyn_cast<CallInst>(bi);
+        if(!CI)
+          continue;
+        if(CI->getCalledFunction() != checkTypeInst)
+          continue;
+        std::list<Instruction *>toDelete;
+        for(Value::use_iterator User = checkTypeInst->use_begin(); User != checkTypeInst->use_end(); ++User) {
+          CallInst *CI2 = dyn_cast<CallInst>(User);
+          if(CI2 == CI)
+            continue;
+          if(CI2->getParent()->getParent() != &F)
+            continue;
+          // Check that they are refering to the same pointer
+          if(CI->getOperand(4) != CI2->getOperand(4))
+            continue;
+          // Check that they are using the same metadata for comparison.
+          if(CI->getOperand(3) != CI2->getOperand(3))
+            continue;
+          // if CI, dominates CI2, delete CI2
+          if(!DT.dominates(CI, CI2))
+            continue;
+          toDelete.push_back(CI2);
+        }
+        while(!toDelete.empty()) {
+          Instruction *I = toDelete.back();
+          toDelete.pop_back();
+          I->eraseFromParent();
+        }
+      }
+      Worklist.insert(Worklist.end(), Node->begin(), Node->end());
+    }
+  }
 }
 
 // add a global that has the metadata -> typeString mapping
@@ -516,6 +589,9 @@ void TypeChecks::addTypeMap(Module &M) {
                     );
 }
 
+// For each address taken function, create a clone
+// that takes 2 extra arguments(same as a var arg function).
+// Modify call sites.
 bool TypeChecks::visitAddressTakenFunction(Module &M, Function &F) {
   // Clone function
   // 1. Create the new argument types vector
@@ -560,11 +636,16 @@ bool TypeChecks::visitAddressTakenFunction(Module &M, Function &F) {
   // 5. Perform the cloning
   SmallVector<ReturnInst*, 100>Returns;
   CloneFunctionInto(NewF, &F, ValueMap, Returns);
+  // Store in the map of original -> cloned function
   IndFunctionsMap[&F] = NewF;
 
   // Find all uses of the function
   for(Value::use_iterator ui = F.use_begin(), ue = F.use_end();
       ui != ue;)  {
+    if(isa<InvokeInst>(ui)) {
+      ui->dump();
+      assert(0 && "Handle invoke inst here");
+    }
     // Check for call sites
     CallInst *CI = dyn_cast<CallInst>(ui++);
     if(!CI)
@@ -1067,6 +1148,7 @@ void TypeChecks::print(raw_ostream &OS, const Module *M) const {
   for (; I != E; ++I) {
     OS << "  ";
     WriteTypeSymbolic(OS, I->first, M);
+    OS << " : " << I->second;
     OS << '\n';
   }
 
@@ -1681,6 +1763,7 @@ bool TypeChecks::visitCallSite(Module &M, CallSite CS) {
   return false;
 }
 
+// Add extra arguments to each indirect call site
 bool TypeChecks::visitIndirectCallSite(Module &M, Instruction *I) {
   // add the number of arguments as the first argument
   const Type* OrigType = I->getOperand(0)->getType();
@@ -1759,10 +1842,7 @@ bool TypeChecks::visitIndirectCallSite(Module &M, Instruction *I) {
     I->eraseFromParent();
 
   }
-
-
-  // add they types of the argument as the second argument
-  return false;
+  return true;
 }
 
 bool TypeChecks::visitInputFunctionValue(Module &M, Value *V, Instruction *CI) {
@@ -1829,8 +1909,10 @@ bool TypeChecks::visitLoadInst(Module &M, LoadInst &LI) {
   numLoadChecks++;
   return true;
 }
+
 // AI - metadata
 // BCI - ptr
+// I - instruction whose uses to instrument
 bool TypeChecks::visitUses(Instruction *I, AllocaInst *AI, CastInst *BCI) {
   for(Value::use_iterator II = I->use_begin(); II != I->use_end(); ++II) {
     if(DisablePtrCmpChecks) {
@@ -1869,6 +1951,7 @@ bool TypeChecks::visitUses(Instruction *I, AllocaInst *AI, CastInst *BCI) {
   }
   return true;
 }
+
 // Insert runtime checks before all store instructions.
 bool TypeChecks::visitStoreInst(Module &M, StoreInst &SI) {
   // Cast the pointer operand to i8* for the runtime function.
