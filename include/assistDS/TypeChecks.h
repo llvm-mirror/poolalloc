@@ -40,6 +40,7 @@ private:
   std::list<Function *> ByValFunctions;
   std::list<Function *> AddressTakenFunctions;
   std::set<Instruction*> IndCalls;
+  std::map<SelectInst*, SelectInst*> SelectInst_MD_Map;
 
   // Analysis from other passes.
   TargetData *TD;
@@ -69,7 +70,7 @@ private:
   bool visitAllocaInst(Module &M, AllocaInst &AI);
   bool visitVAArgInst(Module &M, VAArgInst &VI);
   
-  bool visitUses(Instruction *I, AllocaInst *AI, CastInst *BCI);
+  bool visitUses(Instruction *I, Instruction *AI, CastInst *BCI);
 
   bool visitGlobal(Module &M, GlobalVariable &GV, 
                    Constant *C, Instruction &I, SmallVector<Value*,8>);

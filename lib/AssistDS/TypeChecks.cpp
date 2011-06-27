@@ -438,49 +438,6 @@ void TypeChecks::initRuntimeCheckPrototypes(Module &M) {
 // Delete checks, if it is dominated by another check for the same value.
 // We might get multiple checks on a path, if there are multiple uses of
 // a load inst.
-/*
-void TypeChecks::optimizeChecks(Module &M) {
-  // TODO: visit in dominator tree order
-  for (Module::iterator MI = M.begin(), ME = M.end(); MI != ME; ++MI) {
-    Function &F = *MI;
-    if(F.isDeclaration())
-      continue;
-    for (Function::iterator B = F.begin(), FE = F.end(); B != FE; ++B) {
-      DominatorTree & DT = getAnalysis<DominatorTree>(F);
-      for (BasicBlock::iterator bi = B->begin(); bi != B->end(); ++bi) {
-        CallInst *CI = dyn_cast<CallInst>(bi);
-        if(!CI)
-          continue;
-        if(CI->getCalledFunction() != checkTypeInst)
-          continue;
-        std::list<Instruction *>toDelete;
-        for(Value::use_iterator User = checkTypeInst->use_begin(); User != checkTypeInst->use_end(); ++User) {
-          CallInst *CI2 = dyn_cast<CallInst>(User);
-          if(CI2 == CI)
-            continue;
-          if(CI2->getParent()->getParent() != &F)
-            continue;
-          // Check that they are refering to the same pointer
-          if(CI->getOperand(4) != CI2->getOperand(4))
-            continue;
-          // Check that they are using the same metadata for comparison.
-          if(CI->getOperand(3) != CI2->getOperand(3))
-            continue;
-          // if CI, dominates CI2, delete CI2
-          if(!DT.dominates(CI, CI2))
-            continue;
-          CI2->dump();
-          toDelete.push_back(CI2);
-        }
-        while(!toDelete.empty()) {
-          Instruction *I = toDelete.back();
-          toDelete.pop_back();
-          I->eraseFromParent();
-        }
-      }
-    }
-  }
-}*/
 
 void TypeChecks::optimizeChecks(Module &M) {
   for (Module::iterator MI = M.begin(), ME = M.end(); MI != ME; ++MI) {
@@ -639,52 +596,95 @@ bool TypeChecks::visitAddressTakenFunction(Module &M, Function &F) {
   // Store in the map of original -> cloned function
   IndFunctionsMap[&F] = NewF;
 
+  std::vector<Instruction *>toDelete;
   // Find all uses of the function
   for(Value::use_iterator ui = F.use_begin(), ue = F.use_end();
-      ui != ue;)  {
-    if(isa<InvokeInst>(ui)) {
-      ui->dump();
-      assert(0 && "Handle invoke inst here");
+      ui != ue;++ui)  {
+    if(InvokeInst *II = dyn_cast<InvokeInst>(ui)) {
+      if(II->getCalledValue()->stripPointerCasts() != &F)
+        continue;
+      std::vector<Value *> Args;
+      inst_iterator InsPt = inst_begin(II->getParent()->getParent());
+      unsigned int i;
+      unsigned int NumArgs = II->getNumOperands() - 3;
+      Value *NumArgsVal = ConstantInt::get(Int32Ty, NumArgs);
+      AllocaInst *AI = new AllocaInst(TypeTagTy, NumArgsVal, "", &*InsPt);
+      // set the metadata for the varargs in AI
+      for(i = 3; i <II->getNumOperands(); i++) {
+        Value *Idx[2];
+        Idx[0] = ConstantInt::get(Int32Ty, i - 3 );
+        // For each vararg argument, also add its type information
+        GetElementPtrInst *GEP = GetElementPtrInst::CreateInBounds(AI, 
+                                                                   Idx, 
+                                                                   Idx + 1, 
+                                                                   "", II);
+        Constant *C = getTypeMarkerConstant(II->getOperand(i));
+        new StoreInst(C, GEP, II);
+      }
+
+      // As the first argument pass the number of var_arg arguments
+      Args.push_back(ConstantInt::get(Int64Ty, NumArgs));
+      Args.push_back(AI);
+      for(i = 3 ;i < II->getNumOperands(); i++) {
+        // Add the original argument
+        Args.push_back(II->getOperand(i));
+      }
+
+      II->dump();
+      errs()<<F.getNameStr() << "\n";
+      NewF->getType()->dump();
+      // Create the new call
+      InvokeInst *II_New = InvokeInst::Create(NewF, 
+                                              II->getNormalDest(),
+                                              II->getUnwindDest(),
+                                              Args.begin(), Args.end(), 
+                                              "", II);
+      II->replaceAllUsesWith(II_New);
+      toDelete.push_back(II);
     }
     // Check for call sites
-    CallInst *CI = dyn_cast<CallInst>(ui++);
-    if(!CI)
-      continue;
-    if(CI->getCalledValue()->stripPointerCasts() != &F)
-      continue;
-    std::vector<Value *> Args;
-    unsigned int i;
-    unsigned int NumArgs = CI->getNumOperands() - 1;
-    inst_iterator InsPt = inst_begin(CI->getParent()->getParent());
-    Value *NumArgsVal = ConstantInt::get(Int32Ty, NumArgs);
-    AllocaInst *AI = new AllocaInst(TypeTagTy, NumArgsVal, "", &*InsPt);
-    // set the metadata for the varargs in AI
-    for(i = 1; i <CI->getNumOperands(); i++) {
-      Value *Idx[2];
-      Idx[0] = ConstantInt::get(Int32Ty, i - 1 );
-      // For each vararg argument, also add its type information
-      GetElementPtrInst *GEP = GetElementPtrInst::CreateInBounds(AI, 
-                                                                 Idx, 
-                                                                 Idx + 1, 
-                                                                 "", CI);
-      Constant *C = getTypeMarkerConstant(CI->getOperand(i));
-      new StoreInst(C, GEP, CI);
-    }
+    else if(CallInst *CI = dyn_cast<CallInst>(ui)) {
+      if(CI->getCalledValue()->stripPointerCasts() != &F)
+        continue;
+      std::vector<Value *> Args;
+      unsigned int i;
+      unsigned int NumArgs = CI->getNumOperands() - 1;
+      inst_iterator InsPt = inst_begin(CI->getParent()->getParent());
+      Value *NumArgsVal = ConstantInt::get(Int32Ty, NumArgs);
+      AllocaInst *AI = new AllocaInst(TypeTagTy, NumArgsVal, "", &*InsPt);
+      // set the metadata for the varargs in AI
+      for(i = 1; i <CI->getNumOperands(); i++) {
+        Value *Idx[2];
+        Idx[0] = ConstantInt::get(Int32Ty, i - 1 );
+        // For each vararg argument, also add its type information
+        GetElementPtrInst *GEP = GetElementPtrInst::CreateInBounds(AI, 
+                                                                   Idx, 
+                                                                   Idx + 1, 
+                                                                   "", CI);
+        Constant *C = getTypeMarkerConstant(CI->getOperand(i));
+        new StoreInst(C, GEP, CI);
+      }
 
-    // As the first argument pass the number of var_arg arguments
-    Args.push_back(ConstantInt::get(Int64Ty, NumArgs));
-    Args.push_back(AI);
-    for(i = 1 ;i < CI->getNumOperands(); i++) {
-      // Add the original argument
-      Args.push_back(CI->getOperand(i));
-    }
+      // As the first argument pass the number of var_arg arguments
+      Args.push_back(ConstantInt::get(Int64Ty, NumArgs));
+      Args.push_back(AI);
+      for(i = 1 ;i < CI->getNumOperands(); i++) {
+        // Add the original argument
+        Args.push_back(CI->getOperand(i));
+      }
 
-    // Create the new call
-    CallInst *CI_New = CallInst::Create(NewF, 
-                                        Args.begin(), Args.end(), 
-                                        "", CI);
-    CI->replaceAllUsesWith(CI_New);
-    CI->eraseFromParent();
+      // Create the new call
+      CallInst *CI_New = CallInst::Create(NewF, 
+                                          Args.begin(), Args.end(), 
+                                          "", CI);
+      CI->replaceAllUsesWith(CI_New);
+      toDelete.push_back(CI);
+    }
+  }
+  while(!toDelete.empty()) {
+    Instruction *I = toDelete.back();
+    toDelete.pop_back();
+    I->eraseFromParent();
   }
 
   return true;
@@ -1253,30 +1253,30 @@ bool TypeChecks::initShadow(Module &M) {
   return true;
 }
 
-bool TypeChecks::visitMain(Module &M, Function &MainFunc) {
-  if(MainFunc.arg_size() < 2)
-    // No need to register
-    return false;
+  bool TypeChecks::visitMain(Module &M, Function &MainFunc) {
+    if(MainFunc.arg_size() < 2)
+      // No need to register
+      return false;
 
-  Function::arg_iterator AI = MainFunc.arg_begin();
-  Value *Argc = AI;
-  Value *Argv = ++AI;
+    Function::arg_iterator AI = MainFunc.arg_begin();
+    Value *Argc = AI;
+    Value *Argv = ++AI;
 
-  Instruction *InsertPt = MainFunc.front().begin();
-  std::vector<Value *> fargs;
-  fargs.push_back (Argc);
-  fargs.push_back (Argv);
-  CallInst::Create (RegisterArgv, fargs.begin(), fargs.end(), "", InsertPt);
+    Instruction *InsertPt = MainFunc.front().begin();
+    std::vector<Value *> fargs;
+    fargs.push_back (Argc);
+    fargs.push_back (Argv);
+    CallInst::Create (RegisterArgv, fargs.begin(), fargs.end(), "", InsertPt);
 
-  if(MainFunc.arg_size() < 3)
+    if(MainFunc.arg_size() < 3)
+      return true;
+
+    Value *Envp = ++AI;
+    std::vector<Value*> Args;
+    Args.push_back(Envp);
+    CallInst::Create(RegisterEnvp, Args.begin(), Args.end(), "", InsertPt);
     return true;
-
-  Value *Envp = ++AI;
-  std::vector<Value*> Args;
-  Args.push_back(Envp);
-  CallInst::Create(RegisterEnvp, Args.begin(), Args.end(), "", InsertPt);
-  return true;
-}
+  }
 
 bool TypeChecks::visitGlobal(Module &M, GlobalVariable &GV, 
                              Constant *C, Instruction &I, SmallVector<Value *,8> Indices) {
@@ -1513,7 +1513,8 @@ bool TypeChecks::visitCallSite(Module &M, CallSite CS) {
       CallInst *CI = CallInst::Create(F, Args.begin(), Args.end());
       CI->insertAfter(BCI_Src);
     } else if (F->getNameStr() == std::string("gettimeofday") || 
-               F->getNameStr() == std::string("time")) {
+               F->getNameStr() == std::string("time") ||
+               F->getNameStr() == std::string("times")) {
       CastInst *BCI = BitCastInst::CreatePointerCast(I->getOperand(1), VoidPtrTy, "", I);
       assert (isa<PointerType>(I->getOperand(1)->getType()));
       const PointerType * PT = cast<PointerType>(I->getOperand(1)->getType());
@@ -1678,8 +1679,10 @@ bool TypeChecks::visitCallSite(Module &M, CallSite CS) {
       BCI->insertAfter(I);
       std::vector<Value *> Args;
       Args.push_back(BCI);
-      CastInst *Size = CastInst::CreateIntegerCast(I, Int64Ty, false);
-      Size->insertAfter(I);
+      CastInst *Elem = CastInst::CreateIntegerCast(I, Int64Ty, false);
+      BinaryOperator *Size = BinaryOperator::Create(Instruction::Mul, Elem, I->getOperand(2));
+      Elem->insertAfter(I);
+      Size->insertAfter(Elem);
       Args.push_back(Size);
       Args.push_back(getTagCounter());
       CallInst *CI = CallInst::Create(trackInitInst, Args.begin(), Args.end());
@@ -1913,7 +1916,7 @@ bool TypeChecks::visitLoadInst(Module &M, LoadInst &LI) {
 // AI - metadata
 // BCI - ptr
 // I - instruction whose uses to instrument
-bool TypeChecks::visitUses(Instruction *I, AllocaInst *AI, CastInst *BCI) {
+bool TypeChecks::visitUses(Instruction *I, Instruction *AI, CastInst *BCI) {
   for(Value::use_iterator II = I->use_begin(); II != I->use_end(); ++II) {
     if(DisablePtrCmpChecks) {
       if(isa<CmpInst>(II)) {
@@ -1939,6 +1942,32 @@ bool TypeChecks::visitUses(Instruction *I, AllocaInst *AI, CastInst *BCI) {
       Args.push_back(getTagCounter());
       // Create the call to the runtime check and place it before the copying store instruction.
       CallInst::Create(setTypeInfo, Args.begin(), Args.end(), "", SI);
+    } else if(SelectInst *SelI = dyn_cast<SelectInst>(II)) {
+      SelectInst *Prev = NULL;
+      if(SelectInst_MD_Map.find(SelI) != SelectInst_MD_Map.end()) {
+        Prev = SelectInst_MD_Map[SelI];
+      }
+      SelectInst *AI_New;
+      if(SelI->getTrueValue() == I) {
+        if(!Prev) {
+          AI_New = SelectInst::Create(SelI->getCondition(), AI, Constant::getNullValue(AI->getType()), "", SelI);
+        } else {
+          AI_New = SelectInst::Create(SelI->getCondition(), AI, Prev->getFalseValue(), "", SelI);
+          Prev->replaceAllUsesWith(AI_New);
+        }
+      }
+      else {
+        if(!Prev) {
+          AI_New = SelectInst::Create(SelI->getCondition(), Constant::getNullValue(AI->getType()), AI, "", SelI);
+        } else {
+          AI_New = SelectInst::Create(SelI->getCondition(),  Prev->getTrueValue(), AI, "", SelI);
+          Prev->replaceAllUsesWith(AI_New);
+        }
+      }
+      SelectInst_MD_Map[SelI] = AI_New;
+      AI_New->dump();
+      if(!Prev)
+        visitUses(SelI, AI_New, BCI);
     } else if(PHINode *PH = dyn_cast<PHINode>(II)) {
       BasicBlock *BB = PH->getIncomingBlock(II);
       CallInst::Create(checkTypeInst, Args.begin(), Args.end(), "", BB->getTerminator());
