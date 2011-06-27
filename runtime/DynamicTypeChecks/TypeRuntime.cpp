@@ -53,7 +53,6 @@ TypeTagTy * const shadow_begin = BASE;
 extern char* typeNames[];
 
 extern "C" {
-  void trackInitInst(void *ptr, uint64_t size, uint32_t tag);
   void shadowInit();
   void trackArgvType(int argc, char **argv) ;
   void trackEnvpType(char **envp) ;
@@ -226,10 +225,16 @@ void getTypeTag(void *ptr, uint64_t size, TypeTagTy *dest, uint32_t tag) {
  */
 void 
 checkType(TypeTagTy typeNumber, uint64_t size, TypeTagTy *metadata, void *ptr, uint32_t tag) {
+  if(metadata == NULL)
+    return;
   /* Check if this an initialized but untyped memory.*/
-  if (typeNumber != metadata[0] && metadata[0] != 0xFE) {
+  if (typeNumber != metadata[0]) {
     if (metadata[0] != 0xFF) {
-      printf("Type mismatch(%u): %p expecting %s, found %s!\n", tag, ptr, typeNames[typeNumber], typeNames[metadata[0]]);
+      if(metadata[0] == 0xFE) {
+        printf("Type alignment mismatch(%u): %p expecting %s, found MOb!\n",  tag, ptr, typeNames[typeNumber]);
+      } else {
+        printf("Type mismatch(%u): %p expecting %s, found %s!\n", tag, ptr, typeNames[typeNumber], typeNames[metadata[0]]);
+      }
       return;
     } else {
       /* If so, set type to the type being read.
