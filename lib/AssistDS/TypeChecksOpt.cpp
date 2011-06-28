@@ -112,6 +112,7 @@ bool TypeChecksOpt::runOnModule(Module &M) {
                                        VoidPtrTy,/*dest ptr*/
                                        TypeTagPtrTy,/*metadata*/
                                        Int64Ty,/*size*/
+                                       TypeTagTy,
                                        Int32Ty,/*tag*/
                                        NULL);
   trackStringInput = M.getOrInsertFunction("trackStringInput",
