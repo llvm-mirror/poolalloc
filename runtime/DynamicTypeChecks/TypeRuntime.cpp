@@ -69,7 +69,7 @@ extern "C" {
   void trackInitInst(void *ptr, uint64_t size, uint32_t tag) ;
   void trackUnInitInst(void *ptr, uint64_t size, uint32_t tag) ;
   void copyTypeInfo(void *dstptr, void *srcptr, uint64_t size, uint32_t tag) ;
-  void setTypeInfo(void *dstptr, TypeTagTy *metadata, uint64_t size, uint32_t tag) ;
+  void setTypeInfo(void *dstptr, TypeTagTy *metadata, uint64_t size, TypeTagTy type, uint32_t tag) ;
   void setVAInfo(void *va_list, uint64_t totalCount, TypeTagTy *metadata_ptr, uint32_t tag) ;
   void copyVAInfo(void *va_list_dst, void *va_list_src, uint32_t tag) ;
   void trackctype(void *ptr, uint32_t tag) ;
@@ -225,8 +225,10 @@ void getTypeTag(void *ptr, uint64_t size, TypeTagTy *dest, uint32_t tag) {
  */
 void 
 checkType(TypeTagTy typeNumber, uint64_t size, TypeTagTy *metadata, void *ptr, uint32_t tag) {
-  if(metadata == NULL)
+  if(metadata == NULL) {
+    assert(ptr == NULL);
     return;
+  }
   /* Check if this an initialized but untyped memory.*/
   if (typeNumber != metadata[0]) {
     if (metadata[0] != 0xFF) {
@@ -296,7 +298,11 @@ void copyTypeInfo(void *dstptr, void *srcptr, uint64_t size, uint32_t tag) {
 /**
  * Copy size bytes of metadata from metadata to dest ptr
  */
-void setTypeInfo(void *dstptr, TypeTagTy *metadata, uint64_t size, uint32_t tag) {
+void setTypeInfo(void *dstptr, TypeTagTy *metadata, uint64_t size, TypeTagTy type, uint32_t tag) {
+  if(metadata == NULL) {
+    trackStoreInst(dstptr, type, size, tag);
+    return;
+  }
   uintptr_t d = maskAddress(dstptr);
   memcpy(&shadow_begin[d], metadata, size);
 #if DEBUG
