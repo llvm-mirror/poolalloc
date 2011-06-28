@@ -41,6 +41,9 @@ private:
   std::list<Function *> AddressTakenFunctions;
   std::set<Instruction*> IndCalls;
   std::map<SelectInst*, SelectInst*> SelectInst_MD_Map;
+  std::map<SelectInst*, SelectInst*> SelectInst_BasePtr_Map;
+  std::map<PHINode*, PHINode*> PHINode_MD_Map;
+  std::map<PHINode*, PHINode*> PHINode_BasePtr_Map;
 
   // Analysis from other passes.
   TargetData *TD;
@@ -70,7 +73,7 @@ private:
   bool visitAllocaInst(Module &M, AllocaInst &AI);
   bool visitVAArgInst(Module &M, VAArgInst &VI);
   
-  bool visitUses(Instruction *I, Instruction *AI, CastInst *BCI);
+  bool visitUses(Instruction *I, Instruction *AI, Instruction *BCI);
 
   bool visitGlobal(Module &M, GlobalVariable &GV, 
                    Constant *C, Instruction &I, SmallVector<Value*,8>);
