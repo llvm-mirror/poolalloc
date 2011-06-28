@@ -840,6 +840,7 @@ bool TypeChecks::visitInternalVarArgFunction(Module &M, Function &F) {
   // Find all uses of the function
   for(Value::use_iterator ui = F.use_begin(), ue = F.use_end();
       ui != ue;ui ++)  {
+   
     // Check for call sites
     if(InvokeInst *II = dyn_cast<InvokeInst>(ui)) {
       std::vector<Value *> Args;
@@ -1656,6 +1657,16 @@ bool TypeChecks::visitCallSite(Module &M, CallSite CS) {
       Constant *F = M.getOrInsertFunction("trackctype_32", VoidTy, VoidPtrTy, Int32Ty, NULL);
       CallInst *CI = CallInst::Create(F, Args.begin(), Args.end());
       CI->insertAfter(BCI);
+    } else if (F->getNameStr() == std::string("strtol")) {
+      CastInst *BCI = BitCastInst::CreatePointerCast(CS.getArgument(1), VoidPtrTy, "", I);
+      const PointerType *PTy = cast<PointerType>(CS.getArgument(1)->getType());
+      const Type * ElementType = PTy->getElementType();
+      std::vector<Value *>Args;
+      Args.push_back(BCI);
+      Args.push_back(getSizeConstant(ElementType));
+      Args.push_back(getTagCounter());
+      CallInst::Create(trackInitInst, Args.begin(), Args.end(), "", I);
+      return true;
     } else if (F->getNameStr() == std::string("strcat") ||
                F->getNameStr() == std::string("_ZNSspLEPKc")) {
       CastInst *BCI_Src = BitCastInst::CreatePointerCast(CS.getArgument(1), VoidPtrTy, "", I);
@@ -1813,67 +1824,41 @@ bool TypeChecks::visitIndirectCallSite(Module &M, Instruction *I) {
   CastInst *Func = CastInst::CreatePointerCast(I->getOperand(0), FTy->getPointerTo(), "", I);
 
   inst_iterator InsPt = inst_begin(I->getParent()->getParent());
-
-  if(isa<CallInst>(I)) {
-    unsigned int NumArgs = I->getNumOperands() - 1;
-    Value *NumArgsVal = ConstantInt::get(Int32Ty, NumArgs);
-
-    AllocaInst *AI = new AllocaInst(TypeTagTy, NumArgsVal, "", &*InsPt);
-    for(unsigned int i = 1; i < I->getNumOperands(); i++) {
-      Value *Idx[2];
-      Idx[0] = ConstantInt::get(Int32Ty, i-1);
-      GetElementPtrInst *GEP = GetElementPtrInst::CreateInBounds(AI,
-                                                                 Idx,
-                                                                 Idx + 1,
-                                                                 "", I);
-      Constant *C = getTypeMarkerConstant(I->getOperand(i));
-      new StoreInst(C, GEP, I);
-    }
-
-    std::vector<Value *> Args;
-    Args.push_back(ConstantInt::get(Int64Ty, NumArgs));
-    Args.push_back(AI);
-
-    for(unsigned int i = 1; i < I->getNumOperands(); i++)
-      Args.push_back(I->getOperand(i));
+  CallSite CS = CallSite(I);
+  unsigned int NumArgs = CS.arg_size();
+  Value *NumArgsVal = ConstantInt::get(Int32Ty, NumArgs);
+  AllocaInst *AI = new AllocaInst(TypeTagTy, NumArgsVal, "", &*InsPt);
+  for(unsigned int i = 0; i < CS.arg_size(); i++) {
+    Value *Idx[2];
+    Idx[0] = ConstantInt::get(Int32Ty, i-1);
+    GetElementPtrInst *GEP = GetElementPtrInst::CreateInBounds(AI,
+                                                               Idx,
+                                                               Idx + 1,
+                                                               "", I);
+    Constant *C = getTypeMarkerConstant(CS.getArgument(i));
+    new StoreInst(C, GEP, I);
+  }
+  std::vector<Value *> Args;
+  Args.push_back(ConstantInt::get(Int64Ty, NumArgs));
+  Args.push_back(AI);
+  for(unsigned int i = 0; i < CS.arg_size(); i++)
+    Args.push_back(CS.getArgument(i));
+  if(CallInst *CI = dyn_cast<CallInst>(I)) {
     CallInst *CI_New = CallInst::Create(Func, 
                                         Args.begin(),
                                         Args.end(), 
-                                        "", I);
-    I->replaceAllUsesWith(CI_New);
-    I->eraseFromParent();
+                                        "", CI);
+    CI->replaceAllUsesWith(CI_New);
+    CI->eraseFromParent();
   } else if(InvokeInst *II = dyn_cast<InvokeInst>(I)) {
-    unsigned int NumArgs = I->getNumOperands() - 3;
-    Value *NumArgsVal = ConstantInt::get(Int32Ty, NumArgs);
-
-    AllocaInst *AI = new AllocaInst(TypeTagTy, NumArgsVal, "", &*InsPt);
-    for(unsigned int i = 3; i < I->getNumOperands(); i++) {
-      Value *Idx[2];
-      Idx[0] = ConstantInt::get(Int32Ty, i-3);
-      GetElementPtrInst *GEP = GetElementPtrInst::CreateInBounds(AI,
-                                                                 Idx,
-                                                                 Idx + 1,
-                                                                 "", I);
-      Constant *C = getTypeMarkerConstant(I->getOperand(i));
-      new StoreInst(C, GEP, I);
-    }
-    std::vector<Value *> Args;
-    Args.push_back(ConstantInt::get(Int64Ty, NumArgs));
-    Args.push_back(AI);
-
-    for(unsigned int i = 3; i < I->getNumOperands(); i++) {
-      Args.push_back(I->getOperand(i));
-    }
-
     InvokeInst *INew = InvokeInst::Create(Func,
                                           II->getNormalDest(),
                                           II->getUnwindDest(),
                                           Args.begin(),
                                           Args.end(),
                                           "", I);
-    I->replaceAllUsesWith(INew);
-    I->eraseFromParent();
-
+    II->replaceAllUsesWith(INew);
+    II->eraseFromParent();
   }
   return true;
 }

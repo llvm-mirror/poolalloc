@@ -217,7 +217,7 @@ bool TypeChecksOpt::runOnModule(Module &M) {
       std::vector<Value*> Args;
       Args.push_back(CI->getOperand(1));
       Args.push_back(CI->getOperand(3)); // size
-      Args.push_back(CI->getOperand(4));
+      Args.push_back(CI->getOperand(5));
       CallInst::Create(trackInitInst, Args.begin(), Args.end(), "", CI);
       toDelete.push_back(CI);
     }
