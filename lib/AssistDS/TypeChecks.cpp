@@ -1657,7 +1657,8 @@ bool TypeChecks::visitCallSite(Module &M, CallSite CS) {
       Constant *F = M.getOrInsertFunction("trackctype_32", VoidTy, VoidPtrTy, Int32Ty, NULL);
       CallInst *CI = CallInst::Create(F, Args.begin(), Args.end());
       CI->insertAfter(BCI);
-    } else if (F->getNameStr() == std::string("strtol")) {
+    } else if (F->getNameStr() == std::string("strtol") ||
+               F->getNameStr() == std::string("strtod")) {
       CastInst *BCI = BitCastInst::CreatePointerCast(CS.getArgument(1), VoidPtrTy, "", I);
       const PointerType *PTy = cast<PointerType>(CS.getArgument(1)->getType());
       const Type * ElementType = PTy->getElementType();
