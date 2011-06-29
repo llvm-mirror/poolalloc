@@ -27,7 +27,7 @@
  * For now, run a version of the tool without the base fixed, and 
  * choose address.
  */
-#define BASE ((TypeTagTy *)(0x2aaaab88c000))
+#define BASE ((TypeTagTy *)(0x2aaaac01e000))
 /*
  * Do some macro magic to get mmap macros defined properly on all platforms.
  */
@@ -129,7 +129,7 @@ void trackEnvpType(char **envp) {
   int index = 0;
   for(;envp[index] != NULL; ++index)
     trackInitInst(envp[index], (strlen(envp[index]) + 1)*sizeof(char), 0);
-  trackInitInst(envp, (index )*sizeof(char*), 0);
+  trackInitInst(envp, (index+1)*sizeof(char*), 0);
 }
 
 /**
