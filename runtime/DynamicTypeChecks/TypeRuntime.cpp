@@ -81,8 +81,9 @@ extern "C" {
   void trackgetpwuid(void *ptr, uint32_t tag) ;
   void trackgethostname(void *ptr, uint32_t tag) ;
   void trackgetaddrinfo(void *ptr, uint32_t tag) ;
-  void trackaccept(void *ptr, uint32_t tag) ;
+  void trackaccept(void *ptr, void *size,uint32_t tag) ;
   void trackpoll(void *ptr, uint64_t nfds, uint32_t tag) ;
+  void trackReadLink(void *ptr, int64_t val, uint32_t tag) ;
 }
 
 void trackInitInst(void *ptr, uint64_t size, uint32_t tag);
@@ -364,7 +365,7 @@ void trackStrcpyInst(void *dst, void *src, uint32_t tag) {
  * Initialize the metadata fr dst pointer of strcap
  */
 void trackStrcatInst(void *dst, void *src, uint32_t tag) {
-  uintptr_t dst_start = (uintptr_t)(dst) + strlen((const char *)dst) -1;
+  uintptr_t dst_start = (uintptr_t)(dst) + strlen((const char *)dst);
   copyTypeInfo((void*)dst_start, src, strlen((const char *)src)+1, tag);
 }
 
@@ -401,8 +402,9 @@ void trackgetaddrinfo(void *ptr, uint32_t tag) {
   trackInitInst(result, sizeof(struct addrinfo*), tag);
 }
 
-void trackaccept(void *ptr, uint32_t tag) {
-  trackInitInst(ptr, sizeof(struct sockaddr), tag);
+void trackaccept(void *ptr, void *size, uint32_t tag) {
+  int32_t bytes = *((int32_t*)size);
+  trackInitInst(ptr, (uint64_t)bytes, tag);
 }
 
 void trackpoll(void *ptr, uint64_t nfds, uint32_t tag) {
@@ -412,4 +414,9 @@ void trackpoll(void *ptr, uint64_t nfds, uint32_t tag) {
     trackInitInst(&fds[i], sizeof(struct pollfd), tag);
     i++;
   }
+}
+void trackReadLink(void *ptr, int64_t val, uint32_t tag) {
+  if(val == -1)
+    return;
+  trackInitInst(ptr, val, tag);
 }
