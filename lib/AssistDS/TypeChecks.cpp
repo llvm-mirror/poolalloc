@@ -1614,10 +1614,20 @@ bool TypeChecks::visitCallSite(Module &M, CallSite CS) {
       Constant *F = M.getOrInsertFunction("trackgetcwd", VoidTy, VoidPtrTy, Int32Ty, NULL);
       CallInst *CI = CallInst::Create(F, Args.begin(), Args.end());
       CI->insertAfter(BCI);
+    } else if(F->getNameStr() == std::string("crypt")) {
+      CastInst *BCI = BitCastInst::CreatePointerCast(I, VoidPtrTy);
+      BCI->insertAfter(I);
+      std::vector<Value *>Args;
+      Args.push_back(BCI);
+      Args.push_back(getTagCounter());
+      Constant *F = M.getOrInsertFunction("trackgetcwd", VoidTy, VoidPtrTy, Int32Ty, NULL);
+      CallInst *CI = CallInst::Create(F, Args.begin(), Args.end());
+      CI->insertAfter(BCI);
     } else if (F->getNameStr() == std::string("getrusage") || 
                F->getNameStr() == std::string("getrlimit") ||
                F->getNameStr() == std::string("stat") ||
-               F->getNameStr() ==  std::string("fstat")) {
+               F->getNameStr() ==  std::string("fstat") ||
+               F->getNameStr() == std::string("lstat")) {
       CastInst *BCI = BitCastInst::CreatePointerCast(CS.getArgument(1), VoidPtrTy, "", I);
       assert (isa<PointerType>(CS.getArgument(1)->getType()));
       const PointerType * PT = cast<PointerType>(CS.getArgument(1)->getType());
@@ -1709,7 +1719,30 @@ bool TypeChecks::visitCallSite(Module &M, CallSite CS) {
       Args.push_back(getTagCounter());
       CallInst *CI = CallInst::Create(trackInitInst, Args.begin(), Args.end());
       CI->insertAfter(I);
-    } else if (F->getNameStr() == std::string("localtime")) {
+    } else if (F->getNameStr() == std::string("getsockname")) {
+      CastInst *BCI = BitCastInst::CreatePointerCast(CS.getArgument(1), VoidPtrTy, "", I);
+      const PointerType *PTy = cast<PointerType>(CS.getArgument(1)->getType());
+      const Type * ElementType = PTy->getElementType();
+      std::vector<Value *> Args;
+      Args.push_back(BCI);
+      Args.push_back(getSizeConstant(ElementType));
+      Args.push_back(getTagCounter());
+      CallInst::Create(trackInitInst, Args.begin(), Args.end(), "", I);
+      return true;
+    } else if (F->getNameStr() == std::string("readdir")) {
+      CastInst *BCI = BitCastInst::CreatePointerCast(I, VoidPtrTy);
+      BCI->insertAfter(I);
+      const PointerType *PTy = cast<PointerType>(I->getType());
+      const Type * ElementType = PTy->getElementType();
+      std::vector<Value *>Args;
+      Args.push_back(BCI);
+      Args.push_back(getSizeConstant(ElementType));
+      Args.push_back(getTagCounter());
+      CallInst *CI = CallInst::Create(trackInitInst, Args.begin(), Args.end());
+      CI->insertAfter(BCI);
+      return true;
+    } else if (F->getNameStr() == std::string("localtime") ||
+               F->getNameStr() == std::string("gmtime")) {
       CastInst *BCI = BitCastInst::CreatePointerCast(I, VoidPtrTy);
       BCI->insertAfter(I);
       const PointerType *PTy = cast<PointerType>(I->getType());
@@ -1799,6 +1832,15 @@ bool TypeChecks::visitCallSite(Module &M, CallSite CS) {
       Args.push_back(getTagCounter());
       CallInst::Create(trackInitInst, Args.begin(), Args.end(), "", I);
       return true;
+    } else if(F->getNameStr() == std::string("snprintf") ||
+              F->getNameStr() == std::string("vsnprintf")) {
+      CastInst *BCI = BitCastInst::CreatePointerCast(CS.getArgument(0), VoidPtrTy, "", I);
+      std::vector<Value*>Args;
+      Args.push_back(BCI);
+      Args.push_back(getTagCounter());
+      Constant *F = M.getOrInsertFunction("trackgetcwd", VoidTy, VoidPtrTy, Int32Ty, NULL);
+      CallInst *CINew = CallInst::Create(F, Args.begin(), Args.end());
+      CINew->insertAfter(I);
     } else if(F->getNameStr() == std::string("sprintf")) {
       CastInst *BCI = BitCastInst::CreatePointerCast(CS.getArgument(0), VoidPtrTy, "", I);
       std::vector<Value*>Args;
