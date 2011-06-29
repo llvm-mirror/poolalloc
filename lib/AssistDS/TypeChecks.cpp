@@ -1503,10 +1503,13 @@ bool TypeChecks::visitCallSite(Module &M, CallSite CS) {
     } else if (F->getNameStr() == std::string("accept")) {
       CastInst *BCI = BitCastInst::CreatePointerCast(CS.getArgument(1), VoidPtrTy);
       BCI->insertAfter(I);
+      CastInst *BCI_Size = BitCastInst::CreatePointerCast(CS.getArgument(2), VoidPtrTy);
+      BCI_Size->insertAfter(I);
       std::vector<Value *>Args;
       Args.push_back(BCI);
+      Args.push_back(BCI_Size);
       Args.push_back(getTagCounter());
-      Constant *F = M.getOrInsertFunction("trackaccept", VoidTy, VoidPtrTy, Int32Ty, NULL);
+      Constant *F = M.getOrInsertFunction("trackaccept", VoidTy, VoidPtrTy,VoidPtrTy, Int32Ty, NULL);
       CallInst *CI = CallInst::Create(F, Args.begin(), Args.end());
       CI->insertAfter(BCI);
     } else if (F->getNameStr() == std::string("poll")) {
@@ -1717,7 +1720,8 @@ bool TypeChecks::visitCallSite(Module &M, CallSite CS) {
       Args.push_back(CS.getArgument(1));
       Args.push_back(I);
       Args.push_back(getTagCounter());
-      CallInst *CI = CallInst::Create(trackInitInst, Args.begin(), Args.end());
+      Constant *F = M.getOrInsertFunction("trackReadLink", VoidTy, VoidPtrTy, I->getType(), Int32Ty, NULL);
+      CallInst *CI = CallInst::Create(F, Args.begin(), Args.end());
       CI->insertAfter(I);
     } else if (F->getNameStr() == std::string("getsockname")) {
       CastInst *BCI = BitCastInst::CreatePointerCast(CS.getArgument(1), VoidPtrTy, "", I);
