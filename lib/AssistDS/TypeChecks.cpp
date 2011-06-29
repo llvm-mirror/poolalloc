@@ -1562,6 +1562,15 @@ bool TypeChecks::visitCallSite(Module &M, CallSite CS) {
       Constant *F = M.getOrInsertFunction("trackgetpwuid", VoidTy, VoidPtrTy, Int32Ty, NULL);
       CallInst *CI = CallInst::Create(F, Args.begin(), Args.end());
       CI->insertAfter(BCI);
+    } else if (F->getNameStr() == std::string("getpwnam")) {
+      CastInst *BCI = BitCastInst::CreatePointerCast(I, VoidPtrTy);
+      BCI->insertAfter(I);
+      std::vector<Value *>Args;
+      Args.push_back(BCI);
+      Args.push_back(getTagCounter());
+      Constant *F = M.getOrInsertFunction("trackgetpwuid", VoidTy, VoidPtrTy, Int32Ty, NULL);
+      CallInst *CI = CallInst::Create(F, Args.begin(), Args.end());
+      CI->insertAfter(BCI);
     } else if (F->getNameStr() == std::string("getgruid") ||
                F->getNameStr() == std::string("getgrnam") ||
                F->getNameStr() == std::string("getpwnam") ||
@@ -1693,8 +1702,26 @@ bool TypeChecks::visitCallSite(Module &M, CallSite CS) {
       Args.push_back(getTagCounter());
       Constant *F = M.getOrInsertFunction("trackStrncpyInst", VoidTy, VoidPtrTy, VoidPtrTy, I->getOperand(3)->getType(), Int32Ty, NULL);
       CallInst::Create(F, Args.begin(), Args.end(), "", I);
-    } else if(F->getNameStr() == std::string("ftime") ||
-              F->getNameStr() == std::string("gettimeofday")) {
+    } else if (F->getNameStr() == std::string("readlink")) {
+      std::vector<Value *>Args;
+      Args.push_back(CS.getArgument(1));
+      Args.push_back(I);
+      Args.push_back(getTagCounter());
+      CallInst *CI = CallInst::Create(trackInitInst, Args.begin(), Args.end());
+      CI->insertAfter(I);
+    } else if (F->getNameStr() == std::string("localtime")) {
+      CastInst *BCI = BitCastInst::CreatePointerCast(I, VoidPtrTy);
+      BCI->insertAfter(I);
+      const PointerType *PTy = cast<PointerType>(I->getType());
+      const Type * ElementType = PTy->getElementType();
+      std::vector<Value *>Args;
+      Args.push_back(BCI);
+      Args.push_back(getSizeConstant(ElementType));
+      Args.push_back(getTagCounter());
+      CallInst *CI = CallInst::Create(trackInitInst, Args.begin(), Args.end());
+      CI->insertAfter(BCI);
+    } else if (F->getNameStr() == std::string("ftime") ||
+               F->getNameStr() == std::string("gettimeofday")) {
       CastInst *BCI = BitCastInst::CreatePointerCast(CS.getArgument(0), VoidPtrTy, "", I);
       const PointerType *PTy = cast<PointerType>(CS.getArgument(0)->getType());
       const Type * ElementType = PTy->getElementType();
@@ -1948,17 +1975,21 @@ bool TypeChecks::visitUses(Instruction *I, Instruction *AI, Instruction *BCI) {
     Args.push_back(BCI);
     Args.push_back(getTagCounter());
     if(StoreInst *SI = dyn_cast<StoreInst>(II)) {
-      // Cast the pointer operand to i8* for the runtime function.
-      CastInst *BCI_Dest = BitCastInst::CreatePointerCast(SI->getPointerOperand(), VoidPtrTy, "", SI);
+      if(SI->getOperand(0) == I) {
+        // Cast the pointer operand to i8* for the runtime function.
+        CastInst *BCI_Dest = BitCastInst::CreatePointerCast(SI->getPointerOperand(), VoidPtrTy, "", SI);
 
-      std::vector<Value *> Args;
-      Args.push_back(BCI_Dest);
-      Args.push_back(AI);
-      Args.push_back(getSizeConstant(SI->getOperand(0)->getType()));
-      Args.push_back(getTypeMarkerConstant(SI->getOperand(0)->getType()));
-      Args.push_back(getTagCounter());
-      // Create the call to the runtime check and place it before the copying store instruction.
-      CallInst::Create(setTypeInfo, Args.begin(), Args.end(), "", SI);
+        std::vector<Value *> Args;
+        Args.push_back(BCI_Dest);
+        Args.push_back(AI);
+        Args.push_back(getSizeConstant(SI->getOperand(0)->getType()));
+        Args.push_back(getTypeMarkerConstant(SI->getOperand(0)->getType()));
+        Args.push_back(getTagCounter());
+        // Create the call to the runtime check and place it before the copying store instruction.
+        CallInst::Create(setTypeInfo, Args.begin(), Args.end(), "", SI);
+      } else {
+        CallInst::Create(checkTypeInst, Args.begin(), Args.end(), "", cast<Instruction>(II.getUse().getUser()));
+      }
     } else if(SelectInst *SelI = dyn_cast<SelectInst>(II)) {
       SelectInst *Prev = NULL;
       SelectInst *PrevBasePtr = NULL;
