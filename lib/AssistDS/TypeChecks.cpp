@@ -1531,6 +1531,15 @@ bool TypeChecks::visitCallSite(Module &M, CallSite CS) {
       Constant *F = M.getOrInsertFunction("trackgetaddrinfo", VoidTy, VoidPtrTy, Int32Ty, NULL);
       CallInst *CI = CallInst::Create(F, Args.begin(), Args.end());
       CI->insertAfter(BCI);
+    } else if (F->getNameStr() == std::string("mmap")) {
+      CastInst *BCI = BitCastInst::CreatePointerCast(I, VoidPtrTy);
+      BCI->insertAfter(I);
+      std::vector<Value *> Args;
+      Args.push_back(BCI);
+      Args.push_back(CS.getArgument(1));
+      Args.push_back(getTagCounter());
+      CallInst *CI = CallInst::Create(trackInitInst, Args.begin(), Args.end());
+      CI->insertAfter(BCI);
     } else if (F->getNameStr() == std::string("__strdup")) {
       CastInst *BCI_Dest = BitCastInst::CreatePointerCast(I, VoidPtrTy);
       BCI_Dest->insertAfter(I);
@@ -1590,6 +1599,16 @@ bool TypeChecks::visitCallSite(Module &M, CallSite CS) {
       Args.push_back(getTagCounter());
       CallInst *CI = CallInst::Create(trackInitInst, Args.begin(), Args.end());
       CI->insertAfter(BCI);
+    } else if (F->getNameStr() == std::string("gethostbyname") ||
+               F->getNameStr() == std::string("gethostbyaddr")) {
+      CastInst *BCI = BitCastInst::CreatePointerCast(I, VoidPtrTy);
+      BCI->insertAfter(I);
+      std::vector<Value*>Args;
+      Args.push_back(BCI);
+      Args.push_back(getTagCounter());
+      Constant *F = M.getOrInsertFunction("trackgethostbyname", VoidTy, VoidPtrTy, Int32Ty, NULL);
+      CallInst *CI = CallInst::Create(F, Args.begin(), Args.end());
+      CI->insertAfter(BCI);
     } else if (F->getNameStr() == std::string("gethostname")) {
       CastInst *BCI  = BitCastInst::CreatePointerCast(CS.getArgument(0), VoidPtrTy);
       BCI->insertAfter(I);
@@ -1599,7 +1618,8 @@ bool TypeChecks::visitCallSite(Module &M, CallSite CS) {
       Constant *F = M.getOrInsertFunction("trackgethostname", VoidTy, VoidPtrTy, Int32Ty, NULL);
       CallInst *CI = CallInst::Create(F, Args.begin(), Args.end());
       CI->insertAfter(BCI);
-    } else if (F->getNameStr() == std::string("getenv")) {
+    } else if (F->getNameStr() == std::string("getenv") ||
+               F->getNameStr() == std::string("strerror")) {
       CastInst *BCI = BitCastInst::CreatePointerCast(I, VoidPtrTy);
       BCI->insertAfter(I);
       std::vector<Value *>Args;
@@ -1723,15 +1743,26 @@ bool TypeChecks::visitCallSite(Module &M, CallSite CS) {
       Constant *F = M.getOrInsertFunction("trackReadLink", VoidTy, VoidPtrTy, I->getType(), Int32Ty, NULL);
       CallInst *CI = CallInst::Create(F, Args.begin(), Args.end());
       CI->insertAfter(I);
+    } else if (F->getNameStr() == std::string("pipe")) {
+      CastInst *BCI = BitCastInst::CreatePointerCast(CS.getArgument(0), VoidPtrTy, "", I);
+      std::vector<Value*> Args;
+      Args.push_back(BCI);
+      Args.push_back(getTagCounter());
+      Constant *F = M.getOrInsertFunction("trackpipe", VoidTy, VoidPtrTy, Int32Ty, NULL);
+      CallInst::Create(F, Args.begin(), Args.end(), "", I);
+      return true;
     } else if (F->getNameStr() == std::string("getsockname")) {
-      CastInst *BCI = BitCastInst::CreatePointerCast(CS.getArgument(1), VoidPtrTy, "", I);
-      const PointerType *PTy = cast<PointerType>(CS.getArgument(1)->getType());
-      const Type * ElementType = PTy->getElementType();
+      CastInst *BCI = BitCastInst::CreatePointerCast(CS.getArgument(1), VoidPtrTy);
+      BCI->insertAfter(I);
+      CastInst *BCI_Size = BitCastInst::CreatePointerCast(CS.getArgument(2), VoidPtrTy);
+      BCI_Size->insertAfter(I);
       std::vector<Value *> Args;
       Args.push_back(BCI);
-      Args.push_back(getSizeConstant(ElementType));
+      Args.push_back(BCI_Size);
       Args.push_back(getTagCounter());
-      CallInst::Create(trackInitInst, Args.begin(), Args.end(), "", I);
+      Constant *F = M.getOrInsertFunction("trackgetsockname", VoidTy, VoidPtrTy, VoidPtrTy, Int32Ty, NULL);
+      CallInst *CI = CallInst::Create(F, Args.begin(), Args.end());
+      CI->insertAfter(BCI);
       return true;
     } else if (F->getNameStr() == std::string("readdir")) {
       CastInst *BCI = BitCastInst::CreatePointerCast(I, VoidPtrTy);
@@ -2013,7 +2044,6 @@ bool TypeChecks::visitUses(Instruction *I, Instruction *AI, Instruction *BCI) {
           continue;
       }
     }
-
     std::vector<Value *> Args;
     Args.push_back(getTypeMarkerConstant(I));
     Args.push_back(getSizeConstant(I->getType()));
@@ -2106,9 +2136,14 @@ bool TypeChecks::visitUses(Instruction *I, Instruction *AI, Instruction *BCI) {
         }
       }
     } else if(BitCastInst *BI = dyn_cast<BitCastInst>(II)) {
+      BitCast_MD_Map[BI] = AI;
       visitUses(BI, AI, BCI);
       //CallInst::Create(checkTypeInst, Args.begin(), Args.end(), "", cast<Instruction>(II.getUse().getUser()));
-    } else {
+    /*} else if(PtrToIntInst *P2I = dyn_cast<PtrToIntInst>(II)) {
+      visitUses(P2I, AI, BCI);
+    } else if(IntToPtrInst *I2P = dyn_cast<IntToPtrInst>(II)) {
+      visitUses(I2P, AI, BCI);*/
+    }else {
       CallInst::Create(checkTypeInst, Args.begin(), Args.end(), "", cast<Instruction>(II.getUse().getUser()));
     }
   }
@@ -2117,6 +2152,18 @@ bool TypeChecks::visitUses(Instruction *I, Instruction *AI, Instruction *BCI) {
 
 // Insert runtime checks before all store instructions.
 bool TypeChecks::visitStoreInst(Module &M, StoreInst &SI) {
+  if(PHINode *PH = dyn_cast<PHINode>(SI.getOperand(0)->stripPointerCasts())) {
+    if(PHINode_MD_Map.find(PH) != PHINode_MD_Map.end())
+      return false;
+  }
+  if(SelectInst *SelI = dyn_cast<SelectInst>(SI.getOperand(0)->stripPointerCasts())) {
+    if(SelectInst_MD_Map.find(SelI) != SelectInst_MD_Map.end())
+      return false;
+  }
+  if(BitCastInst *BI = dyn_cast<BitCastInst>(SI.getOperand(0)->stripPointerCasts())) {
+    if(BitCast_MD_Map.find(BI) != BitCast_MD_Map.end())
+      return false;
+  }
   // Cast the pointer operand to i8* for the runtime function.
   CastInst *BCI = BitCastInst::CreatePointerCast(SI.getPointerOperand(), VoidPtrTy, "", &SI);
 

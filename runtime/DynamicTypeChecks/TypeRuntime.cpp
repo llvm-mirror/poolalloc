@@ -80,9 +80,12 @@ extern "C" {
   void trackgetcwd(void *ptr, uint32_t tag) ;
   void trackgetpwuid(void *ptr, uint32_t tag) ;
   void trackgethostname(void *ptr, uint32_t tag) ;
+  void trackgethostbyname(void *ptr, uint32_t tag) ;
   void trackgetaddrinfo(void *ptr, uint32_t tag) ;
   void trackaccept(void *ptr, void *size,uint32_t tag) ;
+  void trackgetsockname(void *ptr, void *size,uint32_t tag) ;
   void trackpoll(void *ptr, uint64_t nfds, uint32_t tag) ;
+  void trackpipe(void *ptr, uint32_t tag) ;
   void trackReadLink(void *ptr, int64_t val, uint32_t tag) ;
 }
 
@@ -390,6 +393,24 @@ void trackgetpwuid(void *ptr, uint32_t tag) {
 void trackgethostname(void *ptr, uint32_t tag) {
   trackInitInst(ptr, strlen((const char *)ptr) + 1, tag);
 }
+void trackgethostbyname(void *ptr, uint32_t tag) {
+  struct hostent *hn = (struct hostent *)ptr;
+  trackInitInst(hn->h_name, strlen(hn->h_name) + 1, tag);
+  unsigned i;
+  for(i =0; hn->h_aliases[i] != NULL; i++) {
+    trackInitInst(&hn->h_aliases[i], sizeof(char*), tag);
+    trackInitInst(hn->h_aliases[i], hn->h_length, tag);
+  }
+  trackInitInst(&hn->h_aliases[i], sizeof(char*), tag);
+  trackInitInst(hn->h_aliases[i], hn->h_length, tag);
+  for(i = 0; hn->h_addr_list[i] != NULL; i++) {
+    trackInitInst(&hn->h_addr_list[i], sizeof(char*), tag);
+    trackInitInst(hn->h_addr_list[i], hn->h_length, tag);
+  }
+  trackInitInst(&hn->h_addr_list[i], sizeof(char*), tag);
+  trackInitInst(hn->h_addr_list[i], hn->h_length, tag);
+  trackInitInst(ptr, sizeof(struct hostent), tag);
+}
 
 void trackgetaddrinfo(void *ptr, uint32_t tag) {
   struct addrinfo *res;
@@ -405,6 +426,15 @@ void trackgetaddrinfo(void *ptr, uint32_t tag) {
 void trackaccept(void *ptr, void *size, uint32_t tag) {
   int32_t bytes = *((int32_t*)size);
   trackInitInst(ptr, (uint64_t)bytes, tag);
+}
+
+void trackgetsockname(void *ptr, void *size, uint32_t tag) {
+  int32_t bytes = *((int32_t*)size);
+  trackInitInst(ptr, (uint64_t)bytes, tag);
+}
+
+void trackpipe(void *ptr, uint32_t tag) {
+  trackInitInst(ptr, sizeof(int) * 2, tag);
 }
 
 void trackpoll(void *ptr, uint64_t nfds, uint32_t tag) {
