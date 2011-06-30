@@ -44,6 +44,7 @@ private:
   std::map<SelectInst*, SelectInst*> SelectInst_BasePtr_Map;
   std::map<PHINode*, PHINode*> PHINode_MD_Map;
   std::map<PHINode*, PHINode*> PHINode_BasePtr_Map;
+  std::map<BitCastInst*, Instruction*> BitCast_MD_Map;
 
   // Analysis from other passes.
   TargetData *TD;
