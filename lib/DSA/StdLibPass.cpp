@@ -301,6 +301,7 @@ const struct {
   // format string intrinsics and functions
   {"sc.fsparameter",  {NRET_NARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
   {"sc.fscallinfo",   {NRET_YARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
+  {"sc.fscallinfo_debug",{NRET_YARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
   {"pool_printf",     {NRET_YARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
   {"pool_fprintf",    {NRET_YARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
   {"pool_sprintf",    {NRET_YARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
@@ -310,6 +311,13 @@ const struct {
   {"pool_warn",       {NRET_YARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
   {"pool_warnx",      {NRET_YARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
   {"pool_syslog",     {NRET_YARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
+  {"pool_scanf",      {NRET_YARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
+  {"pool_fscanf",     {NRET_YARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
+  {"pool_sscanf",     {NRET_YARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
+  {"pool___printf_chk",   {NRET_YARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
+  {"pool___fprintf_chk",  {NRET_YARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
+  {"pool___sprintf_chk",  {NRET_YARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
+  {"pool___snprintf_chk", {NRET_YARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
   
   // Type Checks
   {"trackArgvType",        {NRET_NARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS,   false}},
