@@ -128,6 +128,7 @@ Constant *TypeChecks::getTypeMarkerConstant(const Type *T) {
 
 bool TypeChecks::runOnModule(Module &M) {
   bool modified = false; // Flags whether we modified the module.
+  bool transformIndirectCalls = true;
 
   TD = &getAnalysis<TargetData>();
   addrAnalysis = &getAnalysis<AddressTakenAnalysis>();
@@ -169,8 +170,12 @@ bool TypeChecks::runOnModule(Module &M) {
   // Recognize special cases
   for (Module::iterator MI = M.begin(), ME = M.end(); MI != ME; ++MI) {
     Function &F = *MI;
-    if(F.isDeclaration())
+    if(F.isDeclaration()) {
+      if(addrAnalysis->hasAddressTaken(&F))
+        transformIndirectCalls = false;
+
       continue;
+    }
 
     std::string name = F.getName();
     if (strncmp(name.c_str(), "tc.", 3) == 0) continue;
@@ -216,12 +221,14 @@ bool TypeChecks::runOnModule(Module &M) {
   }
 
   // Modify all the address taken functions
-  while(!AddressTakenFunctions.empty()) {
-    Function *F = AddressTakenFunctions.back();
-    AddressTakenFunctions.pop_back();
-    if(F->isVarArg())
-      continue;
-    visitAddressTakenFunction(M, *F);
+  if(transformIndirectCalls) {
+    while(!AddressTakenFunctions.empty()) {
+      Function *F = AddressTakenFunctions.back();
+      AddressTakenFunctions.pop_back();
+      if(F->isVarArg())
+        continue;
+      visitAddressTakenFunction(M, *F);
+    }
   }
 
   for (Module::iterator MI = M.begin(), ME = M.end(); MI != ME; ++MI) {
@@ -237,7 +244,7 @@ bool TypeChecks::runOnModule(Module &M) {
         if(!isa<LoadInst>(SI->getOperand(0)))
           modified |= visitStoreInst(M, *SI);
       } else if (LoadInst *LI = dyn_cast<LoadInst>(&I)) {
-          modified |= visitLoadInst(M, *LI);
+        modified |= visitLoadInst(M, *LI);
       } else if (CallInst *CI = dyn_cast<CallInst>(&I)) {
         modified |= visitCallInst(M, *CI);
       } else if (InvokeInst *II = dyn_cast<InvokeInst>(&I)) {
@@ -251,13 +258,15 @@ bool TypeChecks::runOnModule(Module &M) {
   }
 
   // visit all the indirect call sites
-  std::set<Instruction*>::iterator II = IndCalls.begin();
-  for(; II != IndCalls.end();) {
-    Instruction *I = *II++;
-    modified |= visitIndirectCallSite(M,I);
+  if(transformIndirectCalls) {
+    std::set<Instruction*>::iterator II = IndCalls.begin();
+    for(; II != IndCalls.end();) {
+      Instruction *I = *II++;
+      modified |= visitIndirectCallSite(M,I);
+    }
   }
 
-  // visit all the uses of the address taken functions and modify if
+  // visit all the uses of the address taken functions and var arg functions and modify if
   // not being passed to external code
   std::map<Function *, Function * >::iterator FI = IndFunctionsMap.begin(), FE = IndFunctionsMap.end();
   for(;FI!=FE;++FI) {
@@ -330,7 +339,7 @@ bool TypeChecks::runOnModule(Module &M) {
 }
 
 void TypeChecks::initRuntimeCheckPrototypes(Module &M) {
-  
+
   RegisterArgv = M.getOrInsertFunction("trackArgvType",
                                        VoidTy,
                                        Int32Ty, /*argc */
@@ -341,7 +350,7 @@ void TypeChecks::initRuntimeCheckPrototypes(Module &M) {
                                        VoidTy,
                                        VoidPtrTy->getPointerTo(),/*envp*/
                                        NULL);
-  
+
   trackGlobal = M.getOrInsertFunction("trackGlobal",
                                       VoidTy,
                                       VoidPtrTy,/*ptr*/
@@ -357,7 +366,7 @@ void TypeChecks::initRuntimeCheckPrototypes(Module &M) {
                                      Int64Ty,/*count*/
                                      Int32Ty,/*tag*/
                                      NULL);
-  
+
   trackInitInst = M.getOrInsertFunction("trackInitInst",
                                         VoidTy,
                                         VoidPtrTy,/*ptr*/
@@ -395,13 +404,13 @@ void TypeChecks::initRuntimeCheckPrototypes(Module &M) {
                                         Int32Ty,/*tag*/
                                         NULL);
   setTypeInfo = M.getOrInsertFunction("setTypeInfo",
-                                       VoidTy,
-                                       VoidPtrTy,/*dest ptr*/
-                                       TypeTagPtrTy,/*metadata*/
-                                       Int64Ty,/*size*/
-                                       TypeTagTy,
-                                       Int32Ty,/*tag*/
-                                       NULL);
+                                      VoidTy,
+                                      VoidPtrTy,/*dest ptr*/
+                                      TypeTagPtrTy,/*metadata*/
+                                      Int64Ty,/*size*/
+                                      TypeTagTy,
+                                      Int32Ty,/*tag*/
+                                      NULL);
   copyTypeInfo = M.getOrInsertFunction("copyTypeInfo",
                                        VoidTy,
                                        VoidPtrTy,/*dest ptr*/
@@ -840,7 +849,7 @@ bool TypeChecks::visitInternalVarArgFunction(Module &M, Function &F) {
   // Find all uses of the function
   for(Value::use_iterator ui = F.use_begin(), ue = F.use_end();
       ui != ue;ui ++)  {
-   
+
     // Check for call sites
     if(InvokeInst *II = dyn_cast<InvokeInst>(ui)) {
       std::vector<Value *> Args;
@@ -1602,7 +1611,8 @@ bool TypeChecks::visitCallSite(Module &M, CallSite CS) {
       CallInst *CI = CallInst::Create(F, Args.begin(), Args.end());
       CI->insertAfter(BCI);
     } else if (F->getNameStr() == std::string("getenv") ||
-               F->getNameStr() == std::string("strerror")) {
+               F->getNameStr() == std::string("strerror") ||
+               F->getNameStr() == std::string("inet_ntoa")) {
       CastInst *BCI = BitCastInst::CreatePointerCast(I, VoidPtrTy);
       BCI->insertAfter(I);
       std::vector<Value *>Args;
@@ -2122,13 +2132,13 @@ bool TypeChecks::visitUses(Instruction *I, Instruction *AI, Instruction *BCI) {
       BitCast_MD_Map[BI] = AI;
       visitUses(BI, AI, BCI);
       //CallInst::Create(checkTypeInst, Args.begin(), Args.end(), "", cast<Instruction>(II.getUse().getUser()));
-    /*} else if(PtrToIntInst *P2I = dyn_cast<PtrToIntInst>(II)) {
-      visitUses(P2I, AI, BCI);
-    } else if(IntToPtrInst *I2P = dyn_cast<IntToPtrInst>(II)) {
-      visitUses(I2P, AI, BCI);*/
-    }else {
-      CallInst::Create(checkTypeInst, Args.begin(), Args.end(), "", cast<Instruction>(II.getUse().getUser()));
-    }
+      /*} else if(PtrToIntInst *P2I = dyn_cast<PtrToIntInst>(II)) {
+        visitUses(P2I, AI, BCI);
+        } else if(IntToPtrInst *I2P = dyn_cast<IntToPtrInst>(II)) {
+        visitUses(I2P, AI, BCI);*/
+  }else {
+    CallInst::Create(checkTypeInst, Args.begin(), Args.end(), "", cast<Instruction>(II.getUse().getUser()));
+  }
   }
   return true;
 }
