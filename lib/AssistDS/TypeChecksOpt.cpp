@@ -66,6 +66,12 @@ bool TypeChecksOpt::runOnModule(Module &M) {
   TypeTagTy = Int8Ty;
   TypeTagPtrTy = PointerType::getUnqual(TypeTagTy);
 
+  Constant *memsetF = M.getOrInsertFunction ("llvm.memset.i64", VoidTy,
+                                             VoidPtrTy,
+                                             Int8Ty,
+                                             Int64Ty,
+                                             Int32Ty,
+                                             NULL);
   trackGlobal = M.getOrInsertFunction("trackGlobal",
                                       VoidTy,
                                       VoidPtrTy,/*ptr*/
@@ -80,11 +86,11 @@ bool TypeChecksOpt::runOnModule(Module &M) {
                                         Int32Ty,/*tag*/
                                         NULL);
   trackUnInitInst = M.getOrInsertFunction("trackUnInitInst",
-                                        VoidTy,
-                                        VoidPtrTy,/*ptr*/
-                                        Int64Ty,/*size*/
-                                        Int32Ty,/*tag*/
-                                        NULL);
+                                          VoidTy,
+                                          VoidPtrTy,/*ptr*/
+                                          Int64Ty,/*size*/
+                                          Int32Ty,/*tag*/
+                                          NULL);
   trackStoreInst = M.getOrInsertFunction("trackStoreInst",
                                          VoidTy,
                                          VoidPtrTy,/*ptr*/
@@ -108,13 +114,13 @@ bool TypeChecksOpt::runOnModule(Module &M) {
                                        Int32Ty,/*tag*/
                                        NULL);
   setTypeInfo = M.getOrInsertFunction("setTypeInfo",
-                                       VoidTy,
-                                       VoidPtrTy,/*dest ptr*/
-                                       TypeTagPtrTy,/*metadata*/
-                                       Int64Ty,/*size*/
-                                       TypeTagTy,
-                                       Int32Ty,/*tag*/
-                                       NULL);
+                                      VoidTy,
+                                      VoidPtrTy,/*dest ptr*/
+                                      TypeTagPtrTy,/*metadata*/
+                                      Int64Ty,/*size*/
+                                      TypeTagTy,
+                                      Int32Ty,/*tag*/
+                                      NULL);
   trackStringInput = M.getOrInsertFunction("trackStringInput",
                                            VoidTy,
                                            VoidPtrTy,
@@ -145,7 +151,7 @@ bool TypeChecksOpt::runOnModule(Module &M) {
   for(Value::use_iterator User = checkTypeInst->use_begin(); User != checkTypeInst->use_end(); ++User) {
     CallInst *CI = dyn_cast<CallInst>(User);
     assert(CI);
-    
+
     if(TS->isTypeSafe(CI->getOperand(4)->stripPointerCasts(), CI->getParent()->getParent())) {
       toDelete.push_back(CI);
     }
@@ -154,7 +160,7 @@ bool TypeChecksOpt::runOnModule(Module &M) {
   for(Value::use_iterator User = trackStoreInst->use_begin(); User != trackStoreInst->use_end(); ++User) {
     CallInst *CI = dyn_cast<CallInst>(User);
     assert(CI);
-    
+
     if(TS->isTypeSafe(CI->getOperand(1)->stripPointerCasts(), CI->getParent()->getParent())) {
       toDelete.push_back(CI);
     }
@@ -165,11 +171,21 @@ bool TypeChecksOpt::runOnModule(Module &M) {
   for(Value::use_iterator User = trackUnInitInst->use_begin(); User != trackUnInitInst->use_end(); ) {
     CallInst *CI = dyn_cast<CallInst>(User++);
     assert(CI);
-  
+
     // check if operand is an alloca inst.
     if(TS->isTypeSafe(CI->getOperand(1)->stripPointerCasts(), CI->getParent()->getParent())) {
       CI->setCalledFunction(trackInitInst);
       toDelete.push_back(CI);
+
+      if(AllocaInst *AI = dyn_cast<AllocaInst>(CI->getOperand(1)->stripPointerCasts())) {
+        // Initialize the allocation to NULL
+        std::vector<Value *> Args2;
+        Args2.push_back(CI->getOperand(1));
+        Args2.push_back(ConstantInt::get(Int8Ty, 0));
+        Args2.push_back(CI->getOperand(2));
+        Args2.push_back(ConstantInt::get(Int32Ty, AI->getAlignment()));
+        CallInst::Create(memsetF, Args2.begin(), Args2.end(), "", CI);
+      }
     }
   }
 
@@ -227,12 +243,6 @@ bool TypeChecksOpt::runOnModule(Module &M) {
     CallInst *CI = dyn_cast<CallInst>(User);
     assert(CI);
     if(TS->isTypeSafe(CI->getOperand(1)->stripPointerCasts(), CI->getParent()->getParent())) {
-      Constant *memsetF = M.getOrInsertFunction ("llvm.memset.i64", VoidTy,
-                                                 VoidPtrTy,
-                                                 Int8Ty,
-                                                 Int64Ty,
-                                                 Int32Ty,
-                                                 NULL);
       AllocaInst *AI = dyn_cast<AllocaInst>(CI->getOperand(3)->stripPointerCasts());
       assert(AI);
       std::vector<Value*>Args;

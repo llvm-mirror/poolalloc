@@ -1386,16 +1386,6 @@ bool TypeChecks::visitGlobal(Module &M, GlobalVariable &GV,
 // Insert code to set objects to 0
 bool TypeChecks::visitAllocaInst(Module &M, AllocaInst &AI) {
 
-  // Set the object to be zero
-  //
-  // Add the memset function to the program.
-  Constant *memsetF = M.getOrInsertFunction ("llvm.memset.i64", VoidTy,
-                                             VoidPtrTy,
-                                             Int8Ty,
-                                             Int64Ty,
-                                             Int32Ty,
-                                             NULL);
-
   const PointerType * PT = AI.getType();
   const Type * ET = PT->getElementType();
   Value * AllocSize = ConstantInt::get(Int64Ty, TD->getTypeAllocSize(ET));
@@ -1406,13 +1396,6 @@ bool TypeChecks::visitAllocaInst(Module &M, AllocaInst &AI) {
   ArraySize->insertAfter(BCI);
   BinaryOperator *Size = BinaryOperator::Create(Instruction::Mul, AllocSize, ArraySize);
   Size->insertAfter(ArraySize);
-  std::vector<Value *> Args2;
-  Args2.push_back(BCI);
-  Args2.push_back(ConstantInt::get(Int8Ty, 0));
-  Args2.push_back(Size);
-  Args2.push_back(ConstantInt::get(Int32Ty, AI.getAlignment()));
-  CallInst *CI_Init = CallInst::Create(memsetF, Args2.begin(), Args2.end());
-  CI_Init->insertAfter(Size);
 
   // Setting metadata to be 0(BOTTOM/Uninitialized)
 
@@ -1421,7 +1404,7 @@ bool TypeChecks::visitAllocaInst(Module &M, AllocaInst &AI) {
   Args.push_back(Size);
   Args.push_back(getTagCounter());
   CallInst *CI = CallInst::Create(trackUnInitInst, Args.begin(), Args.end());
-  CI->insertAfter(CI_Init);
+  CI->insertAfter(Size);
   return true;
 }
 
