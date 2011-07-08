@@ -27,7 +27,7 @@
  * For now, run a version of the tool without the base fixed, and 
  * choose address.
  */
-#define BASE ((TypeTagTy *)(0x2aaaac01e000))
+#define BASE ((TypeTagTy *)(0x2aaaad01e000))
 /*
  * Do some macro magic to get mmap macros defined properly on all platforms.
  */
@@ -269,6 +269,8 @@ checkType(TypeTagTy typeNumber, uint64_t size, TypeTagTy *metadata, void *ptr, u
  *  0xFF type indicates that any type can be read, 
  */
 void trackInitInst(void *ptr, uint64_t size, uint32_t tag) {
+  if(!ptr)
+    return;
   uintptr_t p = maskAddress(ptr);
   memset(&shadow_begin[p], 0xFF, size);
 #if DEBUG
