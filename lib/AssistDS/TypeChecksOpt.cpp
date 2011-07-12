@@ -175,7 +175,6 @@ bool TypeChecksOpt::runOnModule(Module &M) {
     // check if operand is an alloca inst.
     if(TS->isTypeSafe(CI->getOperand(1)->stripPointerCasts(), CI->getParent()->getParent())) {
       CI->setCalledFunction(trackInitInst);
-      toDelete.push_back(CI);
 
       if(AllocaInst *AI = dyn_cast<AllocaInst>(CI->getOperand(1)->stripPointerCasts())) {
         // Initialize the allocation to NULL
