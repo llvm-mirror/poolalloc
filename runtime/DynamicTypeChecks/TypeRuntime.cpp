@@ -80,6 +80,7 @@ extern "C" {
   void trackgetcwd(void *ptr, uint32_t tag) ;
   void trackgetpwuid(void *ptr, uint32_t tag) ;
   void trackgethostname(void *ptr, uint32_t tag) ;
+  void trackgetservbyname(void *ptr, uint32_t tag) ;
   void trackgethostbyname(void *ptr, uint32_t tag) ;
   void trackgetaddrinfo(void *ptr, uint32_t tag) ;
   void trackaccept(void *ptr, void *size,uint32_t tag) ;
@@ -395,6 +396,23 @@ void trackgetpwuid(void *ptr, uint32_t tag) {
 void trackgethostname(void *ptr, uint32_t tag) {
   trackInitInst(ptr, strlen((const char *)ptr) + 1, tag);
 }
+
+void trackgetservbyname(void *ptr, uint32_t tag) {
+  struct servent *sn = (struct servent *)ptr;
+  trackInitInst(sn->s_name, strlen(sn->s_name) + 1, tag);
+  unsigned i;
+  for(i =0; sn->s_aliases[i] != NULL; i++) {
+    trackInitInst(&sn->s_aliases[i], sizeof(char*), tag);
+    trackInitInst(sn->s_aliases[i], strlen(sn->s_aliases[i]) + 1, tag);
+  }
+  trackInitInst(&sn->s_aliases[i], sizeof(char*), tag);
+  trackInitInst(sn->s_aliases[i], sizeof(char), tag);
+  
+  trackInitInst(sn->s_proto, strlen(sn->s_proto) + 1, tag);
+
+  trackInitInst(ptr, sizeof(struct servent), tag);
+}
+
 void trackgethostbyname(void *ptr, uint32_t tag) {
   struct hostent *hn = (struct hostent *)ptr;
   trackInitInst(hn->h_name, strlen(hn->h_name) + 1, tag);
