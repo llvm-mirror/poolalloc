@@ -1401,19 +1401,23 @@ bool TypeChecks::visitAllocaInst(Module &M, AllocaInst &AI) {
   CastInst *BCI = BitCastInst::CreatePointerCast(&AI, VoidPtrTy);
   BCI->insertAfter(&AI);
 
-  CastInst *ArraySize = CastInst::CreateSExtOrBitCast(AI.getArraySize(), Int64Ty);
-  ArraySize->insertAfter(BCI);
-  BinaryOperator *Size = BinaryOperator::Create(Instruction::Mul, AllocSize, ArraySize);
-  Size->insertAfter(ArraySize);
+  Value *TotalSize;
+  if(!AI.isArrayAllocation()) {
+    TotalSize = AllocSize;
+  } else {
+    CastInst *ArraySize = CastInst::CreateSExtOrBitCast(AI.getArraySize(), Int64Ty, "", &AI);
+    BinaryOperator *Size = BinaryOperator::Create(Instruction::Mul, AllocSize, ArraySize, "", &AI);
+    TotalSize = Size;
+  }
 
   // Setting metadata to be 0(BOTTOM/Uninitialized)
 
   std::vector<Value *> Args;
   Args.push_back(BCI);
-  Args.push_back(Size);
+  Args.push_back(TotalSize);
   Args.push_back(getTagCounter());
   CallInst *CI = CallInst::Create(trackUnInitInst, Args.begin(), Args.end());
-  CI->insertAfter(Size);
+  CI->insertAfter(BCI);
   return true;
 }
 
@@ -1591,6 +1595,15 @@ bool TypeChecks::visitCallSite(Module &M, CallSite CS) {
       Args.push_back(getTagCounter());
       CallInst *CI = CallInst::Create(trackInitInst, Args.begin(), Args.end());
       CI->insertAfter(BCI);
+    } else if (F->getNameStr() == std::string("getservbyname")) {
+      CastInst *BCI = BitCastInst::CreatePointerCast(I, VoidPtrTy);
+      BCI->insertAfter(I);
+      std::vector<Value*>Args;
+      Args.push_back(BCI);
+      Args.push_back(getTagCounter());
+      Constant *F = M.getOrInsertFunction("trackgetservbyname", VoidTy, VoidPtrTy, Int32Ty, NULL);
+      CallInst *CI = CallInst::Create(F, Args.begin(), Args.end());
+      CI->insertAfter(BCI);
     } else if (F->getNameStr() == std::string("gethostbyname") ||
                F->getNameStr() == std::string("gethostbyaddr")) {
       CastInst *BCI = BitCastInst::CreatePointerCast(I, VoidPtrTy);
@@ -1642,6 +1655,7 @@ bool TypeChecks::visitCallSite(Module &M, CallSite CS) {
     } else if (F->getNameStr() == std::string("getrusage") || 
                F->getNameStr() == std::string("getrlimit") ||
                F->getNameStr() == std::string("stat") ||
+               F->getNameStr() == std::string("vfsstat") ||
                F->getNameStr() ==  std::string("fstat") ||
                F->getNameStr() == std::string("lstat")) {
       CastInst *BCI = BitCastInst::CreatePointerCast(CS.getArgument(1), VoidPtrTy, "", I);
@@ -1883,17 +1897,23 @@ bool TypeChecks::visitCallSite(Module &M, CallSite CS) {
       Args.push_back(getTagCounter());
       CallInst *CINew = CallInst::Create(trackInitInst, Args.begin(), Args.end());
       CINew->insertAfter(NewValue);
+    } else if(F->getNameStr() == std::string("scanf")) {
+      unsigned i = 1;
+      while(i < CS.arg_size()) {
+        visitInputFunctionValue(M, CS.getArgument(i), I);
+        i++;
+      }
     } else if(F->getNameStr() == std::string("sscanf")) {
       // FIXME: Need to look at the format string and check
-      unsigned i = 3;
-      while(i < I->getNumOperands()) {
-        visitInputFunctionValue(M, CS.getArgument(i-1), I);
+      unsigned i = 2;
+      while(i < CS.arg_size()) {
+        visitInputFunctionValue(M, CS.getArgument(i), I);
         i++;
       }
     } else if(F->getNameStr() == std::string("fscanf")) {
-      unsigned i = 3;
-      while(i < I->getNumOperands()) {
-        visitInputFunctionValue(M, CS.getArgument(i-1), I);
+      unsigned i = 2;
+      while(i < CS.arg_size()) {
+        visitInputFunctionValue(M, CS.getArgument(i), I);
         i++;
       }
     }
@@ -2060,40 +2080,45 @@ bool TypeChecks::visitUses(Instruction *I, Instruction *AI, Instruction *BCI) {
         CallInst::Create(checkTypeInst, Args.begin(), Args.end(), "", cast<Instruction>(II.getUse().getUser()));
       }
     } else if(SelectInst *SelI = dyn_cast<SelectInst>(II)) {
-      SelectInst *Prev = NULL;
-      SelectInst *PrevBasePtr = NULL;
-      if(SelectInst_MD_Map.find(SelI) != SelectInst_MD_Map.end()) {
-        Prev = SelectInst_MD_Map[SelI];
-        PrevBasePtr = SelectInst_BasePtr_Map[SelI];
-      }
-      SelectInst *AI_New;
-      SelectInst *BCI_New;
-      if(SelI->getTrueValue() == I) {
-        if(!Prev) {
-          AI_New = SelectInst::Create(SelI->getCondition(), AI, Constant::getNullValue(AI->getType()), "", SelI);
-          BCI_New = SelectInst::Create(SelI->getCondition(), BCI, Constant::getNullValue(BCI->getType()), "", SelI);
-        } else {
-          AI_New = SelectInst::Create(SelI->getCondition(), AI, Prev->getFalseValue(), "", SelI);
-          BCI_New = SelectInst::Create(SelI->getCondition(), BCI, Prev->getFalseValue(), "", SelI);
-          Prev->replaceAllUsesWith(AI_New);
-          PrevBasePtr->replaceAllUsesWith(BCI_New);
+      if(SelI->getOperand(0) == I) {
+        CallInst::Create(checkTypeInst, Args.begin(), Args.end(), "", cast<Instruction>(II.getUse().getUser()));
+        // if it is used as the condition, just insert a check
+      } else {
+        SelectInst *Prev = NULL;
+        SelectInst *PrevBasePtr = NULL;
+        if(SelectInst_MD_Map.find(SelI) != SelectInst_MD_Map.end()) {
+          Prev = SelectInst_MD_Map[SelI];
+          PrevBasePtr = SelectInst_BasePtr_Map[SelI];
         }
-      }
-      else {
-        if(!Prev) {
-          AI_New = SelectInst::Create(SelI->getCondition(), Constant::getNullValue(AI->getType()), AI, "", SelI);
-          BCI_New = SelectInst::Create(SelI->getCondition(), Constant::getNullValue(BCI->getType()), BCI, "", SelI);
-        } else {
-          AI_New = SelectInst::Create(SelI->getCondition(),  Prev->getTrueValue(), AI, "", SelI);
-          BCI_New = SelectInst::Create(SelI->getCondition(),  Prev->getTrueValue(), BCI, "", SelI);
-          Prev->replaceAllUsesWith(AI_New);
-          PrevBasePtr->replaceAllUsesWith(BCI_New);
+        SelectInst *AI_New;
+        SelectInst *BCI_New;
+        if(SelI->getTrueValue() == I) {
+          if(!Prev) {
+            AI_New = SelectInst::Create(SelI->getCondition(), AI, Constant::getNullValue(AI->getType()), "", SelI);
+            BCI_New = SelectInst::Create(SelI->getCondition(), BCI, Constant::getNullValue(BCI->getType()), "", SelI);
+          } else {
+            AI_New = SelectInst::Create(SelI->getCondition(), AI, Prev->getFalseValue(), "", SelI);
+            BCI_New = SelectInst::Create(SelI->getCondition(), BCI, Prev->getFalseValue(), "", SelI);
+            Prev->replaceAllUsesWith(AI_New);
+            PrevBasePtr->replaceAllUsesWith(BCI_New);
+          }
         }
+        else {
+          if(!Prev) {
+            AI_New = SelectInst::Create(SelI->getCondition(), Constant::getNullValue(AI->getType()), AI, "", SelI);
+            BCI_New = SelectInst::Create(SelI->getCondition(), Constant::getNullValue(BCI->getType()), BCI, "", SelI);
+          } else {
+            AI_New = SelectInst::Create(SelI->getCondition(),  Prev->getTrueValue(), AI, "", SelI);
+            BCI_New = SelectInst::Create(SelI->getCondition(),  Prev->getTrueValue(), BCI, "", SelI);
+            Prev->replaceAllUsesWith(AI_New);
+            PrevBasePtr->replaceAllUsesWith(BCI_New);
+          }
+        }
+        SelectInst_MD_Map[SelI] = AI_New;
+        SelectInst_BasePtr_Map[SelI] = BCI_New;
+        if(!Prev)
+          visitUses(SelI, AI_New, BCI_New);
       }
-      SelectInst_MD_Map[SelI] = AI_New;
-      SelectInst_BasePtr_Map[SelI] = BCI_New;
-      if(!Prev)
-        visitUses(SelI, AI_New, BCI_New);
     } else if(PHINode *PH = dyn_cast<PHINode>(II)) {
       PHINode *Prev = NULL;
       PHINode *PrevBasePtr = NULL;
