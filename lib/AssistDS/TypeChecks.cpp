@@ -409,6 +409,7 @@ void TypeChecks::initRuntimeCheckPrototypes(Module &M) {
                                       TypeTagPtrTy,/*metadata*/
                                       Int64Ty,/*size*/
                                       TypeTagTy,
+                                      VoidPtrTy, /*src ptr*/
                                       Int32Ty,/*tag*/
                                       NULL);
   copyTypeInfo = M.getOrInsertFunction("copyTypeInfo",
@@ -2073,6 +2074,7 @@ bool TypeChecks::visitUses(Instruction *I, Instruction *AI, Instruction *BCI) {
         Args.push_back(AI);
         Args.push_back(getSizeConstant(SI->getOperand(0)->getType()));
         Args.push_back(getTypeMarkerConstant(SI->getOperand(0)->getType()));
+        Args.push_back(BCI);
         Args.push_back(getTagCounter());
         // Create the call to the runtime check and place it before the copying store instruction.
         CallInst::Create(setTypeInfo, Args.begin(), Args.end(), "", SI);
