@@ -91,7 +91,12 @@ bool LoadArgs::runOnModule(Module& M) {
             continue;
 
           LoadInst *LI = dyn_cast<LoadInst>(CI->getOperand(argNum));
-          if(LI->getParent() != CI->getParent())
+          Instruction * InsertPt = &(Func->getEntryBlock().front());
+          AllocaInst *NewVal = new AllocaInst(LI->getType(), "",InsertPt);
+
+          StoreInst *Copy = new StoreInst(LI, NewVal);
+          Copy->insertAfter(LI);
+          /*if(LI->getParent() != CI->getParent())
             continue;
           // Also check that there is no store after the load.
           // TODO: Check if the load/store do not alias.
@@ -109,7 +114,7 @@ bool LoadArgs::runOnModule(Module& M) {
           }
           if(isa<StoreInst>(bii)){
             continue;
-          }
+          }*/
 
           // Construct the new Type
           // Appends the struct Type at the beginning
@@ -124,7 +129,7 @@ bool LoadArgs::runOnModule(Module& M) {
           const FunctionType *NewFTy = FunctionType::get(CI->getType(), TP, false);
           numSimplified++;
           //if(numSimplified > 1000)
-            //return true;
+          //return true;
 
           Function *NewF;
           std::map<std::pair<Function*, const Type* > , Function* >::iterator Test;
@@ -184,7 +189,7 @@ bool LoadArgs::runOnModule(Module& M) {
           SmallVector<Value*, 8> Args;
           for(unsigned j =1;j<CI->getNumOperands();j++) {
             if(j == argNum) {
-              Args.push_back(LI->getOperand(0));
+              Args.push_back(NewVal);
             }
             Args.push_back(CI->getOperand(j));
             // position in the AttributesVec
