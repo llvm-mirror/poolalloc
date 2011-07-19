@@ -2,7 +2,7 @@
 #include <inttypes.h>
 #include <stdint.h>
 #include <stdio.h>
-#include <iostream.h>
+#include <iostream>
 #include <stdlib.h>
 #include <string.h>
 #include <netdb.h>
@@ -13,6 +13,8 @@
 #include <sys/mman.h>
 
 #include <map>
+
+using std::cerr;
 
 #define DEBUG (0)
 
