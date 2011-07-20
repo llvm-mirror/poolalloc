@@ -344,9 +344,14 @@ const struct {
   {"trackgetcwd",     {NRET_NARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS,   false}},
   {"trackgetpwuid",     {NRET_NARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS,   false}},
   {"trackgethostname",     {NRET_NARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS,   false}},
+  {"trackgethostbyname",     {NRET_NARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS,   false}},
+  {"trackgetservbyname",     {NRET_NARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS,   false}},
   {"trackgetaddrinfo",     {NRET_NARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS,   false}},
+  {"trackgetsockname",     {NRET_NARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS,   false}},
   {"trackaccept",     {NRET_NARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS,   false}},
   {"trackpoll",     {NRET_NARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS,   false}},
+  {"trackpipe",     {NRET_NARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS,   false}},
+  {"trackReadLink",     {NRET_NARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS,   false}},
 
 #if 0
   {"wait",       {false, false, false, false,  true, false, false, false, false}},
@@ -584,6 +589,8 @@ StdLibDataStructures::runOnModule (Module &M) {
   // functions as External because, at that point, they were.  However, they no
   // longer are necessarily External, and we need to update accordingly.
   //
+  GlobalsGraph->maskIncompleteMarkers();
+
   GlobalsGraph->computeExternalFlags(DSGraph::ResetExternal);
   for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I)
     if (!I->isDeclaration()) {
@@ -592,11 +599,25 @@ StdLibDataStructures::runOnModule (Module &M) {
         | DSGraph::ResetExternal
         | DSGraph::DontMarkFormalsExternal
         | DSGraph::ProcessCallSites;
+      G->maskIncompleteMarkers();
+      G->markIncompleteNodes(DSGraph::MarkFormalArgs
+                             |DSGraph::IgnoreGlobals);
       G->computeExternalFlags(EFlags);
       DEBUG(G->AssertGraphOK());
     }
+  GlobalsGraph->markIncompleteNodes(DSGraph::MarkFormalArgs
+                                    |DSGraph::IgnoreGlobals);
   GlobalsGraph->computeExternalFlags(DSGraph::ProcessCallSites);
   DEBUG(GlobalsGraph->AssertGraphOK());
+  for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I)
+    if (!I->isDeclaration()) {
+      DSGraph *Graph = getOrCreateGraph(I);
+      Graph->maskIncompleteMarkers();
+      cloneGlobalsInto(Graph, DSGraph::DontCloneCallNodes |
+                       DSGraph::DontCloneAuxCallNodes);
+      Graph->markIncompleteNodes(DSGraph::MarkFormalArgs
+                                 |DSGraph::IgnoreGlobals);
+    }
 
   return false;
 }
