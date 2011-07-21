@@ -329,13 +329,18 @@ bool TypeChecks::runOnModule(Module &M) {
 
           //
           // Do replacements in the worklist.
-          // FIXME: I believe there is a bug here, triggered by 253.perl
-          // It works fine as long as we have only one element in ReplaceWorkist
-          // Temporary fix. Revisit.
+          // Special case for ContantArray(triggered by 253.perl)
+          // ConstantArray::replaceUsesOfWithOnConstant, replace all uses
+          // in that constant, unlike the other versions, which  only
+          // replace the use specified in ReplaceWorklist.
           //
-          //for (unsigned index = 0; index < ReplaceWorklist.size(); ++index) {
-          C->replaceUsesOfWithOnConstant(F, CNew, ReplaceWorklist[0]);
-          //}
+          if(isa<ConstantArray>(C)) {
+              C->replaceUsesOfWithOnConstant(F, CNew, ReplaceWorklist[0]);
+          } else {
+            for (unsigned index = 0; index < ReplaceWorklist.size(); ++index) {
+              C->replaceUsesOfWithOnConstant(F, CNew, ReplaceWorklist[index]);
+            }
+          }
           continue;
         }
       }
@@ -2157,7 +2162,7 @@ bool TypeChecks::visitUses(Instruction *I, Instruction *AI, Instruction *BCI) {
       /*if(isa<PHINode>(I)) {
         std::string name = PH->getName();
         if (strncmp(name.c_str(), "baseptr.", 8) == 0) continue;
-      }*/
+        }*/
       PHINode *AI_New;
       PHINode *BCI_New;
       if(!Prev) {
