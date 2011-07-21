@@ -235,14 +235,38 @@ bool TypeChecks::runOnModule(Module &M) {
     Function &F = *MI;
     if(F.isDeclaration())
       continue;
+    DominatorTree & DT = getAnalysis<DominatorTree>(F);
+    std::deque<DomTreeNode *> Worklist;
+    Worklist.push_back (DT.getRootNode());
+    while(Worklist.size()) {
+      DomTreeNode * Node = Worklist.front();
+      Worklist.pop_front();
+      BasicBlock *BB = Node->getBlock();
+      for (BasicBlock::iterator bi = BB->begin(); bi != BB->end(); ++bi) {
+        Instruction &I = *bi;
+        if (StoreInst *SI = dyn_cast<StoreInst>(&I)) {
+          modified |= visitStoreInst(M, *SI);
+        } else if (LoadInst *LI = dyn_cast<LoadInst>(&I)) {
+          modified |= visitLoadInst(M, *LI);
+        } else if (CallInst *CI = dyn_cast<CallInst>(&I)) {
+          modified |= visitCallInst(M, *CI);
+        } else if (InvokeInst *II = dyn_cast<InvokeInst>(&I)) {
+          modified |= visitInvokeInst(M, *II);
+        } else if (AllocaInst *AI = dyn_cast<AllocaInst>(&I)) {
+          modified |= visitAllocaInst(M, *AI);
+        } else if (VAArgInst *VI = dyn_cast<VAArgInst>(&I)) {
+          modified |= visitVAArgInst(M, *VI);
+        }
+      }
+      Worklist.insert(Worklist.end(), Node->begin(), Node->end());
+    }
 
     // Loop over all of the instructions in the function,
     // adding instrumentation where needed.
-    for (inst_iterator II = inst_begin(F), IE = inst_end(F); II != IE;++II) {
+    /*for (inst_iterator II = inst_begin(F), IE = inst_end(F); II != IE;++II) {
       Instruction &I = *II;
       if (StoreInst *SI = dyn_cast<StoreInst>(&I)) {
-        if(!isa<LoadInst>(SI->getOperand(0)))
-          modified |= visitStoreInst(M, *SI);
+        modified |= visitStoreInst(M, *SI);
       } else if (LoadInst *LI = dyn_cast<LoadInst>(&I)) {
         modified |= visitLoadInst(M, *LI);
       } else if (CallInst *CI = dyn_cast<CallInst>(&I)) {
@@ -254,7 +278,7 @@ bool TypeChecks::runOnModule(Module &M) {
       } else if (VAArgInst *VI = dyn_cast<VAArgInst>(&I)) {
         modified |= visitVAArgInst(M, *VI);
       }
-    }
+    }*/
   }
 
   // visit all the indirect call sites
@@ -2128,11 +2152,17 @@ bool TypeChecks::visitUses(Instruction *I, Instruction *AI, Instruction *BCI) {
         Prev = PHINode_MD_Map[PH];
         PrevBasePtr = PHINode_BasePtr_Map[PH];
       }
+      if(InsertedPHINodes.find(PH) != InsertedPHINodes.end())
+        continue;
+      /*if(isa<PHINode>(I)) {
+        std::string name = PH->getName();
+        if (strncmp(name.c_str(), "baseptr.", 8) == 0) continue;
+      }*/
       PHINode *AI_New;
       PHINode *BCI_New;
       if(!Prev) {
         AI_New = PHINode::Create(AI->getType(),  PH->getNameStr() + ".md", PH);
-        BCI_New = PHINode::Create(BCI->getType(),  PH->getNameStr() + ".baseptr", PH);
+        BCI_New = PHINode::Create(BCI->getType(),PH->getNameStr() + ".baseptr", PH);
         for(unsigned c = 0; c < PH->getNumIncomingValues(); c++) {
           if(PH->getIncomingValue(c) == I) {
             AI_New->addIncoming(AI, PH->getIncomingBlock(c));
@@ -2142,9 +2172,11 @@ bool TypeChecks::visitUses(Instruction *I, Instruction *AI, Instruction *BCI) {
             AI_New->addIncoming(Constant::getNullValue(AI->getType()), PH->getIncomingBlock(c));
             BCI_New->addIncoming(Constant::getNullValue(BCI->getType()), PH->getIncomingBlock(c));
           }
-          PHINode_MD_Map[PH] = AI_New;
-          PHINode_BasePtr_Map[PH] = BCI_New;
         }
+        PHINode_MD_Map[PH] = AI_New;
+        PHINode_BasePtr_Map[PH] = BCI_New;
+        InsertedPHINodes.insert(AI_New);
+        InsertedPHINodes.insert(BCI_New);
         visitUses(PH, AI_New, BCI_New);
       }
       else {
@@ -2172,6 +2204,9 @@ bool TypeChecks::visitUses(Instruction *I, Instruction *AI, Instruction *BCI) {
 
 // Insert runtime checks before all store instructions.
 bool TypeChecks::visitStoreInst(Module &M, StoreInst &SI) {
+  if(isa<LoadInst>(SI.getOperand(0)->stripPointerCasts())) {
+    return false;
+  }
   if(PHINode *PH = dyn_cast<PHINode>(SI.getOperand(0)->stripPointerCasts())) {
     if(PHINode_MD_Map.find(PH) != PHINode_MD_Map.end())
       return false;

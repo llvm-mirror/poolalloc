@@ -40,6 +40,7 @@ private:
   std::list<Function *> ByValFunctions;
   std::list<Function *> AddressTakenFunctions;
   std::set<Instruction*> IndCalls;
+  std::set<PHINode*> InsertedPHINodes;
   std::map<SelectInst*, SelectInst*> SelectInst_MD_Map;
   std::map<SelectInst*, SelectInst*> SelectInst_BasePtr_Map;
   std::map<PHINode*, PHINode*> PHINode_MD_Map;
