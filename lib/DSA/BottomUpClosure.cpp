@@ -258,15 +258,34 @@ BUDataStructures::postOrderInline (Module & M) {
            CloneAuxIntoGlobal(getDSGraph(*F));
           }
         }
-        // propogte information calculated 
-        // from the globals graph to the other graphs.
-        for (Module::iterator F = M.begin(); F != M.end(); ++F) {
-          if (!(F->isDeclaration())){
-            DSGraph *Graph  = getDSGraph(*F);
-            cloneGlobalsInto(Graph, DSGraph::DontCloneCallNodes |
-                        DSGraph::DontCloneAuxCallNodes);
-          }
+      GlobalsGraph->removeTriviallyDeadNodes();
+      GlobalsGraph->maskIncompleteMarkers();
+
+      // Mark external globals incomplete.
+      GlobalsGraph->markIncompleteNodes(DSGraph::IgnoreGlobals);
+      GlobalsGraph->computeExternalFlags(DSGraph::DontMarkFormalsExternal);
+      GlobalsGraph->computeIntPtrFlags();
+
+      //
+      // Create equivalence classes for aliasing globals so that we only need to
+      // record one global per DSNode.
+      //
+      formGlobalECs();
+      // propogte information calculated 
+      // from the globals graph to the other graphs.
+      for (Module::iterator F = M.begin(); F != M.end(); ++F) {
+        if (!(F->isDeclaration())){
+          DSGraph *Graph  = getDSGraph(*F);
+          cloneGlobalsInto(Graph, DSGraph::DontCloneCallNodes |
+                           DSGraph::DontCloneAuxCallNodes);
+          Graph->buildCallGraph(callgraph, GlobalFunctionList, filterCallees);
+          Graph->maskIncompleteMarkers();
+          Graph->markIncompleteNodes(DSGraph::MarkFormalArgs |
+                                     DSGraph::IgnoreGlobals);
+          Graph->computeExternalFlags(DSGraph::DontMarkFormalsExternal);
+          Graph->computeIntPtrFlags();
         }
+      }
     }
   }
  
