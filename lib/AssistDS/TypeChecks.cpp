@@ -524,6 +524,43 @@ void TypeChecks::optimizeChecks(Module &M) {
       Worklist.insert(Worklist.end(), Node->begin(), Node->end());
     }
   }
+  for (Module::iterator MI = M.begin(), ME = M.end(); MI != ME; ++MI) {
+    Function &F = *MI;
+    if(F.isDeclaration())
+      continue;
+    DominatorTree & DT = getAnalysis<DominatorTree>(F);
+    LoopInfo & LI = getAnalysis<LoopInfo>(F);
+    std::deque<DomTreeNode *> Worklist;
+    Worklist.push_back (DT.getRootNode());
+    while(Worklist.size()) {
+      DomTreeNode * Node = Worklist.front();
+      Worklist.pop_front();
+      Worklist.insert(Worklist.end(), Node->begin(), Node->end());
+      BasicBlock *BB = Node->getBlock();
+      Loop *L = LI.getLoopFor(BB);
+      if(!L)
+        continue;
+      if(!L->getLoopPreheader())
+        continue;
+      for (BasicBlock::iterator bi = BB->begin(); bi != BB->end(); ) {
+        CallInst *CI = dyn_cast<CallInst>(bi++);
+        if(!CI)
+          continue;
+        if(CI->getCalledFunction() != checkTypeInst)
+          continue;
+        bool hoist = true;
+        // The instruction is loop invariant if all of its operands are loop-invariant
+        for (unsigned i = 1, e = CI->getNumOperands(); i != e; ++i)
+          if (!L->isLoopInvariant(CI->getOperand(i)))
+            hoist = false;
+
+        if(hoist) {
+          CI->removeFromParent();
+          L->getLoopPreheader()->getInstList().insert(L->getLoopPreheader()->getTerminator(), CI);
+        }
+      }
+    }
+  }
 }
 
 // add a global that has the metadata -> typeString mapping
@@ -1215,7 +1252,9 @@ bool TypeChecks::initShadow(Module &M) {
       continue;
     if(I->getNameStr() == "stderr" ||
        I->getNameStr() == "stdout" ||
-       I->getNameStr() == "stdin") {
+       I->getNameStr() == "stdin" ||
+       I->getNameStr() == "optind" ||
+       I->getNameStr() == "optarg") {
       // assume initialized
       CastInst *BCI = BitCastInst::CreatePointerCast(I, VoidPtrTy, "", InsertPt);
       std::vector<Value *> Args;
@@ -1609,6 +1648,16 @@ bool TypeChecks::visitCallSite(Module &M, CallSite CS) {
       Constant *F = M.getOrInsertFunction("trackgetpwuid", VoidTy, VoidPtrTy, Int32Ty, NULL);
       CallInst *CI = CallInst::Create(F, Args.begin(), Args.end());
       CI->insertAfter(BCI);
+    } else if(F->getNameStr() == std::string("getopt_long")) {
+      Value *OptArg = M.getNamedGlobal("optarg");
+      LoadInst *LI = new LoadInst(OptArg);
+      LI->insertAfter(I);
+      std::vector<Value *>Args;
+      Args.push_back(LI);
+      Args.push_back(getTagCounter());
+      Constant *F = M.getOrInsertFunction("trackgetcwd", VoidTy, VoidPtrTy, Int32Ty, NULL);
+      CallInst *CI = CallInst::Create(F, Args.begin(), Args.end());
+      CI->insertAfter(LI);
     } else if (F->getNameStr() == std::string("getgruid") ||
                F->getNameStr() == std::string("getgrnam") ||
                F->getNameStr() == std::string("getpwnam") ||
