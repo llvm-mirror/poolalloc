@@ -22,6 +22,7 @@
 #include "llvm/Target/TargetData.h"
 #include "llvm/Support/CallSite.h"
 #include "llvm/Analysis/Dominators.h"
+#include "llvm/Analysis/LoopInfo.h"
 
 #include <map>
 #include <list>
@@ -101,6 +102,7 @@ public:
   virtual void getAnalysisUsage(AnalysisUsage &AU) const {
     AU.addRequired<TargetData>();
     AU.addRequired<DominatorTree>();
+    AU.addRequired<LoopInfo>();
     AU.addRequired<AddressTakenAnalysis>();
   }
 
