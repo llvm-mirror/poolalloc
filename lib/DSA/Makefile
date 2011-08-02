@@ -12,7 +12,7 @@ LIBRARYNAME = LLVMDataStructure
 BUILD_ARCHIVE := 1
 ifneq ($(OS),Cygwin)
 ifneq ($(OS),MingW)
-SHARED_LIBRARY := 1
+#SHARED_LIBRARY := 1
 #LOADABLE_MODULE := 1
 endif
 endif
@@ -21,7 +21,7 @@ endif
 #Essentially we're tasked with linking in the pieces that our plugin
 #makes use of--but /not/ the tool we're using does /not/ make use of.
 #It's dirty, but apparently what we're stuck with since we're a plugin
-LDFLAGS = $(LLVM_OBJ_ROOT)/lib/Support/$(BuildMode)/Triple.o
+#LDFLAGS = $(LLVM_OBJ_ROOT)/lib/Support/$(BuildMode)/Triple.o
 
 include $(LEVEL)/Makefile.common
 

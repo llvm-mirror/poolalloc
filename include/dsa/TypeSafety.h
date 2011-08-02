@@ -57,7 +57,7 @@ struct TypeSafety : public ModulePass {
 
   public:
     static char ID;
-    TypeSafety() : ModulePass((intptr_t)(&ID)) {}
+    TypeSafety() : ModulePass(ID) {}
     virtual bool runOnModule (Module & M);
 
     const char *getPassName() const {

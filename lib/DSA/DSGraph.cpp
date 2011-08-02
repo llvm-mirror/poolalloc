@@ -31,6 +31,7 @@
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Support/Timer.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/Type.h"
 #include "llvm/GlobalAlias.h"
 
 #include <iostream>
@@ -106,7 +107,7 @@ std::string DSGraph::getFunctionNames() const {
 
 
 DSGraph::DSGraph(DSGraph* G, EquivalenceClasses<const GlobalValue*> &ECs,
-                 SuperSet<const Type*>& tss,
+                 SuperSet<Type*>& tss,
                  unsigned CloneFlags)
   : GlobalsGraph(0), ScalarMap(ECs), TD(G->TD), TypeSS(tss) {
   UseAuxCalls = false;
@@ -195,10 +196,6 @@ void DSGraph::cloneInto( DSGraph* G, unsigned CloneFlags) {
     New->maskNodeTypes(~BitsToClear);
     OldNodeMap[I] = New;
   }
-
-#ifndef NDEBUG
-  Timer::addPeakMemoryMeasurement();
-#endif
 
   // Rewrite the links in the new nodes to point into the current graph now.
   // Note that we don't loop over the node's list to do this.  The problem is
@@ -1603,16 +1600,16 @@ llvm::functionIsCallable (CallSite CS, const Function* F) {
   // function callable from this call site.
   //
   if (!noDSACallFP) {
-    FunctionType::param_iterator Pi = FT->param_begin(), Pe = FT->param_end(),
-            Ai = F->getFunctionType()->param_begin(),
-            Ae = F->getFunctionType()->param_end();
-    while (Ai != Ae && Pi != Pe) {
-      if ((Ai->get()->isFPOrFPVectorTy() && !Pi->get()->isFPOrFPVectorTy())
+    unsigned ANumParams = F->getFunctionType()->getNumParams();
+    unsigned PNumParams = FT->getNumParams();
+    unsigned NumParams = (ANumParams < PNumParams) ? ANumParams : PNumParams;
+    for (unsigned index = 0; index < NumParams; ++index) {
+      Type * AType = F->getFunctionType()->getParamType(index);
+      Type * PType = FT->getParamType(index);
+      if ((AType->isFPOrFPVectorTy() && !PType->isFPOrFPVectorTy())
           ||
-          (!Ai->get()->isFPOrFPVectorTy() && Pi->get()->isFPOrFPVectorTy()))
+          (!AType->isFPOrFPVectorTy() && PType->isFPOrFPVectorTy()))
         return false;
-      ++Ai;
-      ++Pi;
     }
   }
   

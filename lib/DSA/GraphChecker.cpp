@@ -84,7 +84,7 @@ FunctionPass *llvm::createDataStructureGraphCheckerPass() {
 }
 
 
-DSGC::DSGC() : FunctionPass((intptr_t)&ID) {
+DSGC::DSGC() : FunctionPass(ID) {
   if (!AbortIfAnyCollapsed && AbortIfCollapsed.empty() &&
       CheckFlags.empty() && AbortIfMerged.empty()) {
     errs() << "The -datastructure-gc is useless if you don't specify any"

@@ -31,7 +31,7 @@ using namespace llvm;
 class SanityCheck : public ModulePass {
   public:
     static char ID;
-    SanityCheck() : ModulePass ((intptr_t)&ID) {
+    SanityCheck() : ModulePass (ID) {
       dsaPass = 0;
     }
     virtual bool runOnModule(Module &M);

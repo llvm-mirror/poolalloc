@@ -66,9 +66,10 @@ static std::string getCaption(const DSNode *N, const DSGraph *G) {
            ee = N->type_end(); ii != ee; ++ii) {
         OS << ii->first << ": ";
         if (ii->second)
-          for (svset<const Type*>::const_iterator ni = ii->second->begin(),
+          for (svset<Type*>::const_iterator ni = ii->second->begin(),
                ne = ii->second->end(); ni != ne; ++ni) {
-            WriteTypeSymbolic(OS, *ni, M);
+            Type * t = *ni;
+            t->print (OS);
             OS << ", ";
           }
         else
@@ -334,7 +335,7 @@ static void printCollection(const Collection &C, llvm::raw_ostream &O,
   unsigned TotalNumNodes = 0, TotalCallNodes = 0;
   for (Module::const_iterator I = M->begin(), E = M->end(); I != E; ++I)
     if (C.hasDSGraph(*I)) {
-      DSGraph* Gr = C.getDSGraph((Function&)*I);
+      DSGraph* Gr = C.getDSGraph((const Function&)*I);
       unsigned NumCalls = Gr->shouldUseAuxCalls() ?
         Gr->getAuxFunctionCalls().size() : Gr->getFunctionCalls().size();
       bool IsDuplicateGraph = false;

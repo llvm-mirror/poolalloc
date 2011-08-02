@@ -55,7 +55,7 @@ void CallTargetFinder<dsa>::findIndTargets(Module &M)
       for (Function::iterator F = I->begin(), FE = I->end(); F != FE; ++F)
         for (BasicBlock::iterator B = F->begin(), BE = F->end(); B != BE; ++B)
           if (isa<CallInst>(B) || isa<InvokeInst>(B)) {
-            CallSite cs = CallSite::get(B);
+            CallSite cs(B);
             AllSites.push_back(cs);
             Function* CF = cs.getCalledFunction();
 

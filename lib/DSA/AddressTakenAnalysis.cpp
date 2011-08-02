@@ -14,6 +14,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "llvm/Constants.h"
 #include "llvm/Pass.h"
 #include "llvm/Module.h"
 #include "llvm/Function.h"
@@ -30,9 +31,6 @@
 
 using namespace llvm;
 
-
-AddressTakenAnalysis::AddressTakenAnalysis() :ModulePass(&ID) {
-}
 
 AddressTakenAnalysis::~AddressTakenAnalysis() {}
 

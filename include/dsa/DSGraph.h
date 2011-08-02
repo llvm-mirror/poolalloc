@@ -250,14 +250,14 @@ private:
   /// constructed for.
   const TargetData &TD;
 
-  SuperSet<const Type*>& TypeSS;
+  SuperSet<Type*>& TypeSS;
 
   void operator=(const DSGraph &); // DO NOT IMPLEMENT
   DSGraph(const DSGraph&);         // DO NOT IMPLEMENT
 public:
   // Create a new, empty, DSGraph.
   DSGraph(EquivalenceClasses<const GlobalValue*> &ECs, const TargetData &td,
-          SuperSet<const Type*>& tss,
+          SuperSet<Type*>& tss,
           DSGraph *GG = 0) 
     :GlobalsGraph(GG), UseAuxCalls(false), 
      ScalarMap(ECs), TD(td), TypeSS(tss)
@@ -272,7 +272,7 @@ public:
   // method.
   //
   DSGraph( DSGraph* DSG, EquivalenceClasses<const GlobalValue*> &ECs,
-          SuperSet<const Type*>& tss,
+          SuperSet<Type*>& tss,
           unsigned CloneFlags = 0);
   ~DSGraph();
 
@@ -285,7 +285,7 @@ public:
     return ScalarMap.getGlobalECs();
   }
 
-  SuperSet<const Type*>& getTypeSS() const {
+  SuperSet<Type*>& getTypeSS() const {
     return TypeSS;
   }
 

@@ -78,7 +78,7 @@ namespace {
     ////////////////////////////////////////////////////////////////////////////
     // Helper functions used to implement the visitation functions...
 
-    void MergeConstantInitIntoNode(DSNodeHandle &NH, const Type* Ty, Constant *C);
+    void MergeConstantInitIntoNode(DSNodeHandle &NH, Type* Ty, Constant *C);
 
     /// createNode - Create a new DSNode, ensuring that it is properly added to
     /// the graph.
@@ -377,7 +377,7 @@ void GraphBuilder::visitLoadInst(LoadInst &LI) {
   // check that it is the inserted value
   if(TypeInferenceOptimize)
     if(LI.getNumUses() == 1) 
-      if(StoreInst *SI = dyn_cast<StoreInst>(LI.use_begin()))
+      if(StoreInst *SI = dyn_cast<StoreInst>(*(LI.use_begin())))
         if(SI->getOperand(0) == &LI) {
         ++NumIgnoredInst;
         return;
@@ -386,7 +386,7 @@ void GraphBuilder::visitLoadInst(LoadInst &LI) {
 }
 
 void GraphBuilder::visitStoreInst(StoreInst &SI) {
-  const Type *StoredTy = SI.getOperand(0)->getType();
+  Type *StoredTy = SI.getOperand(0)->getType();
   DSNodeHandle Dest = getValueDest(SI.getOperand(1));
   if (Dest.isNull()) return;
 
@@ -462,7 +462,7 @@ void GraphBuilder::visitVAArgInst(VAArgInst &I) {
 void GraphBuilder::visitIntToPtrInst(IntToPtrInst &I) {
   DSNode *N = createNode();
   if(I.getNumUses() == 1) {
-    if(isa<ICmpInst>(I.use_begin())) {
+    if(isa<ICmpInst>(*(I.use_begin()))) {
       NumBoringIntToPtr++;
       return;
     }
@@ -476,13 +476,13 @@ void GraphBuilder::visitIntToPtrInst(IntToPtrInst &I) {
 void GraphBuilder::visitPtrToIntInst(PtrToIntInst& I) {
   DSNode* N = getValueDest(I.getOperand(0)).getNode();
   if(I.getNumUses() == 1) {
-    if(isa<ICmpInst>(I.use_begin())) {
+    if(isa<ICmpInst>(*(I.use_begin()))) {
       NumBoringIntToPtr++;
       return;
     }
   }
   if(I.getNumUses() == 1) {
-    Value *V = dyn_cast<Value>(I.use_begin());
+    Value *V = dyn_cast<Value>(*(I.use_begin()));
     while(V && V->getNumUses() == 1) {
       if(isa<LoadInst>(V))
         break;
@@ -490,7 +490,7 @@ void GraphBuilder::visitPtrToIntInst(PtrToIntInst& I) {
         break;
       if(isa<CallInst>(V))
         break;
-      V = dyn_cast<Value>(V->use_begin());
+      V = dyn_cast<Value>(*(V->use_begin()));
     }
     if(isa<BranchInst>(V)){
       NumBoringIntToPtr++;
@@ -516,14 +516,14 @@ void GraphBuilder::visitCmpInst(CmpInst &I) {
 void GraphBuilder::visitInsertValueInst(InsertValueInst& I) {
   setDestTo(I, createNode()->setAllocaMarker());
 
-  const Type *StoredTy = I.getInsertedValueOperand()->getType();
+  Type *StoredTy = I.getInsertedValueOperand()->getType();
   DSNodeHandle Dest = getValueDest(&I);
   Dest.mergeWith(getValueDest(I.getAggregateOperand()));
 
   // Mark that the node is written to...
   Dest.getNode()->setModifiedMarker();
   unsigned Offset = 0;
-  const Type* STy = I.getAggregateOperand()->getType();
+  Type* STy = I.getAggregateOperand()->getType();
   llvm::InsertValueInst::idx_iterator i = I.idx_begin(), e = I.idx_end(); 
   for (; i != e; i++) {
     const StructLayout *SL = TD.getStructLayout(cast<StructType>(STy));
@@ -545,7 +545,7 @@ void GraphBuilder::visitExtractValueInst(ExtractValueInst& I) {
   // Make that the node is read from...
   Ptr.getNode()->setReadMarker();
   unsigned Offset = 0;
-  const Type* STy = I.getAggregateOperand()->getType();
+  Type* STy = I.getAggregateOperand()->getType();
   llvm::ExtractValueInst::idx_iterator i = I.idx_begin(), e = I.idx_end();
   for (; i != e; i++) {
     const StructLayout *SL = TD.getStructLayout(cast<StructType>(STy));
@@ -608,7 +608,7 @@ void GraphBuilder::visitGetElementPtrInst(User &GEP) {
   //
   for (gep_type_iterator I = gep_type_begin(GEP), E = gep_type_end(GEP);
        I != E; ++I)
-    if (const StructType *STy = dyn_cast<StructType>(*I)) {
+    if (StructType *STy = dyn_cast<StructType>(*I)) {
       // indexing into a structure
       // next index must be a constant
       const ConstantInt* CUI = cast<ConstantInt>(I.getOperand());
@@ -622,7 +622,7 @@ void GraphBuilder::visitGetElementPtrInst(User &GEP) {
       }
       Offset += (unsigned)TD.getStructLayout(STy)->getElementOffset(FieldNo);
       if(TypeInferenceOptimize) {
-        if(const ArrayType* AT = dyn_cast<ArrayType>(STy->getTypeAtIndex(FieldNo))) {
+        if(ArrayType* AT = dyn_cast<ArrayType>(STy->getTypeAtIndex(FieldNo))) {
           Value.getNode()->mergeTypeInfo(AT, Value.getOffset() + Offset);
           if((++I) == E) {
             break;
@@ -645,16 +645,16 @@ void GraphBuilder::visitGetElementPtrInst(User &GEP) {
           }
         }
       }
-    } else if(const ArrayType *ATy = dyn_cast<ArrayType>(*I)) {
+    } else if(ArrayType *ATy = dyn_cast<ArrayType>(*I)) {
       // indexing into an array.
       Value.getNode()->setArrayMarker();
-      const Type *CurTy = ATy->getElementType();
+      Type *CurTy = ATy->getElementType();
 
       if(!isa<ArrayType>(CurTy) &&
          Value.getNode()->getSize() <= 0) {
         Value.getNode()->growSize(TD.getTypeAllocSize(CurTy));
       } else if(isa<ArrayType>(CurTy) && Value.getNode()->getSize() <= 0){
-        const Type *ETy = (cast<ArrayType>(CurTy))->getElementType();
+        Type *ETy = (cast<ArrayType>(CurTy))->getElementType();
         while(isa<ArrayType>(ETy)) {
           ETy = (cast<ArrayType>(ETy))->getElementType();
         }
@@ -672,7 +672,7 @@ void GraphBuilder::visitGetElementPtrInst(User &GEP) {
         break;
       }
     } else if (const PointerType *PtrTy = dyn_cast<PointerType>(*I)) {
-      const Type *CurTy = PtrTy->getElementType();
+      Type *CurTy = PtrTy->getElementType();
 
       //
       // Unless we're advancing the pointer by zero bytes via array indexing,
@@ -691,7 +691,7 @@ void GraphBuilder::visitGetElementPtrInst(User &GEP) {
         if(!isa<ArrayType>(CurTy) && Value.getNode()->getSize() <= 0){
           Value.getNode()->growSize(TD.getTypeAllocSize(CurTy));
         } else if(isa<ArrayType>(CurTy) && Value.getNode()->getSize() <= 0){
-          const Type *ETy = (cast<ArrayType>(CurTy))->getElementType();
+          Type *ETy = (cast<ArrayType>(CurTy))->getElementType();
           while(isa<ArrayType>(ETy)) {
             ETy = (cast<ArrayType>(ETy))->getElementType();
           }
@@ -1081,7 +1081,7 @@ void GraphBuilder::visitInstruction(Instruction &Inst) {
 //
 void
 GraphBuilder::MergeConstantInitIntoNode(DSNodeHandle &NH,
-                                        const Type* Ty,
+                                        Type* Ty,
                                         Constant *C) {
   //
   // Ensure a type-record exists...
@@ -1114,7 +1114,7 @@ GraphBuilder::MergeConstantInitIntoNode(DSNodeHandle &NH,
     // For an array, we don't worry about different elements pointing to
     // different objects; we essentially pretend that all array elements alias.
     //
-    const Type * ElementType = cast<ArrayType>(Ty)->getElementType();
+    Type * ElementType = cast<ArrayType>(Ty)->getElementType();
     for (unsigned i = 0, e = CA->getNumOperands(); i != e; ++i) {
       Constant * ConstElement = cast<Constant>(CA->getOperand(i));
       MergeConstantInitIntoNode(NH, ElementType, ConstElement);
@@ -1137,7 +1137,7 @@ GraphBuilder::MergeConstantInitIntoNode(DSNodeHandle &NH,
         // Get the type and constant value of this particular element of the
         // constant structure.
         //
-        const Type * ElementType = cast<StructType>(Ty)->getElementType(i);
+        Type * ElementType = cast<StructType>(Ty)->getElementType(i);
         Constant * ConstElement = cast<Constant>(CS->getOperand(i));
 
         //
@@ -1192,8 +1192,8 @@ void GraphBuilder::mergeInGlobalInitializer(GlobalVariable *GV) {
   // Ensure that the DSNode is large enough to hold the new constant that we'll
   // be adding to it.
   //
-  const Type * ElementType = GV->getType()->getElementType();
-  while(const ArrayType *ATy = dyn_cast<ArrayType>(ElementType)) {
+  Type * ElementType = GV->getType()->getElementType();
+  while(ArrayType *ATy = dyn_cast<ArrayType>(ElementType)) {
     ElementType = ATy->getElementType();
   }
   if(!NH.getNode()->isNodeCompletelyFolded()) {

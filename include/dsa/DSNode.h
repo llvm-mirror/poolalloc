@@ -41,7 +41,7 @@ class DSNodeIterator;          // Data structure graph traversal iterator
 ///
 class DSNode : public ilist_node<DSNode> {
 public:
-  typedef std::map<unsigned, SuperSet<const Type*>::setPtr> TyMapTy;
+  typedef std::map<unsigned, SuperSet<Type*>::setPtr> TyMapTy;
   typedef std::map<unsigned, DSNodeHandle> LinkMapTy;
 
 private:
@@ -210,7 +210,7 @@ public:
     Size = NSize;
   }
   
-  void growSizeForType(const Type *Ty, unsigned Offset);
+  void growSizeForType(Type *Ty, unsigned Offset);
 
   /// hasLink - Return true if this memory object has a link in slot LinkNo
   ///
@@ -244,7 +244,7 @@ public:
   /// completely (and return true) if the information is incompatible with what
   /// is already known.
   ///
-  void mergeTypeInfo(const Type *Ty, unsigned Offset);
+  void mergeTypeInfo(Type *Ty, unsigned Offset);
   void mergeTypeInfo(const TyMapTy::mapped_type TyIt, unsigned Offset);
   void mergeTypeInfo(const DSNode* D, unsigned Offset);
 

@@ -280,7 +280,6 @@ static void printAllValuesForNode(llvm::raw_ostream &O, NodeValue &NV) {
 // (meant to be called as a helper)
 static void printTypesForNode(llvm::raw_ostream &O, NodeValue &NV) {
   DSNode *N = NV.getNode();
-  Module *M = NV.getParentModule();
 
   if (N->isNodeCompletelyFolded()) {
     O << "Folded";
@@ -296,10 +295,11 @@ static void printTypesForNode(llvm::raw_ostream &O, NodeValue &NV) {
       O << ii->first << ":";
       if (ii->second) {
         bool first = true;
-        for (svset<const Type*>::const_iterator ni = ii->second->begin(),
+        for (svset<Type*>::const_iterator ni = ii->second->begin(),
             ne = ii->second->end(); ni != ne; ++ni) {
           if (!first) O << "|";
-          WriteTypeSymbolic(O, *ni, M);
+          Type * t = *ni;
+          t->print (O);
           first = false;
         }
       }

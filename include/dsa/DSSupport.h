@@ -38,7 +38,7 @@ class ReachabilityCloner;
   /// isPointerType - Return true if this first class type is big enough to hold
   /// a pointer.
   ///
-  bool isPointerType(const Type *Ty);
+  bool isPointerType(Type *Ty);
 
 //===----------------------------------------------------------------------===//
 /// DSNodeHandle - Implement a "handle" to a data structure node that takes care

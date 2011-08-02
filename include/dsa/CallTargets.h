@@ -35,7 +35,7 @@ namespace dsa{
     void findIndTargets(Module &M);
   public:
     static char ID;
-    CallTargetFinder() : ModulePass((intptr_t)&ID) {}
+    CallTargetFinder() : ModulePass(ID) {}
 
     virtual bool runOnModule(Module &M);
 

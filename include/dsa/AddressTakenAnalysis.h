@@ -30,7 +30,7 @@ class AddressTakenAnalysis : public llvm::ModulePass {
   std::set<Function*> addressTakenFunctions;
 public:
   static char ID;
-  AddressTakenAnalysis();
+  AddressTakenAnalysis() : ModulePass (ID) { };
   virtual ~AddressTakenAnalysis();
 
   bool runOnModule(llvm::Module&);

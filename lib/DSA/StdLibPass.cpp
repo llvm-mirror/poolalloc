@@ -409,7 +409,7 @@ void
 StdLibDataStructures::eraseCallsTo(Function* F) {
   for (Value::use_iterator ii = F->use_begin(), ee = F->use_end();
        ii != ee; ++ii)
-    if (CallInst* CI = dyn_cast<CallInst>(ii)){
+    if (CallInst* CI = dyn_cast<CallInst>(*ii)){
       if (CI->getOperand(0) == F) {
         DSGraph* Graph = getDSGraph(*CI->getParent()->getParent());
         //delete the call
@@ -417,7 +417,7 @@ StdLibDataStructures::eraseCallsTo(Function* F) {
 	      << CI->getParent()->getParent()->getNameStr() << "\n");
         Graph->removeFunctionCalls(*F);
       }
-    }else if (InvokeInst* CI = dyn_cast<InvokeInst>(ii)){
+    }else if (InvokeInst* CI = dyn_cast<InvokeInst>(*ii)){
       if (CI->getOperand(0) == F) {
         DSGraph* Graph = getDSGraph(*CI->getParent()->getParent());
         //delete the call
@@ -425,11 +425,11 @@ StdLibDataStructures::eraseCallsTo(Function* F) {
 	      << CI->getParent()->getParent()->getNameStr() << "\n");
         Graph->removeFunctionCalls(*F);
       }
-    } else if(ConstantExpr *CE = dyn_cast<ConstantExpr>(ii)) {
+    } else if(ConstantExpr *CE = dyn_cast<ConstantExpr>(*ii)) {
       if(CE->isCast()) {
         for (Value::use_iterator ci = CE->use_begin(), ce = CE->use_end();
              ci != ce; ++ci) {
-          if (CallInst* CI = dyn_cast<CallInst>(ci)){
+          if (CallInst* CI = dyn_cast<CallInst>(*ci)){
             if(CI->getOperand(0) == CE) {
               DSGraph* Graph = getDSGraph(*CI->getParent()->getParent());
               //delete the call
@@ -476,7 +476,7 @@ StdLibDataStructures::processRuntimeCheck (Module & M,
   //
   for (Value::use_iterator ii = F->use_begin(), ee = F->use_end();
        ii != ee; ++ii) {
-    if (CallInst* CI = dyn_cast<CallInst>(ii)) {
+    if (CallInst* CI = dyn_cast<CallInst>(*ii)) {
       if (CI->getOperand(0) == F) {
         DSGraph* Graph = getDSGraph(*CI->getParent()->getParent());
         DSNodeHandle RetNode = Graph->getNodeForValue(CI);
@@ -626,7 +626,7 @@ StdLibDataStructures::runOnModule (Module &M) {
 void StdLibDataStructures::processFunction(int x, Function *F) {
   for (Value::use_iterator ii = F->use_begin(), ee = F->use_end();
        ii != ee; ++ii)
-    if (CallInst* CI = dyn_cast<CallInst>(ii)){
+    if (CallInst* CI = dyn_cast<CallInst>(*ii)){
       if (CI->getOperand(0) == F) {
         DSGraph* Graph = getDSGraph(*CI->getParent()->getParent());
 
@@ -698,7 +698,7 @@ void StdLibDataStructures::processFunction(int x, Function *F) {
           }
         }
       }
-    } else if (InvokeInst* CI = dyn_cast<InvokeInst>(ii)){
+    } else if (InvokeInst* CI = dyn_cast<InvokeInst>(*ii)){
       if (CI->getOperand(0) == F) {
         DSGraph* Graph = getDSGraph(*CI->getParent()->getParent());
 
@@ -770,12 +770,12 @@ void StdLibDataStructures::processFunction(int x, Function *F) {
           }
         }
       }
-    } else if(ConstantExpr *CE = dyn_cast<ConstantExpr>(ii)) {
+    } else if(ConstantExpr *CE = dyn_cast<ConstantExpr>(*ii)) {
       if(CE->isCast()) 
         for (Value::use_iterator ci = CE->use_begin(), ce = CE->use_end();
              ci != ce; ++ci) {
 
-          if (CallInst* CI = dyn_cast<CallInst>(ci)){
+          if (CallInst* CI = dyn_cast<CallInst>(*ci)){
             if (CI->getOperand(0) == CE) {
               DSGraph* Graph = getDSGraph(*CI->getParent()->getParent());
 

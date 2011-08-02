@@ -350,7 +350,7 @@ void DSNode::markIntPtrFlags() {
 
     // Iterate through all the Types, at that offset, checking if we have
     // found a pointer type/integer type
-    for (svset<const Type*>::const_iterator ni = TyMap[offset]->begin(),
+    for (svset<Type*>::const_iterator ni = TyMap[offset]->begin(),
          ne = TyMap[offset]->end(); ni != ne; ++ni) {
       if((*ni)->isPointerTy()) {
         pointerTy = true;
@@ -382,7 +382,7 @@ void DSNode::markIntPtrFlags() {
         offset2++;
         continue;
       }
-      for (svset<const Type*>::const_iterator ni = TyMap[offset2]->begin(),
+      for (svset<Type*>::const_iterator ni = TyMap[offset2]->begin(),
            ne = TyMap[offset2]->end(); ni != ne; ++ni) {
         if((*ni)->isPointerTy()) {
           pointerTy = true;
@@ -406,7 +406,7 @@ void DSNode::markIntPtrFlags() {
 /// to accomodate NewTy at the given offset. This is useful for
 /// updating the size of a DSNode, without actually inferring a 
 /// Type.
-void DSNode::growSizeForType(const Type *NewTy, unsigned Offset) {
+void DSNode::growSizeForType(Type *NewTy, unsigned Offset) {
 
   if (!NewTy || NewTy->isVoidTy()) return;
 
@@ -428,7 +428,7 @@ void DSNode::growSizeForType(const Type *NewTy, unsigned Offset) {
 ///
 /// This method returns true if the node is completely folded, otherwise false.
 ///
-void DSNode::mergeTypeInfo(const Type *NewTy, unsigned Offset) {
+void DSNode::mergeTypeInfo(Type *NewTy, unsigned Offset) {
   if (!NewTy || NewTy->isVoidTy()) return;
   if (isCollapsedNode()) return;
 
@@ -442,7 +442,7 @@ void DSNode::mergeTypeInfo(const Type *NewTy, unsigned Offset) {
   // struct type.
   if(NewTy->isStructTy()) {
     const TargetData &TD = getParentGraph()->getTargetData();
-    const StructType *STy = cast<StructType>(NewTy);
+    StructType *STy = cast<StructType>(NewTy);
     const StructLayout *SL = TD.getStructLayout(cast<StructType>(STy));
     unsigned count = 0;
     for(Type::subtype_iterator ii = STy->element_begin(), ee = STy->element_end(); ii!= ee; ++ii, ++count) {
@@ -463,13 +463,13 @@ void DSNode::mergeTypeInfo(const TyMapTy::mapped_type TyIt, unsigned Offset) {
   const TargetData &TD = getParentGraph()->getTargetData();
   if (!TyMap[Offset]){
     TyMap[Offset] = TyIt;
-    for (svset<const Type*>::const_iterator ni = TyMap[Offset]->begin(),
+    for (svset<Type*>::const_iterator ni = TyMap[Offset]->begin(),
          ne = TyMap[Offset]->end(); ni != ne; ++ni) {
       if (Offset + TD.getTypeAllocSize(*ni) >= getSize())
         growSize(Offset + TD.getTypeAllocSize(*ni));
     }
   } else if (TyIt) {
-    svset<const Type*> S(*TyMap[Offset]);
+    svset<Type*> S(*TyMap[Offset]);
     S.insert(TyIt->begin(), TyIt->end());
     TyMap[Offset] = getParentGraph()->getTypeSS().getOrCreate(S);
   }
@@ -1588,7 +1588,7 @@ void DataStructures::init(TargetData* T) {
   GraphSource = 0;
   Clone = false;
   TD = T;
-  TypeSS = new SuperSet<const Type*>();
+  TypeSS = new SuperSet<Type*>();
   GlobalsGraph = new DSGraph(GlobalECs, *T, *TypeSS);
 }
 

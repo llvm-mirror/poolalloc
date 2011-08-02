@@ -14,6 +14,8 @@
 #include "dsa/DataStructure.h"
 #include "dsa/DSGraph.h"
 #include "dsa/TypeSafety.h"
+
+#include "llvm/Constants.h"
 #include "llvm/Function.h"
 #include "llvm/Instructions.h"
 #include "llvm/Pass.h"
@@ -69,7 +71,7 @@ namespace {
     bool isNodeForValueUntyped(Value *V, unsigned offset, const Function *);
   public:
     static char ID;
-    DSGraphStats() : FunctionPass((intptr_t)&ID) {}
+    DSGraphStats() : FunctionPass(ID) {}
 
     /// Driver functions to compute the Load/Store Dep. Graph per function.
     bool runOnFunction(Function& F);

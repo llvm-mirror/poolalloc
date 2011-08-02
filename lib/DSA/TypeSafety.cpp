@@ -200,7 +200,7 @@ TypeSafety<dsa>::typeFieldsOverlap (const DSNode * N) {
     // Get the information about the current field.
     //
     unsigned offset = tn->first;
-    SuperSet<const Type*>::setPtr TypeSet = tn->second;
+    SuperSet<Type*>::setPtr TypeSet = tn->second;
 
     //
     // If this is the last field, then we are done searching.
@@ -219,18 +219,18 @@ TypeSafety<dsa>::typeFieldsOverlap (const DSNode * N) {
     // next field.
     //
     if (TypeSet) {
-      for (svset<const Type*>::const_iterator ni = TypeSet->begin(),
+      for (svset<Type*>::const_iterator ni = TypeSet->begin(),
            ne = TypeSet->end(); ni != ne; ++ni) {
         unsigned field_length = TD->getTypeStoreSize (*ni);
         if ((offset + field_length) > next_offset) {
           overlaps = true;
           if(TypeInferenceOptimize) {
             if(const ArrayType *AT = dyn_cast<ArrayType>(*ni)) {
-              const Type *ElemTy = AT->getElementType();
-              while(const ArrayType *AT1 = dyn_cast<ArrayType>(ElemTy))
+              Type *ElemTy = AT->getElementType();
+              while(ArrayType *AT1 = dyn_cast<ArrayType>(ElemTy))
                 ElemTy = AT1->getElementType();
               if(next_offset < (TD->getTypeStoreSize(ElemTy) + offset)) {
-                const StructType *ST = dyn_cast<StructType>(ElemTy);
+                StructType *ST = dyn_cast<StructType>(ElemTy);
                 assert(ST && "Array Not of struct type ???? ");
                 overlaps = false;
               }

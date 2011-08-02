@@ -46,7 +46,7 @@ static void readNames(std::set<std::string>& names) {
 }
 
 
-EntryPointAnalysis::EntryPointAnalysis() :ModulePass(&ID), haveNames(false) {
+EntryPointAnalysis::EntryPointAnalysis() :ModulePass(ID), haveNames(false) {
 }
 
 EntryPointAnalysis::~EntryPointAnalysis() {}

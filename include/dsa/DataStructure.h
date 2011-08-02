@@ -78,7 +78,7 @@ protected:
   /// with other global values in the DSGraphs.
   EquivalenceClasses<const GlobalValue*> GlobalECs;
 
-  SuperSet<const Type*>* TypeSS;
+  SuperSet<Type*>* TypeSS;
 
   // Callgraph, as computed so far
   DSCallGraph callgraph;
@@ -98,7 +98,7 @@ protected:
   
   void formGlobalFunctionList();
 
-  DataStructures(intptr_t id, const char* name) 
+  DataStructures(char & id, const char* name) 
     : ModulePass(id), TD(0), GraphSource(0), printname(name), GlobalsGraph(0) {  
     // For now, the graphs are owned by this pass
     DSGraphsStolen = false;
@@ -143,7 +143,7 @@ public:
 
   const DSCallGraph& getCallGraph() const { return callgraph; }
 
-  SuperSet<const Type*>& getTypeSS() const { return *TypeSS; }
+  SuperSet<Type*>& getTypeSS() const { return *TypeSS; }
   
   /// deleteValue/copyValue - Interfaces to update the DSGraphs in the program.
   /// These correspond to the interfaces defined in the AliasAnalysis class.
@@ -157,7 +157,7 @@ public:
 class BasicDataStructures : public DataStructures {
 public:
   static char ID;
-  BasicDataStructures() : DataStructures((intptr_t)&ID, "basic.") {}
+  BasicDataStructures() : DataStructures(ID, "basic.") {}
   ~BasicDataStructures() { releaseMemory(); }
 
   virtual bool runOnModule(Module &M);
@@ -180,7 +180,7 @@ class LocalDataStructures : public DataStructures {
   AddressTakenAnalysis* addrAnalysis;
 public:
   static char ID;
-  LocalDataStructures() : DataStructures((intptr_t)&ID, "local.") {}
+  LocalDataStructures() : DataStructures(ID, "local.") {}
   ~LocalDataStructures() { releaseMemory(); }
 
   virtual bool runOnModule(Module &M);
@@ -203,7 +203,7 @@ class StdLibDataStructures : public DataStructures {
   AllocIdentify *AllocWrappersAnalysis;
 public:
   static char ID;
-  StdLibDataStructures() : DataStructures((intptr_t)&ID, "stdlib.") {}
+  StdLibDataStructures() : DataStructures(ID, "stdlib.") {}
   ~StdLibDataStructures() { releaseMemory(); }
 
   virtual bool runOnModule(Module &M);
@@ -234,12 +234,12 @@ protected:
 public:
   static char ID;
   //Child constructor (CBU)
-  BUDataStructures(intptr_t CID, const char* name, const char* printname,
+  BUDataStructures(char & CID, const char* name, const char* printname,
       bool filter)
     : DataStructures(CID, printname), debugname(name), filterCallees(filter) {}
   //main constructor
   BUDataStructures()
-    : DataStructures((intptr_t)&ID, "bu."), debugname("dsa-bu"),
+    : DataStructures(ID, "bu."), debugname("dsa-bu"),
     filterCallees(true) {}
   ~BUDataStructures() { releaseMemory(); }
 
@@ -285,7 +285,7 @@ protected:
   void buildIndirectFunctionSets (void);
 public:
   static char ID;
-  CompleteBUDataStructures(intptr_t CID = (intptr_t)&ID, 
+  CompleteBUDataStructures(char & CID = ID, 
                            const char* name = "dsa-cbu", 
                            const char* printname = "cbu.")
     : BUDataStructures(CID, name, printname, false) {}
@@ -312,7 +312,7 @@ class EquivBUDataStructures : public CompleteBUDataStructures {
 public:
   static char ID;
   EquivBUDataStructures()
-    : CompleteBUDataStructures((intptr_t)&ID, "dsa-eq", "eq.") {}
+    : CompleteBUDataStructures(ID, "dsa-eq", "eq.") {}
   ~EquivBUDataStructures() { releaseMemory(); }
 
   virtual bool runOnModule(Module &M);
@@ -361,7 +361,7 @@ class TDDataStructures : public DataStructures {
 
 public:
   static char ID;
-  TDDataStructures(intptr_t CID = (intptr_t)&ID, const char* printname = "td.", bool useEQ = false)
+  TDDataStructures(char & CID = ID, const char* printname = "td.", bool useEQ = false)
     : DataStructures(CID, printname), useEQBU(useEQ) {}
   ~TDDataStructures();
 
@@ -396,7 +396,7 @@ class EQTDDataStructures : public TDDataStructures {
 public:
   static char ID;
   EQTDDataStructures()
-    :TDDataStructures((intptr_t)&ID, "eqtd.", true)
+    :TDDataStructures(ID, "eqtd.", true)
   {}
   ~EQTDDataStructures();
 };
@@ -414,7 +414,7 @@ class SteensgaardDataStructures : public DataStructures {
 public:
   static char ID;
   SteensgaardDataStructures() : 
-    DataStructures((intptr_t)&ID, "steensgaard."),
+    DataStructures(ID, "steensgaard."),
     ResultGraph(NULL) {}
   ~SteensgaardDataStructures();
   virtual bool runOnModule(Module &M);

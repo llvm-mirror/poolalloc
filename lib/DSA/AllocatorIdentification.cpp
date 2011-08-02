@@ -12,6 +12,7 @@
 
 #define DEBUG_TYPE "allocator-identify"
 
+#include "llvm/Constants.h"
 #include "llvm/Instructions.h"
 #include "llvm/Module.h"
 #include "llvm/Pass.h"
@@ -63,19 +64,19 @@ bool isNotStored(Value *V) {
   // check that V is not stroed to a location taht is accessible outside this fn
   for(Value::use_iterator ui = V->use_begin(), ue = V->use_end();
       ui != ue; ++ui) {
-    if(isa<StoreInst>(ui))
+    if(isa<StoreInst>(*ui))
       return false;
-    if(isa<ICmpInst>(ui))
+    if(isa<ICmpInst>(*ui))
       continue;
-    if(isa<ReturnInst>(ui))
+    if(isa<ReturnInst>(*ui))
       continue;
-    if(BitCastInst *BI = dyn_cast<BitCastInst>(ui)) {
+    if(BitCastInst *BI = dyn_cast<BitCastInst>(*ui)) {
       if(isNotStored(BI))
         continue;
       else 
         return false;
     }
-    if(PHINode *PN = dyn_cast<PHINode>(ui)) {
+    if(PHINode *PN = dyn_cast<PHINode>(*ui)) {
       if(isNotStored(PN))
         continue;
       else 
@@ -87,7 +88,7 @@ bool isNotStored(Value *V) {
   return true;
 }
 
-AllocIdentify::AllocIdentify() : ModulePass(&ID) {}
+AllocIdentify::AllocIdentify() : ModulePass(ID) {}
 AllocIdentify::~AllocIdentify() {}
 
 bool AllocIdentify::runOnModule(Module& M) {
@@ -112,7 +113,7 @@ bool AllocIdentify::runOnModule(Module& M) {
       for(Value::use_iterator ui = F->use_begin(), ue = F->use_end();
           ui != ue; ++ui) {
         // iterate though all calls to malloc
-        if (CallInst* CI = dyn_cast<CallInst>(ui)) {
+        if (CallInst* CI = dyn_cast<CallInst>(*ui)) {
           // The function that calls malloc could be a potential allocator
           Function *WrapperF = CI->getParent()->getParent();
           if(WrapperF->doesNotReturn())
@@ -164,7 +165,7 @@ bool AllocIdentify::runOnModule(Module& M) {
       for(Value::use_iterator ui = F->use_begin(), ue = F->use_end();
           ui != ue; ++ui) {
         // iterate though all calls to malloc
-        if (CallInst* CI = dyn_cast<CallInst>(ui)) {
+        if (CallInst* CI = dyn_cast<CallInst>(*ui)) {
           // The function that calls malloc could be a potential allocator
           Function *WrapperF = CI->getParent()->getParent();
 
