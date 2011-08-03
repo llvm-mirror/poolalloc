@@ -37,9 +37,9 @@ STATISTIC(numDeallocators, "Number of free-like deallocators");
 bool AllocIdentify::flowsFrom(Value *Dest,Value *Src) {
   if(Dest == Src)
     return true;
-  if(ReturnInst *Ret = dyn_cast<ReturnInst>(Dest)) {    
+  if(ReturnInst *Ret = dyn_cast<ReturnInst>(Dest)) {
     return flowsFrom(Ret->getReturnValue(), Src);
-  } 
+  }
   if(PHINode *PN = dyn_cast<PHINode>(Dest)) {
     Function *F = PN->getParent()->getParent();
     LoopInfo &LI = getAnalysis<LoopInfo>(*F);
@@ -73,13 +73,13 @@ bool isNotStored(Value *V) {
     if(BitCastInst *BI = dyn_cast<BitCastInst>(*ui)) {
       if(isNotStored(BI))
         continue;
-      else 
+      else
         return false;
     }
     if(PHINode *PN = dyn_cast<PHINode>(*ui)) {
       if(isNotStored(PN))
         continue;
-      else 
+      else
         return false;
     }
 
