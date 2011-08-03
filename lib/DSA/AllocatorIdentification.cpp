@@ -61,7 +61,7 @@ bool AllocIdentify::flowsFrom(Value *Dest,Value *Src) {
 }
 
 bool isNotStored(Value *V) {
-  // check that V is not stroed to a location taht is accessible outside this fn
+  // check that V is not stored to a location that is accessible outside this fn
   for(Value::use_iterator ui = V->use_begin(), ue = V->use_end();
       ui != ue; ++ui) {
     if(isa<StoreInst>(*ui))
