@@ -126,6 +126,28 @@ Constant *TypeChecks::getTypeMarkerConstant(const Type *T) {
   return ConstantInt::get(TypeTagTy, getTypeMarker(T));
 }
 
+static inline Value *
+castTo (Value * V, const Type * Ty, std::string Name, Instruction * InsertPt) {
+  //
+  // Don't bother creating a cast if it's already the correct type.
+  //
+  if (V->getType() == Ty)
+    return V;
+
+  //
+  // If it's a constant, just create a constant expression.
+  //
+  if (Constant * C = dyn_cast<Constant>(V)) {
+    Constant * CE = ConstantExpr::getZExtOrBitCast (C, Ty);
+    return CE;
+  }
+
+  //
+  // Otherwise, insert a cast instruction.
+  //
+  return CastInst::CreateZExtOrBitCast (V, Ty, Name, InsertPt);
+}
+
 bool TypeChecks::runOnModule(Module &M) {
   bool modified = false; // Flags whether we modified the module.
   bool transformIndirectCalls = true;
@@ -879,7 +901,7 @@ bool TypeChecks::visitInternalVarArgFunction(Module &M, Function &F) {
       if(CalledF->getIntrinsicID() != Intrinsic::vastart) 
         continue;
       // Reinitialize the counter
-      CastInst *BCI = BitCastInst::CreatePointerCast(CI->getOperand(1), VoidPtrTy, "", CI);
+      Value *BCI = castTo(CI->getOperand(1), VoidPtrTy, "", CI);
       std::vector<Value *> Args;
       Args.push_back(BCI);
       Args.push_back(NewValue);
@@ -902,8 +924,8 @@ bool TypeChecks::visitInternalVarArgFunction(Module &M, Function &F) {
         continue;
       if(CalledF->getIntrinsicID() != Intrinsic::vacopy) 
         continue;
-      CastInst *BCI_Src = BitCastInst::CreatePointerCast(CI->getOperand(2), VoidPtrTy, "", CI);
-      CastInst *BCI_Dest = BitCastInst::CreatePointerCast(CI->getOperand(1), VoidPtrTy, "", CI);
+      Value *BCI_Src = castTo(CI->getOperand(2), VoidPtrTy, "", CI);
+      Value *BCI_Dest = castTo(CI->getOperand(1), VoidPtrTy, "", CI);
       std::vector<Value *> Args;
       Args.push_back(BCI_Dest);
       Args.push_back(BCI_Src);
@@ -1171,7 +1193,7 @@ bool TypeChecks::visitExternalByValFunction(Module &M, Function &F) {
       const Type * ET = PT->getElementType();
       Value * AllocSize = ConstantInt::get(Int64Ty, TD->getTypeAllocSize(ET));
       Instruction * InsertPt = &(F.getEntryBlock().front());
-      CastInst *BCI = BitCastInst::CreatePointerCast(I, VoidPtrTy, "", InsertPt);
+      Value *BCI = castTo(I, VoidPtrTy, "", InsertPt);
       std::vector<Value *> Args;
       Args.push_back(BCI);
       Args.push_back(AllocSize);
@@ -1202,7 +1224,7 @@ bool TypeChecks::visitExternalByValFunction(Module &M, Function &F) {
       const PointerType * PT = cast<PointerType>((*I)->getType());
       const Type * ET = PT->getElementType();
       Value * AllocSize = ConstantInt::get(Int64Ty, TD->getTypeAllocSize(ET));
-      CastInst *BCI = BitCastInst::CreatePointerCast(*I, VoidPtrTy, "", Pt);
+      Value *BCI = castTo(*I, VoidPtrTy, "", Pt);
       std::vector<Value *> Args;
       Args.push_back(BCI);
       Args.push_back(AllocSize);
@@ -1256,7 +1278,7 @@ bool TypeChecks::initShadow(Module &M) {
        I->getNameStr() == "optind" ||
        I->getNameStr() == "optarg") {
       // assume initialized
-      CastInst *BCI = BitCastInst::CreatePointerCast(I, VoidPtrTy, "", InsertPt);
+      Value *BCI = castTo(I, VoidPtrTy, "", InsertPt);
       std::vector<Value *> Args;
       Args.push_back(BCI);
       Args.push_back(getSizeConstant(I->getType()->getElementType()));
@@ -1368,7 +1390,7 @@ bool TypeChecks::visitGlobal(Module &M, GlobalVariable &GV,
     GetElementPtrInst *GEP = GetElementPtrInst::CreateInBounds(&GV, Indices.begin(),
                                                                Indices.end(),"", &I) ;
 
-    CastInst *BCI = BitCastInst::CreatePointerCast(GEP, VoidPtrTy, "", &I);
+    Value *BCI = castTo(GEP, VoidPtrTy, "", &I);
 
     // Copy the type metadata for the first element
     // over for the rest of the elements.
@@ -1403,7 +1425,7 @@ bool TypeChecks::visitGlobal(Module &M, GlobalVariable &GV,
       GetElementPtrInst *GEP = GetElementPtrInst::CreateInBounds(&GV, Indices.begin(),
                                                                  Indices.end(),"", &I) ;
 
-      CastInst *BCI = BitCastInst::CreatePointerCast(GEP, VoidPtrTy, "", &I);
+      Value *BCI = castTo(GEP, VoidPtrTy, "", &I);
       std::vector<Value *> Args;
       Args.push_back(BCI);
       Args.push_back(getSizeConstant(ElementType));
@@ -1424,7 +1446,7 @@ bool TypeChecks::visitGlobal(Module &M, GlobalVariable &GV,
       GetElementPtrInst *GEP = GetElementPtrInst::CreateInBounds(&GV, Indices.begin(),
                                                                  Indices.end(),"", &I) ;
 
-      CastInst *BCI = BitCastInst::CreatePointerCast(GEP, VoidPtrTy, "", &I);
+      Value *BCI = castTo(GEP, VoidPtrTy, "", &I);
       std::vector<Value *> Args;
       Args.push_back(BCI);
       Args.push_back(getTypeMarkerConstant(CAZ));
@@ -1438,7 +1460,7 @@ bool TypeChecks::visitGlobal(Module &M, GlobalVariable &GV,
     GetElementPtrInst *GEP = GetElementPtrInst::CreateInBounds(&GV, Indices.begin(),
                                                                Indices.end(),"", &I) ;
 
-    CastInst *BCI = BitCastInst::CreatePointerCast(GEP, VoidPtrTy, "", &I);
+    Value *BCI = castTo(GEP, VoidPtrTy, "", &I);
     std::vector<Value *> Args;
     Args.push_back(BCI);
     Args.push_back(getTypeMarkerConstant(C));
@@ -1451,7 +1473,7 @@ bool TypeChecks::visitGlobal(Module &M, GlobalVariable &GV,
   bool TypeChecks::visitVAArgInst(Module &M, VAArgInst &VI) {
     if(!VI.getParent()->getParent()->hasInternalLinkage())
       return false;
-    CastInst *BCI = BitCastInst::CreatePointerCast(VI.getOperand(0), VoidPtrTy, "", &VI);
+    Value *BCI = castTo(VI.getOperand(0), VoidPtrTy, "", &VI);
     std::vector<Value *>Args;
     Args.push_back(BCI);
     Args.push_back(getTypeMarkerConstant(&VI));
@@ -1514,8 +1536,8 @@ bool TypeChecks::visitCallSite(Module &M, CallSite CS) {
       case Intrinsic::memcpy: 
       case Intrinsic::memmove: 
         {
-          CastInst *BCI_Src = BitCastInst::CreatePointerCast(CS.getArgument(1), VoidPtrTy, "", I);
-          CastInst *BCI_Dest = BitCastInst::CreatePointerCast(CS.getArgument(0), VoidPtrTy, "", I);
+          Value *BCI_Src = castTo(CS.getArgument(1), VoidPtrTy, "", I);
+          Value *BCI_Dest = castTo(CS.getArgument(0), VoidPtrTy, "", I);
           std::vector<Value *> Args;
           Args.push_back(BCI_Dest);
           Args.push_back(BCI_Src);
@@ -1527,7 +1549,7 @@ bool TypeChecks::visitCallSite(Module &M, CallSite CS) {
         }
 
       case Intrinsic::memset:
-        CastInst *BCI = BitCastInst::CreatePointerCast(CS.getArgument(0), VoidPtrTy, "", I);
+        Value *BCI = castTo(CS.getArgument(0), VoidPtrTy, "", I);
         std::vector<Value *> Args;
         Args.push_back(BCI);
         CastInst *Size = CastInst::CreateIntegerCast(CS.getArgument(2), Int64Ty, false, "", I);
@@ -1551,7 +1573,7 @@ bool TypeChecks::visitCallSite(Module &M, CallSite CS) {
         ++InsertPt;
       CI->insertBefore(InsertPt);
     } else if (F->getNameStr() == std::string("_ZNSsC1EPKcRKSaIcE")) { //c_str()
-      CastInst *BCI = BitCastInst::CreatePointerCast(CS.getArgument(0), VoidPtrTy, "", I);
+      Value *BCI = castTo(CS.getArgument(0), VoidPtrTy, "", I);
       std::vector<Value *>Args;
       Args.push_back(BCI);
       Args.push_back(getTagCounter());
@@ -1620,7 +1642,7 @@ bool TypeChecks::visitCallSite(Module &M, CallSite CS) {
     } else if (F->getNameStr() == std::string("gettimeofday") || 
                F->getNameStr() == std::string("time") ||
                F->getNameStr() == std::string("times")) {
-      CastInst *BCI = BitCastInst::CreatePointerCast(CS.getArgument(0), VoidPtrTy, "", I);
+      Value *BCI = castTo(CS.getArgument(0), VoidPtrTy, "", I);
       assert (isa<PointerType>(CS.getArgument(0)->getType()));
       const PointerType * PT = cast<PointerType>(CS.getArgument(0)->getType());
       const Type * ET = PT->getElementType();
@@ -1737,7 +1759,7 @@ bool TypeChecks::visitCallSite(Module &M, CallSite CS) {
                F->getNameStr() == std::string("vfsstat") ||
                F->getNameStr() ==  std::string("fstat") ||
                F->getNameStr() == std::string("lstat")) {
-      CastInst *BCI = BitCastInst::CreatePointerCast(CS.getArgument(1), VoidPtrTy, "", I);
+      Value *BCI = castTo(CS.getArgument(1), VoidPtrTy, "", I);
       assert (isa<PointerType>(CS.getArgument(1)->getType()));
       const PointerType * PT = cast<PointerType>(CS.getArgument(1)->getType());
       const Type * ET = PT->getElementType();
@@ -1748,7 +1770,7 @@ bool TypeChecks::visitCallSite(Module &M, CallSite CS) {
       Args.push_back(getTagCounter());
       CallInst::Create(trackInitInst, Args.begin(), Args.end(), "", I);
     } else if (F->getNameStr() == std::string("sigaction")) {
-      CastInst *BCI = BitCastInst::CreatePointerCast(CS.getArgument(2), VoidPtrTy, "", I);
+      Value *BCI = castTo(CS.getArgument(2), VoidPtrTy, "", I);
       assert (isa<PointerType>(CS.getArgument(2)->getType()));
       const PointerType * PT = cast<PointerType>(CS.getArgument(2)->getType());
       const Type * ET = PT->getElementType();
@@ -1787,7 +1809,7 @@ bool TypeChecks::visitCallSite(Module &M, CallSite CS) {
       CI->insertAfter(BCI);
     } else if (F->getNameStr() == std::string("strtol") ||
                F->getNameStr() == std::string("strtod")) {
-      CastInst *BCI = BitCastInst::CreatePointerCast(CS.getArgument(1), VoidPtrTy, "", I);
+      Value *BCI = castTo(CS.getArgument(1), VoidPtrTy, "", I);
       const PointerType *PTy = cast<PointerType>(CS.getArgument(1)->getType());
       const Type * ElementType = PTy->getElementType();
       std::vector<Value *>Args;
@@ -1798,8 +1820,8 @@ bool TypeChecks::visitCallSite(Module &M, CallSite CS) {
       return true;
     } else if (F->getNameStr() == std::string("strcat") ||
                F->getNameStr() == std::string("_ZNSspLEPKc")) {
-      CastInst *BCI_Src = BitCastInst::CreatePointerCast(CS.getArgument(1), VoidPtrTy, "", I);
-      CastInst *BCI_Dest = BitCastInst::CreatePointerCast(CS.getArgument(0), VoidPtrTy, "", I);
+      Value *BCI_Src = castTo(CS.getArgument(1), VoidPtrTy, "", I);
+      Value *BCI_Dest = castTo(CS.getArgument(0), VoidPtrTy, "", I);
       std::vector<Value *> Args;
       Args.push_back(BCI_Dest);
       Args.push_back(BCI_Src);
@@ -1830,7 +1852,7 @@ bool TypeChecks::visitCallSite(Module &M, CallSite CS) {
       CallInst *CI = CallInst::Create(F, Args.begin(), Args.end());
       CI->insertAfter(I);
     } else if (F->getNameStr() == std::string("pipe")) {
-      CastInst *BCI = BitCastInst::CreatePointerCast(CS.getArgument(0), VoidPtrTy, "", I);
+      Value *BCI = castTo(CS.getArgument(0), VoidPtrTy, "", I);
       std::vector<Value*> Args;
       Args.push_back(BCI);
       Args.push_back(getTagCounter());
@@ -1876,7 +1898,7 @@ bool TypeChecks::visitCallSite(Module &M, CallSite CS) {
       CI->insertAfter(BCI);
     } else if (F->getNameStr() == std::string("ftime") ||
                F->getNameStr() == std::string("gettimeofday")) {
-      CastInst *BCI = BitCastInst::CreatePointerCast(CS.getArgument(0), VoidPtrTy, "", I);
+      Value *BCI = castTo(CS.getArgument(0), VoidPtrTy, "", I);
       const PointerType *PTy = cast<PointerType>(CS.getArgument(0)->getType());
       const Type * ElementType = PTy->getElementType();
       std::vector<Value *> Args;
@@ -1945,7 +1967,7 @@ bool TypeChecks::visitCallSite(Module &M, CallSite CS) {
       CI->insertAfter(BCI_Dest);
       return true;
     } else if(F->getNameStr() == std::string("fgets")) {
-      CastInst *BCI = BitCastInst::CreatePointerCast(CS.getArgument(0), VoidPtrTy, "", I);
+      Value *BCI = castTo(CS.getArgument(0), VoidPtrTy, "", I);
       std::vector<Value *> Args;
       Args.push_back(BCI);
       CastInst *Size = CastInst::CreateIntegerCast(CS.getArgument(1), Int64Ty, false, "", I);
@@ -1955,7 +1977,7 @@ bool TypeChecks::visitCallSite(Module &M, CallSite CS) {
       return true;
     } else if(F->getNameStr() == std::string("snprintf") ||
               F->getNameStr() == std::string("vsnprintf")) {
-      CastInst *BCI = BitCastInst::CreatePointerCast(CS.getArgument(0), VoidPtrTy, "", I);
+      Value *BCI = castTo(CS.getArgument(0), VoidPtrTy, "", I);
       std::vector<Value*>Args;
       Args.push_back(BCI);
       Args.push_back(getTagCounter());
@@ -1963,7 +1985,7 @@ bool TypeChecks::visitCallSite(Module &M, CallSite CS) {
       CallInst *CINew = CallInst::Create(F, Args.begin(), Args.end());
       CINew->insertAfter(I);
     } else if(F->getNameStr() == std::string("sprintf")) {
-      CastInst *BCI = BitCastInst::CreatePointerCast(CS.getArgument(0), VoidPtrTy, "", I);
+      Value *BCI = castTo(CS.getArgument(0), VoidPtrTy, "", I);
       std::vector<Value*>Args;
       Args.push_back(BCI);
       CastInst *Size = CastInst::CreateIntegerCast(I, Int64Ty, false);
@@ -2018,7 +2040,7 @@ bool TypeChecks::visitIndirectCallSite(Module &M, Instruction *I) {
     TP.push_back(*ArgI);
 
   const FunctionType *FTy = FunctionType::get(FOldType->getReturnType(), TP, FOldType->isVarArg());
-  CastInst *Func = CastInst::CreatePointerCast(I->getOperand(0), FTy->getPointerTo(), "", I);
+  Value *Func = castTo(I->getOperand(0), FTy->getPointerTo(), "", I);
 
   inst_iterator InsPt = inst_begin(I->getParent()->getParent());
   CallSite CS = CallSite(I);
@@ -2062,7 +2084,7 @@ bool TypeChecks::visitIndirectCallSite(Module &M, Instruction *I) {
 
 bool TypeChecks::visitInputFunctionValue(Module &M, Value *V, Instruction *CI) {
   // Cast the pointer operand to i8* for the runtime function.
-  CastInst *BCI = BitCastInst::CreatePointerCast(V, VoidPtrTy, "", CI);
+  Value *BCI = castTo(V, VoidPtrTy, "", CI);
   const PointerType *PTy = dyn_cast<PointerType>(V->getType());
   if(!PTy)
     return false;
@@ -2093,7 +2115,7 @@ bool TypeChecks::visitInputFunctionValue(Module &M, Value *V, Instruction *CI) {
 bool TypeChecks::visitLoadInst(Module &M, LoadInst &LI) {
   inst_iterator InsPt = inst_begin(LI.getParent()->getParent());
   // Cast the pointer operand to i8* for the runtime function.
-  CastInst *BCI = BitCastInst::CreatePointerCast(LI.getPointerOperand(), VoidPtrTy, "", &LI);
+  Value *BCI = castTo(LI.getPointerOperand(), VoidPtrTy, "", &LI);
 
   Value *Size = ConstantInt::get(Int32Ty, getSize(LI.getType()));
   AllocaInst *AI = new AllocaInst(TypeTagTy, Size, "", &*InsPt);
@@ -2128,7 +2150,7 @@ bool TypeChecks::visitLoadInst(Module &M, LoadInst &LI) {
 // AI - metadata
 // BCI - ptr
 // I - instruction whose uses to instrument
-bool TypeChecks::visitUses(Instruction *I, Instruction *AI, Instruction *BCI) {
+bool TypeChecks::visitUses(Instruction *I, Instruction *AI, Value *BCI) {
   for(Value::use_iterator II = I->use_begin(); II != I->use_end(); ++II) {
     if(DisablePtrCmpChecks) {
       if(isa<CmpInst>(II)) {
@@ -2145,7 +2167,7 @@ bool TypeChecks::visitUses(Instruction *I, Instruction *AI, Instruction *BCI) {
     if(StoreInst *SI = dyn_cast<StoreInst>(II)) {
       if(SI->getOperand(0) == I) {
         // Cast the pointer operand to i8* for the runtime function.
-        CastInst *BCI_Dest = BitCastInst::CreatePointerCast(SI->getPointerOperand(), VoidPtrTy, "", SI);
+        Value *BCI_Dest = castTo(SI->getPointerOperand(), VoidPtrTy, "", SI);
 
         std::vector<Value *> Args;
         Args.push_back(BCI_Dest);
@@ -2274,7 +2296,7 @@ bool TypeChecks::visitStoreInst(Module &M, StoreInst &SI) {
       return false;
   }
   // Cast the pointer operand to i8* for the runtime function.
-  CastInst *BCI = BitCastInst::CreatePointerCast(SI.getPointerOperand(), VoidPtrTy, "", &SI);
+  Value *BCI = castTo(SI.getPointerOperand(), VoidPtrTy, "", &SI);
 
   std::vector<Value *> Args;
   Args.push_back(BCI);

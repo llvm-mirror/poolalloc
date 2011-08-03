@@ -96,12 +96,11 @@ void trackInitInst(void *ptr, uint64_t size, uint32_t tag);
 
 inline uintptr_t maskAddress(void *ptr) {
   uintptr_t p = (uintptr_t)ptr;
-  if (p >= (uintptr_t)BASE + SIZE) p -= SIZE;
+  if(ptr < BASE)
+    return p;
+  else 
+    return (p - (uintptr_t)SIZE);
 
-#if DEBUG
-  assert(p <= SIZE && "Pointer out of range!");
-#endif
-  return p;
 }
 
 /**
