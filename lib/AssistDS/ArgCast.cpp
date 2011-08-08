@@ -58,7 +58,7 @@ bool ArgCast::runOnModule(Module& M) {
     // Find all uses of this function
     for(Value::use_iterator ui = I->use_begin(), ue = I->use_end(); ui != ue; ) {
       // check if is ever casted to a different function type
-      ConstantExpr *CE = dyn_cast<ConstantExpr>(ui++);
+      ConstantExpr *CE = dyn_cast<ConstantExpr>(*ui++);
       if(!CE)
         continue;
       if (CE->getOpcode() != Instruction::BitCast)
@@ -82,7 +82,7 @@ bool ArgCast::runOnModule(Module& M) {
           uee = CE->use_end(); uii != uee; ++uii) {
         // Find all uses of the casted value, and check if it is 
         // used in a Call Instruction
-        if (CallInst* CI = dyn_cast<CallInst>(uii)) {
+        if (CallInst* CI = dyn_cast<CallInst>(*uii)) {
           // Check that it is the called value, and not an argument
           if(CI->getCalledValue() != CE) 
             continue;
@@ -113,8 +113,8 @@ bool ArgCast::runOnModule(Module& M) {
     SmallVector<Value*, 8> Args;
     unsigned i =0;
     for(i =0; i< FTy->getNumParams(); ++i) {
-      const Type *ArgType = CI->getOperand(i+1)->getType();
-      const Type *FormalType = FTy->getParamType(i);
+      Type *ArgType = CI->getOperand(i+1)->getType();
+      Type *FormalType = FTy->getParamType(i);
       // If the types for this argument match, just add it to the
       // parameter list. No cast needs to be inserted.
       if(ArgType == FormalType) {
@@ -171,7 +171,7 @@ bool ArgCast::runOnModule(Module& M) {
     }
 
     // else replace the call instruction
-    CallInst *CINew = CallInst::Create(F, Args.begin(), Args.end(), "", CI);
+    CallInst *CINew = CallInst::Create(F, Args, "", CI);
     CINew->setCallingConv(CI->getCallingConv());
     CINew->setAttributes(CI->getAttributes());
     if(!CI->use_empty()) {
