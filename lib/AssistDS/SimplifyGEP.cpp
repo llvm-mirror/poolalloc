@@ -107,8 +107,7 @@ bool SimplifyGEP::runOnModule(Module& M) {
                 // -> GEP i8* X, ...
                 SmallVector<Value*, 8> Idx(GEP->idx_begin()+1, GEP->idx_end());
                 GetElementPtrInst *Res =
-                  GetElementPtrInst::Create(StrippedPtr, Idx.begin(),
-                                            Idx.end(), GEP->getName(), GEP);
+                  GetElementPtrInst::Create(StrippedPtr, Idx, GEP->getName(), GEP);
                 Res->setIsInBounds(GEP->isInBounds());
                 GEP->replaceAllUsesWith(Res);
                 continue;
@@ -132,8 +131,8 @@ bool SimplifyGEP::runOnModule(Module& M) {
             // Transform things like:
             // %t = getelementptr i32* bitcast ([2 x i32]* %str to i32*), i32 %V
             // into:  %t1 = getelementptr [2 x i32]* %str, i32 0, i32 %V; bitcast
-            const Type *SrcElTy = StrippedPtrTy->getElementType();
-            const Type *ResElTy=cast<PointerType>(PtrOp->getType())->getElementType();
+            Type *SrcElTy = StrippedPtrTy->getElementType();
+            Type *ResElTy=cast<PointerType>(PtrOp->getType())->getElementType();
             if (TD && SrcElTy->isArrayTy() &&
                 TD->getTypeAllocSize(cast<ArrayType>(SrcElTy)->getElementType()) ==
                 TD->getTypeAllocSize(ResElTy)) {
@@ -141,7 +140,7 @@ bool SimplifyGEP::runOnModule(Module& M) {
               Idx[0] = Constant::getNullValue(Type::getInt32Ty(GEP->getContext()));
               Idx[1] = GEP->getOperand(1);
               Value *NewGEP = GetElementPtrInst::Create(StrippedPtr, Idx,
-                                                        Idx+2, GEP->getName(), GEP);
+                                                        GEP->getName(), GEP);
               // V and GEP are both pointer types --> BitCast
               GEP->replaceAllUsesWith(new BitCastInst(NewGEP, GEP->getType(), GEP->getName(), GEP));
               continue;
@@ -200,7 +199,7 @@ bool SimplifyGEP::runOnModule(Module& M) {
                 Idx[0] = Constant::getNullValue(Type::getInt32Ty(GEP->getContext()));
                 Idx[1] = NewIdx;
                 Value *NewGEP = GetElementPtrInst::Create(StrippedPtr, Idx,
-                                                          Idx+2, GEP->getName(), GEP);
+                                                          GEP->getName(), GEP);
                 GEP->replaceAllUsesWith(new BitCastInst(NewGEP, GEP->getType(), GEP->getName(), GEP));
                 continue;
               }

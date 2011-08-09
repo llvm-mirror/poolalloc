@@ -25,7 +25,7 @@ namespace llvm {
     TargetData * TD;
   public:
     static char ID;
-    SimplifyGEP() : ModulePass(&ID) {}
+    SimplifyGEP() : ModulePass(ID) {}
     virtual bool runOnModule(Module& M);
     virtual void getAnalysisUsage(AnalysisUsage &AU) const {
       AU.addRequired<TargetData>();

@@ -57,7 +57,7 @@ bool SimplifyLoad::runOnModule(Module& M) {
           if(!LI)
             continue;
           if(LI->getNumUses() == 1) {
-            if(CastInst *CI = dyn_cast<CastInst>(LI->use_begin())) {
+            if(CastInst *CI = dyn_cast<CastInst>(*(LI->use_begin()))) {
               if(LI->getType()->isPointerTy()) {
                 if(ConstantExpr *CE = dyn_cast<ConstantExpr>(LI->getOperand(0))) {
                   if(const PointerType *PTy = dyn_cast<PointerType>(CE->getOperand(0)->getType()))

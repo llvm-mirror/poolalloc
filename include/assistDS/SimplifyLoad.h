@@ -22,7 +22,7 @@ namespace llvm {
   class SimplifyLoad : public ModulePass {
   public:
     static char ID;
-    SimplifyLoad() : ModulePass(&ID) {}
+    SimplifyLoad() : ModulePass(ID) {}
     virtual bool runOnModule(Module& M);
   };
 }

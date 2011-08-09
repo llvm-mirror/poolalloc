@@ -23,7 +23,7 @@ namespace llvm {
   class StructRet : public ModulePass {
   public:
     static char ID;
-    StructRet() : ModulePass(&ID) {}
+    StructRet() : ModulePass(ID) {}
     virtual bool runOnModule(Module& M);
   };
 }

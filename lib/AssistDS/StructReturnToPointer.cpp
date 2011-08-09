@@ -17,6 +17,7 @@
 #include "llvm/Attributes.h"
 #include "llvm/Transforms/Utils/Cloning.h"
 #include "llvm/ADT/Statistic.h"
+#include "llvm/ADT/ValueMap.h"
 #include "llvm/Support/FormattedStream.h"
 #include "llvm/Support/Debug.h"
 
@@ -60,23 +61,23 @@ bool StructRet::runOnModule(Module& M) {
   while(!worklist.empty()) {
     Function *F = worklist.back();
     worklist.pop_back();
-    const Type *NewArgType = F->getReturnType()->getPointerTo();
+    Type *NewArgType = F->getReturnType()->getPointerTo();
 
     // Construct the new Type
-    std::vector<const Type*>TP;
+    std::vector<Type*>TP;
     TP.push_back(NewArgType);
     for (Function::arg_iterator ii = F->arg_begin(), ee = F->arg_end();
          ii != ee; ++ii) {
       TP.push_back(ii->getType());
     }
 
-    const FunctionType *NFTy = FunctionType::get(F->getReturnType(), TP, F->isVarArg());
+    FunctionType *NFTy = FunctionType::get(F->getReturnType(), TP, F->isVarArg());
 
     // Create the new function body and insert it into the module.
     Function *NF = Function::Create(NFTy, 
                                     GlobalValue::InternalLinkage, 
                                     F->getName(), &M);
-    DenseMap<const Value*, Value*> ValueMap;
+    ValueToValueMapTy ValueMap;
     Function::arg_iterator NI = NF->arg_begin();
     NI->setName("ret");
     ++NI;
@@ -87,7 +88,7 @@ bool StructRet::runOnModule(Module& M) {
     }
     // Perform the cloning.
     SmallVector<ReturnInst*,100> Returns;
-    CloneFunctionInto(NF, F, ValueMap, Returns);
+    CloneFunctionInto(NF, F, ValueMap, false, Returns);
     std::vector<Value*> fargs;
     for(Function::arg_iterator ai = NF->arg_begin(), 
         ae= NF->arg_end(); ai != ae; ++ai) {
@@ -109,7 +110,7 @@ bool StructRet::runOnModule(Module& M) {
 
     for(Value::use_iterator ui = F->use_begin(), ue = F->use_end();
         ui != ue; ) {
-      CallInst *CI = dyn_cast<CallInst>(ui++);
+      CallInst *CI = dyn_cast<CallInst>(*ui++);
       if(!CI)
         continue;
       if(CI->getCalledFunction() != F)
@@ -143,7 +144,7 @@ bool StructRet::runOnModule(Module& M) {
       AttrListPtr NewCallPAL = AttrListPtr::get(AttributesVec.begin(),
                                                 AttributesVec.end());
       
-      CallInst *CallI = CallInst::Create(NF, Args.begin(), Args.end(), "", CI);
+      CallInst *CallI = CallInst::Create(NF, Args, "", CI);
       CallI->setCallingConv(CI->getCallingConv());
       CallI->setAttributes(NewCallPAL);
       LoadInst *LI = new LoadInst(AllocaNew, "", CI);

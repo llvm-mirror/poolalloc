@@ -63,7 +63,7 @@ bool SimplifyIV::runOnModule(Module& M) {
           if(IV->getNumUses() != 1)
             continue;
           // Check that its only use is a StoreInst
-          StoreInst *SI = dyn_cast<StoreInst>(IV->use_begin());
+          StoreInst *SI = dyn_cast<StoreInst>(*(IV->use_begin()));
           if(!SI)
             continue;
           // Check that it is the stored value
@@ -74,14 +74,14 @@ bool SimplifyIV::runOnModule(Module& M) {
           do {
             // replace by a series of gep/stores
             SmallVector<Value*, 8> Indices;
-            const Type *Int32Ty = Type::getInt32Ty(M.getContext());
+            Type *Int32Ty = Type::getInt32Ty(M.getContext());
             Indices.push_back(Constant::getNullValue(Int32Ty));
             for (InsertValueInst::idx_iterator I = IV->idx_begin(), E = IV->idx_end();
                  I != E; ++I) {
               Indices.push_back(ConstantInt::get(Int32Ty, *I));
             }
-            GetElementPtrInst *GEP = GetElementPtrInst::CreateInBounds(SI->getOperand(1), Indices.begin(),
-                                                                       Indices.end(), SI->getName(), SI) ;
+            GetElementPtrInst *GEP = GetElementPtrInst::CreateInBounds(SI->getOperand(1), Indices,
+                                                                       SI->getName(), SI) ;
             new StoreInst(IV->getInsertedValueOperand(), GEP, SI);
             IV = dyn_cast<InsertValueInst>(IV->getAggregateOperand());
 
