@@ -1,4 +1,4 @@
-//===-- GEPExprArg.cpp - Promote args if they come from GEPs  -------------===//
+
 //
 //                     The LLVM Compiler Infrastructure
 //
@@ -27,7 +27,7 @@ namespace llvm {
   class GEPExprArgs : public ModulePass {
   public:
     static char ID;
-    GEPExprArgs() : ModulePass(&ID) {}
+    GEPExprArgs() : ModulePass(ID) {}
     virtual bool runOnModule(Module& M);
   };
 }

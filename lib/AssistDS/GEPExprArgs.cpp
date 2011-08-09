@@ -14,9 +14,11 @@
 
 #include "assistDS/GEPExprArgs.h"
 #include "llvm/Constants.h"
+#include "llvm/Operator.h"
 #include "llvm/Support/GetElementPtrTypeIterator.h"
 #include "llvm/Transforms/Utils/Cloning.h"
 #include "llvm/ADT/Statistic.h"
+#include "llvm/ADT/ValueMap.h"
 #include "llvm/Support/FormattedStream.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Use.h"
@@ -89,14 +91,14 @@ bool GEPExprArgs::runOnModule(Module& M) {
 
           // Construct the new Type
           // Appends the struct Type at the beginning
-          std::vector<const Type*>TP;
+          std::vector<Type*>TP;
           TP.push_back(GEP->getPointerOperand()->getType());
           for(unsigned c = 1; c < CI->getNumOperands();c++) {
             TP.push_back(CI->getOperand(c)->getType());
           }
 
           //return type is same as that of original instruction
-          const FunctionType *NewFTy = FunctionType::get(CI->getType(), TP, false);
+          FunctionType *NewFTy = FunctionType::get(CI->getType(), TP, false);
           Function *NewF;
           numSimplified++;
           if(numSimplified > 800) 
@@ -111,7 +113,7 @@ bool GEPExprArgs::runOnModule(Module& M) {
           NI->setName("GEParg");
           ++NI;
 
-          DenseMap<const Value*, Value*> ValueMap;
+          ValueToValueMapTy ValueMap;
 
           for (Function::arg_iterator II = F->arg_begin(); NI != NewF->arg_end(); ++II, ++NI) {
             ValueMap[II] = NI;
@@ -122,7 +124,7 @@ bool GEPExprArgs::runOnModule(Module& M) {
               0, F->getAttributes().getRetAttributes()));
           // Perform the cloning.
           SmallVector<ReturnInst*,100> Returns;
-          CloneFunctionInto(NewF, F, ValueMap, Returns);
+          CloneFunctionInto(NewF, F, ValueMap, false, Returns);
           std::vector<Value*> fargs;
           for(Function::arg_iterator ai = NewF->arg_begin(), 
               ae= NewF->arg_end(); ai != ae; ++ai) {
@@ -141,8 +143,7 @@ bool GEPExprArgs::runOnModule(Module& M) {
           SmallVector<Value*, 8> Indices;
           Indices.append(GEP->op_begin()+1, GEP->op_end());
           GetElementPtrInst *GEP_new = GetElementPtrInst::Create(cast<Value>(NI),
-                                                                 Indices.begin(), 
-                                                                 Indices.end(), 
+                                                                 Indices, 
                                                                  "", InsertPoint);
           fargs.at(argNum)->replaceAllUsesWith(GEP_new);
           unsigned j = argNum + 1;
@@ -175,7 +176,7 @@ bool GEPExprArgs::runOnModule(Module& M) {
           AttrListPtr NewCallPAL = AttrListPtr::get(AttributesVec.begin(),
                                                     AttributesVec.end());
 
-          CallInst *CallI = CallInst::Create(NewF,Args.begin(), Args.end(),"", CI);
+          CallInst *CallI = CallInst::Create(NewF,Args,"", CI);
           CallI->setCallingConv(CI->getCallingConv());
           CallI->setAttributes(NewCallPAL);
           CI->replaceAllUsesWith(CallI);
