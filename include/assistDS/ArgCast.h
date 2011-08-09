@@ -14,6 +14,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/Instructions.h"
+#include "llvm/Constants.h"
 #include "llvm/Module.h"
 #include "llvm/Pass.h"
 
@@ -27,7 +28,7 @@ namespace llvm {
   class ArgCast : public ModulePass {
   public:
     static char ID;
-    ArgCast() : ModulePass(&ID) {}
+    ArgCast() : ModulePass(ID) {}
     virtual bool runOnModule(Module& M);
   };
 }

@@ -28,7 +28,7 @@ namespace llvm {
   class FuncSpec : public ModulePass {
   public:
     static char ID;
-    FuncSpec() : ModulePass(&ID) {}
+    FuncSpec() : ModulePass(ID) {}
     virtual bool runOnModule(Module& M);
   };
 }

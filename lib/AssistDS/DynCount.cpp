@@ -15,6 +15,7 @@
 #include "llvm/Pass.h"
 #include "llvm/Module.h"
 #include "llvm/Instructions.h"
+#include "llvm/Constants.h"
 #include "llvm/Target/TargetData.h"
 #include "dsa/TypeSafety.h"
 
@@ -27,7 +28,7 @@ protected:
 
 public:
   static char ID;
-  Dyncount () : ModulePass ((intptr_t) &ID) { }
+  Dyncount () : ModulePass (ID) { }
   const char *getPassName() const {
     return "Count safe/unsafe load/store";
   }
@@ -132,7 +133,7 @@ Dyncount::runOnModule (Module & M) {
   std::vector<Value *> args;
   args.push_back (Total);
   args.push_back (Safe);
-  CallInst::Create (Setup, args.begin(), args.end(), "", BB.getFirstNonPHI());
+  CallInst::Create (Setup, args, "", BB.getFirstNonPHI());
 
 
   return true;

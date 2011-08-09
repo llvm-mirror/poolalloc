@@ -57,7 +57,7 @@ namespace llvm {
 
     public:
       static char ID;
-      Devirtualize() : ModulePass(&ID), CTF(0) {}
+      Devirtualize() : ModulePass(ID), CTF(0) {}
 
       virtual bool runOnModule(Module & M);
 

@@ -42,7 +42,7 @@ X ("devirt", "Devirtualize indirect function calls");
 //
 static inline
 PointerType * getVoidPtrType (LLVMContext & C) {
-  const Type * Int8Type  = IntegerType::getInt8Ty(C);
+  Type * Int8Type  = IntegerType::getInt8Ty(C);
   return PointerType::getUnqual(Int8Type);
 }
 
@@ -53,7 +53,7 @@ PointerType * getVoidPtrType (LLVMContext & C) {
 //  Given an LLVM value, insert a cast instruction to make it a given type.
 //
 static inline Value *
-castTo (Value * V, const Type * Ty, std::string Name, Instruction * InsertPt) {
+castTo (Value * V, Type * Ty, std::string Name, Instruction * InsertPt) {
   //
   // Don't bother creating a cast if it's already the correct type.
   //
@@ -147,7 +147,7 @@ Devirtualize::buildBounce (CallSite CS, std::vector<const Function*>& Targets) {
   // will be the function to call.
   //
   Value* ptr = CS.getCalledValue();
-  std::vector<const Type *> TP;
+  std::vector<Type *> TP;
   TP.insert (TP.begin(), ptr->getType());
   for (CallSite::arg_iterator i = CS.arg_begin();
        i != CS.arg_end();
@@ -155,7 +155,7 @@ Devirtualize::buildBounce (CallSite CS, std::vector<const Function*>& Targets) {
     TP.push_back ((*i)->getType());
   }
 
-  const FunctionType* NewTy = FunctionType::get(CS.getType(), TP, false);
+  FunctionType* NewTy = FunctionType::get(CS.getType(), TP, false);
   Module * M = CS.getInstruction()->getParent()->getParent()->getParent();
   Function* F = Function::Create (NewTy,
                                   GlobalValue::InternalLinkage,
@@ -193,8 +193,7 @@ Devirtualize::buildBounce (CallSite CS, std::vector<const Function*>& Targets) {
     targets[FL] = BL;
     // Create the direct function call
     Value* directCall = CallInst::Create ((Value *)FL,
-                                          fargs.begin(),
-                                          fargs.end(),
+                                          fargs,
                                           "",
                                           BL);
 
@@ -224,7 +223,7 @@ Devirtualize::buildBounce (CallSite CS, std::vector<const Function*>& Targets) {
   // Create basic blocks which will test the value of the incoming function
   // pointer and branch to the appropriate basic block to call the function.
   //
-  const Type * VoidPtrType = getVoidPtrType (M->getContext());
+  Type * VoidPtrType = getVoidPtrType (M->getContext());
   Value * FArg = castTo (F->arg_begin(), VoidPtrType, "", InsertPt);
   BasicBlock * tailBB = failBB;
   for (unsigned index = 0; index < Targets.size(); ++index) {
@@ -265,8 +264,9 @@ Devirtualize::buildBounce (CallSite CS, std::vector<const Function*>& Targets) {
   //
   // Make the entry basic block branch to the first comparison basic block.
   //
-  InsertPt->setUnconditionalDest (tailBB);
-
+  //InsertPt->setUnconditionalDest (tailBB);
+  InsertPt->setSuccessor(0, tailBB);
+  InsertPt->setSuccessor(1, tailBB);
   //
   // Return the newly created bounce function.
   //
@@ -323,8 +323,7 @@ Devirtualize::makeDirectCall (CallSite & CS) {
       std::vector<Value*> Params (CI->op_begin(), CI->op_end());
       std::string name = CI->hasName() ? CI->getNameStr() + ".dv" : "";
       CallInst* CN = CallInst::Create ((Value *) NF,
-                                       Params.begin(),
-                                       Params.end(),
+                                       Params,
                                        name,
                                        CI);
       CI->replaceAllUsesWith(CN);
@@ -335,8 +334,7 @@ Devirtualize::makeDirectCall (CallSite & CS) {
       InvokeInst* CN = InvokeInst::Create((Value *) NF,
                                           CI->getNormalDest(),
                                           CI->getUnwindDest(),
-                                          Params.begin(),
-                                          Params.end(),
+                                          Params,
                                           name,
                                           CI);
       CI->replaceAllUsesWith(CN);

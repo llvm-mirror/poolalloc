@@ -23,7 +23,7 @@ namespace llvm {
   class FuncSimplify : public ModulePass {
   public:
     static char ID;
-    FuncSimplify() : ModulePass(&ID) {}
+    FuncSimplify() : ModulePass(ID) {}
     virtual bool runOnModule(Module& M);
   };
 }
