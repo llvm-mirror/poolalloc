@@ -14,6 +14,7 @@
 
 #include "assistDS/MergeGEP.h"
 #include "llvm/Instructions.h"
+#include "llvm/Operator.h"
 #include "llvm/Module.h"
 #include "llvm/Pass.h"
 #include "llvm/Instructions.h"
@@ -140,10 +141,10 @@ static void simplifyGEP(GetElementPtrInst *GEP) {
 
     if (!Indices.empty()){
       GetElementPtrInst *GEPNew =  (GEP->isInBounds() && Src->isInBounds()) ?
-        GetElementPtrInst::CreateInBounds(Src->getOperand(0), Indices.begin(),
-                                          Indices.end(), GEP->getName(), GEP) :
-        GetElementPtrInst::Create(Src->getOperand(0), Indices.begin(),
-                                  Indices.end(), GEP->getName(), GEP);
+        GetElementPtrInst::CreateInBounds(Src->getOperand(0), Indices,
+                                          GEP->getName(), GEP) :
+        GetElementPtrInst::Create(Src->getOperand(0), Indices,
+                                  GEP->getName(), GEP);
       numMerged++;
       GEP->replaceAllUsesWith(GEPNew);
       GEP->eraseFromParent();

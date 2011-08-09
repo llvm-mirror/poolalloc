@@ -19,6 +19,7 @@
 #include "llvm/Support/GetElementPtrTypeIterator.h"
 #include "llvm/Transforms/Utils/Cloning.h"
 #include "llvm/ADT/Statistic.h"
+#include "llvm/ADT/ValueMap.h"
 #include "llvm/Support/FormattedStream.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Use.h"
@@ -118,7 +119,7 @@ bool LoadArgs::runOnModule(Module& M) {
 
           // Construct the new Type
           // Appends the struct Type at the beginning
-          std::vector<const Type*>TP;
+          std::vector<Type*>TP;
           for(unsigned c = 1; c < CI->getNumOperands();c++) {
             if(c == argNum)
               TP.push_back(LI->getOperand(0)->getType());
@@ -126,7 +127,7 @@ bool LoadArgs::runOnModule(Module& M) {
           }
 
           //return type is same as that of original instruction
-          const FunctionType *NewFTy = FunctionType::get(CI->getType(), TP, false);
+          FunctionType *NewFTy = FunctionType::get(CI->getType(), TP, false);
           numSimplified++;
           //if(numSimplified > 1000)
           //return true;
@@ -145,7 +146,7 @@ bool LoadArgs::runOnModule(Module& M) {
             fnCache[std::make_pair(F, NewFTy)] = NewF;
             Function::arg_iterator NI = NewF->arg_begin();
 
-            DenseMap<const Value*, Value*> ValueMap;
+            ValueToValueMapTy ValueMap;
 
             unsigned count = 1;
             for (Function::arg_iterator II = F->arg_begin(); NI != NewF->arg_end(); ++count, ++NI) {
@@ -160,7 +161,7 @@ bool LoadArgs::runOnModule(Module& M) {
             }
             // Perform the cloning.
             SmallVector<ReturnInst*,100> Returns;
-            CloneFunctionInto(NewF, F, ValueMap, Returns);
+            CloneFunctionInto(NewF, F, ValueMap, false, Returns);
             std::vector<Value*> fargs;
             for(Function::arg_iterator ai = NewF->arg_begin(), 
                 ae= NewF->arg_end(); ai != ae; ++ai) {
@@ -202,7 +203,7 @@ bool LoadArgs::runOnModule(Module& M) {
 
           AttrListPtr NewCallPAL = AttrListPtr::get(AttributesVec.begin(),
                                                     AttributesVec.end());
-          CallInst *CallI = CallInst::Create(NewF,Args.begin(), Args.end(),"", CI);
+          CallInst *CallI = CallInst::Create(NewF,Args,"", CI);
           CallI->setCallingConv(CI->getCallingConv());
           CallI->setAttributes(NewCallPAL);
           CI->replaceAllUsesWith(CallI);

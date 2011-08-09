@@ -29,7 +29,7 @@ namespace llvm {
   class LoadArgs : public ModulePass {
   public:
     static char ID;
-    LoadArgs() : ModulePass(&ID) {}
+    LoadArgs() : ModulePass(ID) {}
     virtual bool runOnModule(Module& M);
   };
 }

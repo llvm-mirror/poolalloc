@@ -73,7 +73,7 @@ IndClone::runOnModule(Module& M) {
     if (!I->isDeclaration() && !I->mayBeOverridden()) {
       for (Value::use_iterator ui = I->use_begin(), ue = I->use_end();
           ui != ue; ++ui) {
-        if (!isa<CallInst>(ui) && !isa<InvokeInst>(ui)) {
+        if (!isa<CallInst>(*ui) && !isa<InvokeInst>(*ui)) {
           if(!ui->use_empty())
           //
           // If this function is used for anything other than a direct function
@@ -148,7 +148,7 @@ IndClone::runOnModule(Module& M) {
     for (Value::use_iterator ui = Original->use_begin(),
                              ue = Original->use_end();
         ui != ue; ) {
-      CallInst *CI = dyn_cast<CallInst>(ui);
+      CallInst *CI = dyn_cast<CallInst>(*ui);
       ui++;
       if (CI) {
         if (CI->getOperand(0) == Original) {

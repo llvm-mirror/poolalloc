@@ -27,7 +27,7 @@ namespace llvm {
   class IndClone : public ModulePass {
   public:
     static char ID;
-    IndClone() : ModulePass(&ID) {}
+    IndClone() : ModulePass(ID) {}
     virtual bool runOnModule(Module& M);
   };
 }

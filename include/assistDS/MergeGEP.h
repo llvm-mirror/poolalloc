@@ -23,7 +23,7 @@ namespace llvm {
   class MergeArrayGEP : public ModulePass {
   public:
     static char ID;
-    MergeArrayGEP() : ModulePass(&ID) {}
+    MergeArrayGEP() : ModulePass(ID) {}
     virtual bool runOnModule(Module& M);
   };
 }
