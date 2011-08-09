@@ -17,6 +17,7 @@
 #include "assistDS/SimplifyExtractValue.h"
 #include "llvm/Transforms/Utils/Cloning.h"
 #include "llvm/ADT/Statistic.h"
+#include "llvm/ADT/ArrayRef.h"
 #include "llvm/Support/FormattedStream.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/PatternMatch.h"
@@ -98,8 +99,8 @@ bool SimplifyEV::runOnModule(Module& M) {
                 // Extract the remaining indices out of the constant indexed by the
                 // first index
                 ExtractValueInst *EV_new = ExtractValueInst::Create(V, 
-                                                                    EV->idx_begin() + 1, 
-                                                                    EV->idx_end(), "", EV);
+                                                                    EV->getIndices().slice(1), 
+                                                                    "", EV);
                 EV->replaceAllUsesWith(EV_new);
                 DEBUG(errs() << "EV:");
                 DEBUG(errs() << "ERASE:");
@@ -126,15 +127,15 @@ bool SimplifyEV::runOnModule(Module& M) {
             // replace the extract value intruction with
             // a gep and a load.
             SmallVector<Value*, 8> Indices;
-            const Type *Int32Ty = Type::getInt32Ty(M.getContext());
+            Type *Int32Ty = Type::getInt32Ty(M.getContext());
             Indices.push_back(Constant::getNullValue(Int32Ty));
             for (ExtractValueInst::idx_iterator I = EV->idx_begin(), E = EV->idx_end();
                  I != E; ++I) {
               Indices.push_back(ConstantInt::get(Int32Ty, *I));
             }
 
-            GetElementPtrInst *GEP = GetElementPtrInst::CreateInBounds(LI->getOperand(0), Indices.begin(),
-                                                                       Indices.end(), LI->getName(), LI) ;
+            GetElementPtrInst *GEP = GetElementPtrInst::CreateInBounds(LI->getOperand(0), Indices,
+                                                                       LI->getName(), LI) ;
             LoadInst *LINew = new LoadInst(GEP, "", LI);
             EV->replaceAllUsesWith(LINew);
             EV->eraseFromParent();
@@ -160,7 +161,7 @@ bool SimplifyEV::runOnModule(Module& M) {
                 // with
                 // %E = extractvalue { i32, { i32 } } %A, 0
                 ExtractValueInst *EV_new = ExtractValueInst::Create(IV->getAggregateOperand(),
-                                                                    EV->idx_begin(), EV->idx_end(),"", EV);
+                                                                    EV->getIndices(), "", EV);
                 EV->replaceAllUsesWith(EV_new);
                 DEBUG(errs() << "EV:");
                 DEBUG(errs() << "ERASE:");
@@ -198,9 +199,9 @@ bool SimplifyEV::runOnModule(Module& M) {
               // by switching the order of the insert and extract (though the
               // insertvalue should be left in, since it may have other uses).
               Value *NewEV = ExtractValueInst::Create(IV->getAggregateOperand(),
-                                                      EV->idx_begin(), EV->idx_end(), "", EV);
+                                                      EV->getIndices(), "", EV);
               Value *NewIV = InsertValueInst::Create(NewEV, IV->getInsertedValueOperand(),
-                                                     insi, inse, "", EV);
+                                                     makeArrayRef(insi, inse), "", EV);
               EV->replaceAllUsesWith(NewIV);
               DEBUG(errs() << "EV:");
               DEBUG(errs() << "ERASE:");
@@ -220,7 +221,7 @@ bool SimplifyEV::runOnModule(Module& M) {
               // with
               // %E extractvalue { i32 } { i32 42 }, 0
               ExtractValueInst *EV_new = ExtractValueInst::Create(IV->getInsertedValueOperand(),
-                                                                  exti, exte,"", EV);
+                                                                  makeArrayRef(exti, exte), "", EV);
               EV->replaceAllUsesWith(EV_new);
               DEBUG(errs() << "EV:");
               DEBUG(errs() << "ERASE:");

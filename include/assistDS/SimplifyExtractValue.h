@@ -24,7 +24,7 @@ namespace llvm {
   class SimplifyEV : public ModulePass {
   public:
     static char ID;
-    SimplifyEV() : ModulePass(&ID) {}
+    SimplifyEV() : ModulePass(ID) {}
     virtual bool runOnModule(Module& M);
   };
 }
