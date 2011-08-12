@@ -1,10 +1,10 @@
 /*
  * Build into bitcode
- * RUN: llvm-gcc -O0 %s --emit-llvm -c -o %t.bc
+ * RUN: clang -O0 %s -emit-llvm -c -o %t.bc
  * RUN: adsaopt -internalize -mem2reg -typechecks %t.bc -o %t.tc.bc
  * RUN: tc-link %t.tc.bc -o %t.tc1.bc
  * RUN: llc %t.tc1.bc -o %t.tc1.s
- * RUN: llvm-gcc %t.tc1.s -o %t.tc2
+ * RUN: clang %t.tc1.s -o %t.tc2
  * Execute
  * RUN: %t.tc2 >& %t.tc.out
  */
@@ -13,7 +13,7 @@
 //This is a basic use of vararg pointer use
 
 //--build the code into a .bc
-//RUN: llvm-gcc -O0 %s -S --emit-llvm -o - | llvm-as > %t.bc
+//RUN: clang -O0 %s -S -emit-llvm -o - | llvm-as > %t.bc
 //--check if ds-aa breaks, breaks opts, or results in miscompiled code
 //RUN: lli %t.bc > %t.refout
 //RUN: dsaopt %t.bc -ds-aa -O3 -o - | lli > %t.out

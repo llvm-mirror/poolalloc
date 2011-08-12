@@ -1,13 +1,13 @@
 /* 
  * Build this file into bitcode and run poolalloc on it
- * RUN: llvm-gcc -O0 %s --emit-llvm -c -o %t.bc
+ * RUN: clang -O0 %s -emit-llvm -c -o %t.bc
  * RUN: paopt %t.bc -paheur-AllButUnreachableFromMemory -poolalloc -o %t.pa.bc 2>&1
  * RUN: pa-link %t.pa.bc -o %t.pa.ld.bc
  * RUN: llc %t.pa.ld.bc -o %t.pa.s
- * RUN: llvm-gcc %t.pa.s -o %t.pa
+ * RUN: clang %t.pa.s -o %t.pa
  *
  * Build the program without poolalloc:
- * RUN: llvm-gcc -o %t.native %s
+ * RUN: clang -o %t.native %s
  *
  * Execute the program to verify it's correct:
  * RUN: %t.pa >& %t.pa.out

@@ -1,7 +1,7 @@
 // Go through at least one of every operation to verify flags are set appropriately...
 
 //--Make sure we can run DSA on it! 
-//RUN: llvm-gcc %s -c --emit-llvm -o - |  \
+//RUN: clang %s -c -emit-llvm -o - |  \
 //RUN: dsaopt -dsa-bu -dsa-td -disable-output
 
 //H, S, G, R, M

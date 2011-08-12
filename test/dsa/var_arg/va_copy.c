@@ -3,7 +3,7 @@
 //This tests va_copy, which should just merge it's arguments...
 
 //--build the code into a .bc
-//RUN: llvm-gcc -O0 %s -S --emit-llvm -o - | llvm-as > %t.bc
+//RUN: clang -O0 %s -S -emit-llvm -o - | llvm-as > %t.bc
 //--check if ds-aa breaks, breaks opts, or results in miscompiled code
 //RUN: lli %t.bc > %t.refout
 //RUN: dsaopt %t.bc -ds-aa -O3 -o - 2>/dev/null | lli > %t.out

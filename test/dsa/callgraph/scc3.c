@@ -10,7 +10,7 @@
 // we inline the SCC graph again, pulling in the unresolved call site
 // again. This causes an infinte looping in BU.
 
-//RUN: llvm-gcc %s -c --emit-llvm -o - |  \
+//RUN: clang %s -c -emit-llvm -o - |  \
 //RUN: dsaopt -dsa-bu -dsa-td -disable-output
 
 typedef int* (*funcptr)(int *);

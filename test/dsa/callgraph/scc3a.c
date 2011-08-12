@@ -1,6 +1,6 @@
 // similiar to scc3. But with 2 SCCs
 
-//RUN: llvm-gcc %s -c --emit-llvm -o - |  \
+//RUN: clang %s -c -emit-llvm -o - |  \
 //RUN: dsaopt -dsa-bu -dsa-td -disable-output
 
 

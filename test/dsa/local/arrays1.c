@@ -2,7 +2,7 @@
 // Checks that structure is folded
 
 //--Make sure we can run DSA on it! 
-//RUN: llvm-gcc %s -c --emit-llvm -o - |  \
+//RUN: clang %s -c -emit-llvm -o - |  \
 //RUN: dsaopt -dsa-bu -dsa-td -disable-output
 
 #include <stdlib.h>
