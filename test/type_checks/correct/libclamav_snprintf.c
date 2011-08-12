@@ -14,6 +14,7 @@
 #include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
+#include <ctype.h>
 
 static void
 dopr(char *buffer, size_t maxlen, const char *format, va_list args);

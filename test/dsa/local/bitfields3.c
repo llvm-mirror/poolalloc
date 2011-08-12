@@ -15,8 +15,8 @@ int main()
 	struct taxonomy t = {0, 0, 21};
 	t.kingdom = 1;
 	t.phylum = 7;
-	printf("sizeof(struct taxonomy): %d bytes\n",sizeof(struct taxonomy));
-	printf("taxonomy: 0x%x\n",t);
+	printf("sizeof(struct taxonomy): %d bytes\n",(int)sizeof(struct taxonomy));
+	printf("taxonomy: 0x%x\n",(unsigned int)t);
 	printf("kingdom: %d\n",t.kingdom);
 	printf("phylum: %d\n",t.phylum);
 	printf("genus: %d\n",t.genus);
