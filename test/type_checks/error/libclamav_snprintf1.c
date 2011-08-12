@@ -5,7 +5,7 @@
  * RUN: adsaopt -internalize -mem2reg -typechecks %t.bc -o %t.tc.bc
  * RUN: tc-link %t.tc.bc -o %t.tc1.bc
  * RUN: llc %t.tc1.bc -o %t.tc1.s
- * RUN: clang %t.tc1.s -o %t.tc2
+ * RUN: clang++ %t.tc1.s -o %t.tc2
  * Execute
  * RUN: %t.tc2 >& %t.tc.out
  * ;XFAIL:*
@@ -13,6 +13,8 @@
 
 #include <sys/types.h>
 #include <stdarg.h>
+#include <stdio.h>
+#include <string.h>
 
 static void
 dopr(char *buffer, size_t maxlen, const char *format, va_list args);
@@ -529,6 +531,7 @@ int mdprintf(const char *str, ...)
   return bytes;
 
 }
-void main () {
+int main () {
   mdprintf("%d %s %f", 5.0, "arushi", 4.0);
+  return 0;
 }
