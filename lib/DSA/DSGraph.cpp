@@ -57,7 +57,7 @@ namespace {
   static cl::opt<bool> noDSACallVA("dsa-no-filter-vararg",
          cl::desc("Don't filter call sites based on vararg presense"),
          cl::Hidden,
-         cl::init(false));
+         cl::init(true));
   static cl::opt<bool> noDSACallFP("dsa-no-filter-intfp",
          cl::desc("Don't filter call sites based on implicit integer to FP conversion"),
          cl::Hidden,
