@@ -1,5 +1,5 @@
 //--Make sure we can run DSA on it! 
-//RUN: clang %s -c -emit-llvm -o - |  \
+//RUN: clang -Wno-format %s -c -emit-llvm -o - |  \
 //RUN: dsaopt -dsa-bu -dsa-td -disable-output
 
 #include <stdio.h>
@@ -16,7 +16,7 @@ int main()
 	t.kingdom = 1;
 	t.phylum = 7;
 	printf("sizeof(struct taxonomy): %d bytes\n",(int)sizeof(struct taxonomy));
-	printf("taxonomy: 0x%x\n",(unsigned int)t);
+	printf("taxonomy: 0x%x\n",t);
 	printf("kingdom: %d\n",t.kingdom);
 	printf("phylum: %d\n",t.phylum);
 	printf("genus: %d\n",t.genus);
