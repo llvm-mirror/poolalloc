@@ -1,5 +1,5 @@
 ;RUN: dsaopt %s -dsa-stdlib -analyze -verify-flags "print:buffer+I"
-;RUN: dsaopt %s -dsa-stdlib -analyze -verify-flags "@buf+I"
+;RUN: dsaopt %s -dsa-stdlib -analyze -verify-flags "@buf-I"
 
 ;RUN: dsaopt %s -dsa-bu -analyze -verify-flags "print:buffer+I"
 ;RUN: dsaopt %s -dsa-bu -analyze -verify-flags "@buf-I"
