@@ -406,22 +406,14 @@ cputrack::
 
 .PHONY: lit lit-report
 
-#Figure out what our configuration is
-#Better way?
-ifeq ($(ENABLE_OPTIMIZED),1)
-CONFIGURATION := "Release"
-else
-CONFIGURATION := "Debug"
-endif
-
 # Pathname to poolalloc object tree
-PADIR   := $(LLVM_OBJ_ROOT)/projects/poolalloc
+PADIR   := $(PROJ_OBJ_ROOT)
 # Pathame to the DSA pass dynamic library
-DSA_SO   := $(PADIR)/$(CONFIGURATION)/lib/libLLVMDataStructure$(SHLIBEXT)
+DSA_SO   := $(PADIR)/$(BuildMode)/lib/libLLVMDataStructure$(SHLIBEXT)
 # Pathame to the Assist DSA pass dynamic library
-ADSA_SO   := $(PADIR)/$(CONFIGURATION)/lib/libAssistDS$(SHLIBEXT)
+ADSA_SO   := $(PADIR)/$(BuildMode)/lib/libAssistDS$(SHLIBEXT)
 # Pathname to the PA pass dynamic library
-PA_SO   := $(PADIR)/$(CONFIGURATION)/lib/libpoolalloc$(SHLIBEXT)
+PA_SO   := $(PADIR)/$(BuildMode)/lib/libpoolalloc$(SHLIBEXT)
 
 DSAOPT := $(PROJ_OBJ_ROOT)/test/tools/dsaopt
 ADSAOPT := $(PROJ_OBJ_ROOT)/test/tools/adsaopt
@@ -458,7 +450,7 @@ $(PAOPT):
 $(TC_LINK):
 	@mkdir -p `dirname $@`
 	@echo "#!/bin/sh" > $@.tmp
-	@echo 'llvm-ld -link-as-library $$@ $(PROJ_OBJ_ROOT)/$(CONFIGURATION)/lib/libtypechecks_rt.bca ' >> $@.tmp
+	@echo 'llvm-ld -link-as-library $$@ $(PROJ_OBJ_ROOT)/$(BuildMode)/lib/libtypechecks_rt.bca ' >> $@.tmp
 	@chmod +x $@.tmp
 	@mv $@.tmp $@
 
@@ -466,7 +458,7 @@ $(TC_LINK):
 $(PA_LINK):
 	@mkdir -p `dirname $@`
 	@echo "#!/bin/sh" > $@.tmp
-	@echo 'llvm-ld -link-as-library $$@ $(PROJ_OBJ_ROOT)/$(CONFIGURATION)/lib/libpoolalloc_rt.bca ' >> $@.tmp
+	@echo 'llvm-ld -link-as-library $$@ $(PROJ_OBJ_ROOT)/$(BuildMode)/lib/libpoolalloc_rt.bca ' >> $@.tmp
 	@chmod +x $@.tmp
 	@mv $@.tmp $@
 
@@ -474,23 +466,20 @@ lit.site.cfg: $(PROJ_SRC_ROOT)/test/lit.site.cfg.in
 	@echo "Making LLVM 'lit.site.cfg' file..."
 	@sed -e "s#@LLVM_SOURCE_DIR@#$(LLVM_SRC_ROOT)#g" \
 	     -e "s#@LLVM_BINARY_DIR@#$(LLVM_OBJ_ROOT)#g" \
-	     -e "s#@LLVM_TOOLS_DIR@#$(ToolDir)#g" \
+	     -e "s#@LLVM_TOOLS_DIR@#$(LLVMToolDir)#g" \
 	     -e "s#@LLVMGCCDIR@#$(LLVMGCCDIR)#g" \
 	     -e "s#@PROJ_SRC_ROOT@#$(PROJ_SRC_ROOT)#g" \
+	     -e "s#@PROJ_OBJ_ROOT@#$(PROJ_OBJ_ROOT)#g" \
 	     $(PROJ_SRC_ROOT)/test/lit.site.cfg.in > $@
 
-SETPATH = \
-	PATH=$(LLVMToolDir):$(LLVM_SRC_ROOT)/test/Scripts:$(LLVMGCCDIR)/bin:$(PROJ_OBJ_ROOT)/test/tools:$(PATH)
-
-TESTSUITE=$(PROJ_OBJ_ROOT)/test
-
 #Run the lit tests for this project
+.PHONY: lit lit-report
 lit: lit.site.cfg $(TOOLS)
-	$(SETPATH) $(MAKE) -C $(LLVM_OBJ_ROOT)/test check-local-lit TESTSUITE=$(TESTSUITE)
+	$(LLVM_SRC_ROOT)/utils/lit/lit.py $(PROJ_OBJ_ROOT)/test --path $(ToolDir) -s -v
 
 #Run the lit tests, but supress all error output--just report the test results.
 lit-report: lit.site.cfg $(TOOLS)
-	$(SETPATH) $(MAKE) -C $(LLVM_OBJ_ROOT)/test check-local-lit TESTSUITE=$(TESTSUITE) LIT_ARGS=-q
+	$(LLVM_SRC_ROOT)/utils/lit/lit.py $(PROJ_OBJ_ROOT)/test --path $(ToolDir) -q
 
 clean::
 	-$(RM) -rf  `find $(PROJ_OBJ_DIR) -name Output -type d -print`
