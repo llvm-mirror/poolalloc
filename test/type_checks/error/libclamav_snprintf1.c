@@ -8,7 +8,7 @@
  * RUN: clang++ %t.tc1.s -o %t.tc2
  * Execute
  * RUN: %t.tc2 >& %t.tc.out
- * ;XFAIL:*
+ * RUN: grep "Type.*mismatch" %t.tc.out
  */
 
 #include <sys/types.h>
