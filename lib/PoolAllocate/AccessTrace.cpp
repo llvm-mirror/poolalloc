@@ -29,10 +29,10 @@ namespace {
     PoolAllocate *PoolAlloc;
     DataStructures *G;
     Constant *AccessTraceInitFn, *PoolAccessTraceFn;
-    const PointerType *VoidPtrTy;
+    PointerType *VoidPtrTy;
   public:
 
-    PoolAccessTrace() : ModulePass((intptr_t)&ID) {}
+    PoolAccessTrace() : ModulePass(ID) {}
 
     bool runOnModule(Module &M);
 
@@ -63,8 +63,8 @@ void PoolAccessTrace::getAnalysisUsage(AnalysisUsage &AU) const {
 }
 
 void PoolAccessTrace::InitializeLibraryFunctions(Module &M) {
-  const IntegerType * IT = IntegerType::getInt8Ty(M.getContext());
-  const Type * VoidType = Type::getVoidTy(M.getContext());
+  IntegerType * IT = IntegerType::getInt8Ty(M.getContext());
+  Type * VoidType = Type::getVoidTy(M.getContext());
   VoidPtrTy = PointerType::getUnqual(IT);
 
   AccessTraceInitFn = M.getOrInsertFunction("poolaccesstraceinit",
@@ -97,7 +97,7 @@ void PoolAccessTrace::InstrumentAccess(Instruction *I, Value *Ptr,
 
   // Insert the trace call.
   Value *Opts[2] = {Ptr, PD};
-  CallInst::Create (PoolAccessTraceFn, Opts, Opts + 2, "", I);
+  CallInst::Create (PoolAccessTraceFn, ArrayRef<Value*>(Opts), "", I);
 }
 
 bool PoolAccessTrace::runOnModule(Module &M) {

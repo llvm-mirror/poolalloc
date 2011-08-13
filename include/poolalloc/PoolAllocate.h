@@ -140,9 +140,9 @@ namespace PA {
 class PoolAllocateGroup : public ModulePass {
 protected:
   DataStructures *Graphs;
-  const Type * VoidType;
-  const Type * Int8Type;
-  const Type * Int32Type;
+  Type * VoidType;
+  Type * Int8Type;
+  Type * Int32Type;
 
 public:
   static char ID;
@@ -160,7 +160,7 @@ public:
   PASS_TYPE dsa_pass_to_use;
 
                 
-  PoolAllocateGroup  (intptr_t IDp = (intptr_t) (&ID)) : ModulePass (IDp) { }
+  PoolAllocateGroup  (char * IDp = &ID) : ModulePass (*IDp) { }
   virtual ~PoolAllocateGroup () {return;}
 
   virtual PA::FuncInfo *getFuncInfo(const Function &F) { return 0;}
@@ -168,7 +168,7 @@ public:
   virtual Function *getOrigFunctionFromClone(const Function *F) const {return 0;}
 
   // FIXME: Clients should be able to specialize pool descriptor type
-  virtual const Type * getPoolType(LLVMContext*) {return 0;}
+  virtual Type * getPoolType(LLVMContext*) {return 0;}
 
   virtual bool hasDSGraph (const Function & F) const {
     return Graphs->hasDSGraph (F);
@@ -221,7 +221,7 @@ public:
   // Function which will initialize global pools
   Function * GlobalPoolCtor;
   
-  static const Type *PoolDescPtrTy;
+  static Type *PoolDescPtrTy;
 
   PA::Heuristic *CurHeuristic;
 
@@ -238,8 +238,8 @@ protected:
 
   PoolAllocate (bool passAllArguments,
                 bool SAFECode = true,
-                intptr_t IDp = (intptr_t) (&ID))
-    : PoolAllocateGroup ((intptr_t)IDp),
+                char * IDp = &ID)
+    : PoolAllocateGroup (IDp),
       PassAllArguments(passAllArguments)
       {
 		  SAFECodeEnabled = SAFECode |  PA::PA_SAFECODE;
@@ -253,8 +253,8 @@ protected:
 				LIE_TYPE lie_preserve_passes_ = LIE_PRESERVE_DEFAULT,
 				bool passAllArguments = false,
 				bool SAFECode = true,
-                intptr_t IDp = (intptr_t) (&ID))
-      : PoolAllocateGroup ((intptr_t)IDp),
+                char * IDp = &ID)
+      : PoolAllocateGroup (IDp),
         PassAllArguments(passAllArguments)
         {
   		  SAFECodeEnabled = SAFECode |  PA::PA_SAFECODE;
@@ -327,8 +327,8 @@ protected:
 
   /// getPoolType - Return the type of a pool descriptor
   /// FIXME: These constants should be chosen by the client
-  const Type * getPoolType(LLVMContext* C) {
-    const IntegerType * IT = IntegerType::getInt8Ty(*C);
+  Type * getPoolType(LLVMContext* C) {
+    IntegerType * IT = IntegerType::getInt8Ty(*C);
     Type * VoidPtrType = PointerType::getUnqual(IT);
     if (SAFECodeEnabled)
       return ArrayType::get(VoidPtrType, 92);
@@ -511,7 +511,7 @@ protected:
 /// load or store to that pool is performed.
 struct PoolAllocatePassAllPools : public PoolAllocate {
   static char ID;
-  PoolAllocatePassAllPools() : PoolAllocate(PASS_DEFAULT, LIE_PRESERVE_DEFAULT, true, false, (intptr_t) &ID) {}
+  PoolAllocatePassAllPools() : PoolAllocate(PASS_DEFAULT, LIE_PRESERVE_DEFAULT, true, false, &ID) {}
 };
 
 /// PoolAllocateSimple - This class modifies the heap allocations so that they
@@ -527,7 +527,7 @@ class PoolAllocateSimple : public PoolAllocate {
 public:
   static char ID;
   PoolAllocateSimple(bool passAllArgs=false, bool SAFECode = true, bool CompleteDSA = true)
-    : PoolAllocate (PASS_DEFAULT, LIE_PRESERVE_DEFAULT, passAllArgs, SAFECode, (intptr_t)&ID), CompleteDSA(CompleteDSA) {}
+    : PoolAllocate (PASS_DEFAULT, LIE_PRESERVE_DEFAULT, passAllArgs, SAFECode, &ID), CompleteDSA(CompleteDSA) {}
   ~PoolAllocateSimple() {return;}
   void getAnalysisUsage(AnalysisUsage &AU) const;
   bool runOnModule(Module &M);
@@ -577,7 +577,7 @@ class PoolAllocateMultipleGlobalPool : public PoolAllocate {
 public:
   static char ID;
   PoolAllocateMultipleGlobalPool(bool passAllArgs=false, bool SAFECode = true)
-    : PoolAllocate (PASS_DEFAULT, LIE_PRESERVE_DEFAULT, passAllArgs, SAFECode, (intptr_t)&ID) {}
+    : PoolAllocate (PASS_DEFAULT, LIE_PRESERVE_DEFAULT, passAllArgs, SAFECode, &ID) {}
   ~PoolAllocateMultipleGlobalPool();
   virtual void getAnalysisUsage(AnalysisUsage &AU) const;
   virtual bool runOnModule(Module &M);

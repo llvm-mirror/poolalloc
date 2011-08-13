@@ -127,7 +127,7 @@ namespace PA {
     /// this DSNode.
     ///
     static unsigned getRecommendedAlignment(const DSNode *N);
-    static unsigned getRecommendedAlignment(const Type *Ty,
+    static unsigned getRecommendedAlignment(Type *Ty,
                                             const TargetData &TD);
   };
 
@@ -154,13 +154,13 @@ namespace PA {
       static char ID;
 
       // Method used to implement analysis groups without C++ inheritance
-      virtual void *getAdjustedAnalysisPointer(const PassInfo *PI) {
-        if (PI->isPassID(&Heuristic::ID))
+      virtual void *getAdjustedAnalysisPointer(AnalysisID ID) {
+        if (ID == &Heuristic::ID)
           return (Heuristic*)this;
         return this;
       }
 
-      AllNodesHeuristic (intptr_t IDp = (intptr_t) (&ID)): ModulePass (IDp) { }
+      AllNodesHeuristic (char * IDp = &ID): ModulePass (*IDp) { }
       virtual ~AllNodesHeuristic () {return;}
       virtual bool runOnModule (Module & M);
       virtual const char * getPassName () const {
@@ -205,14 +205,13 @@ namespace PA {
                                                public ModulePass {
     public:
       static char ID;
-      virtual void *getAdjustedAnalysisPointer(const PassInfo *PI) {
-        if (PI->isPassID(&Heuristic::ID))
+      virtual void *getAdjustedAnalysisPointer(AnalysisID ID) {
+        if (ID == &Heuristic::ID)
           return (Heuristic*)this;
         return this;
       }
 
-      AllButUnreachableFromMemoryHeuristic (intptr_t IDp = (intptr_t) (&ID)) :
-        ModulePass (IDp) { }
+      AllButUnreachableFromMemoryHeuristic (char * IDp = &ID) : ModulePass (*IDp) { }
       virtual ~AllButUnreachableFromMemoryHeuristic () {return;}
       virtual bool runOnModule (Module & M);
 
@@ -240,14 +239,14 @@ namespace PA {
   class CyclicNodesHeuristic : public Heuristic, public ModulePass {
     public:
       static char ID;
-      virtual void *getAdjustedAnalysisPointer(const PassInfo *PI) {
-        if (PI->isPassID(&Heuristic::ID))
+      virtual void *getAdjustedAnalysisPointer(AnalysisID ID) {
+        if (ID == &Heuristic::ID)
           return (Heuristic*)this;
         return this;
       }
 
 
-      CyclicNodesHeuristic (intptr_t IDp=(intptr_t) (&ID)): ModulePass (IDp) { }
+      CyclicNodesHeuristic (char * IDp=&ID): ModulePass (*IDp) { }
       virtual ~CyclicNodesHeuristic () {return;}
       virtual bool runOnModule (Module & M);
 
@@ -276,14 +275,13 @@ namespace PA {
   class SmartCoallesceNodesHeuristic : public Heuristic, public ModulePass {
     public:
       static char ID;
-      virtual void *getAdjustedAnalysisPointer(const PassInfo *PI) {
-        if (PI->isPassID(&Heuristic::ID))
+      virtual void *getAdjustedAnalysisPointer(AnalysisID ID) {
+        if (ID == &Heuristic::ID)
           return (Heuristic*)this;
         return this;
       }
 
-      SmartCoallesceNodesHeuristic (intptr_t IDp = (intptr_t) (&ID)) :
-        ModulePass (IDp) { }
+      SmartCoallesceNodesHeuristic (char * IDp = &ID) : ModulePass (*IDp) { }
       virtual ~SmartCoallesceNodesHeuristic () {return;}
       virtual bool runOnModule (Module & M);
 
@@ -319,14 +317,14 @@ namespace PA {
 
     public:
       static char ID;
-      virtual void *getAdjustedAnalysisPointer(const PassInfo *PI) {
-        if (PI->isPassID(&Heuristic::ID))
+      virtual void *getAdjustedAnalysisPointer(AnalysisID ID) {
+        if (ID == &Heuristic::ID)
           return (Heuristic*)this;
         return this;
       }
 
-      AllInOneGlobalPoolHeuristic(intptr_t IDp = (intptr_t) (&ID)) :
-        ModulePass (IDp), TheGlobalPD(0) {}
+      AllInOneGlobalPoolHeuristic(char * IDp = &ID) :
+        ModulePass (*IDp), TheGlobalPD(0) {}
 
       virtual bool runOnModule (Module & M);
       virtual void getAnalysisUsage(AnalysisUsage &AU) const {
@@ -356,14 +354,13 @@ namespace PA {
   class OnlyOverheadHeuristic : public Heuristic, public ModulePass {
     public:
       static char ID;
-      virtual void *getAdjustedAnalysisPointer(const PassInfo *PI) {
-        if (PI->isPassID(&Heuristic::ID))
+      virtual void *getAdjustedAnalysisPointer(AnalysisID ID) {
+        if (ID == &Heuristic::ID)
           return (Heuristic*)this;
         return this;
       }
 
-      OnlyOverheadHeuristic(intptr_t IDp = (intptr_t) (&ID)) :
-        ModulePass (IDp) {}
+      OnlyOverheadHeuristic(char * IDp = &ID) : ModulePass (*IDp) {}
 
       virtual bool runOnModule (Module & M);
       virtual void getAnalysisUsage(AnalysisUsage &AU) const {
@@ -392,13 +389,13 @@ namespace PA {
   class NoNodesHeuristic : public Heuristic, public ImmutablePass {
     public:
       static char ID;
-      virtual void *getAdjustedAnalysisPointer(const PassInfo *PI) {
-        if (PI->isPassID(&Heuristic::ID))
+      virtual void *getAdjustedAnalysisPointer(AnalysisID ID) {
+        if (ID == &Heuristic::ID)
           return (Heuristic*)this;
         return this;
       }
 
-      NoNodesHeuristic(intptr_t IDp = (intptr_t) (&ID)) : ImmutablePass (IDp) {}
+      NoNodesHeuristic(char * IDp = &ID) : ImmutablePass (*IDp) {}
 
       virtual bool runOnModule (Module & M);
       virtual void getAnalysisUsage(AnalysisUsage &AU) const {

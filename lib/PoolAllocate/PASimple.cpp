@@ -49,7 +49,7 @@ namespace {
 }
 
 static inline Value *
-castTo (Value * V, const Type * Ty, std::string Name, Instruction * InsertPt) {
+castTo (Value * V, Type * Ty, std::string Name, Instruction * InsertPt) {
   //
   // Don't bother creating a cast if it's already the correct type.
   //
@@ -292,8 +292,7 @@ PoolAllocateSimple::ProcessFunctionBodySimple (Function& F, TargetData & TD) {
           //
           Value* Opts[3] = {TheGlobalPool, Size};
           Instruction *V = CallInst::Create (PoolAlloc,
-                                             Opts,
-                                             Opts + 2,
+                                             ArrayRef<Value*>(Opts),
                                              Name,
                                              InsertPt);
 
@@ -344,8 +343,7 @@ PoolAllocateSimple::ProcessFunctionBodySimple (Function& F, TargetData & TD) {
           //
           Value* Opts[3] = {TheGlobalPool, Align, Size};
           Instruction *V = CallInst::Create (PoolMemAlign,
-                                             Opts,
-                                             Opts + 3,
+                                             ArrayRef<Value*>(Opts),
                                              Name,
                                              InsertPt);
 
@@ -391,8 +389,7 @@ PoolAllocateSimple::ProcessFunctionBodySimple (Function& F, TargetData & TD) {
           std::string Name = CI->getName(); CI->setName("");
           Value* Opts[3] = {TheGlobalPool, OldPtr, Size};
           Instruction *V = CallInst::Create (PoolRealloc,
-                                         Opts,
-                                         Opts + 3,
+                                         ArrayRef<Value*>(Opts),
                                          Name,
                                          InsertPt);
           //
@@ -437,8 +434,7 @@ PoolAllocateSimple::ProcessFunctionBodySimple (Function& F, TargetData & TD) {
           std::string Name = CI->getName(); CI->setName("");
           Value* Opts[3] = {TheGlobalPool, NumElements, Size};
           Instruction *V = CallInst::Create (PoolCalloc,
-                                             Opts,
-                                             Opts + 3,
+                                             ArrayRef<Value*>(Opts),
                                              Name,
                                              InsertPt);
 
@@ -476,8 +472,7 @@ PoolAllocateSimple::ProcessFunctionBodySimple (Function& F, TargetData & TD) {
           std::string Name = CI->getName(); CI->setName("");
           Value* Opts[2] = {TheGlobalPool, OldPtr};
           Instruction *V = CallInst::Create (PoolStrdup,
-                                         Opts,
-                                         Opts + 2,
+                                         ArrayRef<Value*>(Opts),
                                          Name,
                                          InsertPt);
 
@@ -497,7 +492,7 @@ PoolAllocateSimple::ProcessFunctionBodySimple (Function& F, TargetData & TD) {
           Value * FreedNode = castTo (CI->getOperand(1), VoidPtrTy, "cast", ii);
           toDelete.push_back(ii);
           Value* args[] = {TheGlobalPool, FreedNode};
-          CallInst::Create(PoolFree, &args[0], &args[2], "", ii);
+          CallInst::Create(PoolFree, ArrayRef<Value*>(args), "", ii);
         }
 
         //
@@ -559,14 +554,14 @@ PoolAllocateSimple::CreateGlobalPool (unsigned RecSize,
 		       "__poolalloc_GlobalPool");
 
   Function *InitFunc = Function::Create
-    (FunctionType::get(VoidType, std::vector<const Type*>(), false),
+    (FunctionType::get(VoidType, std::vector<Type*>(), false),
     GlobalValue::ExternalLinkage, "__poolalloc_init", &M);
 
   BasicBlock * BB = BasicBlock::Create(M.getContext(), "entry", InitFunc);
   Value *ElSize = ConstantInt::get(Int32Type, RecSize);
   Value *AlignV = ConstantInt::get(Int32Type, Align);
   Value* Opts[3] = {GV, ElSize, AlignV};
-  CallInst::Create(PoolInit, Opts, Opts + 3, "", BB);
+  CallInst::Create(PoolInit, ArrayRef<Value*>(Opts), "", BB);
 
   ReturnInst::Create(M.getContext(), BB);
   return GV;

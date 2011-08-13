@@ -97,7 +97,7 @@ unsigned Heuristic::getRecommendedSize(const DSNode *N) {
 //  FIXME: This code needs to handle LLVM first-class structures and vectors.
 //
 static bool
-Wants8ByteAlignment(const Type *Ty, unsigned Offs, const TargetData &TD) {
+Wants8ByteAlignment(Type *Ty, unsigned Offs, const TargetData &TD) {
   //
   // If the user has requested this optimization to be turned off, don't bother
   // doing it.
@@ -136,14 +136,14 @@ Wants8ByteAlignment(const Type *Ty, unsigned Offs, const TargetData &TD) {
   // 8-byte alignment desire to have 8-byte alignment.  If so, then the entire
   // object wants 8-byte alignment.
   //
-  if (const StructType *STy = dyn_cast<StructType>(Ty)) {
+  if (StructType *STy = dyn_cast<StructType>(Ty)) {
     const StructLayout *SL = TD.getStructLayout(STy);
     for (unsigned i = 0, e = STy->getNumElements(); i != e; ++i) {
       if (Wants8ByteAlignment(STy->getElementType(i),
                               Offs+SL->getElementOffset(i), TD))
         return true;
     }
-  } else if (const SequentialType *STy = dyn_cast<SequentialType>(Ty)) {
+  } else if (SequentialType *STy = dyn_cast<SequentialType>(Ty)) {
     return Wants8ByteAlignment(STy->getElementType(), Offs, TD);
   } else {
     errs() << *Ty << "\n";
@@ -153,7 +153,7 @@ Wants8ByteAlignment(const Type *Ty, unsigned Offs, const TargetData &TD) {
   return false;
 }
 
-unsigned Heuristic::getRecommendedAlignment(const Type *Ty,
+unsigned Heuristic::getRecommendedAlignment(Type *Ty,
                                             const TargetData &TD) {
   if (!Ty || Ty->isVoidTy())  // Is this void or collapsed?
     return 0;  // No known alignment, let runtime decide.
@@ -185,13 +185,13 @@ Heuristic::getRecommendedAlignment(const DSNode *Node) {
   //
   DSNode::const_type_iterator tyi;
   for (tyi = Node->type_begin(); tyi != Node->type_end(); ++tyi) {
-    for (svset<const Type*>::const_iterator tyii = tyi->second->begin(),
+    for (svset<Type*>::const_iterator tyii = tyi->second->begin(),
          tyee = tyi->second->end(); tyii != tyee; ++tyii) {
       //
       // Get the type of object allocated.  If there is no type, then it is
       // implicitly of void type.
       //
-      const Type * TypeCreated = *tyii;
+      Type * TypeCreated = *tyii;
       if (TypeCreated) {
         //
         // If the type contains a pointer, it must be changed.
@@ -845,7 +845,7 @@ getDynamicallyNullPool(BasicBlock::iterator I) {
   static Value *NullGlobal = 0;
   if (!NullGlobal) {
     Module *M = I->getParent()->getParent()->getParent();
-    const Type * PoolTy = PoolAllocate::PoolDescPtrTy;
+    Type * PoolTy = PoolAllocate::PoolDescPtrTy;
     Constant * Init = ConstantPointerNull::get(cast<PointerType>(PoolTy));
     NullGlobal = new GlobalVariable(*M,
                                     PoolAllocate::PoolDescPtrTy, false,
@@ -873,7 +873,7 @@ OnlyOverheadHeuristic::HackFunctionBody(Function &F,
     Value *OldPD = PDI->second;
     std::vector<User*> OldPDUsers(OldPD->use_begin(), OldPD->use_end());
     for (unsigned i = 0, e = OldPDUsers.size(); i != e; ++i) {
-      CallSite PDUser = CallSite::get(cast<Instruction>(OldPDUsers[i]));
+      CallSite PDUser(cast<Instruction>(OldPDUsers[i]));
       if (PDUser.getCalledValue() != PoolInit &&
           PDUser.getCalledValue() != PoolDestroy) {
         assert(PDUser.getInstruction()->getParent()->getParent() == &F &&

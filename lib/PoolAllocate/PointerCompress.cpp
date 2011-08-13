@@ -35,17 +35,17 @@ using namespace llvm;
 /// MEMUINTTYPE - This is the actual type we are compressing to.  This is really
 /// only capable of being Int32Ty, except when we are doing tests for 16-bit
 /// integers, when it's Int16Ty.
-static const Type *MEMUINTTYPE;
+static Type *MEMUINTTYPE;
 
 /// SCALARUINTTYPE - We keep scalars the same size as the machine word on the
 /// system (e.g. 64-bits), only keeping memory objects in MEMUINTTYPE.
-static const Type *SCALARUINTTYPE;
+static Type *SCALARUINTTYPE;
 
-static const Type * VoidType  = 0;
-static const Type * Int8Type  = 0;
-static const Type * Int16Type = 0;
-static const Type * Int32Type = 0;
-static const Type * Int64Type = 0;
+static Type * VoidType  = 0;
+static Type * Int8Type  = 0;
+static Type * Int16Type = 0;
+static Type * Int32Type = 0;
+static Type * Int64Type = 0;
 
 namespace {
   cl::opt<bool>
@@ -124,7 +124,7 @@ namespace {
     typedef std::map<const DSNode*, CompressedPoolInfo> PoolInfoMap;
     static char ID;
 
-    PointerCompress() : ModulePass((intptr_t)&ID) {}
+    PointerCompress() : ModulePass(ID) {}
     /// NoArgFunctionsCalled - When we are walking the call graph, keep track of
     /// which functions are called that don't need their prototype to be
     /// changed.
@@ -184,7 +184,7 @@ namespace {
   class CompressedPoolInfo {
     const DSNode *Pool;
     Value *PoolDesc;
-    const Type *NewTy;
+    Type *NewTy;
     unsigned NewSize;
     mutable Value *PoolBase;
   public:
@@ -197,7 +197,7 @@ namespace {
                     const TargetData &TD);
 
     const DSNode *getNode() const { return Pool; }
-    const Type *getNewType() const { return NewTy; }
+    Type *getNewType() const { return NewTy; }
 
     /// getNewSize - Return the size of each node after compression.
     ///
@@ -216,7 +216,7 @@ namespace {
     void dump() const;
 
   private:
-    const Type *ComputeCompressedType(const Type *OrigTy, unsigned NodeOffset,
+    Type *ComputeCompressedType(Type *OrigTy, unsigned NodeOffset,
                            std::map<const DSNode*, CompressedPoolInfo> &Nodes);
   };
 }
@@ -241,8 +241,8 @@ void CompressedPoolInfo::Initialize(std::map<const DSNode*,
 /// ComputeCompressedType - Recursively compute the new type for this node after
 /// pointer compression.  This involves compressing any pointers that point into
 /// compressed pools.
-const Type *CompressedPoolInfo::
-ComputeCompressedType(const Type *OrigTy, unsigned NodeOffset,
+Type *CompressedPoolInfo::
+ComputeCompressedType(Type *OrigTy, unsigned NodeOffset,
                       std::map<const DSNode*, CompressedPoolInfo> &Nodes) {
   if (dyn_cast<PointerType>(OrigTy)) {
     if (ADLFix) {
@@ -266,8 +266,8 @@ ComputeCompressedType(const Type *OrigTy, unsigned NodeOffset,
   const TargetData &TD = getNode()->getParentGraph()->getTargetData();
 
   // Okay, we have an aggregate type.
-  if (const StructType *STy = dyn_cast<StructType>(OrigTy)) {
-    std::vector<const Type*> Elements;
+  if (StructType *STy = dyn_cast<StructType>(OrigTy)) {
+    std::vector<Type*> Elements;
     Elements.reserve(STy->getNumElements());
 
     const StructLayout *SL = TD.getStructLayout(STy);
@@ -277,7 +277,7 @@ ComputeCompressedType(const Type *OrigTy, unsigned NodeOffset,
                                                NodeOffset+SL->getElementOffset(i),
                                                Nodes));
     return StructType::get(STy->getContext(),Elements);
-  } else if (const ArrayType *ATy = dyn_cast<ArrayType>(OrigTy)) {
+  } else if (ArrayType *ATy = dyn_cast<ArrayType>(OrigTy)) {
     return ArrayType::get(ComputeCompressedType(ATy->getElementType(),
                                                 NodeOffset, Nodes),
                           ATy->getNumElements());
@@ -297,7 +297,7 @@ Value *CompressedPoolInfo::EmitPoolBaseLoad(Instruction &I) const {
     // Get the pool base pointer.
     Constant *Zero = ConstantInt::get(Int32Type, 0);
     Value *Opts[2] = {Zero, Zero};
-    Value *BasePtrPtr = GetElementPtrInst::Create(getPoolDesc(), Opts, Opts + 2,
+    Value *BasePtrPtr = GetElementPtrInst::Create(getPoolDesc(), ArrayRef<Value*>(Opts),
                                               "poolbaseptrptr", &I);
     return new LoadInst(BasePtrPtr, "poolbaseptr", &I);
   } else {
@@ -309,7 +309,7 @@ Value *CompressedPoolInfo::EmitPoolBaseLoad(Instruction &I) const {
       while (isa<AllocaInst>(IP)) ++IP;
       Constant *Zero = ConstantInt::get(Int32Type, 0);
       Value *Opts[2] = {Zero, Zero};
-      Value *BasePtrPtr = GetElementPtrInst::Create(getPoolDesc(), Opts, Opts + 2,
+      Value *BasePtrPtr = GetElementPtrInst::Create(getPoolDesc(), ArrayRef<Value*>(Opts),
                                                 "poolbaseptrptr", IP);
       PoolBase = new LoadInst(BasePtrPtr, "poolbaseptr", IP);
     }
@@ -614,8 +614,7 @@ void InstructionRewriter::visitPHINode(PHINode &PN) {
   const CompressedPoolInfo *DestPI = getPoolInfo(&PN);
   if (DestPI == 0) return;
 
-  PHINode *New = PHINode::Create (SCALARUINTTYPE, PN.getName(), &PN);
-  New->reserveOperandSpace(PN.getNumIncomingValues());
+  PHINode *New = PHINode::Create (SCALARUINTTYPE, PN.getNumIncomingValues(), PN.getName(), &PN);
 
   for (unsigned i = 0, e = PN.getNumIncomingValues(); i != e; ++i)
     New->addIncoming(getTransformedValue(PN.getIncomingValue(i)),
@@ -700,12 +699,12 @@ void InstructionRewriter::visitGetElementPtrInst(GetElementPtrInst &GEPI) {
 
   // The compressed type for the pool.  FIXME: NOTE: This only works if 'Val'
   // pointed to the start of a node!
-  const Type *NTy = PointerType::getUnqual(PI->getNewType());
+  Type *NTy = PointerType::getUnqual(PI->getNewType());
 
   //Check if we have a pointer to an array of Original Types this happens if
   //you do a malloc of [n x OrigTy] for a pool of Type OrigTy
   if(isa<PointerType>(GEPI.getOperand(0)->getType())) {
-    const Type* PT =
+    Type* PT =
       cast<PointerType>(GEPI.getOperand(0)->getType())->getElementType();
     if(isa<ArrayType>(PT)) {
       //FIXME: TYPE
@@ -719,7 +718,7 @@ void InstructionRewriter::visitGetElementPtrInst(GetElementPtrInst &GEPI) {
   gep_type_iterator GTI = gep_type_begin(GEPI), E = gep_type_end(GEPI);
   for (unsigned i = 1, e = GEPI.getNumOperands(); i != e; ++i, ++GTI) {
     Value *Idx = GEPI.getOperand(i);
-    if (const StructType *STy = dyn_cast<StructType>(*GTI)) {
+    if (StructType *STy = dyn_cast<StructType>(*GTI)) {
       uint64_t Field = (unsigned)cast<ConstantInt>(Idx)->getZExtValue();
       if (Field) {
         uint64_t FieldOffs = TD.getStructLayout(cast<StructType>(NTy))
@@ -736,10 +735,10 @@ void InstructionRewriter::visitGetElementPtrInst(GetElementPtrInst &GEPI) {
         NTy = cast<StructType>(NTy)->getElementType(Field);
     } else {
       assert(isa<SequentialType>(*GTI) && "Not struct or sequential?");
-      const SequentialType *STy = cast<SequentialType>(*GTI);
+      SequentialType *SeqTy = cast<SequentialType>(*GTI);
       if (!isa<Constant>(Idx) || !cast<Constant>(Idx)->isNullValue()) {
         // Add Idx*sizeof(NewElementType) to the index.
-        const Type *ElTy = cast<SequentialType>(NTy)->getElementType();
+        Type *ElTy = cast<SequentialType>(NTy)->getElementType();
         if (Idx->getType() != SCALARUINTTYPE)
           Idx = CastInst::CreateSExtOrBitCast(Idx, SCALARUINTTYPE, Idx->getName(), &GEPI);
 
@@ -750,7 +749,7 @@ void InstructionRewriter::visitGetElementPtrInst(GetElementPtrInst &GEPI) {
       }
 
       // If this is a one element array type, NTy may not reflect the array.
-      if (!isa<ArrayType>(STy) || cast<ArrayType>(STy)->getNumElements() != 1 ||
+      if (!isa<ArrayType>(SeqTy) || cast<ArrayType>(SeqTy)->getNumElements() != 1 ||
           (isa<ArrayType>(NTy) && cast<ArrayType>(NTy)->getNumElements() == 1))
         NTy = cast<SequentialType>(NTy)->getElementType();
     }
@@ -786,7 +785,7 @@ void InstructionRewriter::visitLoadInst(LoadInst &LI) {
     Ops = CastInst::CreateZExtOrBitCast(Ops, Int32Type, "extend_idx", &LI);
   Value *SrcPtr = GetElementPtrInst::Create(BasePtr, Ops,
                                         LI.getOperand(0)->getName()+".pp", &LI);
-  const Type *DestTy = LoadingCompressedPtr ? MEMUINTTYPE : LI.getType();
+  Type *DestTy = LoadingCompressedPtr ? MEMUINTTYPE : LI.getType();
   SrcPtr = CastInst::CreatePointerCast(SrcPtr, PointerType::getUnqual(DestTy),
                                       SrcPtr->getName(), &LI);
   std::string OldName = LI.getName(); LI.setName("");
@@ -880,7 +879,7 @@ void InstructionRewriter::visitPoolInit(CallInst &CI) {
   Ops.push_back(ConstantInt::get(Int32Type,
              PA::Heuristic::getRecommendedAlignment(PI->getNewType(), TD)));
   // TODO: Compression could reduce the alignment restriction for the pool!
-  Value *PB = CallInst::Create(PtrComp.PoolInitPC, Ops.begin(), Ops.end(), "", &CI);
+  Value *PB = CallInst::Create(PtrComp.PoolInitPC, Ops, "", &CI);
 
   if (!DisablePoolBaseASR) { // Load the pool base immediately.
     PB->setName(CI.getOperand(1)->getName()+".poolbase");
@@ -924,7 +923,7 @@ void InstructionRewriter::visitPoolAlloc(CallInst &CI) {
     }
 
   Value *Opts[2] = {CI.getOperand(1), Size};
-  Value *NC = CallInst::Create(PtrComp.PoolAllocPC, Opts, Opts + 2, CI.getName(), &CI);
+  Value *NC = CallInst::Create(PtrComp.PoolAllocPC, ArrayRef<Value*>(Opts), CI.getName(), &CI);
   setTransformedValue(CI, NC);
 }
 
@@ -1050,7 +1049,7 @@ void InstructionRewriter::visitCallInst(CallInst &CI) {
     }
 
     Function *Clone = PtrComp.GetExtFunctionClone(Callee, CompressedArgs);
-    Value *NC = CallInst::Create(Clone, Operands.begin(), Operands.end(), CI.getName(), &CI);
+    Value *NC = CallInst::Create(Clone, Operands, CI.getName(), &CI);
     if (NC->getType() != CI.getType())      // Compressing return value?
       setTransformedValue(CI, NC);
     else {
@@ -1127,7 +1126,7 @@ void InstructionRewriter::visitCallInst(CallInst &CI) {
     else
       Operands.push_back(CI.getOperand(i));
 
-  Value *NC = CallInst::Create(Clone, Operands.begin(), Operands.end(), CI.getName(), &CI);
+  Value *NC = CallInst::Create(Clone, Operands, CI.getName(), &CI);
   if (NC->getType() != CI.getType())      // Compressing return value?
     setTransformedValue(CI, NC);
   else {
@@ -1346,15 +1345,15 @@ GetExtFunctionClone(Function *F, const std::vector<unsigned> &ArgsToComp) {
   Function *&Clone = ExtCloneFunctionMap[std::make_pair(F, ArgsToComp)];
   if (Clone) return Clone;
 
-  const FunctionType *FTy = F->getFunctionType();
-  const Type *RetTy = FTy->getReturnType();
+  FunctionType *FTy = F->getFunctionType();
+  Type *RetTy = FTy->getReturnType();
   unsigned ArgIdx = 0;
   if (isa<PointerType>(RetTy) && ArgsToComp[0] == 0) {
     RetTy = SCALARUINTTYPE;
     ++ArgIdx;
   }
 
-  std::vector<const Type*> ParamTypes;
+  std::vector<Type*> ParamTypes;
 
   for (unsigned i = 0, e = FTy->getNumParams(); i != e; ++i)
     if (ArgIdx < ArgsToComp.size() && ArgsToComp[ArgIdx]-1 == i) {
@@ -1388,13 +1387,13 @@ GetFunctionClone(Function *F, std::set<const DSNode*> &PoolsToCompress,
   if (Clone) return Clone;
 
   // First step, construct the new function prototype.
-  const FunctionType *FTy = F->getFunctionType();
-  const Type *RetTy = FTy->getReturnType();
+  FunctionType *FTy = F->getFunctionType();
+  Type *RetTy = FTy->getReturnType();
   if (isa<PointerType>(RetTy) &&
       PoolsToCompress.count(CG.getReturnNodeFor(FI.F).getNode())) {
     RetTy = SCALARUINTTYPE;
   }
-  std::vector<const Type*> ParamTypes;
+  std::vector<Type*> ParamTypes;
   unsigned NumPoolArgs = FI.ArgNodes.size();
 
   // Pass all pool args unmodified.
@@ -1430,7 +1429,7 @@ GetFunctionClone(Function *F, std::set<const DSNode*> &PoolsToCompress,
     return Clone;
   }
 
-  DenseMap<const Value*, Value*> ValueMap;
+  ValueToValueMapTy ValueMap;
 
   // Create dummy Value*'s of pointer type for any arguments that are
   // compressed.  These are needed to satisfy typing constraints before the
@@ -1459,12 +1458,13 @@ GetFunctionClone(Function *F, std::set<const DSNode*> &PoolsToCompress,
 
   // Clone the actual function body over.
   SmallVector<ReturnInst*,100> Returns;
-  CloneFunctionInto(Clone, F, ValueMap, Returns);
+  // TODO: Should the 'ModuleLevelChanges' flag be true or false here?
+  CloneFunctionInto(Clone, F, ValueMap, true, Returns);
   Returns.clear();  // Don't need this.
   
   // Invert the ValueMap into the NewToOldValueMap
   std::map<Value*, const Value*> &NewToOldValueMap = CFI.NewToOldValueMap;
-  for (DenseMap<const Value*, Value*>::iterator I = ValueMap.begin(),
+  for (ValueToValueMapTy::iterator I = ValueMap.begin(),
          E = ValueMap.end(); I != E; ++I)
     NewToOldValueMap.insert(std::make_pair(I->second, I->first));
 
@@ -1513,8 +1513,8 @@ void PointerCompress::HandleGlobalPools(Module &M) {
 /// InitializePoolLibraryFunctions - Create the function prototypes for pointer
 /// compress runtime library functions.
 void PointerCompress::InitializePoolLibraryFunctions(Module &M) {
-  const Type *VoidPtrTy = PointerType::getUnqual(Int8Type);
-  const Type *PoolDescPtrTy = PointerType::getUnqual(ArrayType::get(VoidPtrTy, 16));
+  Type *VoidPtrTy = PointerType::getUnqual(Int8Type);
+  Type *PoolDescPtrTy = PointerType::getUnqual(ArrayType::get(VoidPtrTy, 16));
 
   PoolInitPC = M.getOrInsertFunction("poolinit_pc", VoidPtrTy, PoolDescPtrTy, 
                                      Int32Type, Int32Type, NULL);

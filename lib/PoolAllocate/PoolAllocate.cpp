@@ -46,7 +46,7 @@ char PoolAllocate::ID = 0;
 char PoolAllocatePassAllPools::ID = 0;
 char PoolAllocateGroup::ID = 0;
 
-const Type *PoolAllocate::PoolDescPtrTy = 0;
+Type *PoolAllocate::PoolDescPtrTy = 0;
 
 cl::opt<bool> PA::PA_SAFECODE("pa-safecode", cl::ReallyHidden);
 
@@ -69,10 +69,10 @@ namespace {
   STATISTIC (NumNonprofit, "Number of DSNodes not profitable");
   //  STATISTIC (NumColocated, "Number of DSNodes colocated");
 
-  const Type *VoidPtrTy;
+  Type *VoidPtrTy;
 
   // The type to allocate for a pool descriptor.
-  const Type *PoolDescType;
+  Type *PoolDescType;
 
   cl::opt<bool>
   DisableInitDestroyOpt("poolalloc-force-simple-pool-init",
@@ -88,9 +88,9 @@ createPoolAllocInit (Module & M) {
   //
   // Create the __poolalloc_init() function.
   //
-  const Type * VoidType = Type::getVoidTy(M.getContext());
+  Type * VoidType = Type::getVoidTy(M.getContext());
   FunctionType * FTy = FunctionType::get(VoidType,
-                                         std::vector<const Type*>(),
+                                         std::vector<Type*>(),
                                          false);
   Function *InitFunc = Function::Create (FTy,
                                          GlobalValue::ExternalLinkage,
@@ -120,9 +120,9 @@ createGlobalPoolCtor (Module & M) {
   // Create the global pool ctor function.
   //
   LLVMContext & Context = M.getContext();
-  const Type * VoidType = Type::getVoidTy (Context);
+  Type * VoidType = Type::getVoidTy (Context);
   FunctionType * FTy = FunctionType::get(VoidType,
-                                         std::vector<const Type*>(),
+                                         std::vector<Type*>(),
                                          false);
   Function *InitFunc = Function::Create (FTy,
                                          GlobalValue::ExternalLinkage,
@@ -138,11 +138,11 @@ createGlobalPoolCtor (Module & M) {
   //
   // Insert the run-time ctor into the ctor list.
   //
-  const Type * Int32Type = IntegerType::getInt32Ty(Context);
+  Type * Int32Type = IntegerType::getInt32Ty(Context);
   std::vector<Constant *> CtorInits;
   CtorInits.push_back (ConstantInt::get (Int32Type, 65535));
   CtorInits.push_back (InitFunc);
-  Constant * RuntimeCtorInit = ConstantStruct::get(Context, CtorInits, false);
+  Constant * RuntimeCtorInit = ConstantStruct::getAnon(Context, ArrayRef<Constant*>(CtorInits));
 
   //
   // Get the current set of static global constructors and add the new ctor
@@ -177,7 +177,7 @@ createGlobalPoolCtor (Module & M) {
   //
   // Create a new initializer.
   //
-  const ArrayType * AT = ArrayType::get (RuntimeCtorInit-> getType(),
+  ArrayType * AT = ArrayType::get (RuntimeCtorInit-> getType(),
                                          CurrentCtors.size());
   Constant * NewInit=ConstantArray::get (AT, CurrentCtors);
 
@@ -200,13 +200,13 @@ void PoolAllocate::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.addRequired<Heuristic>();
   AU.addPreserved<Heuristic>();
   if (dsa_pass_to_use == PASS_EQTD) {
-    AU.addRequiredTransitive<EQTDDataStructures>();
+    AU.addRequired<EQTDDataStructures>();
     if(lie_preserve_passes != LIE_NONE)
-    	AU.addPreserved<EQTDDataStructures>();
+      AU.addPreserved<EQTDDataStructures>();
   } else {
-    AU.addRequiredTransitive<EquivBUDataStructures>();
+    AU.addRequired<EquivBUDataStructures>();
     if(lie_preserve_passes != LIE_NONE)
-    	AU.addPreserved<EquivBUDataStructures>();
+      AU.addPreserved<EquivBUDataStructures>();
   }
 
   // Preserve the pool information across passes
@@ -347,13 +347,13 @@ bool PoolAllocate::runOnModule(Module &M) {
     for (Function::use_iterator User = F->use_begin();
                                 User != F->use_end();
                                 ++User) {
-      if (CallInst * CI = dyn_cast<CallInst>(User)) {
+      if (CallInst * CI = dyn_cast<CallInst>(*User)) {
         if (CI->getCalledFunction() == F)
           if ((FuncMap.find(CI->getParent()->getParent())) != FuncMap.end())
             continue;
       }
 
-      if (InvokeInst * CI = dyn_cast<InvokeInst>(User)) {
+      if (InvokeInst * CI = dyn_cast<InvokeInst>(*User)) {
         if (CI->getCalledFunction() == F)
           if ((FuncMap.find(CI->getParent()->getParent())) != FuncMap.end())
             continue;
@@ -440,7 +440,9 @@ void PoolAllocate::AddPoolPrototypes(Module* M) {
     PoolDescPtrTy = PointerType::getUnqual(PoolDescType);
   }
 
-  M->addTypeName("PoolDescriptor", PoolDescType);
+  // TODO: I'm not sure how to do this on mainline.
+  //M->addTypeName("PoolDescriptor", PoolDescType);
+
   
   // Get poolinit function.
   PoolInit = M->getOrInsertFunction("poolinit", VoidType,
@@ -488,7 +490,7 @@ void PoolAllocate::AddPoolPrototypes(Module* M) {
   if(pthread_create_func)
   {
       Function::arg_iterator i = pthread_create_func->arg_begin();
-      std::vector<const Type*> non_vararg_params;
+      std::vector<Type*> non_vararg_params;
       non_vararg_params.push_back(i++->getType());
       non_vararg_params.push_back(i++->getType());
       non_vararg_params.push_back(i++->getType());
@@ -529,7 +531,7 @@ OptimizePointerNotNull(Value *V, LLVMContext * Context) {
       if (isa<Constant>(User->getOperand(1)) && 
           cast<Constant>(User->getOperand(1))->isNullValue()) {
         bool CondIsTrue = ICI->getPredicate() == ICmpInst::ICMP_NE;
-        const Type * Int1Type  = IntegerType::getInt1Ty(*Context);
+        Type * Int1Type  = IntegerType::getInt1Ty(*Context);
         User->replaceAllUsesWith(ConstantInt::get(Int1Type, CondIsTrue));
       }
     } else if ((User->getOpcode() == Instruction::Trunc) ||
@@ -723,13 +725,17 @@ PoolAllocate::FindPoolArgs (Module & M) {
         // internal function or the external ones. 
         // FIXME: Solve this by devirtualizing the call site.
         for (unsigned index = 0; index < Functions.size(); ++index) {
-          Function * F = (Function *) Functions[index];
+          Function * F = const_cast<Function*>(Functions[index]);
           if (FunctionInfo.find (F) != FunctionInfo.end()) {
             FuncInfo & FI =  FunctionInfo.find(F)->second;
             assert(FI.ArgNodes.size() == 0);
             continue;
           }
-          FunctionInfo.insert(std::make_pair(F, FuncInfo(*F))).first->second;
+          // TODO: Original code was:
+          // FunctionInfo.insert(std::make_pair(F, FuncInfo(*F))).first->second;
+          // But this has unused components.. (.first->second?)
+          // So just inserting the function info, and hoping for the best.
+          FunctionInfo.insert(std::make_pair(F, FuncInfo(*F)));
         }
       } else {
         FindFunctionPoolArgs (Functions);
@@ -849,7 +855,7 @@ PoolAllocate::FindFunctionPoolArgs (const std::vector<const Function *> & Functi
   // the same set of DSNodes passed in.
   //
   for (unsigned index = 0; index < Functions.size(); ++index) {
-    Function * F = (Function *) Functions[index];
+    Function * F = const_cast<Function*>(Functions[index]);
     if (FunctionInfo.find (F) != FunctionInfo.end()) {
       FuncInfo & FI =  FunctionInfo.find(F)->second;
       assert(FI.ArgNodes.size() == MarkedNodes.size());
@@ -910,8 +916,8 @@ PoolAllocate::MakeFunctionClone (Function & F) {
   // for the pools to pass into the function, and then we will insert the
   // original parameter values after that.
   //
-  std::vector<const Type*> ArgTys(FI.ArgNodes.size(), PoolDescPtrTy);
-  const FunctionType *OldFuncTy = F.getFunctionType();
+  std::vector<Type*> ArgTys(FI.ArgNodes.size(), PoolDescPtrTy);
+  FunctionType *OldFuncTy = F.getFunctionType();
   ArgTys.reserve(OldFuncTy->getNumParams() + FI.ArgNodes.size());
   ArgTys.insert(ArgTys.end(), OldFuncTy->param_begin(), OldFuncTy->param_end());
 
@@ -942,7 +948,7 @@ PoolAllocate::MakeFunctionClone (Function & F) {
   // arguments of the new function, and copy over the names.
   //
   //
-  DenseMap<const Value*, Value*> ValueMap;
+  ValueToValueMapTy ValueMap;
   // FIXME: Remove use of SAFECodeEnabled flag
   // FIXME: Is FI.ValueMap empty?  We should put an assert to verify that it
   //        is.
@@ -959,13 +965,14 @@ PoolAllocate::MakeFunctionClone (Function & F) {
 
   // Perform the cloning.
   SmallVector<ReturnInst*,100> Returns;
-  CloneFunctionInto(New, &F, ValueMap, Returns);
+  // TODO: Evalute the boolean parameter here...
+  CloneFunctionInto(New, &F, ValueMap, true, Returns);
 
   //
   // Invert the ValueMap into the NewToOldValueMap.
   //
   std::map<Value*, const Value*> &NewToOldValueMap = FI.NewToOldValueMap;
-  for (DenseMap<const Value*, Value*>::iterator I = ValueMap.begin(),
+  for (ValueToValueMapTy::iterator I = ValueMap.begin(),
          E = ValueMap.end(); I != E; ++I)
     NewToOldValueMap.insert(std::make_pair(I->second, I->first));
 
@@ -1084,7 +1091,7 @@ GlobalVariable *PoolAllocate::CreateGlobalPool(unsigned RecSize, unsigned Align,
   Value *ElSize = ConstantInt::get(Int32Type, RecSize);
   Value *AlignV = ConstantInt::get(Int32Type, Align);
   Value* Opts[3] = {GV, ElSize, AlignV};
-  CallInst::Create(PoolInit, Opts, Opts + 3, "", InsertPt);
+  CallInst::Create(PoolInit, ArrayRef<Value*>(Opts), "", InsertPt);
   ++NumPools;
   return GV;
 }
@@ -1307,7 +1314,7 @@ void PoolAllocate::CalculateLivePoolFreeBlocks(std::set<BasicBlock*>&LiveBlocks,
     // cast pool handles, so if we see a non-call instruction, we know it's not
     // used in a poolfree() or pooldestroy() call.
     //
-    if (Instruction * Inst = dyn_cast<Instruction>(I)) {
+    if (Instruction * Inst = dyn_cast<Instruction>(*I)) {
       if (!isa<CallInst>(*I)) {
         // This block and every block that can reach this block must keep pool
         // frees.
@@ -1320,7 +1327,7 @@ void PoolAllocate::CalculateLivePoolFreeBlocks(std::set<BasicBlock*>&LiveBlocks,
       }
     }
 
-    CallSite U = CallSite::get(I->stripPointerCasts());
+    CallSite U = CallSite(I->stripPointerCasts());
     if (U.getCalledValue() != PoolFree && U.getCalledValue() != PoolDestroy) {
       // This block and every block that can reach this block must keep pool
       // frees.
@@ -1493,7 +1500,7 @@ void PoolAllocate::InitializeAndDestroyPool(Function &F, const DSNode *Node,
 
   for (unsigned i = 0, e = PoolInitPoints.size(); i != e; ++i) {
     Value* Opts[3] = {PD, ElSize, Align};
-    CallInst::Create(PoolInit, Opts, Opts + 3,  "", PoolInitPoints[i]);
+    CallInst::Create(PoolInit, ArrayRef<Value*>(Opts),  "", PoolInitPoints[i]);
     DEBUG(errs() << PoolInitPoints[i]->getParent()->getNameStr() << " ");
   }
 

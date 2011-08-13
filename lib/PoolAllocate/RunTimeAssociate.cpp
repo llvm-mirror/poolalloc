@@ -141,8 +141,8 @@ Function* RTAssociate::MakeFunctionClone(Function &F, FuncInfo& FI, DSGraph* G) 
 
   // Figure out what the arguments are to be for the new version of the
   // function
-  const FunctionType *OldFuncTy = F.getFunctionType();
-  std::vector<const Type*> ArgTys(FI.ArgNodes.size(), PoolDescPtrTy);
+  FunctionType *OldFuncTy = F.getFunctionType();
+  std::vector<Type*> ArgTys(FI.ArgNodes.size(), PoolDescPtrTy);
   ArgTys.reserve(OldFuncTy->getNumParams() + FI.ArgNodes.size());
 
   ArgTys.insert(ArgTys.end(), OldFuncTy->param_begin(), OldFuncTy->param_end());
@@ -165,7 +165,7 @@ Function* RTAssociate::MakeFunctionClone(Function &F, FuncInfo& FI, DSGraph* G) 
 
   // Map the existing arguments of the old function to the corresponding
   // arguments of the new function, and copy over the names.
-  DenseMap<const Value*, Value*> ValueMap;
+  ValueToValueMapTy ValueMap;
   for (Function::arg_iterator I = F.arg_begin();
           NI != New->arg_end(); ++I, ++NI) {
     ValueMap[I] = NI;
@@ -174,7 +174,8 @@ Function* RTAssociate::MakeFunctionClone(Function &F, FuncInfo& FI, DSGraph* G) 
 
   // Perform the cloning.
   SmallVector<ReturnInst*,100> Returns;
-  CloneFunctionInto(New, &F, ValueMap, Returns);
+  // TODO: review the boolean flag here
+  CloneFunctionInto(New, &F, ValueMap, true, Returns);
 
   //
   // The CloneFunctionInto() function will copy the parameter attributes
@@ -200,15 +201,15 @@ Function* RTAssociate::MakeFunctionClone(Function &F, FuncInfo& FI, DSGraph* G) 
     New->setAttributes(NewAttrsVector);
   }
 
-  for (DenseMap<const Value*, Value*>::iterator I = ValueMap.begin(),
+  for (ValueToValueMapTy::iterator I = ValueMap.begin(),
           E = ValueMap.end(); I != E; ++I)
-    FI.NewToOldValueMap.insert(std::make_pair(I->second, (Value*)I->first));
+    FI.NewToOldValueMap.insert(std::make_pair(I->second, const_cast<Value*>(I->first)));
 
   return FI.Clone = New;
 }
 
 RTAssociate::RTAssociate()
-: ModulePass((intptr_t) & ID) { }
+: ModulePass(ID) { }
 
 void RTAssociate::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.addRequiredTransitive<CompleteBUDataStructures > ();
@@ -229,7 +230,8 @@ bool RTAssociate::runOnModule(Module &M) {
   //  PoolDescType = OpaqueType::get(M.getContext());
   PoolDescType = Type::getInt32Ty(M.getContext());
   PoolDescPtrTy = PointerType::getUnqual(PoolDescType);
-  M.addTypeName("PoolDescriptor", PoolDescType);
+  // TODO: Not sure how to do this anymore, commenting out.
+  //M.addTypeName("PoolDescriptor", PoolDescType);
 
   // Create the pools for memory objects reachable by global variables.
   SetupGlobalPools(&M, Graphs-> getGlobalsGraph());
@@ -524,7 +526,7 @@ void RTAssociate::replaceCall(CallSite CS, FuncInfo& FI, DataStructures* DS) {
       return;           // No arguments to add?  Transformation is a noop!
 
     // Cast the function pointer to an appropriate type!
-    std::vector<const Type*> ArgTys(ArgNodes.size(), PoolDescPtrTy);
+    std::vector<Type*> ArgTys(ArgNodes.size(), PoolDescPtrTy);
     for (CallSite::arg_iterator I = CS.arg_begin(), E = CS.arg_end();
          I != E; ++I)
       ArgTys.push_back((*I)->getType());
@@ -573,9 +575,9 @@ void RTAssociate::replaceCall(CallSite CS, FuncInfo& FI, DataStructures* DS) {
   // type doesn't match the number of arguments.
   //
   if (Function * NewFunction = dyn_cast<Function>(NewCallee)) {
-    const FunctionType * NewCalleeType = NewFunction->getFunctionType();
+    FunctionType * NewCalleeType = NewFunction->getFunctionType();
     if (NewCalleeType->getNumParams() != Args.size()) {
-      std::vector<const Type *> Types;
+      std::vector<Type *> Types;
       Type * FuncTy = FunctionType::get (NewCalleeType->getReturnType(),
                                          Types,
                                          true);
@@ -589,9 +591,9 @@ void RTAssociate::replaceCall(CallSite CS, FuncInfo& FI, DataStructures* DS) {
   if (InvokeInst *II = dyn_cast<InvokeInst>(TheCall)) {
     NewCall = InvokeInst::Create (NewCallee, II->getNormalDest(),
                                   II->getUnwindDest(),
-                                  Args.begin(), Args.end(), Name, TheCall);
+                                  Args, Name, TheCall);
   } else {
-    NewCall = CallInst::Create (NewCallee, Args.begin(), Args.end(), Name,
+    NewCall = CallInst::Create (NewCallee, Args, Name,
                                 TheCall);
   }
 

@@ -21,9 +21,9 @@
 #include <set>
 using namespace llvm;
 
-static const Type * VoidType  = 0;
-static const Type * Int8Type  = 0;
-static const Type * Int32Type = 0;
+static Type * VoidType  = 0;
+static Type * Int8Type  = 0;
+static Type * Int32Type = 0;
 
 namespace {
   STATISTIC (NumBumpPtr, "Number of bump pointer pools");
@@ -32,7 +32,7 @@ namespace {
     static char ID;
     bool SAFECodeEnabled;
 
-    PoolOptimize(bool SAFECode = true) : ModulePass((intptr_t)&ID) {
+    PoolOptimize(bool SAFECode = true) : ModulePass(ID) {
       SAFECodeEnabled = SAFECode;
     }
     bool runOnModule(Module &M);
@@ -69,8 +69,8 @@ bool PoolOptimize::runOnModule(Module &M) {
   //
   // Create LLVM types used by the pool allocation passes.
   //
-  const Type *VoidPtrTy = PointerType::getUnqual(Int8Type);
-  const Type *PoolDescPtrTy;
+  Type *VoidPtrTy = PointerType::getUnqual(Int8Type);
+  Type *PoolDescPtrTy;
   if (SAFECodeEnabled)
     PoolDescPtrTy = PointerType::getUnqual(ArrayType::get(VoidPtrTy, 92));
   else
@@ -135,7 +135,7 @@ bool PoolOptimize::runOnModule(Module &M) {
     // poolrealloc(PD, null, X) -> poolalloc(PD, X)
     if (isa<ConstantPointerNull>(CI->getOperand(2))) {
       Value* Opts[2] = {CI->getOperand(1), CI->getOperand(3)};
-      Value *New = CallInst::Create(PoolAlloc, Opts, Opts + 2,
+      Value *New = CallInst::Create(PoolAlloc, ArrayRef<Value*>(Opts),
                                 CI->getName(), CI);
       CI->replaceAllUsesWith(New);
       CI->eraseFromParent();
@@ -143,15 +143,15 @@ bool PoolOptimize::runOnModule(Module &M) {
                cast<Constant>(CI->getOperand(3))->isNullValue()) {
       // poolrealloc(PD, X, 0) -> poolfree(PD, X)
       Value* Opts[2] = {CI->getOperand(1), CI->getOperand(2)};
-      CallInst::Create(PoolFree, Opts, Opts + 2, "", CI);
-      const PointerType * PT = dyn_cast<PointerType>(CI->getType());
+      CallInst::Create(PoolFree, ArrayRef<Value*>(Opts), "", CI);
+      PointerType * PT = dyn_cast<PointerType>(CI->getType());
       assert (PT && "poolrealloc call does not return a pointer!\n");
       CI->replaceAllUsesWith(ConstantPointerNull::get(PT));
       CI->eraseFromParent();
     } else if (isa<ConstantPointerNull>(CI->getOperand(1))) {
       // poolrealloc(null, X, Y) -> realloc(X, Y)
       Value* Opts[2] = {CI->getOperand(2), CI->getOperand(3)};
-      Value *New = CallInst::Create(Realloc, Opts, Opts + 2,
+      Value *New = CallInst::Create(Realloc, ArrayRef<Value*>(Opts),
                                 CI->getName(), CI);
       CI->replaceAllUsesWith(New);
       CI->eraseFromParent();
@@ -182,7 +182,7 @@ bool PoolOptimize::runOnModule(Module &M) {
     // poolmemalign(null, X, Y) -> memalign(X, Y)
     if (isa<ConstantPointerNull>(CI->getOperand(1))) {
       Value* Opts[2] = {CI->getOperand(2), CI->getOperand(3)};
-      Value *New = CallInst::Create(MemAlign, Opts, Opts + 2, CI->getName(), CI);
+      Value *New = CallInst::Create(MemAlign, ArrayRef<Value*>(Opts), CI->getName(), CI);
       CI->replaceAllUsesWith(New);
       CI->eraseFromParent();
     }
@@ -254,18 +254,18 @@ bool PoolOptimize::runOnModule(Module &M) {
           std::vector<Value*> Args;
           if (CI->getCalledFunction() == PoolAlloc) {
             Args.assign(CI->op_begin()+1, CI->op_end());
-            Value *New = CallInst::Create(PoolAllocBP, Args.begin(), Args.end(), CI->getName(), CI);
+            Value *New = CallInst::Create(PoolAllocBP, Args, CI->getName(), CI);
             CI->replaceAllUsesWith(New);
             CI->eraseFromParent();
           } else if (CI->getCalledFunction() == PoolInit) {
             Args.assign(CI->op_begin()+1, CI->op_end());
             Args.erase(Args.begin()+1); // Drop the size argument.
-            CallInst::Create(PoolInitBP, Args.begin(), Args.end(), "", CI);
+            CallInst::Create(PoolInitBP, Args, "", CI);
             CI->eraseFromParent();
           } else {
             assert(CI->getCalledFunction() == PoolDestroy);
             Args.assign(CI->op_begin()+1, CI->op_end());
-            CallInst::Create(PoolDestroyBP, Args.begin(), Args.end(), "", CI);
+            CallInst::Create(PoolDestroyBP, Args, "", CI);
             CI->eraseFromParent();
           }
         }

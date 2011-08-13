@@ -52,7 +52,7 @@ namespace {
 }
 
 static inline Value *
-castTo (Value * V, const Type * Ty, const std::string & Name, Instruction * InsertPt) {
+castTo (Value * V, Type * Ty, const std::string & Name, Instruction * InsertPt) {
   //
   // Don't bother creating a cast if it's already the correct type.
   //
@@ -75,7 +75,8 @@ castTo (Value * V, const Type * Ty, const std::string & Name, Instruction * Inse
 
 void PoolAllocateMultipleGlobalPool::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.addRequired<TargetData>();
-  AU.addRequiredTransitive<SteensgaardDataStructures>();
+  assert(0 && "PoolAllocateMultipleGlobalPool doesn't work! Needs Steensgard-like analysis, which was removed!");
+  //AU.addRequiredTransitive<SteensgaardDataStructures>();
   // It is a big lie.
   AU.setPreservesAll();
 }
@@ -91,7 +92,8 @@ bool PoolAllocateMultipleGlobalPool::runOnModule(Module &M) {
   Int8Type  = IntegerType::getInt8Ty(getGlobalContext());
   Int32Type = IntegerType::getInt32Ty(getGlobalContext());
 
-  Graphs = &getAnalysis<SteensgaardDataStructures>();
+  //Graphs = &getAnalysis<SteensgaardDataStructures>();
+  Graphs = NULL;
   assert (Graphs && "No DSA pass available!\n");
 
   TargetData & TD = getAnalysis<TargetData>();
@@ -214,8 +216,7 @@ PoolAllocateMultipleGlobalPool::ProcessFunctionBodySimple (Function& F, TargetDa
           std::string Name = CI->getName(); CI->setName("");
           Value* Opts[3] = {Pool, OldPtr, Size};
           Instruction *V = CallInst::Create (PoolRealloc,
-                                         Opts,
-                                         Opts + 3,
+                                         ArrayRef<Value*>(Opts),
                                          Name,
                                          InsertPt);
           Value *Casted = castTo(V, CI->getType(), V->getName(), InsertPt);
@@ -259,8 +260,7 @@ PoolAllocateMultipleGlobalPool::ProcessFunctionBodySimple (Function& F, TargetDa
           std::string Name = CI->getName(); CI->setName("");
           Value* Opts[3] = {Pool, NumElements, Size};
           Instruction *V = CallInst::Create (PoolCalloc,
-                                             Opts,
-                                             Opts + 3,
+                                             ArrayRef<Value*>(Opts),
                                              Name,
                                              InsertPt);
 
@@ -297,8 +297,7 @@ PoolAllocateMultipleGlobalPool::ProcessFunctionBodySimple (Function& F, TargetDa
           std::string Name = CI->getName(); CI->setName("");
           Value* Opts[2] = {Pool, OldPtr};
           Instruction *V = CallInst::Create (PoolStrdup,
-                                         Opts,
-                                         Opts + 2,
+                                         ArrayRef<Value*>(Opts),
                                          Name,
                                          InsertPt);
           Value *Casted = castTo(V, CI->getType(), V->getName(), InsertPt);
@@ -345,7 +344,7 @@ PoolAllocateMultipleGlobalPool::CreateGlobalPool (unsigned RecSize,
                                       Module& M) {
 
   Function *InitFunc = Function::Create
-    (FunctionType::get(VoidType, std::vector<const Type*>(), false),
+    (FunctionType::get(VoidType, std::vector<Type*>(), false),
     GlobalValue::ExternalLinkage, "__poolalloc_init", &M);
 
   // put it into llvm.used so that it won't get killed.
@@ -361,8 +360,8 @@ PoolAllocateMultipleGlobalPool::CreateGlobalPool (unsigned RecSize,
       NewInit, "llvm.used");
 
 
-  BasicBlock * BB = BasicBlock::Create(getGlobalContext(), "entry", InitFunc);
-  
+  assert(0 && "Not implemented!");
+#if 0
   SteensgaardDataStructures * DS = (SteensgaardDataStructures*)Graphs;
   
   assert (DS && "PoolAllocateMultipleGlobalPools requires Steensgaard Data Structure!");
@@ -391,6 +390,7 @@ PoolAllocateMultipleGlobalPool::CreateGlobalPool (unsigned RecSize,
   }
 
   ReturnInst::Create(getGlobalContext(), BB);
+#endif
 }
 
 void
@@ -411,7 +411,7 @@ PoolAllocateMultipleGlobalPool::generatePool(unsigned RecSize,
     Value *AlignV = ConstantInt::get(Int32Type, Align);
     Value* Opts[3] = {GV, ElSize, AlignV};
     
-    CallInst::Create(PoolInit, Opts, Opts + 3, "", InsertAtEnd);
+    CallInst::Create(PoolInit, ArrayRef<Value*>(Opts), "", InsertAtEnd);
     PoolMap[Node] = GV;
   }
 }

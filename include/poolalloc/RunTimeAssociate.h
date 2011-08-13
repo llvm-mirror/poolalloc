@@ -138,7 +138,7 @@ public:
 class RTAssociate : public ModulePass {
 
   // Type used to represent the pool, will be opaque in this pass
-  const Type *PoolDescPtrTy, *PoolDescType;
+  Type *PoolDescPtrTy, *PoolDescType;
 
   /// Special Values - Values created by this pass which should be ignored
   std::set<const Value*> SpecialValues;

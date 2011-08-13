@@ -114,7 +114,7 @@ namespace {
         // If the NewToOldValueMap is in effect, use it.
         std::map<Value*,const Value*>::iterator I = FI.NewToOldValueMap.find(V);
         if (I != FI.NewToOldValueMap.end())
-          V = (Value*)I->second;
+          V = const_cast<Value*>(I->second);
       }
       return V;
     }
@@ -139,7 +139,7 @@ namespace {
 }
 
 static inline Value *
-castTo (Value * V, const Type * Ty, std::string Name, Instruction * InsertPt) {
+castTo (Value * V, Type * Ty, std::string Name, Instruction * InsertPt) {
   //
   // Don't bother creating a cast if it's already the correct type.
   //
@@ -282,7 +282,7 @@ Instruction *FuncTransform::TransformAllocationInstr(Instruction *I,
 
   // Create call to poolalloc, and record the use of the pool
   Value* Opts[2] = {PH, Size};
-  Instruction *V = CallInst::Create(PAInfo.PoolAlloc, Opts, Opts + 2, Name, I);
+  Instruction *V = CallInst::Create(PAInfo.PoolAlloc, ArrayRef<Value*>(Opts), Name, I);
   AddPoolUse(*V, PH, PoolUses);
 
   // Cast to the appropriate type if necessary
@@ -377,7 +377,7 @@ FuncTransform::InsertPoolFreeInstr (Value *Arg, Instruction *Where){
   // Insert a call to poolfree(), and mark that memory was deallocated from the pool.
   //
   Value* Opts[2] = {PH, Casted};
-  CallInst *FreeI = CallInst::Create(PAInfo.PoolFree, Opts, Opts + 2, "", Where);
+  CallInst *FreeI = CallInst::Create(PAInfo.PoolFree, ArrayRef<Value*>(Opts), "", Where);
   AddPoolUse(*FreeI, PH, PoolFrees);
   return FreeI;
 }
@@ -472,7 +472,7 @@ FuncTransform::visitCallocCall (CallSite CS) {
   Instruction * I = CS.getInstruction();
   std::string Name = I->getName(); I->setName("");
 
-  const Type* Int32Type = Type::getInt32Ty(CS.getInstruction()->getContext());
+  Type* Int32Type = Type::getInt32Ty(CS.getInstruction()->getContext());
 
   // FIXME: Ensure that we use 32/64-bit object length sizes consistently
   // FIXME: Introduce 'ObjectAllocationSize' variable
@@ -494,7 +494,7 @@ FuncTransform::visitCallocCall (CallSite CS) {
   // Create call to poolcalloc, and record the use of the pool
   //
   Value* Opts[3] = {PH, V1, V2};
-  Instruction *V = CallInst::Create(PAInfo.PoolCalloc, Opts, Opts + 3, Name, I);
+  Instruction *V = CallInst::Create(PAInfo.PoolCalloc, ArrayRef<Value*>(Opts), Name, I);
   AddPoolUse(*V, PH, PoolUses);
 
   // Cast to the appropriate type if necessary
@@ -548,7 +548,7 @@ void FuncTransform::visitReallocCall(CallSite CS) {
 
   std::string Name = I->getName(); I->setName("");
   Value* Opts[3] = {PH, OldPtr, Size};
-  Instruction *V = CallInst::Create(PAInfo.PoolRealloc, Opts, Opts + 3, Name, I);
+  Instruction *V = CallInst::Create(PAInfo.PoolRealloc, ArrayRef<Value*>(Opts), Name, I);
   Instruction *Casted = V;
   if (V->getType() != I->getType())
     Casted = CastInst::CreatePointerCast(V, I->getType(), V->getName(), I);
@@ -586,8 +586,8 @@ void FuncTransform::visitMemAlignCall(CallSite CS) {
   Value *Size = 0;
   Value *PH;
 
-  const Type* Int8Type = Type::getInt8Ty(CS.getInstruction()->getContext());
-  const Type* Int32Type = Type::getInt32Ty(CS.getInstruction()->getContext());
+  Type* Int8Type = Type::getInt8Ty(CS.getInstruction()->getContext());
+  Type* Int32Type = Type::getInt32Ty(CS.getInstruction()->getContext());
 
 
   if (CS.getCalledFunction()->getName() == "memalign") {
@@ -605,12 +605,12 @@ void FuncTransform::visitMemAlignCall(CallSite CS) {
     PH = getPoolHandle(I);
 
     // Return success always.
-    const PointerType * PT = dyn_cast<PointerType>(I->getType());
+    PointerType * PT = dyn_cast<PointerType>(I->getType());
     assert (PT && "memalign() does not return pointer type!\n");
     Value *RetVal = ConstantPointerNull::get(PT);
     I->replaceAllUsesWith(RetVal);
 
-    static const Type *PtrPtr=PointerType::getUnqual(PointerType::getUnqual(Int8Type));
+    static Type *PtrPtr=PointerType::getUnqual(PointerType::getUnqual(Int8Type));
     if (ResultDest->getType() != PtrPtr)
       ResultDest = CastInst::CreatePointerCast(ResultDest, PtrPtr, ResultDest->getName(), I);
   }
@@ -622,7 +622,7 @@ void FuncTransform::visitMemAlignCall(CallSite CS) {
 
   std::string Name = I->getName(); I->setName("");
   Value* Opts[3] = {PH, Align, Size};
-  Instruction *V = CallInst::Create(PAInfo.PoolMemAlign, Opts, Opts + 3, Name, I);
+  Instruction *V = CallInst::Create(PAInfo.PoolMemAlign, ArrayRef<Value*>(Opts), Name, I);
 
   Instruction *Casted = V;
   if (V->getType() != I->getType())
@@ -662,7 +662,7 @@ void FuncTransform::visitStrdupCall(CallSite CS) {
   assert (Node && "strdup has NULL DSNode!\n");
   Value *PH = getPoolHandle(I);
 
-  const Type* Int8Type = Type::getInt8Ty(CS.getInstruction()->getContext());
+  Type* Int8Type = Type::getInt8Ty(CS.getInstruction()->getContext());
 
 
 #if 0
@@ -681,7 +681,7 @@ void FuncTransform::visitStrdupCall(CallSite CS) {
 
   std::string Name = I->getName(); I->setName("");
   Value* Opts[3] = {PH, OldPtr, 0};
-  Instruction *V = CallInst::Create(PAInfo.PoolStrdup, Opts, Opts + 2, Name, I);
+  Instruction *V = CallInst::Create(PAInfo.PoolStrdup, ArrayRef<Value*>(Opts), Name, I);
   Instruction *Casted = V;
   if (V->getType() != I->getType())
     Casted = CastInst::CreatePointerCast(V, I->getType(), V->getName(), I);
@@ -731,8 +731,8 @@ FuncTransform::visitRuntimeCheck (CallSite CS) {
   // Insert the pool handle into the run-time check.
   //
   if (PH) {
-    const Type * Int8Type  = Type::getInt8Ty(CS.getInstruction()->getContext());
-    const Type * VoidPtrTy = PointerType::getUnqual(Int8Type);
+    Type * Int8Type  = Type::getInt8Ty(CS.getInstruction()->getContext());
+    Type * VoidPtrTy = PointerType::getUnqual(Int8Type);
     PH = castTo (PH, VoidPtrTy, PH->getName(), CS.getInstruction());
     CS.setArgument (0, PH);
 
@@ -752,8 +752,8 @@ void FuncTransform::visitCStdLibCheck(CallSite CS, const unsigned argc) {
   // Check for the correct number of pool arguments
   assert ((CS.arg_size() > argc) && "Incorrect number of pool arguments!");
 
-  const Type *Int8Ty = Type::getInt8Ty(CS.getInstruction()->getContext());
-  const Type *VoidPtrTy = PointerType::getUnqual(Int8Ty);
+  Type *Int8Ty = Type::getInt8Ty(CS.getInstruction()->getContext());
+  Type *VoidPtrTy = PointerType::getUnqual(Int8Ty);
 
   if (argc == 1) {
     // Get the pool handle for the pointer argument
@@ -1068,7 +1068,7 @@ void FuncTransform::visitCallSite(CallSite& CS) {
       return;           // No arguments to add?  Transformation is a noop!
 
     // Cast the function pointer to an appropriate type!
-    std::vector<const Type*> ArgTys(ArgNodes.size(),
+    std::vector<Type*> ArgTys(ArgNodes.size(),
                                     PoolAllocate::PoolDescPtrTy);
     for (CallSite::arg_iterator I = CS.arg_begin(), E = CS.arg_end();
          I != E; ++I)
@@ -1152,9 +1152,9 @@ void FuncTransform::visitCallSite(CallSite& CS) {
   // type doesn't match the number of arguments.
   //
   if (Function * NewFunction = dyn_cast<Function>(NewCallee)) {
-    const FunctionType * NewCalleeType = NewFunction->getFunctionType();
+    FunctionType * NewCalleeType = NewFunction->getFunctionType();
     if (NewCalleeType->getNumParams() != Args.size()) {
-      std::vector<const Type *> Types;
+      std::vector<Type *> Types;
       Type * FuncTy = FunctionType::get (NewCalleeType->getReturnType(),
                                          Types,
                                          true);
@@ -1182,15 +1182,15 @@ void FuncTransform::visitCallSite(CallSite& CS) {
 
 	//Make the thread creation call
 	NewCall = CallInst::Create(pthread_replacement,
-							   thread_args.begin(),thread_args.end(),
+							   thread_args,
 							   Name,TheCall);
   }
   else if (InvokeInst *II = dyn_cast<InvokeInst>(TheCall)) {
     NewCall = InvokeInst::Create (NewCallee, II->getNormalDest(),
                                   II->getUnwindDest(),
-                                  Args.begin(), Args.end(), Name, TheCall);
+                                  Args, Name, TheCall);
   } else {
-    NewCall = CallInst::Create (NewCallee, Args.begin(), Args.end(), Name,
+    NewCall = CallInst::Create (NewCallee, Args, Name,
                                 TheCall);
   }
 
