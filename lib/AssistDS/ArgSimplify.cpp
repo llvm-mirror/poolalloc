@@ -9,6 +9,7 @@
 #define DEBUG_TYPE "argsimpl"
 
 #include "llvm/Instructions.h"
+#include "llvm/Constants.h"
 #include "llvm/Module.h"
 #include "llvm/Pass.h"
 #include "llvm/Transforms/Utils/Cloning.h"
@@ -30,20 +31,20 @@ namespace {
   // arg_count - The argument to function I that may be changed
   // type - Declared type of the argument
 
-  static void simplify(Function *F, unsigned arg_count, const Type* type) {
+  static void simplify(Function *F, unsigned arg_count, Type* type) {
 
     // Go through all uses of the function
     for(Value::use_iterator ui = F->use_begin(), ue = F->use_end();
         ui != ue; ++ui) {
 
-      if (Constant *C = dyn_cast<Constant>(ui)) {
+      if (Constant *C = dyn_cast<Constant>(*ui)) {
         if (ConstantExpr *CE = dyn_cast<ConstantExpr>(C)) {
           if (CE->getOpcode() == Instruction::BitCast) {
             if(CE->getOperand(0) == F) {                    
               for(Value::use_iterator uii = CE->use_begin(), uee = CE->use_end();
                   uii != uee; ) {
                 // check if it is ever used as a call (bitcast F to ...)()
-                if (CallInst* CI = dyn_cast<CallInst>(uii++)) {
+                if (CallInst* CI = dyn_cast<CallInst>(*uii++)) {
                   if(CI->getCalledValue() == CE) {
                     // if I is ever called as a bitcasted function
                     if(F->getReturnType() == CI->getType()){
@@ -72,11 +73,11 @@ namespace {
                         if(change){
                           // create a new function, to do the cast from ptr to int,
                           // and call the original function, with the casted value
-                          std::vector<const Type*>TP;
+                          std::vector<Type*>TP;
                           for(unsigned c = 1; c<CI->getNumOperands();c++) {
                             TP.push_back(CI->getOperand(c)->getType());
                           }
-                          const FunctionType *NewFTy = FunctionType::
+                          FunctionType *NewFTy = FunctionType::
                             get(CI->getType(), TP, false);
                           
                           Module *M = F->getParent();
@@ -94,7 +95,7 @@ namespace {
                           BasicBlock* entryBB = BasicBlock::
                             Create (M->getContext(), "entry", NewF);
                        
-                          const Type *FromTy = fargs.at(arg_count)->getType();
+                          Type *FromTy = fargs.at(arg_count)->getType();
                           if(FromTy->isPointerTy()) {
                             CastedVal = CastInst::CreatePointerCast(fargs.at(arg_count), 
                                                          type, "castd", entryBB);
@@ -112,8 +113,8 @@ namespace {
                               Args.push_back(ai);
                           }
 
-                          CallInst * CallI = CallInst::Create(F,Args.begin(), 
-                                                              Args.end(),"", entryBB);
+                          CallInst * CallI = CallInst::Create(F,Args, 
+                                                              "", entryBB);
                           if(CallI->getType()->isVoidTy())
                             ReturnInst::Create(M->getContext(), entryBB);
                           else 
@@ -137,7 +138,7 @@ namespace {
   class ArgSimplify : public ModulePass {
   public:
     static char ID;
-    ArgSimplify() : ModulePass(&ID) {}
+    ArgSimplify() : ModulePass(ID) {}
 
     bool runOnModule(Module& M) {
 
@@ -152,7 +153,7 @@ namespace {
             for(Value::use_iterator ui = ii->use_begin(), ue = ii->use_end();
                 ui != ue; ++ui) {
               // check if the argument is used exclusively in ICmp Instructions
-              if(!isa<ICmpInst>(ui)){
+              if(!isa<ICmpInst>(*ui)){
                 change = false;
                 break;
               }
