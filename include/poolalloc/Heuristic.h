@@ -160,7 +160,7 @@ namespace PA {
         return this;
       }
 
-      AllNodesHeuristic (char * IDp = &ID): ModulePass (*IDp) { }
+      AllNodesHeuristic (char & IDp = ID): ModulePass (IDp) { }
       virtual ~AllNodesHeuristic () {return;}
       virtual bool runOnModule (Module & M);
       virtual const char * getPassName () const {
@@ -211,7 +211,7 @@ namespace PA {
         return this;
       }
 
-      AllButUnreachableFromMemoryHeuristic (char * IDp = &ID) : ModulePass (*IDp) { }
+      AllButUnreachableFromMemoryHeuristic (char & IDp = ID) : ModulePass (IDp) { }
       virtual ~AllButUnreachableFromMemoryHeuristic () {return;}
       virtual bool runOnModule (Module & M);
 
@@ -246,7 +246,7 @@ namespace PA {
       }
 
 
-      CyclicNodesHeuristic (char * IDp=&ID): ModulePass (*IDp) { }
+      CyclicNodesHeuristic (char & IDp=ID): ModulePass (IDp) { }
       virtual ~CyclicNodesHeuristic () {return;}
       virtual bool runOnModule (Module & M);
 
@@ -281,7 +281,7 @@ namespace PA {
         return this;
       }
 
-      SmartCoallesceNodesHeuristic (char * IDp = &ID) : ModulePass (*IDp) { }
+      SmartCoallesceNodesHeuristic (char & IDp = ID) : ModulePass (IDp) { }
       virtual ~SmartCoallesceNodesHeuristic () {return;}
       virtual bool runOnModule (Module & M);
 
@@ -323,8 +323,8 @@ namespace PA {
         return this;
       }
 
-      AllInOneGlobalPoolHeuristic(char * IDp = &ID) :
-        ModulePass (*IDp), TheGlobalPD(0) {}
+      AllInOneGlobalPoolHeuristic(char & IDp = ID) :
+        ModulePass (IDp), TheGlobalPD(0) {}
 
       virtual bool runOnModule (Module & M);
       virtual void getAnalysisUsage(AnalysisUsage &AU) const {
@@ -360,7 +360,7 @@ namespace PA {
         return this;
       }
 
-      OnlyOverheadHeuristic(char * IDp = &ID) : ModulePass (*IDp) {}
+      OnlyOverheadHeuristic(char & IDp = ID) : ModulePass (IDp) {}
 
       virtual bool runOnModule (Module & M);
       virtual void getAnalysisUsage(AnalysisUsage &AU) const {
@@ -395,7 +395,7 @@ namespace PA {
         return this;
       }
 
-      NoNodesHeuristic(char * IDp = &ID) : ImmutablePass (*IDp) {}
+      NoNodesHeuristic(char & IDp = ID) : ImmutablePass (IDp) {}
 
       virtual bool runOnModule (Module & M);
       virtual void getAnalysisUsage(AnalysisUsage &AU) const {
