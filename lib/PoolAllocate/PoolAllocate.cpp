@@ -200,11 +200,11 @@ void PoolAllocate::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.addRequired<Heuristic>();
   AU.addPreserved<Heuristic>();
   if (dsa_pass_to_use == PASS_EQTD) {
-    AU.addRequired<EQTDDataStructures>();
+    AU.addRequiredTransitive<EQTDDataStructures>();
     if(lie_preserve_passes != LIE_NONE)
       AU.addPreserved<EQTDDataStructures>();
   } else {
-    AU.addRequired<EquivBUDataStructures>();
+    AU.addRequiredTransitive<EquivBUDataStructures>();
     if(lie_preserve_passes != LIE_NONE)
       AU.addPreserved<EquivBUDataStructures>();
   }
