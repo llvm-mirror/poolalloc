@@ -171,10 +171,6 @@ namespace PA {
         // We require DSA while this pass is still responding to queries
         AU.addRequiredTransitive<EQTDDataStructures>();
 
-        // Make PassManager happy be requiring the default implementation of
-        // this analysis group
-        AU.addRequiredTransitive<Heuristic>();
-
         // This pass does not modify anything when it runs
         AU.setPreservesAll();
       }
@@ -219,10 +215,6 @@ namespace PA {
         // We require DSA while this pass is still responding to queries
         AU.addRequiredTransitive<EQTDDataStructures>();
 
-        // Make PassManager happy be requiring the default implementation of
-        // this analysis group
-        AU.addRequiredTransitive<Heuristic>();
-
         // This pass does not modify anything when it runs
         AU.setPreservesAll();
       }
@@ -254,10 +246,6 @@ namespace PA {
         // We require DSA while this pass is still responding to queries
         AU.addRequiredTransitive<EQTDDataStructures>();
 
-        // Make PassManager happy be requiring the default implementation of
-        // this analysis group
-        AU.addRequiredTransitive<Heuristic>();
-
         // This pass does not modify anything when it runs
         AU.setPreservesAll();
       }
@@ -288,10 +276,6 @@ namespace PA {
       virtual void getAnalysisUsage(AnalysisUsage &AU) const {
         // We require DSA while this pass is still responding to queries
         AU.addRequiredTransitive<EQTDDataStructures>();
-
-        // Make PassManager happy be requiring the default implementation of
-        // this analysis group
-        AU.addRequiredTransitive<Heuristic>();
 
         // This pass does not modify anything when it runs
         AU.setPreservesAll();
@@ -331,10 +315,6 @@ namespace PA {
         // We require DSA while this pass is still responding to queries
         AU.addRequiredTransitive<EQTDDataStructures>();
 
-        // Make PassManager happy be requiring the default implementation of
-        // this analysis group
-        AU.addRequiredTransitive<Heuristic>();
-
         // This pass does not modify anything when it runs
         AU.setPreservesAll();
       }
@@ -366,10 +346,6 @@ namespace PA {
       virtual void getAnalysisUsage(AnalysisUsage &AU) const {
         // We require DSA while this pass is still responding to queries
         AU.addRequiredTransitive<EQTDDataStructures>();
-
-        // Make PassManager happy be requiring the default implementation of
-        // this analysis group
-        AU.addRequiredTransitive<Heuristic>();
 
         // This pass does not modify anything when it runs
         AU.setPreservesAll();
