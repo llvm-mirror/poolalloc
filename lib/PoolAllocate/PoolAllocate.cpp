@@ -197,8 +197,10 @@ createGlobalPoolCtor (Module & M) {
 
 void PoolAllocate::getAnalysisUsage(AnalysisUsage &AU) const {
   // We will need the heuristic pass to tell us what to do and how to do it
+
   AU.addRequired<Heuristic>();
   AU.addPreserved<Heuristic>();
+
   if (dsa_pass_to_use == PASS_EQTD) {
     AU.addRequiredTransitive<EQTDDataStructures>();
     if(lie_preserve_passes != LIE_NONE)
