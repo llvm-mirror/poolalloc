@@ -889,7 +889,7 @@ bool TypeChecks::visitInternalVarArgFunction(Module &M, Function &F) {
       if(CalledF->getIntrinsicID() != Intrinsic::vastart) 
         continue;
       // Reinitialize the counter
-      Value *BCI = castTo(CI->getOperand(1), VoidPtrTy, "", CI);
+      Value *BCI = castTo(CI->getArgOperand(0), VoidPtrTy, "", CI);
       std::vector<Value *> Args;
       Args.push_back(BCI);
       Args.push_back(NewValue);
@@ -912,8 +912,8 @@ bool TypeChecks::visitInternalVarArgFunction(Module &M, Function &F) {
         continue;
       if(CalledF->getIntrinsicID() != Intrinsic::vacopy) 
         continue;
-      Value *BCI_Src = castTo(CI->getOperand(2), VoidPtrTy, "", CI);
-      Value *BCI_Dest = castTo(CI->getOperand(1), VoidPtrTy, "", CI);
+      Value *BCI_Src = castTo(CI->getArgOperand(1), VoidPtrTy, "", CI);
+      Value *BCI_Dest = castTo(CI->getArgOperand(0), VoidPtrTy, "", CI);
       std::vector<Value *> Args;
       Args.push_back(BCI_Dest);
       Args.push_back(BCI_Src);
@@ -965,25 +965,25 @@ bool TypeChecks::visitInternalVarArgFunction(Module &M, Function &F) {
       std::vector<Value *> Args;
       inst_iterator InsPt = inst_begin(CI->getParent()->getParent());
       unsigned int i;
-      unsigned int NumArgs = CI->getNumOperands() - 1;
+      unsigned int NumArgs = CI->getNumArgOperands();
       Value *NumArgsVal = ConstantInt::get(Int32Ty, NumArgs);
       AllocaInst *AI = new AllocaInst(TypeTagTy, NumArgsVal, "", &*InsPt);
       // set the metadata for the varargs in AI
-      for(i = 1; i <CI->getNumOperands(); i++) {
+      for(i = 0; i <CI->getNumArgOperands(); i++) {
         Value *Idx[1];
-        Idx[0] = ConstantInt::get(Int32Ty, i - 1 );
+        Idx[0] = ConstantInt::get(Int32Ty, i);
         // For each vararg argument, also add its type information
         GetElementPtrInst *GEP = GetElementPtrInst::CreateInBounds(AI,Idx, "", CI);
-        Constant *C = getTypeMarkerConstant(CI->getOperand(i));
+        Constant *C = getTypeMarkerConstant(CI->getArgOperand(i));
         new StoreInst(C, GEP, CI);
       }
 
       // As the first argument pass the number of var_arg arguments
       Args.push_back(ConstantInt::get(Int64Ty, NumArgs));
       Args.push_back(AI);
-      for(i = 1 ;i < CI->getNumOperands(); i++) {
+      for(i = 0 ;i < CI->getNumArgOperands(); i++) {
         // Add the original argument
-        Args.push_back(CI->getOperand(i));
+        Args.push_back(CI->getArgOperand(i));
       }
 
       // Create the new call
