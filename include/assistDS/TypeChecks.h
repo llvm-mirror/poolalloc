@@ -35,7 +35,7 @@ class Value;
 
 class TypeChecks : public ModulePass {
 private:
-  std::map<const Type *, unsigned int> UsedTypes;
+  std::map<Type *, unsigned int> UsedTypes;
   std::map<Function *, Function *> IndFunctionsMap;
   std::list<Function *> VAArgFunctions;
   std::list<Function *> ByValFunctions;
@@ -52,12 +52,12 @@ private:
   TargetData *TD;
   AddressTakenAnalysis* addrAnalysis;
   
-  unsigned int getTypeMarker(const Type*);
+  unsigned int getTypeMarker(Type*);
   unsigned int getTypeMarker(Value*);
   Constant *getTypeMarkerConstant(Value * V);
-  Constant *getTypeMarkerConstant(const Type* T);
-  unsigned int getSize(const Type*);
-  Constant* getSizeConstant(const Type*);
+  Constant *getTypeMarkerConstant(Type* T);
+  unsigned int getSize(Type*);
+  Constant* getSizeConstant(Type*);
   
   bool initShadow(Module &M);
   void addTypeMap(Module &M) ;
@@ -95,7 +95,7 @@ private:
 
 public:
   static char ID;
-  TypeChecks() : ModulePass(&ID) {}
+  TypeChecks() : ModulePass(ID) {}
   virtual bool runOnModule(Module &M);
   virtual void print(raw_ostream &OS, const Module *M) const;
 
@@ -107,7 +107,7 @@ public:
   }
 
   // Return the map containing all of the types used in the module.
-  const std::map<const Type *, unsigned int> &getTypes() const {
+  const std::map<Type *, unsigned int> &getTypes() const {
     return UsedTypes;
   }
 };

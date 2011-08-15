@@ -38,7 +38,7 @@ private:
 
 public:
   static char ID;
-  TypeChecksOpt() : ModulePass(&ID) {}
+  TypeChecksOpt() : ModulePass(ID) {}
   virtual bool runOnModule(Module &M);
 
   virtual void getAnalysisUsage(AnalysisUsage &AU) const {

@@ -36,13 +36,13 @@ TC("typechecks-opt", "Remove safe runtime type checks", false, true);
 // Pass statistics
 STATISTIC(numSafe,  "Number of statically proven safe type checks");
 
-static const Type *VoidTy = 0;
-static const Type *Int8Ty = 0;
-static const Type *Int32Ty = 0;
-static const Type *Int64Ty = 0;
-static const PointerType *VoidPtrTy = 0;
-static const Type *TypeTagTy = 0;
-static const Type *TypeTagPtrTy = 0;
+static Type *VoidTy = 0;
+static Type *Int8Ty = 0;
+static Type *Int32Ty = 0;
+static Type *Int64Ty = 0;
+static PointerType *VoidPtrTy = 0;
+static Type *TypeTagTy = 0;
+static Type *TypeTagPtrTy = 0;
 static Constant *trackGlobal;
 static Constant *trackStringInput;
 static Constant *trackInitInst;
@@ -137,20 +137,20 @@ bool TypeChecksOpt::runOnModule(Module &M) {
   MallocFunc = M.getFunction("malloc");
 
   for(Value::use_iterator User = trackGlobal->use_begin(); User != trackGlobal->use_end(); ++User) {
-    CallInst *CI = dyn_cast<CallInst>(User);
+    CallInst *CI = dyn_cast<CallInst>(*User);
     assert(CI);
     if(TS->isTypeSafe(CI->getOperand(1)->stripPointerCasts(), CI->getParent()->getParent())) {
       std::vector<Value*>Args;
       Args.push_back(CI->getOperand(1));
       Args.push_back(CI->getOperand(3));
       Args.push_back(CI->getOperand(4));
-      CallInst::Create(trackInitInst, Args.begin(), Args.end(), "", CI);
+      CallInst::Create(trackInitInst, Args, "", CI);
       toDelete.push_back(CI);
     }
   }
 
   for(Value::use_iterator User = checkTypeInst->use_begin(); User != checkTypeInst->use_end(); ++User) {
-    CallInst *CI = dyn_cast<CallInst>(User);
+    CallInst *CI = dyn_cast<CallInst>(*User);
     assert(CI);
 
     if(TS->isTypeSafe(CI->getOperand(4)->stripPointerCasts(), CI->getParent()->getParent())) {
@@ -159,7 +159,7 @@ bool TypeChecksOpt::runOnModule(Module &M) {
   }
 
   for(Value::use_iterator User = trackStoreInst->use_begin(); User != trackStoreInst->use_end(); ++User) {
-    CallInst *CI = dyn_cast<CallInst>(User);
+    CallInst *CI = dyn_cast<CallInst>(*User);
     assert(CI);
 
     if(TS->isTypeSafe(CI->getOperand(1)->stripPointerCasts(), CI->getParent()->getParent())) {
@@ -170,7 +170,7 @@ bool TypeChecksOpt::runOnModule(Module &M) {
   // for alloca's if they are type known
   // assume initialized with TOP
   for(Value::use_iterator User = trackUnInitInst->use_begin(); User != trackUnInitInst->use_end(); ) {
-    CallInst *CI = dyn_cast<CallInst>(User++);
+    CallInst *CI = dyn_cast<CallInst>(*(User++));
     assert(CI);
 
     // check if operand is an alloca inst.
@@ -184,14 +184,14 @@ bool TypeChecksOpt::runOnModule(Module &M) {
         Args2.push_back(ConstantInt::get(Int8Ty, 0));
         Args2.push_back(CI->getOperand(2));
         Args2.push_back(ConstantInt::get(Int32Ty, AI->getAlignment()));
-        CallInst::Create(memsetF, Args2.begin(), Args2.end(), "", CI);
+        CallInst::Create(memsetF, Args2, "", CI);
       }
     }
   }
 
   if(MallocFunc) {
     for(Value::use_iterator User = MallocFunc->use_begin(); User != MallocFunc->use_end(); User ++) {
-      CallInst *CI = dyn_cast<CallInst>(User);
+      CallInst *CI = dyn_cast<CallInst>(*User);
       if(!CI)
         continue;
       if(TS->isTypeSafe(CI, CI->getParent()->getParent())){
@@ -203,7 +203,7 @@ bool TypeChecksOpt::runOnModule(Module &M) {
         Args.push_back(BCI);
         Args.push_back(Size);
         Args.push_back(ConstantInt::get(Int32Ty, 0));
-        CallInst *CINew = CallInst::Create(trackInitInst, Args.begin(), Args.end());
+        CallInst *CINew = CallInst::Create(trackInitInst, Args);
         CINew->insertAfter(BCI);
       }
     }
@@ -213,7 +213,7 @@ bool TypeChecksOpt::runOnModule(Module &M) {
   // other allocators??
 
   for(Value::use_iterator User = copyTypeInfo->use_begin(); User != copyTypeInfo->use_end(); ++User) {
-    CallInst *CI = dyn_cast<CallInst>(User);
+    CallInst *CI = dyn_cast<CallInst>(*User);
     assert(CI);
 
     if(TS->isTypeSafe(CI->getOperand(1)->stripPointerCasts(), CI->getParent()->getParent())) {
@@ -221,12 +221,12 @@ bool TypeChecksOpt::runOnModule(Module &M) {
       Args.push_back(CI->getOperand(1));
       Args.push_back(CI->getOperand(3)); // size
       Args.push_back(CI->getOperand(4));
-      CallInst::Create(trackInitInst, Args.begin(), Args.end(), "", CI);
+      CallInst::Create(trackInitInst, Args, "", CI);
       toDelete.push_back(CI);
     }
   }
   for(Value::use_iterator User = setTypeInfo->use_begin(); User != setTypeInfo->use_end(); ++User) {
-    CallInst *CI = dyn_cast<CallInst>(User);
+    CallInst *CI = dyn_cast<CallInst>(*User);
     assert(CI);
 
     if(TS->isTypeSafe(CI->getOperand(1)->stripPointerCasts(), CI->getParent()->getParent())) {
@@ -234,13 +234,13 @@ bool TypeChecksOpt::runOnModule(Module &M) {
       Args.push_back(CI->getOperand(1));
       Args.push_back(CI->getOperand(3)); // size
       Args.push_back(CI->getOperand(6));
-      CallInst::Create(trackInitInst, Args.begin(), Args.end(), "", CI);
+      CallInst::Create(trackInitInst, Args, "", CI);
       toDelete.push_back(CI);
     }
   }
 
   for(Value::use_iterator User = getTypeTag->use_begin(); User != getTypeTag->use_end(); ++User) {
-    CallInst *CI = dyn_cast<CallInst>(User);
+    CallInst *CI = dyn_cast<CallInst>(*User);
     assert(CI);
     if(TS->isTypeSafe(CI->getOperand(1)->stripPointerCasts(), CI->getParent()->getParent())) {
       AllocaInst *AI = dyn_cast<AllocaInst>(CI->getOperand(3)->stripPointerCasts());
@@ -250,7 +250,7 @@ bool TypeChecksOpt::runOnModule(Module &M) {
       Args.push_back(ConstantInt::get(Int8Ty, 255));
       Args.push_back(CI->getOperand(2));
       Args.push_back(ConstantInt::get(Int32Ty, AI->getAlignment()));
-      CallInst::Create(memsetF, Args.begin(), Args.end(), "", CI);
+      CallInst::Create(memsetF, Args, "", CI);
       toDelete.push_back(CI);
     }
   }
