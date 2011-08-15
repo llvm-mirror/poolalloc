@@ -1,8 +1,6 @@
 LEVEL = ../..
 LIBRARYNAME=heapfrag
 
-#BYTECODE_LIBRARY=1
-
 #
 # Build shared libraries on all platforms except Cygwin and MingW (which do
 # not support them).
@@ -14,6 +12,15 @@ endif
 endif
 
 include $(LEVEL)/Makefile.common
+
+#
+# Do not build bitcode library on Mac OS X; XCode will pre-install llvm-gcc,
+# and that can cause the build to fail if it doesn't match the current version
+# of LLVM.
+#
+ifneq ($(OS),Darwin)
+BYTECODE_LIBRARY=1
+endif
 
 # Always build optimized and debug versions
 all:: $(LIBNAME_OBJO) $(LIBNAME_OBJG)
