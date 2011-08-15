@@ -216,7 +216,7 @@ PoolAllocateMultipleGlobalPool::ProcessFunctionBodySimple (Function& F, TargetDa
           std::string Name = CI->getName(); CI->setName("");
           Value* Opts[3] = {Pool, OldPtr, Size};
           Instruction *V = CallInst::Create (PoolRealloc,
-                                         ArrayRef<Value*>(Opts),
+                                         Opts,
                                          Name,
                                          InsertPt);
           Value *Casted = castTo(V, CI->getType(), V->getName(), InsertPt);
@@ -260,7 +260,7 @@ PoolAllocateMultipleGlobalPool::ProcessFunctionBodySimple (Function& F, TargetDa
           std::string Name = CI->getName(); CI->setName("");
           Value* Opts[3] = {Pool, NumElements, Size};
           Instruction *V = CallInst::Create (PoolCalloc,
-                                             ArrayRef<Value*>(Opts),
+                                             Opts,
                                              Name,
                                              InsertPt);
 
@@ -297,7 +297,7 @@ PoolAllocateMultipleGlobalPool::ProcessFunctionBodySimple (Function& F, TargetDa
           std::string Name = CI->getName(); CI->setName("");
           Value* Opts[2] = {Pool, OldPtr};
           Instruction *V = CallInst::Create (PoolStrdup,
-                                         ArrayRef<Value*>(Opts),
+                                         Opts,
                                          Name,
                                          InsertPt);
           Value *Casted = castTo(V, CI->getType(), V->getName(), InsertPt);
@@ -411,7 +411,7 @@ PoolAllocateMultipleGlobalPool::generatePool(unsigned RecSize,
     Value *AlignV = ConstantInt::get(Int32Type, Align);
     Value* Opts[3] = {GV, ElSize, AlignV};
     
-    CallInst::Create(PoolInit, ArrayRef<Value*>(Opts), "", InsertAtEnd);
+    CallInst::Create(PoolInit, Opts, "", InsertAtEnd);
     PoolMap[Node] = GV;
   }
 }

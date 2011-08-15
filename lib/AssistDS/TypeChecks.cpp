@@ -608,7 +608,7 @@ void TypeChecks::addTypeMap(Module &M) {
                                           CA,
                                           "");
   GV->setInitializer(CA);
-  Constant *C = ConstantExpr::getGetElementPtr(GV,ArrayRef<Constant*>(Indices));
+  Constant *C = ConstantExpr::getGetElementPtr(GV,Indices);
   Values[0] = C;
 
   // For each used type, create a new entry. 
@@ -629,7 +629,7 @@ void TypeChecks::addTypeMap(Module &M) {
                                             CA,
                                             "");
     GV->setInitializer(CA);
-    Constant *C = ConstantExpr::getGetElementPtr(GV, ArrayRef<Constant*>(Indices));
+    Constant *C = ConstantExpr::getGetElementPtr(GV, Indices);
     Values[TI->second]= C;
   }
 

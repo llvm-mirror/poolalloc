@@ -297,7 +297,7 @@ Value *CompressedPoolInfo::EmitPoolBaseLoad(Instruction &I) const {
     // Get the pool base pointer.
     Constant *Zero = ConstantInt::get(Int32Type, 0);
     Value *Opts[2] = {Zero, Zero};
-    Value *BasePtrPtr = GetElementPtrInst::Create(getPoolDesc(), ArrayRef<Value*>(Opts),
+    Value *BasePtrPtr = GetElementPtrInst::Create(getPoolDesc(), Opts,
                                               "poolbaseptrptr", &I);
     return new LoadInst(BasePtrPtr, "poolbaseptr", &I);
   } else {
@@ -309,7 +309,7 @@ Value *CompressedPoolInfo::EmitPoolBaseLoad(Instruction &I) const {
       while (isa<AllocaInst>(IP)) ++IP;
       Constant *Zero = ConstantInt::get(Int32Type, 0);
       Value *Opts[2] = {Zero, Zero};
-      Value *BasePtrPtr = GetElementPtrInst::Create(getPoolDesc(), ArrayRef<Value*>(Opts),
+      Value *BasePtrPtr = GetElementPtrInst::Create(getPoolDesc(), Opts,
                                                 "poolbaseptrptr", IP);
       PoolBase = new LoadInst(BasePtrPtr, "poolbaseptr", IP);
     }
@@ -923,7 +923,7 @@ void InstructionRewriter::visitPoolAlloc(CallInst &CI) {
     }
 
   Value *Opts[2] = {CI.getOperand(1), Size};
-  Value *NC = CallInst::Create(PtrComp.PoolAllocPC, ArrayRef<Value*>(Opts), CI.getName(), &CI);
+  Value *NC = CallInst::Create(PtrComp.PoolAllocPC, Opts, CI.getName(), &CI);
   setTransformedValue(CI, NC);
 }
 

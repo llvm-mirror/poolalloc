@@ -292,7 +292,7 @@ PoolAllocateSimple::ProcessFunctionBodySimple (Function& F, TargetData & TD) {
           //
           Value* Opts[3] = {TheGlobalPool, Size};
           Instruction *V = CallInst::Create (PoolAlloc,
-                                             ArrayRef<Value*>(Opts),
+                                             Opts,
                                              Name,
                                              InsertPt);
 
@@ -343,7 +343,7 @@ PoolAllocateSimple::ProcessFunctionBodySimple (Function& F, TargetData & TD) {
           //
           Value* Opts[3] = {TheGlobalPool, Align, Size};
           Instruction *V = CallInst::Create (PoolMemAlign,
-                                             ArrayRef<Value*>(Opts),
+                                             Opts,
                                              Name,
                                              InsertPt);
 
@@ -389,7 +389,7 @@ PoolAllocateSimple::ProcessFunctionBodySimple (Function& F, TargetData & TD) {
           std::string Name = CI->getName(); CI->setName("");
           Value* Opts[3] = {TheGlobalPool, OldPtr, Size};
           Instruction *V = CallInst::Create (PoolRealloc,
-                                         ArrayRef<Value*>(Opts),
+                                         Opts,
                                          Name,
                                          InsertPt);
           //
@@ -434,7 +434,7 @@ PoolAllocateSimple::ProcessFunctionBodySimple (Function& F, TargetData & TD) {
           std::string Name = CI->getName(); CI->setName("");
           Value* Opts[3] = {TheGlobalPool, NumElements, Size};
           Instruction *V = CallInst::Create (PoolCalloc,
-                                             ArrayRef<Value*>(Opts),
+                                             Opts,
                                              Name,
                                              InsertPt);
 
@@ -472,7 +472,7 @@ PoolAllocateSimple::ProcessFunctionBodySimple (Function& F, TargetData & TD) {
           std::string Name = CI->getName(); CI->setName("");
           Value* Opts[2] = {TheGlobalPool, OldPtr};
           Instruction *V = CallInst::Create (PoolStrdup,
-                                         ArrayRef<Value*>(Opts),
+                                         Opts,
                                          Name,
                                          InsertPt);
 
@@ -492,7 +492,7 @@ PoolAllocateSimple::ProcessFunctionBodySimple (Function& F, TargetData & TD) {
           Value * FreedNode = castTo (CI->getOperand(1), VoidPtrTy, "cast", ii);
           toDelete.push_back(ii);
           Value* args[] = {TheGlobalPool, FreedNode};
-          CallInst::Create(PoolFree, ArrayRef<Value*>(args), "", ii);
+          CallInst::Create(PoolFree, args, "", ii);
         }
 
         //
@@ -561,7 +561,7 @@ PoolAllocateSimple::CreateGlobalPool (unsigned RecSize,
   Value *ElSize = ConstantInt::get(Int32Type, RecSize);
   Value *AlignV = ConstantInt::get(Int32Type, Align);
   Value* Opts[3] = {GV, ElSize, AlignV};
-  CallInst::Create(PoolInit, ArrayRef<Value*>(Opts), "", BB);
+  CallInst::Create(PoolInit, Opts, "", BB);
 
   ReturnInst::Create(M.getContext(), BB);
   return GV;

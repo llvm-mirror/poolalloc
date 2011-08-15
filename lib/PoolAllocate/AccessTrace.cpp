@@ -97,7 +97,7 @@ void PoolAccessTrace::InstrumentAccess(Instruction *I, Value *Ptr,
 
   // Insert the trace call.
   Value *Opts[2] = {Ptr, PD};
-  CallInst::Create (PoolAccessTraceFn, ArrayRef<Value*>(Opts), "", I);
+  CallInst::Create (PoolAccessTraceFn, Opts, "", I);
 }
 
 bool PoolAccessTrace::runOnModule(Module &M) {

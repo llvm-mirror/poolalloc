@@ -142,7 +142,7 @@ createGlobalPoolCtor (Module & M) {
   std::vector<Constant *> CtorInits;
   CtorInits.push_back (ConstantInt::get (Int32Type, 65535));
   CtorInits.push_back (InitFunc);
-  Constant * RuntimeCtorInit = ConstantStruct::getAnon(Context, ArrayRef<Constant*>(CtorInits));
+  Constant * RuntimeCtorInit = ConstantStruct::getAnon(Context, CtorInits);
 
   //
   // Get the current set of static global constructors and add the new ctor
@@ -1093,7 +1093,7 @@ GlobalVariable *PoolAllocate::CreateGlobalPool(unsigned RecSize, unsigned Align,
   Value *ElSize = ConstantInt::get(Int32Type, RecSize);
   Value *AlignV = ConstantInt::get(Int32Type, Align);
   Value* Opts[3] = {GV, ElSize, AlignV};
-  CallInst::Create(PoolInit, ArrayRef<Value*>(Opts), "", InsertPt);
+  CallInst::Create(PoolInit, Opts, "", InsertPt);
   ++NumPools;
   return GV;
 }
@@ -1502,7 +1502,7 @@ void PoolAllocate::InitializeAndDestroyPool(Function &F, const DSNode *Node,
 
   for (unsigned i = 0, e = PoolInitPoints.size(); i != e; ++i) {
     Value* Opts[3] = {PD, ElSize, Align};
-    CallInst::Create(PoolInit, ArrayRef<Value*>(Opts),  "", PoolInitPoints[i]);
+    CallInst::Create(PoolInit, Opts,  "", PoolInitPoints[i]);
     DEBUG(errs() << PoolInitPoints[i]->getParent()->getNameStr() << " ");
   }
 

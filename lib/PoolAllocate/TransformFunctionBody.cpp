@@ -282,7 +282,7 @@ Instruction *FuncTransform::TransformAllocationInstr(Instruction *I,
 
   // Create call to poolalloc, and record the use of the pool
   Value* Opts[2] = {PH, Size};
-  Instruction *V = CallInst::Create(PAInfo.PoolAlloc, ArrayRef<Value*>(Opts), Name, I);
+  Instruction *V = CallInst::Create(PAInfo.PoolAlloc, Opts, Name, I);
   AddPoolUse(*V, PH, PoolUses);
 
   // Cast to the appropriate type if necessary
@@ -377,7 +377,7 @@ FuncTransform::InsertPoolFreeInstr (Value *Arg, Instruction *Where){
   // Insert a call to poolfree(), and mark that memory was deallocated from the pool.
   //
   Value* Opts[2] = {PH, Casted};
-  CallInst *FreeI = CallInst::Create(PAInfo.PoolFree, ArrayRef<Value*>(Opts), "", Where);
+  CallInst *FreeI = CallInst::Create(PAInfo.PoolFree, Opts, "", Where);
   AddPoolUse(*FreeI, PH, PoolFrees);
   return FreeI;
 }
@@ -494,7 +494,7 @@ FuncTransform::visitCallocCall (CallSite CS) {
   // Create call to poolcalloc, and record the use of the pool
   //
   Value* Opts[3] = {PH, V1, V2};
-  Instruction *V = CallInst::Create(PAInfo.PoolCalloc, ArrayRef<Value*>(Opts), Name, I);
+  Instruction *V = CallInst::Create(PAInfo.PoolCalloc, Opts, Name, I);
   AddPoolUse(*V, PH, PoolUses);
 
   // Cast to the appropriate type if necessary
@@ -548,7 +548,7 @@ void FuncTransform::visitReallocCall(CallSite CS) {
 
   std::string Name = I->getName(); I->setName("");
   Value* Opts[3] = {PH, OldPtr, Size};
-  Instruction *V = CallInst::Create(PAInfo.PoolRealloc, ArrayRef<Value*>(Opts), Name, I);
+  Instruction *V = CallInst::Create(PAInfo.PoolRealloc, Opts, Name, I);
   Instruction *Casted = V;
   if (V->getType() != I->getType())
     Casted = CastInst::CreatePointerCast(V, I->getType(), V->getName(), I);
@@ -622,7 +622,7 @@ void FuncTransform::visitMemAlignCall(CallSite CS) {
 
   std::string Name = I->getName(); I->setName("");
   Value* Opts[3] = {PH, Align, Size};
-  Instruction *V = CallInst::Create(PAInfo.PoolMemAlign, ArrayRef<Value*>(Opts), Name, I);
+  Instruction *V = CallInst::Create(PAInfo.PoolMemAlign, Opts, Name, I);
 
   Instruction *Casted = V;
   if (V->getType() != I->getType())
@@ -681,7 +681,7 @@ void FuncTransform::visitStrdupCall(CallSite CS) {
 
   std::string Name = I->getName(); I->setName("");
   Value* Opts[3] = {PH, OldPtr, 0};
-  Instruction *V = CallInst::Create(PAInfo.PoolStrdup, ArrayRef<Value*>(Opts), Name, I);
+  Instruction *V = CallInst::Create(PAInfo.PoolStrdup, Opts, Name, I);
   Instruction *Casted = V;
   if (V->getType() != I->getType())
     Casted = CastInst::CreatePointerCast(V, I->getType(), V->getName(), I);

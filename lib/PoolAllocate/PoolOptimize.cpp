@@ -135,7 +135,7 @@ bool PoolOptimize::runOnModule(Module &M) {
     // poolrealloc(PD, null, X) -> poolalloc(PD, X)
     if (isa<ConstantPointerNull>(CI->getOperand(2))) {
       Value* Opts[2] = {CI->getOperand(1), CI->getOperand(3)};
-      Value *New = CallInst::Create(PoolAlloc, ArrayRef<Value*>(Opts),
+      Value *New = CallInst::Create(PoolAlloc, Opts,
                                 CI->getName(), CI);
       CI->replaceAllUsesWith(New);
       CI->eraseFromParent();
@@ -143,7 +143,7 @@ bool PoolOptimize::runOnModule(Module &M) {
                cast<Constant>(CI->getOperand(3))->isNullValue()) {
       // poolrealloc(PD, X, 0) -> poolfree(PD, X)
       Value* Opts[2] = {CI->getOperand(1), CI->getOperand(2)};
-      CallInst::Create(PoolFree, ArrayRef<Value*>(Opts), "", CI);
+      CallInst::Create(PoolFree, Opts, "", CI);
       PointerType * PT = dyn_cast<PointerType>(CI->getType());
       assert (PT && "poolrealloc call does not return a pointer!\n");
       CI->replaceAllUsesWith(ConstantPointerNull::get(PT));
@@ -151,7 +151,7 @@ bool PoolOptimize::runOnModule(Module &M) {
     } else if (isa<ConstantPointerNull>(CI->getOperand(1))) {
       // poolrealloc(null, X, Y) -> realloc(X, Y)
       Value* Opts[2] = {CI->getOperand(2), CI->getOperand(3)};
-      Value *New = CallInst::Create(Realloc, ArrayRef<Value*>(Opts),
+      Value *New = CallInst::Create(Realloc, Opts,
                                 CI->getName(), CI);
       CI->replaceAllUsesWith(New);
       CI->eraseFromParent();
@@ -182,7 +182,7 @@ bool PoolOptimize::runOnModule(Module &M) {
     // poolmemalign(null, X, Y) -> memalign(X, Y)
     if (isa<ConstantPointerNull>(CI->getOperand(1))) {
       Value* Opts[2] = {CI->getOperand(2), CI->getOperand(3)};
-      Value *New = CallInst::Create(MemAlign, ArrayRef<Value*>(Opts), CI->getName(), CI);
+      Value *New = CallInst::Create(MemAlign, Opts, CI->getName(), CI);
       CI->replaceAllUsesWith(New);
       CI->eraseFromParent();
     }
