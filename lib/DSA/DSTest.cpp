@@ -74,6 +74,8 @@ namespace {
       cl::CommaSeparated, cl::ReallyHidden);
 }
 
+typedef std::set<const Function*> FuncSetTy;
+
 /// NodeValue -- represents a particular node in a DSGraph
 /// constructed from a serialized string representation of a value
 ///
@@ -313,28 +315,40 @@ static void printTypesForNode(llvm::raw_ostream &O, NodeValue &NV) {
     O << "Array";
 }
 
-static std::vector<const Function*>
+FuncSetTy
 getCalleesFor(const Function * caller, const DSCallGraph & cg)
 {
-  std::vector<const Function*> callees;
+  FuncSetTy callees;
 
   Function const*leader = cg.sccLeader(&*caller);
 
   // Add all methods in same SCC as caller...
   for(DSCallGraph::scc_iterator sccii = cg.scc_begin(leader),
       sccee = cg.scc_end(leader); sccii != sccee; ++sccii)
-    callees.push_back(*sccii);
+    callees.insert(*sccii);
 
   // And all methods in the SCC's called by the caller
   for(DSCallGraph::flat_iterator CI = cg.flat_callee_begin(caller);
       CI != cg.flat_callee_end(caller); CI ++) {
-    callees.push_back(*CI);
+    callees.insert(*CI);
     for(DSCallGraph::scc_iterator sccii = cg.scc_begin(*CI),
         sccee = cg.scc_end(*CI); sccii != sccee; ++sccii)
-      callees.push_back(*sccii);
+      callees.insert(*sccii);
   }
 
   return callees;
+}
+
+static void printCallees(FuncSetTy & Funcs, raw_ostream & O)
+{
+  FuncSetTy::iterator I = Funcs.begin(),
+                      E = Funcs.end();
+  if (I != E)
+  {
+    O << (*I)->getName();
+    while(++I != E)
+      O << ", " << (*I)->getName();
+  }
 }
 
 static std::string getFlags(DSNode *N) {
@@ -598,22 +612,30 @@ static bool checkNotCallees(llvm::raw_ostream &O, const Module *M,
   Function *caller = M->getFunction(func);
   assert(caller && "Function not found in module");
 
-  std::vector<const Function *> notCallees;
+  FuncSetTy notCallees;
   while (++I != E) {
     std::string &func = *(I);
     const Function *callee = M->getFunction(func);
     assert(callee && "Specified callee function not found in module!");
-    notCallees.push_back(callee);
+    notCallees.insert(callee);
   }
 
   const DSCallGraph callgraph = DS->getCallGraph();
-  std::vector<const Function*> analysisCallees = getCalleesFor(caller, callgraph);
-
-  std::sort(notCallees.begin(), notCallees.end());
-  std::sort(analysisCallees.begin(), analysisCallees.end());
+  FuncSetTy analysisCallees = getCalleesFor(caller, callgraph);
 
   if (std::includes(analysisCallees.begin(), analysisCallees.end(),
                     notCallees.begin(), notCallees.end())) {
+    FuncSetTy invalid;
+    std::set_intersection(analysisCallees.begin(), analysisCallees.end(),
+                          notCallees.begin(), notCallees.end(),
+                          std::inserter(invalid, invalid.begin()));
+    errs() << "ERROR: Callgraph check failed for: \t" << caller->getName() << "\n";
+    errs() << "              Analysis says calls: \t";
+    printCallees(analysisCallees, errs()); errs() << "\n";
+    errs() << "              Testing to not call: \t";
+    printCallees(notCallees, errs()); errs() << "\n";
+    errs() << "                      *** Overlap: \t";
+    printCallees(invalid, errs()); errs() << "\n";
     assert(0 && "Analysis contained the specified callees!");
   }
 
@@ -639,23 +661,31 @@ static bool checkCallees(llvm::raw_ostream &O, const Module *M,
   Function *caller = M->getFunction(func);
   assert(caller && "Function not found in module");
 
-  std::vector<const Function *> expectedCallees;
+  FuncSetTy expectedCallees;
   while (++I != E) {
     std::string &func = *(I);
     const Function *callee = M->getFunction(func);
     assert(callee && "Specified callee function not found in module!");
-    expectedCallees.push_back(callee);
+    expectedCallees.insert(callee);
   }
 
   const DSCallGraph callgraph = DS->getCallGraph();
-  std::vector<const Function*> analysisCallees = getCalleesFor(caller, callgraph);
-
-  std::sort(expectedCallees.begin(), expectedCallees.end());
-  std::sort(analysisCallees.begin(), analysisCallees.end());
+  FuncSetTy analysisCallees = getCalleesFor(caller, callgraph);
 
   if (!std::includes(analysisCallees.begin(), analysisCallees.end(),
                      expectedCallees.begin(), expectedCallees.end())) {
-    assert(0 && "Analysis didn't contain the specified callees!");
+    FuncSetTy missing;
+    std::set_difference(expectedCallees.begin(), expectedCallees.end(),
+                        analysisCallees.begin(), analysisCallees.end(),
+                        std::inserter(missing, missing.begin()));
+    errs() << "ERROR: Callgraph check failed for: \t" << caller->getName() << "\n";
+    errs() << "              Analysis says calls: \t";
+    printCallees(analysisCallees, errs()); errs() << "\n";
+    errs() << "       Testing to make sure calls: \t";
+    printCallees(expectedCallees, errs()); errs() << "\n";
+    errs() << "                      *** Missing: \t";
+    printCallees(missing, errs()); errs() << "\n";
+    assert(0 && "Analysis contained the specified callees!");
   }
 
   return true;
