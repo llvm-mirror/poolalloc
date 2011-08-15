@@ -313,6 +313,30 @@ static void printTypesForNode(llvm::raw_ostream &O, NodeValue &NV) {
     O << "Array";
 }
 
+static std::vector<const Function*>
+getCalleesFor(const Function * caller, const DSCallGraph & cg)
+{
+  std::vector<const Function*> callees;
+
+  Function const*leader = cg.sccLeader(&*caller);
+
+  // Add all methods in same SCC as caller...
+  for(DSCallGraph::scc_iterator sccii = cg.scc_begin(leader),
+      sccee = cg.scc_end(leader); sccii != sccee; ++sccii)
+    callees.push_back(*sccii);
+
+  // And all methods in the SCC's called by the caller
+  for(DSCallGraph::flat_iterator CI = cg.flat_callee_begin(caller);
+      CI != cg.flat_callee_end(caller); CI ++) {
+    callees.push_back(*CI);
+    for(DSCallGraph::scc_iterator sccii = cg.scc_begin(*CI),
+        sccee = cg.scc_end(*CI); sccii != sccee; ++sccii)
+      callees.push_back(*sccii);
+  }
+
+  return callees;
+}
+
 static std::string getFlags(DSNode *N) {
   std::string flags("");
 
@@ -565,43 +589,35 @@ static bool checkNotCallees(llvm::raw_ostream &O, const Module *M,
                          const DataStructures *DS) {
   //Mangled names must be provided for C++
   cl::list<std::string>::iterator I = CheckNotCallees.begin(),
-                                  E = CheckNotCallees.end();
+  E = CheckNotCallees.end();
 
-  if(I != E) {
+  // User didn't specify this option, bail.
+  if (I == E) return false;
+
+  std::string &func = *(I);
+  Function *caller = M->getFunction(func);
+  assert(caller && "Function not found in module");
+
+  std::vector<const Function *> notCallees;
+  while (++I != E) {
     std::string &func = *(I);
-    Function *caller = M->getFunction(func);
-    assert(caller && "Function not found in module");
-    const DSCallGraph callgraph = DS->getCallGraph();
-    ++I;
-    while(I != E ) {
-      std::string &func = *(I);
-      const Function *callee = M->getFunction(func);
-      bool found = false;
-      Function const*leader = callgraph.sccLeader(&*caller);
-
-      // either the callee is in the same SCC as the caller, and hence does not show up
-      for(DSCallGraph::scc_iterator sccii = callgraph.scc_begin(leader),
-          sccee = callgraph.scc_end(leader); sccii != sccee; ++sccii) {
-        if(callee == *sccii)
-          found = true;
-      }
-      // or the callee is found in the DSCallGraph
-      for(DSCallGraph::flat_iterator CI = callgraph.flat_callee_begin(caller);
-          CI != callgraph.flat_callee_end(caller); CI ++) {
-        if (callee == *CI)
-          found = true;
-        for(DSCallGraph::scc_iterator sccii = callgraph.scc_begin(*CI),
-            sccee = callgraph.scc_end(*CI); sccii != sccee; ++sccii) {
-          if(callee == *sccii)
-            found = true;
-        }
-      }
-      assert(!found && "non-callee in call graph");
-      ++I;
-    }
-    return true;
+    const Function *callee = M->getFunction(func);
+    assert(callee && "Specified callee function not found in module!");
+    notCallees.push_back(callee);
   }
-  return false;
+
+  const DSCallGraph callgraph = DS->getCallGraph();
+  std::vector<const Function*> analysisCallees = getCalleesFor(caller, callgraph);
+
+  std::sort(notCallees.begin(), notCallees.end());
+  std::sort(analysisCallees.begin(), analysisCallees.end());
+
+  if (std::includes(analysisCallees.begin(), analysisCallees.end(),
+                    notCallees.begin(), notCallees.end())) {
+    assert(0 && "Analysis contained the specified callees!");
+  }
+
+  return true;
 }
 
 /// checkCallees -- Verify callees for the given function
@@ -615,43 +631,34 @@ static bool checkCallees(llvm::raw_ostream &O, const Module *M,
   //Mangled names must be provided for C++
   cl::list<std::string>::iterator I = CheckCallees.begin(),
   E = CheckCallees.end();
-  // If the user specified that a set of values should be in the same node...
-  if (I != E) {
-    std::string &func = *(I);
-    Function *caller = M->getFunction(func);
-    assert(caller && "Function not found in module");
-    const DSCallGraph callgraph = DS->getCallGraph();
-    //(const_cast<DSCallGraph&>(callgraph)).dump();
-    ++I;
-    while(I != E ){
-      std::string &func = *(I);
-      const Function *callee = M->getFunction(func);
-      bool found = false;
-      Function const*leader = callgraph.sccLeader(&*caller);
 
-      // either the callee is in the same SCC as the caller, and hence does not show up
-      for(DSCallGraph::scc_iterator sccii = callgraph.scc_begin(leader),
-          sccee = callgraph.scc_end(leader); sccii != sccee; ++sccii) {
-        if(callee == *sccii)
-          found = true;
-      }
-      // or the callee is found in the DSCallGraph
-      for(DSCallGraph::flat_iterator CI = callgraph.flat_callee_begin(caller);
-          CI != callgraph.flat_callee_end(caller); CI ++) {
-        if (callee == *CI)
-          found = true;
-        for(DSCallGraph::scc_iterator sccii = callgraph.scc_begin(*CI),
-            sccee = callgraph.scc_end(*CI); sccii != sccee; ++sccii) {
-          if(callee == *sccii)
-            found = true;
-        }
-      }
-      assert(found && "callee not in call graph");
-      ++I;
-    }
-    return true;
+  // User didn't specify this option, bail.
+  if (I == E) return false;
+
+  std::string &func = *(I);
+  Function *caller = M->getFunction(func);
+  assert(caller && "Function not found in module");
+
+  std::vector<const Function *> expectedCallees;
+  while (++I != E) {
+    std::string &func = *(I);
+    const Function *callee = M->getFunction(func);
+    assert(callee && "Specified callee function not found in module!");
+    expectedCallees.push_back(callee);
   }
-  return false;
+
+  const DSCallGraph callgraph = DS->getCallGraph();
+  std::vector<const Function*> analysisCallees = getCalleesFor(caller, callgraph);
+
+  std::sort(expectedCallees.begin(), expectedCallees.end());
+  std::sort(analysisCallees.begin(), analysisCallees.end());
+
+  if (!std::includes(analysisCallees.begin(), analysisCallees.end(),
+                     expectedCallees.begin(), expectedCallees.end())) {
+    assert(0 && "Analysis didn't contain the specified callees!");
+  }
+
+  return true;
 }
 
 /// handleTest -- handles any user-specified testing options.
