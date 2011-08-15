@@ -708,7 +708,7 @@ bool TypeChecks::visitAddressTakenFunction(Module &M, Function &F) {
       AllocaInst *AI = new AllocaInst(TypeTagTy, NumArgsVal, "", &*InsPt);
       // set the metadata for the varargs in AI
       for(i = 3; i <II->getNumOperands(); i++) {
-        Value *Idx[2];
+        Value *Idx[1];
         Idx[0] = ConstantInt::get(Int32Ty, i - 3 );
         // For each vararg argument, also add its type information
         GetElementPtrInst *GEP = GetElementPtrInst::CreateInBounds(AI,Idx, "", II);
@@ -745,7 +745,7 @@ bool TypeChecks::visitAddressTakenFunction(Module &M, Function &F) {
       AllocaInst *AI = new AllocaInst(TypeTagTy, NumArgsVal, "", &*InsPt);
       // set the metadata for the varargs in AI
       for(i = 1; i <CI->getNumOperands(); i++) {
-        Value *Idx[2];
+        Value *Idx[1];
         Idx[0] = ConstantInt::get(Int32Ty, i - 1 );
         // For each vararg argument, also add its type information
         GetElementPtrInst *GEP = GetElementPtrInst::CreateInBounds(AI,Idx, "", CI);
@@ -871,7 +871,7 @@ bool TypeChecks::visitInternalVarArgFunction(Module &M, Function &F) {
 
   // Increment by the number of Initial Args, so as to not read the metadata
   //for those.
-  Value *Idx[2];
+  Value *Idx[1];
   Idx[0] = InitialArgs;
   // For each vararg argument, also add its type information
   GetElementPtrInst *GEP = GetElementPtrInst::CreateInBounds(NII,Idx, "", &*InsPt);
@@ -937,7 +937,7 @@ bool TypeChecks::visitInternalVarArgFunction(Module &M, Function &F) {
       AllocaInst *AI = new AllocaInst(TypeTagTy, NumArgsVal, "", &*InsPt);
       // set the metadata for the varargs in AI
       for(i = 3; i <II->getNumOperands(); i++) {
-        Value *Idx[2];
+        Value *Idx[1];
         Idx[0] = ConstantInt::get(Int32Ty, i - 3 );
         // For each vararg argument, also add its type information
         GetElementPtrInst *GEP = GetElementPtrInst::CreateInBounds(AI, Idx, "", II);
@@ -970,7 +970,7 @@ bool TypeChecks::visitInternalVarArgFunction(Module &M, Function &F) {
       AllocaInst *AI = new AllocaInst(TypeTagTy, NumArgsVal, "", &*InsPt);
       // set the metadata for the varargs in AI
       for(i = 1; i <CI->getNumOperands(); i++) {
-        Value *Idx[2];
+        Value *Idx[1];
         Idx[0] = ConstantInt::get(Int32Ty, i - 1 );
         // For each vararg argument, also add its type information
         GetElementPtrInst *GEP = GetElementPtrInst::CreateInBounds(AI,Idx, "", CI);
@@ -2023,7 +2023,7 @@ bool TypeChecks::visitIndirectCallSite(Module &M, Instruction *I) {
   Value *NumArgsVal = ConstantInt::get(Int32Ty, NumArgs);
   AllocaInst *AI = new AllocaInst(TypeTagTy, NumArgsVal, "", &*InsPt);
   for(unsigned int i = 0; i < CS.arg_size(); i++) {
-    Value *Idx[2];
+    Value *Idx[1];
     Idx[0] = ConstantInt::get(Int32Ty, i-1);
     GetElementPtrInst *GEP = GetElementPtrInst::CreateInBounds(AI, Idx, "", I);
     Constant *C = getTypeMarkerConstant(CS.getArgument(i));
