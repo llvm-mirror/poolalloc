@@ -256,6 +256,7 @@ const struct {
   // SAFECode Intrinsics
   {"poolcheck",        {NRET_NARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
   {"poolcheckui",      {NRET_NARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
+  {"fastlscheck",      {NRET_NARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
   {"poolcheckalign",   {NRET_NARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
   {"poolcheckalignui", {NRET_NARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
 
@@ -595,7 +596,6 @@ StdLibDataStructures::runOnModule (Module &M) {
     processRuntimeCheck (M, "boundscheck", 2);
     processRuntimeCheck (M, "boundscheckui", 2);
     processRuntimeCheck (M, "exactcheck2", 1);
-    processRuntimeCheck (M, "fastlscheck", 1);
     processRuntimeCheck (M, "pchk_getActualValue", 1);
   }
 
