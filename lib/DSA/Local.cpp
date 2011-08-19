@@ -812,7 +812,20 @@ void GraphBuilder::visitVAStartNode(DSNode* N) {
   N->setModifiedMarker()->setVAStartMarker();
 }
 
-/// returns true if the intrinsic is handled
+///
+/// Method: visitIntrinsic()
+///
+/// Description:
+///   Generate correct DSNodes for calls to LLVM intrinsic functions.
+///
+/// Inputs:
+///   CS - The CallSite representing the call or invoke to the intrinsic.
+///   F  - A pointer to the function called by the call site.
+///
+/// Return value:
+///   true  - This intrinsic is properly handled by this method.
+///   false - This intrinsic is not recognized by DSA.
+///
 bool GraphBuilder::visitIntrinsic(CallSite CS, Function *F) {
   ++NumIntrinsicCall;
   switch (F->getIntrinsicID()) {
@@ -941,6 +954,13 @@ bool GraphBuilder::visitIntrinsic(CallSite CS, Function *F) {
     setDestTo (*(CS.getInstruction()), Node);
     return true;
   }
+
+  // Process lifetime intrinsics
+  case Intrinsic::lifetime_start:
+  case Intrinsic::lifetime_end:
+  case Intrinsic::invariant_start:
+  case Intrinsic::invariant_end:
+    return true;
 
   default: {
     //ignore pointer free intrinsics
