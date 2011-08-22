@@ -409,11 +409,11 @@ cputrack::
 # Pathname to poolalloc object tree
 PADIR   := $(PROJ_OBJ_ROOT)
 # Pathame to the DSA pass dynamic library
-DSA_SO   := $(PADIR)/$(BuildMode)/lib/libLLVMDataStructure$(SHLIBEXT)
+DSA_SO   := $(PADIR)/$(BuildMode)/lib/LLVMDataStructure$(SHLIBEXT)
 # Pathame to the Assist DSA pass dynamic library
-ADSA_SO   := $(PADIR)/$(BuildMode)/lib/libAssistDS$(SHLIBEXT)
+ADSA_SO   := $(PADIR)/$(BuildMode)/lib/AssistDS$(SHLIBEXT)
 # Pathname to the PA pass dynamic library
-PA_SO   := $(PADIR)/$(BuildMode)/lib/libpoolalloc$(SHLIBEXT)
+PA_SO   := $(PADIR)/$(BuildMode)/lib/poolalloc$(SHLIBEXT)
 
 DSAOPT := $(PROJ_OBJ_ROOT)/test/tools/dsaopt
 ADSAOPT := $(PROJ_OBJ_ROOT)/test/tools/adsaopt
