@@ -16,13 +16,12 @@
 
 #include "dsa/svset.h"
 #include "dsa/keyiterator.h"
-#include <map>
 
-//Fix in 2.8, EQC includes cassert
-#include <cassert>
 #include "llvm/ADT/EquivalenceClasses.h"
 #include "llvm/Support/CallSite.h"
 
+#include <cassert>
+#include <map>
 
 class DSCallGraph {
 public:
