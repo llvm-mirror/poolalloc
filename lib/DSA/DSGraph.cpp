@@ -676,8 +676,13 @@ void DSGraph::markIncompleteNodes(unsigned Flags) {
   }
 }
 
-// markExternalNode -- Marks the specified node, and all that's reachable from it,
-// as external.  Uses 'processedNodes' to track recursion.
+//
+// Function: markExternalNode()
+//
+// Description:
+//  Marks the specified node, and all that's reachable from it, as external.
+//  It uses 'processedNodes' to track recursion.
+//
 static void markExternalNode(DSNode *N, DenseSet<DSNode *> & processedNodes) {
   // Stop recursion if no node, or if node already processed
   if (N == 0 || processedNodes.count(N) ) return;
@@ -706,8 +711,13 @@ static void markExternal(const DSCallSite &Call, DenseSet<DSNode *> & processedN
     markExternalNode(Call.getPtrArg(i).getNode(), processedNodes);
 }
 
-// propagateExternal -- Walk the given DSGraph making sure that within this graph
-// everything reachable from an already-external node is also marked External.
+//
+// Method: propagateExternal()
+//
+// Description:
+//  Walk the given DSGraph and ensure that, within this graph,
+//  everything reachable from a node marked External is also marked External.
+//
 static void propagateExternal(DSGraph * G, DenseSet<DSNode *> & processedNodes) {
   DSGraph::node_iterator I = G->node_begin(),
                          E = G->node_end();
@@ -716,7 +726,13 @@ static void propagateExternal(DSGraph * G, DenseSet<DSNode *> & processedNodes) 
       markExternalNode(&*I, processedNodes);
   }
 }
-// computeIntPtrFlags -- mark all nodes that must get P2 flags due to type overlap
+
+//
+// Method: computeIntPtrFlags()
+//
+// Description:
+//  Mark all nodes that must get P2 flags due to type overlap.
+//
 void DSGraph::computeIntPtrFlags() {
   DSGraph::node_iterator I = node_begin(),
                          E = node_end();
@@ -735,7 +751,8 @@ void DSGraph::computeExternalFlags(unsigned Flags) {
     maskNodeTypes(~DSNode::ExternalNode);
   }
 
-  // Make sure that everything reachable from something already external is also external
+  // Make sure that everything reachable from something already external is
+  // also external
   propagateExternal(this, processedNodes);
 
   // If requested, we mark all functions (their formals) in this
@@ -789,8 +806,9 @@ void DSGraph::computeExternalFlags(unsigned Flags) {
         shouldBeMarkedExternal |= (*II)->isDeclaration();
       }
 
-      // If this callsite can call external code, it better be the case that the pointer arguments
-      // and the return values are all marked external (and what's reachable from them)
+      // If this callsite can call external code, it better be the case that
+      // the pointer arguments and the return values are all marked external
+      // (and what's reachable from them)
       if (shouldBeMarkedExternal) {
         markExternal(*I, processedNodes);
       }
