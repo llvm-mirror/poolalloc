@@ -500,8 +500,8 @@ StdLibDataStructures::processRuntimeCheck (Module & M,
     if (CallInst* CI = dyn_cast<CallInst>(*ii)) {
       if (CI->getCalledValue() == F) {
         DSGraph* Graph = getDSGraph(*CI->getParent()->getParent());
-        DSNodeHandle RetNode = Graph->getNodeForValue(CI);
-        DSNodeHandle ArgNode = Graph->getNodeForValue(CI->getArgOperand(arg));
+        DSNodeHandle & RetNode = Graph->getNodeForValue(CI);
+        DSNodeHandle & ArgNode = Graph->getNodeForValue(CI->getArgOperand(arg));
         RetNode.mergeWith(ArgNode);
       }
     }
