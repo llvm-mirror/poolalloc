@@ -259,17 +259,16 @@ const struct {
   {"fastlscheck",      {NRET_NARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
   {"poolcheckalign",   {NRET_NARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
   {"poolcheckalignui", {NRET_NARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
-
   {"funccheck",        {NRET_NARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
   {"funccheckui",      {NRET_NARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
 
-  {"funccheck_debug",  {NRET_NARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
-  {"funccheckui_debug",{NRET_NARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
-
   {"poolcheck_debug",        {NRET_NARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
   {"poolcheckui_debug",      {NRET_NARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
+  {"fastlscheck_debug",      {NRET_NARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
   {"poolcheckalign_debug",   {NRET_NARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
   {"poolcheckalignui_debug", {NRET_NARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
+  {"funccheck_debug",  {NRET_NARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
+  {"funccheckui_debug",{NRET_NARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
 
   {"pool_register_stack", {NRET_NARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
   {"pool_unregister_stack", {NRET_NARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
@@ -285,7 +284,6 @@ const struct {
   {"pool_unregister_global_debug", {NRET_NARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
   {"pool_register_debug", {NRET_NARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
   {"pool_unregister_debug", {NRET_NARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
-
 
   // CIF Intrinsics
   {"__if_pool_get_label", {NRET_NARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
@@ -602,6 +600,11 @@ StdLibDataStructures::runOnModule (Module &M) {
     processRuntimeCheck (M, "boundscheck", 2);
     processRuntimeCheck (M, "boundscheckui", 2);
     processRuntimeCheck (M, "exactcheck2", 1);
+
+    processRuntimeCheck (M, "boundscheck_debug", 2);
+    processRuntimeCheck (M, "boundscheckui_debug", 2);
+    processRuntimeCheck (M, "exactcheck2_debug", 1);
+
     processRuntimeCheck (M, "pchk_getActualValue", 1);
   }
 
