@@ -517,90 +517,71 @@ void BUDataStructures::CloneAuxIntoGlobal(DSGraph* G) {
   ReachabilityCloner RC(GG, G, 0);
 
   //
-  // Sort the lists of DSCallSites by the LLVM value that is used for the
-  // indirect call.
-  //
-  G->getAuxFunctionCalls().sort  (compareDSCallSites);
-  GG->getAuxFunctionCalls().sort (compareDSCallSites);
-
-  //
   // Determine which called values are both within the local graph DSCallsites
   // and the global graph DSCallsites.  Note that we require that the global
   // graph have a DSNode for the called value.
   //
-  std::set<Value *> LocalCallValues;
-  std::set<Value *> GlobalCallValues;
-  std::set<Value *> CommonCallValues;
+  std::map<Value *, DSCallSite *> CommonCallValues;
   for (DSGraph::afc_iterator ii = G->afc_begin(), ee = G->afc_end();
        ii != ee;
        ++ii) {
+    //
+    // If the globals graph has a DSNode for the LLVM value used in the local
+    // unresolved call site, then it might have a DSCallSite for it, too.
+    // Record this call site as a potential call site that will need to be
+    // merged.
+    //
+    // Otherwise, just add the call site to the globals graph.
+    //
     Value * V = ii->getCallSite().getCalledValue();
     if (GG->hasNodeForValue(V)) {
-      LocalCallValues.insert (V);
-    }
-  }
-
-  for (DSGraph::afc_iterator ii = GG->afc_begin();
-       ii != GG->afc_end();
-       ++ii) {
-    Value * V = ii->getCallSite().getCalledValue();
-    GlobalCallValues.insert (V);
-  }
-
-  std::set_intersection (LocalCallValues.begin(), LocalCallValues.end(),
-                         GlobalCallValues.begin(), GlobalCallValues.end(),
-                         std::inserter (CommonCallValues,
-                         CommonCallValues.begin()));
-  LocalCallValues.clear();
-  GlobalCallValues.clear();
-
-  //
-  // Scan through all the unresolved call sites in the local graph for which
-  // the globals graph also considers the call site unresolved; merge such call
-  // sites together.
-  //
-  DSGraph::afc_iterator ii = G->afc_begin();
-  DSGraph::afc_iterator GGii = GG->afc_begin();
-  for (std::set<Value *>::iterator iv = CommonCallValues.begin();
-       iv != CommonCallValues.end();
-       ++iv) {
-    //
-    // Move the iterator in the local graph to the appropriate call site.
-    // In the process, if we see a call site that needs to be added to the
-    // globals graph, do that now.
-    //
-    Value * V = *iv;
-    while (ii->getCallSite().getCalledValue() != V) {
+      DSCallSite & DS = *ii;
+      CommonCallValues[V] = &DS;
+    } else {
       GG->addAuxFunctionCall(RC.cloneCallSite(*ii));
-      ++ii;
     }
+  }
 
+  //
+  // Scan through all the unresolved call sites in the globals graph and see if
+  // the local graph has a call using the same LLVM value.  If so, merge the
+  // call sites.
+  //
+  DSGraph::afc_iterator GGii = GG->afc_begin();
+  for (; GGii != GG->afc_end(); ++GGii) {
     //
-    // Move the iterator in the global graph to the appropriate call site.
+    // Determine if this unresolved call site is also in the local graph.
+    // If so, then merge it.
     //
-    while (GGii->getCallSite().getCalledValue() != V)
-      ++GGii;
+    Value * CalledValue = GGii->getCallSite().getCalledValue();
+    std::map<Value *, DSCallSite *>::iterator v;
+    v = CommonCallValues.find (CalledValue);
+    if (v != CommonCallValues.end()) {
+      //
+      // Merge the unresolved call site into the globals graph.
+      //
+      RC.cloneCallSite(*(v->second)).mergeWith(*GGii);
 
-    //
-    // Merge the two call sites together.
-    //
-    RC.cloneCallSite(*ii).mergeWith(*GGii);
-
-    //
-    // Make sure not to repeat any merges.
-    //
-    ++ii;
-    ++GGii;
+      //
+      // Mark that this call site was merged by removing the called LLVM value
+      // from the set of values common to both the local and global DSGraphs.
+      //
+      CommonCallValues.erase (v);
+    }
   }
 
   //
   // We've now merged all DSCallSites that were known both to the local graph
   // and the globals graph.  Now, there are still some local call sites that
-  // need to be *added* to the globals graph.  Do that now.
+  // need to be *added* to the globals graph; they are in DSCallSites remaining
+  // in CommonCallValues.
   //
-  for (; ii != G->afc_end(); ++ii) {
-    GG->addAuxFunctionCall(RC.cloneCallSite(*ii));
+  std::map<Value *, DSCallSite *>::iterator v = CommonCallValues.begin ();
+  for (; v != CommonCallValues.end(); ++v) {
+    GG->addAuxFunctionCall(RC.cloneCallSite(*(v->second)));
   }
+
+  return;
 }
 
 
