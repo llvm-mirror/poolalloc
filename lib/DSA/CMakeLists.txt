@@ -1,5 +1,6 @@
 add_llvm_library(LLVMDataStructure 
   AddressTakenAnalysis.cpp
+  AllocatorIdentification.cpp
   Basic.cpp
   BottomUpClosure.cpp
   CallTargets.cpp
@@ -8,8 +9,6 @@ add_llvm_library(LLVMDataStructure
   DSGraph.cpp
   DSTest.cpp
   DataStructure.cpp
-  DataStructureAA.cpp
-  DataStructureOpt.cpp
   DataStructureStats.cpp
   EntryPointAnalysis.cpp
   EquivClassGraphs.cpp
@@ -18,8 +17,6 @@ add_llvm_library(LLVMDataStructure
   Printer.cpp
   SanityCheck.cpp
   StdLibPass.cpp
-  Steensgaard.cpp
-  SteensgaardAA.cpp
   TopDownClosure.cpp
   TypeSafety.cpp
   )

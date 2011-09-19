@@ -5,7 +5,7 @@ add_llvm_library(AssistDS
   DynCount.cpp
   FuncSimplify.cpp
   FuncSpec.cpp
-  GEPExprArg.cpp
+  GEPExprArgs.cpp
   IndCloner.cpp
   Int2PtrCmp.cpp
   LoadArgs.cpp
