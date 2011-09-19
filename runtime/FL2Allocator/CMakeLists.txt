@@ -3,6 +3,6 @@ link_directories(/localhome/simmon12/progs/dyncall-0.5/dyncall/build_out/linux_x
 add_llvm_library( poolalloc_rt PoolAllocator.cpp )
 set_property(
    TARGET poolalloc_rt
-   PROPERTY COMPILE_DEFINITIONS USE_DYNCALL
+   PROPERTY COMPILE_DEFINITIONS
    )
 target_link_libraries( poolalloc_rt dyncall_s )
