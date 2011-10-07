@@ -118,6 +118,7 @@ namespace {
     void visitSelectInst(SelectInst &SI);
     void visitLoadInst(LoadInst &LI);
     void visitStoreInst(StoreInst &SI);
+    void visitAtomicCmpXchgInst(AtomicCmpXchgInst &I);
     void visitAtomicRMWInst(AtomicRMWInst &I);
     void visitReturnInst(ReturnInst &RI);
     void visitVAArgInst(VAArgInst   &I);
@@ -413,6 +414,57 @@ void GraphBuilder::visitStoreInst(StoreInst &SI) {
         return;
       }
   Dest.getNode()->mergeTypeInfo(StoredTy, Dest.getOffset());
+}
+
+void GraphBuilder::visitAtomicCmpXchgInst(AtomicCmpXchgInst &I) {
+  if (isa<PointerType>(I.getType())) {
+    visitInstruction (I);
+    return;
+  }
+
+  //
+  // Create a DSNode for the dereferenced pointer .  If the DSNode is NULL, do
+  // nothing more (this can occur if the pointer is a NULL constant; bugpoint
+  // can generate such code).
+  //
+  DSNodeHandle Ptr = getValueDest(I.getPointerOperand());
+  if (Ptr.isNull()) return;
+
+  //
+  // Make that the memory object is read and written.
+  //
+  Ptr.getNode()->setReadMarker();
+  Ptr.getNode()->setModifiedMarker();
+
+  //
+  // If the result of the compare-and-swap is a pointer, then we need to do
+  // a few things:
+  //  o Merge the compare and swap values (which are pointers) with the result
+  //  o Merge the DSNode of the pointer *within* the memory object with the
+  //    DSNode of the compare, swap, and result DSNode.
+  //
+  if (isa<PointerType>(I.getType())) {
+    //
+    // Get the DSNodeHandle of the memory object returned from the load.  Make
+    // it the DSNodeHandle of the instruction's result.
+    //
+    DSNodeHandle FieldPtr = getLink (Ptr);
+    setDestTo(I, getLink(Ptr));
+
+    //
+    // Merge the result, compare, and swap values of the instruction.
+    //
+    FieldPtr.mergeWith (getValueDest (I.getCompareOperand()));
+    FieldPtr.mergeWith (getValueDest (I.getNewValOperand()));
+  }
+
+  //
+  // Modify the DSNode so that it has the loaded/written type at the
+  // appropriate offset.
+  //
+  Ptr.getNode()->growSizeForType(I.getType(), Ptr.getOffset());
+  Ptr.getNode()->mergeTypeInfo(I.getType(), Ptr.getOffset());
+  return;
 }
 
 void GraphBuilder::visitAtomicRMWInst(AtomicRMWInst &I) {
