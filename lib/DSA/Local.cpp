@@ -858,8 +858,6 @@ bool GraphBuilder::visitIntrinsic(CallSite CS, Function *F) {
       ->foldNodeCompletely();
     return true;
   case Intrinsic::vaend:
-  case Intrinsic::memory_barrier:
-    return true;  // noop
   case Intrinsic::memcpy: 
   case Intrinsic::memmove: {
     // Merge the first & second arguments, and mark the memory read and
@@ -904,6 +902,7 @@ bool GraphBuilder::visitIntrinsic(CallSite CS, Function *F) {
     return true;
   }
 
+#if 0
   case Intrinsic::atomic_cmp_swap: {
     DSNodeHandle Ptr = getValueDest(*CS.arg_begin());
     Ptr.getNode()->setReadMarker();
@@ -932,6 +931,7 @@ bool GraphBuilder::visitIntrinsic(CallSite CS, Function *F) {
       if (isa<PointerType>(F->getReturnType()))
         setDestTo(*CS.getInstruction(), getValueDest(*(CS.arg_begin() + 1)));
     }
+#endif
 
 
 
