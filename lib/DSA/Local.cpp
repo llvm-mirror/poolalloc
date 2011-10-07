@@ -984,39 +984,6 @@ bool GraphBuilder::visitIntrinsic(CallSite CS, Function *F) {
     return true;
   }
 
-#if 0
-  case Intrinsic::atomic_cmp_swap: {
-    DSNodeHandle Ptr = getValueDest(*CS.arg_begin());
-    Ptr.getNode()->setReadMarker();
-    Ptr.getNode()->setModifiedMarker();
-    if (isa<PointerType>(F->getReturnType())) {
-      setDestTo(*(CS.getInstruction()), getValueDest(*(CS.arg_begin() + 1)));
-      getValueDest(*(CS.arg_begin() + 1))
-        .mergeWith(getValueDest(*(CS.arg_begin() + 2)));
-    }
-  }
-  case Intrinsic::atomic_swap:
-  case Intrinsic::atomic_load_add:
-  case Intrinsic::atomic_load_sub:
-  case Intrinsic::atomic_load_and:
-  case Intrinsic::atomic_load_nand:
-  case Intrinsic::atomic_load_or:
-  case Intrinsic::atomic_load_xor:
-  case Intrinsic::atomic_load_max:
-  case Intrinsic::atomic_load_min:
-  case Intrinsic::atomic_load_umax:
-  case Intrinsic::atomic_load_umin:
-    {
-      DSNodeHandle Ptr = getValueDest(*CS.arg_begin());
-      Ptr.getNode()->setReadMarker();
-      Ptr.getNode()->setModifiedMarker();
-      if (isa<PointerType>(F->getReturnType()))
-        setDestTo(*CS.getInstruction(), getValueDest(*(CS.arg_begin() + 1)));
-    }
-#endif
-
-
-
   case Intrinsic::prefetch:
     return true;
 
