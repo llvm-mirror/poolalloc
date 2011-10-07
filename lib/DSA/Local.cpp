@@ -118,6 +118,7 @@ namespace {
     void visitSelectInst(SelectInst &SI);
     void visitLoadInst(LoadInst &LI);
     void visitStoreInst(StoreInst &SI);
+    void visitAtomicRMWInst(AtomicRMWInst &I);
     void visitReturnInst(ReturnInst &RI);
     void visitVAArgInst(VAArgInst   &I);
     void visitIntToPtrInst(IntToPtrInst &I);
@@ -363,7 +364,7 @@ void GraphBuilder::visitSelectInst(SelectInst &SI) {
 
 void GraphBuilder::visitLoadInst(LoadInst &LI) {
   //
-  // Create a DSNode for the poiner dereferenced by the load.  If the DSNode
+  // Create a DSNode for the pointer dereferenced by the load.  If the DSNode
   // is NULL, do nothing more (this can occur if the load is loading from a
   // NULL pointer constant (bugpoint can generate such code).
   //
@@ -412,6 +413,30 @@ void GraphBuilder::visitStoreInst(StoreInst &SI) {
         return;
       }
   Dest.getNode()->mergeTypeInfo(StoredTy, Dest.getOffset());
+}
+
+void GraphBuilder::visitAtomicRMWInst(AtomicRMWInst &I) {
+  //
+  // Create a DSNode for the dereferenced pointer .  If the DSNode is NULL, do
+  // nothing more (this can occur if the pointer is a NULL constant; bugpoint
+  // can generate such code).
+  //
+  DSNodeHandle Ptr = getValueDest(I.getPointerOperand());
+  if (Ptr.isNull()) return;
+
+  //
+  // Make that the memory object is read and written.
+  //
+  Ptr.getNode()->setReadMarker();
+  Ptr.getNode()->setModifiedMarker();
+
+  //
+  // Modify the DSNode so that it has the loaded/written type at the
+  // appropriate offset.
+  //
+  Ptr.getNode()->growSizeForType(I.getType(), Ptr.getOffset());
+  Ptr.getNode()->mergeTypeInfo(I.getType(), Ptr.getOffset());
+  return;
 }
 
 void GraphBuilder::visitReturnInst(ReturnInst &RI) {
