@@ -362,7 +362,12 @@ void GraphBuilder::visitSelectInst(SelectInst &SI) {
 }
 
 void GraphBuilder::visitLoadInst(LoadInst &LI) {
-  DSNodeHandle Ptr = getValueDest(LI.getOperand(0));
+  //
+  // Create a DSNode for the poiner dereferenced by the load.  If the DSNode
+  // is NULL, do nothing more (this can occur if the load is loading from a
+  // NULL pointer constant (bugpoint can generate such code).
+  //
+  DSNodeHandle Ptr = getValueDest(LI.getPointerOperand());
   if (Ptr.isNull()) return; // Load from null
 
   // Make that the node is read from...
