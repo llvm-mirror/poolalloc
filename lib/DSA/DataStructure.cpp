@@ -506,16 +506,6 @@ void DSNode::mergeGlobals(const DSNode &RHS) {
   Globals.insert(RHS.Globals.begin(), RHS.Globals.end());
 }
 
-static unsigned gcd(unsigned m, unsigned n) {
-  if (m < n) return gcd(n,m);
-  unsigned r = m % n;
-  if (r == 0) {
-    return n;
-  } else {
-    return gcd(n, r);
-  }
-}
-
 // MergeNodes - Helper function for DSNode::mergeWith().
 // This function does the hard work of merging two nodes, CurNodeH
 // and NH after filtering out trivial cases and making sure that
