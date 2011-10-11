@@ -1232,37 +1232,6 @@ void DSCallSite::markReachableNodes(DenseSet<const DSNode*> &Nodes) const {
     getPtrArg(i).getNode()->markReachableNodes(Nodes);
 }
 
-// CanReachAliveNodes - Simple graph walker that recursively traverses the graph
-// looking for a node that is marked alive.  If an alive node is found, return
-// true, otherwise return false.  If an alive node is reachable, this node is
-// marked as alive...
-//
-static bool CanReachAliveNodes(DSNode *N, DenseSet<const DSNode*> &Alive,
-                               DenseSet<const DSNode*> &Visited,
-                               bool IgnoreGlobals) {
-  if (N == 0) return false;
-  assert(N->isForwarding() == 0 && "Cannot mark a forwarded node!");
-
-  // If this is a global node, it will end up in the globals graph anyway, so we
-  // don't need to worry about it.
-  if (IgnoreGlobals && N->isGlobalNode()) return false;
-
-  // If we know that this node is alive, return so!
-  if (Alive.count(N)) return true;
-
-  // Otherwise, we don't think the node is alive yet, check for infinite
-  // recursion.
-  if (Visited.count(N)) return false;  // Found a cycle
-  Visited.insert(N);   // No recursion, insert into Visited...
-
-  for (DSNode::edge_iterator I = N->edge_begin(),E = N->edge_end(); I != E; ++I)
-    if (CanReachAliveNodes(I->second.getNode(), Alive, Visited, IgnoreGlobals)) {
-      N->markReachableNodes(Alive);
-      return true;
-    }
-  return false;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 //Base DataStructures impl:
 ////////////////////////////////////////////////////////////////////////////////
