@@ -254,6 +254,7 @@ const struct {
 
   
   // SAFECode Intrinsics
+  {"pool_init_logfile",{NRET_YNARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
   {"poolcheck",        {NRET_NARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
   {"poolcheckui",      {NRET_NARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
   {"fastlscheck",      {NRET_NARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
