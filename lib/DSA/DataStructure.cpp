@@ -156,11 +156,10 @@ void DSNode::assertOK() const {
   //         "Node not OK!");
 
   assert(ParentGraph && "Node has no parent?");
-  const DSScalarMap &SM = ParentGraph->getScalarMap();
   for (globals_iterator ii = globals_begin(), ee = globals_end();
        ii != ee; ++ii) {
-    assert(SM.global_count(*ii));
-    assert(SM.find(*ii)->second.getNode() == this);
+    assert(ParentGraph->getScalarMap().global_count(*ii));
+    assert(ParentGraph->getScalarMap().find(*ii)->second.getNode() == this);
   }
 }
 
@@ -925,13 +924,17 @@ void ReachabilityCloner::merge(const DSNodeHandle &NH,
     DSNode *NewDN = new DSNode(*SN, Dest, true /* Null out all links */);
     NewDN->maskNodeTypes(BitsToKeep);
 
+#ifndef NDEBUG
     unsigned NHOffset = NH.getOffset();
+#endif
     NH.mergeWith(DSNodeHandle(NewDN, SrcNH.getOffset()));
 
+#ifndef NDEBUG
     assert(NH.getNode() &&
            (NH.getOffset() > NHOffset ||
             (NH.getOffset() == 0 && NH.getNode()->isNodeCompletelyFolded())) &&
            "Merging did not adjust the offset!");
+#endif
 
     // Before we start merging outgoing links and updating the scalar map, make
     // sure it is known that this is the representative node for the src node.

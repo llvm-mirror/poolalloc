@@ -729,8 +729,10 @@ PoolAllocate::FindPoolArgs (Module & M) {
         for (unsigned index = 0; index < Functions.size(); ++index) {
           Function * F = const_cast<Function*>(Functions[index]);
           if (FunctionInfo.find (F) != FunctionInfo.end()) {
+#ifndef NDEBUG
             FuncInfo & FI =  FunctionInfo.find(F)->second;
             assert(FI.ArgNodes.size() == 0);
+#endif
             continue;
           }
           // TODO: Original code was:
@@ -859,8 +861,10 @@ PoolAllocate::FindFunctionPoolArgs (const std::vector<const Function *> & Functi
   for (unsigned index = 0; index < Functions.size(); ++index) {
     Function * F = const_cast<Function*>(Functions[index]);
     if (FunctionInfo.find (F) != FunctionInfo.end()) {
+#ifndef NDEBUG
       FuncInfo & FI =  FunctionInfo.find(F)->second;
       assert(FI.ArgNodes.size() == MarkedNodes.size());
+#endif
       continue;
     }
 

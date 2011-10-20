@@ -177,6 +177,7 @@ PoolAllocate::TransformBody (DSGraph* g, PA::FuncInfo &fi,
 //
 void
 FuncTransform::verifyCallees (const std::vector<const Function *> & Functions) {
+#ifndef NDEBUG
   //
   // There's nothing to do if there's no function call targets at all.
   //
@@ -217,6 +218,7 @@ FuncTransform::verifyCallees (const std::vector<const Function *> & Functions) {
     assert (G == firstGraph);
     assert (FI->ArgNodes.size() == numPoolArgs);
   }
+#endif
 
   return;
 }
@@ -658,8 +660,7 @@ void FuncTransform::visitMemAlignCall(CallSite CS) {
 void FuncTransform::visitStrdupCall(CallSite CS) {
   assert(CS.arg_end()-CS.arg_begin() == 1 && "strdup takes one argument!");
   Instruction *I = CS.getInstruction();
-  DSNode *Node = getDSNodeHFor(I).getNode();
-  assert (Node && "strdup has NULL DSNode!\n");
+  assert (getDSNodeHFor(I).getNode() && "strdup has NULL DSNode!\n");
   Value *PH = getPoolHandle(I);
 
   Type* Int8Type = Type::getInt8Ty(CS.getInstruction()->getContext());

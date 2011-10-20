@@ -230,8 +230,7 @@ TypeSafety<dsa>::typeFieldsOverlap (const DSNode * N) {
               while(ArrayType *AT1 = dyn_cast<ArrayType>(ElemTy))
                 ElemTy = AT1->getElementType();
               if(next_offset < (TD->getTypeStoreSize(ElemTy) + offset)) {
-                StructType *ST = dyn_cast<StructType>(ElemTy);
-                assert(ST && "Array Not of struct type ???? ");
+                assert(isa<StructType>(ElemTy) && "Array Not of Struct Type??");
                 overlaps = false;
               }
             }

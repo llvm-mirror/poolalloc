@@ -152,9 +152,8 @@ class NodeValue {
     // If we have more than 2 values left, then we have something like:
     // name1:name2:name3[:offset]*, which is no good.
     // Also, if we have *nothing* left, something is similarly wrong.
-    int stringsLeft = E - I;
-    assert((stringsLeft > 0) && "Node was entirely made of offsets?");
-    assert((stringsLeft <= 2) && "Too many colons! (Invalid node/offset given)");
+    assert(((E - I) > 0) && "Node was entirely made of offsets?");
+    assert(((E - I) <= 2) && "Too many colons! (Invalid node/offset given)");
 
     // Now rebuild the string, without the offsets.
     std::string rebuilt = I++->str();

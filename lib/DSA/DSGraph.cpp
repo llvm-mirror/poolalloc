@@ -1058,8 +1058,8 @@ void DSGraph::removeTriviallyDeadNodes() {
         // to the node...
         for (DSNode::globals_iterator j = Node.globals_begin(), e = Node.globals_end();
              j != e; ++j) {
-          DSNode *N = getNodeForValue(*j).getNode();
-          assert(N == &Node && "ScalarMap doesn't match globals list!");
+          getNodeForValue(*j).getNode();
+          assert((getNodeForValue(*j).getNode()) == &Node && "ScalarMap doesn't match globals list!");
         }
 
         // Make sure NumReferrers still agrees, if so, the node is truly dead.
