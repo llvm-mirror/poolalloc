@@ -85,6 +85,7 @@ create_process (int argc, char ** argv) {
   exit (1);
 }
 
+#if defined(__APPLE__)
 //
 // Function: check_process()
 //
@@ -120,6 +121,7 @@ check_process (int sig) {
   alarm (check_interval);
   return;
 }
+#endif
 
 int
 main (int argc, char ** argv) {
