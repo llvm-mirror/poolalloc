@@ -188,6 +188,7 @@ bool ArgCast::runOnModule(Module& M) {
         else {
           // TODO: I'm not sure what right behavior is here, but this case should be handled.
           assert(0 && "Unexpected type conversion in call!");
+          abort();
         }
         CI->replaceAllUsesWith(RetCast);
       } else {
