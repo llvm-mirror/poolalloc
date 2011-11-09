@@ -45,6 +45,7 @@ namespace llvm {
     { "pool_index",       1 },
     { "pool_rindex",      1 },
     { "pool_strcasestr",  2 },
+    { "pool_fgets",       1 },
     {  0,                 0 }
   };
 

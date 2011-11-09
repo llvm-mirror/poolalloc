@@ -83,6 +83,7 @@ struct libAction {
 #define NRET_YNARGS   {0,1,0,0,0,0,0,0,0,0}
 #define YRET_YNARGS   {1,1,0,0,0,0,0,0,0,0}
 #define YRET_NNYARGS  {1,0,0,1,1,1,1,1,1,1}
+#define YRET_YNYARGS  {1,1,0,1,1,1,1,1,1,1}
 #define NRET_NNYARGS  {0,0,0,1,1,1,1,1,1,1}
 #define YRET_NNYNARGS {1,0,0,1,0,0,0,0,0,0}
 #define NRET_NNNYARGS {0,0,0,0,1,1,1,1,1,1}
@@ -260,6 +261,8 @@ const struct {
   {"fastlscheck",      {NRET_NARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
   {"poolcheckalign",   {NRET_NARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
   {"poolcheckalignui", {NRET_NARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
+  {"poolcheck_free",   {NRET_NARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
+  {"poolcheck_freeui", {NRET_NARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
   {"funccheck",        {NRET_NARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
   {"funccheckui",      {NRET_NARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
 
@@ -268,6 +271,8 @@ const struct {
   {"fastlscheck_debug",      {NRET_NARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
   {"poolcheckalign_debug",   {NRET_NARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
   {"poolcheckalignui_debug", {NRET_NARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
+  {"poolcheck_free_debug",   {NRET_NARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
+  {"poolcheck_freeui_debug", {NRET_NARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
   {"funccheck_debug",  {NRET_NARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
   {"funccheckui_debug",{NRET_NARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
 
@@ -338,6 +343,9 @@ const struct {
   {"pool___fprintf_chk",  {NRET_NARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
   {"pool___sprintf_chk",  {NRET_NARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
   {"pool___snprintf_chk", {NRET_NARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
+
+  // Important C I/O functions
+  {"pool_fgets",      {NRET_NNYARGS, YRET_YNYARGS,  NRET_NARGS, NRET_NARGS,  true}},
   
   // Type Checks
   {"trackArgvType",        {NRET_NARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS,   false}},
