@@ -345,7 +345,8 @@ const struct {
   {"pool___snprintf_chk", {NRET_NARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
 
   // Important C I/O functions
-  {"pool_fgets",      {NRET_NNYARGS, YRET_YNYARGS,  NRET_NARGS, NRET_NARGS,  true}},
+  {"pool_fgets",      {NRET_NNYARGS, YRET_YNYARGS,  NRET_NARGS, YRET_YNARGS,  true}},
+  {"pool_fgets_debug",{NRET_NNYARGS, YRET_YNYARGS,  NRET_NARGS, YRET_YNARGS,  true}},
   
   // Type Checks
   {"trackArgvType",        {NRET_NARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS,   false}},
