@@ -21,6 +21,7 @@
 #define LLVM_SUPPORT_MALLOCALLOCATOR_H
 
 #include <cstdlib>
+#include <cstddef>
 #include <memory>
 
 namespace llvm {

@@ -17,6 +17,7 @@
 #include "dsa/svset.h"
 #include "dsa/keyiterator.h"
 
+#include <cstddef>
 #include "llvm/ADT/EquivalenceClasses.h"
 #include "llvm/Support/CallSite.h"
 

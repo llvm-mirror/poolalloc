@@ -14,17 +14,17 @@
 #ifndef LLVM_ANALYSIS_DATA_STRUCTURE_H
 #define LLVM_ANALYSIS_DATA_STRUCTURE_H
 
-#include "llvm/Pass.h"
-#include "llvm/Target/TargetData.h"
-#include "llvm/Support/CallSite.h"
-#include "llvm/ADT/EquivalenceClasses.h"
-#include "llvm/ADT/DenseSet.h"
-
 #include "dsa/DSCallGraph.h"
 #include "dsa/svset.h"
 #include "dsa/super_set.h"
 #include "dsa/AddressTakenAnalysis.h"
 #include "dsa/AllocatorIdentification.h"
+
+#include "llvm/Pass.h"
+#include "llvm/Target/TargetData.h"
+#include "llvm/Support/CallSite.h"
+#include "llvm/ADT/EquivalenceClasses.h"
+#include "llvm/ADT/DenseSet.h"
 
 #include <map>
 
