@@ -321,7 +321,7 @@ Devirtualize::makeDirectCall (CallSite & CS) {
     //
     if (CallInst* CI = dyn_cast<CallInst>(CS.getInstruction())) {
       std::vector<Value*> Params (CI->op_begin(), CI->op_end());
-      std::string name = CI->hasName() ? CI->getNameStr() + ".dv" : "";
+      std::string name = CI->hasName() ? CI->getName().str() + ".dv" : "";
       CallInst* CN = CallInst::Create ((Value *) NF,
                                        Params,
                                        name,
@@ -330,7 +330,7 @@ Devirtualize::makeDirectCall (CallSite & CS) {
       CI->eraseFromParent();
     } else if (InvokeInst* CI = dyn_cast<InvokeInst>(CS.getInstruction())) {
       std::vector<Value*> Params (CI->op_begin(), CI->op_end());
-      std::string name = CI->hasName() ? CI->getNameStr() + ".dv" : "";
+      std::string name = CI->hasName() ? CI->getName().str() + ".dv" : "";
       InvokeInst* CN = InvokeInst::Create((Value *) NF,
                                           CI->getNormalDest(),
                                           CI->getUnwindDest(),

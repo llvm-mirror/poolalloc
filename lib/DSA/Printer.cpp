@@ -107,7 +107,7 @@ static std::string getCaption(const DSNode *N, const DSGraph *G) {
       I != E; ++I) {
     DSNodeHandle VANode = I->second;
     if (N == VANode.getNode()) {
-      OS << "(VANode for " << I->first->getNameStr() << ")\n";
+      OS << "(VANode for " << I->first->getName().str() << ")\n";
     }
   }
 
@@ -235,7 +235,7 @@ struct DOTGraphTraits<const DSGraph*> : public DefaultDOTGraphTraits {
         if (G->getReturnNodes().size() == 1)
           Label = "returning";
         else
-          Label = I->first->getNameStr() + " ret node";
+          Label = I->first->getName().str() + " ret node";
         // Output the return node...
         GW.emitSimpleNode((void*)I->first, "plaintext=circle", Label);
 
@@ -345,23 +345,23 @@ static void printCollection(const Collection &C, llvm::raw_ostream &O,
       //otherwise check the name
       if (!doPrint)
         doPrint = OnlyPrint.end() !=
-        std::find(OnlyPrint.begin(), OnlyPrint.end(), I->getNameStr());
+        std::find(OnlyPrint.begin(), OnlyPrint.end(), I->getName().str());
 
       if (doPrint) {
         const Function *SCCFn = Gr->retnodes_begin()->first;
         if (&*I == SCCFn) {
-          Gr->writeGraphToFile(O, Prefix+I->getNameStr());
+          Gr->writeGraphToFile(O, Prefix+I->getName().str());
         } else {
           IsDuplicateGraph = true; // Don't double count node/call nodes.
-          O << "Didn't write '" << Prefix+I->getNameStr()
-            << ".dot' - Graph already emitted to '" << Prefix+SCCFn->getNameStr()
+          O << "Didn't write '" << Prefix+I->getName().str()
+            << ".dot' - Graph already emitted to '" << Prefix+SCCFn->getName().str()
             << "\n";
         }
       } else {
         const Function *SCCFn = Gr->retnodes_begin()->first;
         if (&*I == SCCFn) {
-//          O << "Skipped Writing '" << Prefix+I->getNameStr() << ".dot'... ["
-//            << Gr->getGraphSize() << "+" << NumCalls << "]\n";
+          //O << "Skipped Writing '" << Prefix+I->getName().str() << ".dot'... ["
+          //  << Gr->getGraphSize() << "+" << NumCalls << "]\n";
         } else {
           IsDuplicateGraph = true; // Don't double count node/call nodes.
         }

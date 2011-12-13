@@ -966,7 +966,6 @@ void FuncTransform::visitCallSite(CallSite& CS) {
     // examining a target that doesn't need it.
     //
     const DSCallGraph & callGraph = Graphs.getCallGraph();
-    unsigned maxArgsWithNodes = 0;
 
     DSCallGraph::callee_iterator I = callGraph.callee_begin(OrigInst);
     for (; I != callGraph.callee_end(OrigInst); ++I) {
@@ -975,18 +974,19 @@ void FuncTransform::visitCallSite(CallSite& CS) {
         if(SM.find(SM.getLeaderForGlobal(*sccii)) == SM.end())
           continue;
         //
-        // Get the information for this function.  Since this is coming from DSA,
-        // it should be an original function.
+        // Get the information for this function.  Since this is coming from
+        // DSA, it should be an original function.
         //
         // This call site calls a function, that is not defined in this module
         if (!(Graphs.hasDSGraph(**sccii))) return;
+
         // For all other cases Func Info must exist.
-        FuncInfo *CFI = PAInfo.getFuncInfo(**sccii);
+        PAInfo.getFuncInfo(**sccii);
+
         //
         // If this target takes more DSNodes than the last one we found, then
         // make *this* target our canonical target.
         //
-        maxArgsWithNodes = CFI->ArgNodes.size();
         CF = *sccii;
         break;
       }
@@ -1006,12 +1006,12 @@ void FuncTransform::visitCallSite(CallSite& CS) {
         // This call site calls a function, that is not defined in this module
         if (!(Graphs.hasDSGraph(**sccii))) return;
         // For all other cases Func Info must exist.
-        FuncInfo *CFI = PAInfo.getFuncInfo(**sccii);
+        PAInfo.getFuncInfo(**sccii);
+
         //
         // If this target takes more DSNodes than the last one we found, then
         // make *this* target our canonical target.
         //
-        maxArgsWithNodes = CFI->ArgNodes.size();
         CF = *sccii;
       }
     }

@@ -254,12 +254,12 @@ void TDDataStructures::InlineCallersIntoGraph(DSGraph* DSG) {
       const DSCallSite &CS = *EdgesFromCaller.back().CS;
       const Function &CF = *EdgesFromCaller.back().CalledFunction;
       DEBUG(errs() << "   [TD] Inlining graph into Fn '" 
-	    << CF.getNameStr() << "' from ");
+	    << CF.getName().str() << "' from ");
       if (CallerGraph->getReturnNodes().empty()) {
         DEBUG(errs() << "SYNTHESIZED INDIRECT GRAPH");
       } else {
         DEBUG(errs() << "Fn '" << CS.getCallSite().getInstruction()->
-	      getParent()->getParent()->getNameStr() << "'");
+	      getParent()->getParent()->getName().str() << "'");
       }
       DEBUG(errs() << ": " << CF.getFunctionType()->getNumParams() 
 	    << " args\n");

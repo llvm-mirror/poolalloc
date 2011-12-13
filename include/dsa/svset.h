@@ -223,7 +223,6 @@ public:
     const_iterator ii = begin();
     const_iterator ee = end();
     const_iterator rhs_ii = rhs.begin();
-    const_iterator rhs_ee = rhs.end();
     while (ii != ee) {
       if (*rhs_ii < *ii) return false;
       if (*ii < *rhs_ii) return true;

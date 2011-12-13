@@ -214,7 +214,7 @@ bool PoolAllocateSimple::runOnModule(Module &M) {
     //
     std::string name = I->getName();
     if (name == "__poolalloc_init") continue;
-    if (name == PoolInit->getNameStr()) continue;
+    if (name == PoolInit->getName().str()) continue;
 
     //
     // Skip declarations.

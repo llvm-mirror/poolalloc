@@ -322,7 +322,7 @@ void DSNode::dumpFuncs() {
   std::vector<const Function *> List;
   addFullFunctionList (List);
   for (unsigned index = 0; index < List.size(); ++index) {
-    std::cerr << List[index]->getNameStr() << std::endl;
+    std::cerr << List[index]->getName().str() << std::endl;
   }
   return;
 }

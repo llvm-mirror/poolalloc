@@ -106,7 +106,7 @@ bool GEPExprArgs::runOnModule(Module& M) {
 
           NewF = Function::Create(NewFTy,
                                   GlobalValue::InternalLinkage,
-                                  F->getNameStr() + ".TEST",
+                                  F->getName().str() + ".TEST",
                                   &M);
 
           Function::arg_iterator NI = NewF->arg_begin();

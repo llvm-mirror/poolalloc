@@ -442,16 +442,16 @@ StdLibDataStructures::eraseCallsTo(Function* F) {
       if (CI->getCalledValue() == F) {
         DSGraph* Graph = getDSGraph(*CI->getParent()->getParent());
         //delete the call
-        DEBUG(errs() << "Removing " << F->getNameStr() << " from " 
-	      << CI->getParent()->getParent()->getNameStr() << "\n");
+        DEBUG(errs() << "Removing " << F->getName().str() << " from " 
+	      << CI->getParent()->getParent()->getName().str() << "\n");
         Graph->removeFunctionCalls(*F);
       }
     }else if (InvokeInst* CI = dyn_cast<InvokeInst>(*ii)){
       if (CI->getCalledValue() == F) {
         DSGraph* Graph = getDSGraph(*CI->getParent()->getParent());
         //delete the call
-        DEBUG(errs() << "Removing " << F->getNameStr() << " from " 
-	      << CI->getParent()->getParent()->getNameStr() << "\n");
+        DEBUG(errs() << "Removing " << F->getName().str() << " from " 
+	      << CI->getParent()->getParent()->getName().str() << "\n");
         Graph->removeFunctionCalls(*F);
       }
     } else if(ConstantExpr *CE = dyn_cast<ConstantExpr>(*ii)) {
@@ -462,8 +462,8 @@ StdLibDataStructures::eraseCallsTo(Function* F) {
             if(CI->getCalledValue() == CE) {
               DSGraph* Graph = getDSGraph(*CI->getParent()->getParent());
               //delete the call
-              DEBUG(errs() << "Removing " << F->getNameStr() << " from " 
-	        << CI->getParent()->getParent()->getNameStr() << "\n");
+              DEBUG(errs() << "Removing " << F->getName().str() << " from " 
+	        << CI->getParent()->getParent()->getName().str() << "\n");
               Graph->removeFunctionCalls(*F);
             }
           }

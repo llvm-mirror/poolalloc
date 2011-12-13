@@ -496,9 +496,9 @@ void RTAssociate::replaceCall(CallSite CS, FuncInfo& FI, DataStructures* DS) {
 //    if ((UsingBugpoint) && (!CF)) return;
     if (!CF)
       errs() << "No Graph for CallSite in "
-      << TheCall->getParent()->getParent()->getNameStr()
+      << TheCall->getParent()->getParent()->getName().str()
       << " originally "
-      << OrigInst->getParent()->getParent()->getNameStr()
+      << OrigInst->getParent()->getParent()->getName().str()
       << "\n";
 
     assert (CF && "No call graph info");

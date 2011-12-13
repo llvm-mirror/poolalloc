@@ -936,7 +936,7 @@ PoolAllocate::MakeFunctionClone (Function & F) {
   //
   // Create the new function...
   //
-  Function *New = Function::Create(FuncTy, Function::InternalLinkage, F.getNameStr() + "_clone");
+  Function *New = Function::Create(FuncTy, Function::InternalLinkage, F.getName().str() + "_clone");
   F.getParent()->getFunctionList().insert(&F, New);
   CloneToOrigMap[New] = &F;   // Remember original function.
 
@@ -1129,7 +1129,7 @@ PoolAllocate::CreatePools (Function &F, DSGraph* DSG,
 
   // Is this main?  If so, make the pool descriptors globals, not automatic
   // vars.
-  bool IsMain = F.getNameStr() == "main" && F.hasExternalLinkage();
+  bool IsMain = F.getName().str() == "main" && F.hasExternalLinkage();
 
   //
   // Create each pool and update the DSGraph to account for the new pool.
@@ -1260,11 +1260,11 @@ PoolAllocate::ProcessFunctionBody(Function &F, Function &NewF) {
   // Add code to create the pools that are local to this function.
   //
   if (!FI.NodesToPA.empty()) {
-    errs() << "[" << F.getNameStr() << "] " << FI.NodesToPA.size()
+    errs() << "[" << F.getName().str() << "] " << FI.NodesToPA.size()
               << " nodes pool allocatable\n";
     CreatePools(NewF, G, FI.NodesToPA, FI.PoolDescriptors);
   } else {
-    DEBUG(errs() << "[" << F.getNameStr() << "] transforming body.\n");
+    DEBUG(errs() << "[" << F.getName().str() << "] transforming body.\n");
   }
 
   // Transform the body of the function now... collecting information about uses
@@ -1389,11 +1389,11 @@ void PoolAllocate::InitializeAndDestroyPool(Function &F, const DSNode *Node,
   InitializedBefore.clear();
   DestroyedAfter.clear();
     
-  DEBUG(errs() << "POOL: " << PD->getNameStr() << " information:\n");
+  DEBUG(errs() << "POOL: " << PD->getName().str() << " information:\n");
   DEBUG(errs() << "  Live in blocks: ");
   DEBUG(for (std::set<BasicBlock*>::iterator I = LiveBlocks.begin(),
                E = LiveBlocks.end(); I != E; ++I)
-          errs() << (*I)->getNameStr() << " ");
+          errs() << (*I)->getName().str() << " ");
   DEBUG(errs() << "\n");
     
  
@@ -1408,7 +1408,7 @@ void PoolAllocate::InitializeAndDestroyPool(Function &F, const DSNode *Node,
       /*empty*/;
     PoolInitPoints.push_back(InsertPoint);
 
-    if (F.getNameStr() != "main")
+    if (F.getName().str() != "main")
       for (Function::iterator BB = F.begin(), E = F.end(); BB != E; ++BB)
         if (isa<ReturnInst>(BB->getTerminator()) ||
             isa<UnwindInst>(BB->getTerminator()))
@@ -1507,7 +1507,7 @@ void PoolAllocate::InitializeAndDestroyPool(Function &F, const DSNode *Node,
   for (unsigned i = 0, e = PoolInitPoints.size(); i != e; ++i) {
     Value* Opts[3] = {PD, ElSize, Align};
     CallInst::Create(PoolInit, Opts,  "", PoolInitPoints[i]);
-    DEBUG(errs() << PoolInitPoints[i]->getParent()->getNameStr() << " ");
+    DEBUG(errs() << PoolInitPoints[i]->getParent()->getName().str() << " ");
   }
 
   DEBUG(errs() << "\n  Destroy in blocks: ");
@@ -1516,7 +1516,7 @@ void PoolAllocate::InitializeAndDestroyPool(Function &F, const DSNode *Node,
   for (unsigned i = 0, e = PoolDestroyPoints.size(); i != e; ++i) {
     // Insert the pooldestroy call for this pool.
     CallInst::Create(PoolDestroy, PD, "", PoolDestroyPoints[i]);
-    DEBUG(errs() << PoolDestroyPoints[i]->getParent()->getNameStr()<<" ");
+    DEBUG(errs() << PoolDestroyPoints[i]->getParent()->getName().str()<<" ");
   }
   DEBUG(errs() << "\n\n");
 

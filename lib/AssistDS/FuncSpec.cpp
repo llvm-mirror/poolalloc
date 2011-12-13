@@ -60,12 +60,12 @@ bool FuncSpec::runOnModule(Module& M) {
           if (isa<FunctionType>(Ty->getElementType())) {
             // Store the index of such an argument
             FPArgs.push_back(ii->getArgNo());
-            DEBUG(errs() << "Eligible: " << I->getNameStr() << "\n");
+            DEBUG(errs() << "Eligible: " << I->getName().str() << "\n");
           }
         } else if (isa<FunctionType>(ii->getType())) {
           // Store the index of such an argument
           FPArgs.push_back(ii->getArgNo());
-          DEBUG(errs() << "Eligible: " << I->getNameStr() << "\n");
+          DEBUG(errs() << "Eligible: " << I->getName().str() << "\n");
         } 
       }
       // Now find all call sites that it is called from
@@ -97,7 +97,7 @@ bool FuncSpec::runOnModule(Module& M) {
   for (std::map<std::pair<Function*, std::vector<std::pair<unsigned, Constant*> > >, Function* >::iterator I = toClone.begin(), E = toClone.end(); I != E; ++I) {
     // Clone all the functions we need cloned
     Function* DirectF = CloneFunction(I->first.first);
-    DirectF->setName(I->first.first->getNameStr() + "_SPEC");
+    DirectF->setName(I->first.first->getName().str() + "_SPEC");
     DirectF->setLinkage(GlobalValue::InternalLinkage);
     I->first.first->getParent()->getFunctionList().push_back(DirectF);
     I->second = DirectF;

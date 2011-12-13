@@ -1315,8 +1315,8 @@ void handleMagicSections(DSGraph* GlobalsGraph, Module& M) {
           DSNodeHandle& DHV = GlobalsGraph->getNodeForValue(V);
           for (svset<Value*>::iterator SI = inSection.begin(),
                SE = inSection.end(); SI != SE; ++SI) {
-            DEBUG(errs() << "Merging " << V->getNameStr() << " with "
-                  << (*SI)->getNameStr() << "\n");
+            DEBUG(errs() << "Merging " << V->getName().str() << " with "
+                  << (*SI)->getName().str() << "\n");
             GlobalsGraph->getNodeForValue(*SI).mergeWith(DHV);
           }
         }

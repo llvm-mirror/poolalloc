@@ -715,7 +715,7 @@ void InstructionRewriter::visitGetElementPtrInst(GetElementPtrInst &GEPI) {
   }
 
 
-  gep_type_iterator GTI = gep_type_begin(GEPI), E = gep_type_end(GEPI);
+  gep_type_iterator GTI = gep_type_begin(GEPI);
   for (unsigned i = 1, e = GEPI.getNumOperands(); i != e; ++i, ++GTI) {
     Value *Idx = GEPI.getOperand(i);
     if (StructType *STy = dyn_cast<StructType>(*GTI)) {
@@ -1196,7 +1196,7 @@ void PointerCompress::FindPoolsToCompress(std::set<const DSNode*> &Pools,
                                           Value*> &PreassignedPools,
                                           Function &F, DSGraph* DSG,
                                           PA::FuncInfo *FI) {
-  DEBUG(errs() << "In function '" << F.getNameStr() << "':\n");
+  DEBUG(errs() << "In function '" << F.getName().str() << "':\n");
   for (unsigned i = 0, e = FI->NodesToPA.size(); i != e; ++i) {
     const DSNode *N = FI->NodesToPA[i];
 
@@ -1262,7 +1262,7 @@ CompressPoolsInFunction(Function &F,
 
   if (FI == 0) {
     errs() << "DIDN'T FIND POOL INFO FOR: "
-              << *F.getType() << F.getNameStr() << "!\n";
+              << *F.getType() << F.getName().str() << "!\n";
     return false;
   }
 
@@ -1313,7 +1313,7 @@ CompressPoolsInFunction(Function &F,
   // particular, if one pool points to another, we need to know if the outgoing
   // pointer is compressed.
   const TargetData &TD = DSG->getTargetData();
-  errs() << "In function '" << F.getNameStr() << "':\n";
+  errs() << "In function '" << F.getName().str() << "':\n";
   for (std::map<const DSNode*, CompressedPoolInfo>::iterator
          I = PoolsToCompress.begin(), E = PoolsToCompress.end(); I != E; ++I) {
 
@@ -1322,7 +1322,7 @@ CompressPoolsInFunction(Function &F,
     // Only dump info about a compressed pool if this is the home for it.
     if (isa<AllocaInst>(I->second.getPoolDesc()) ||
         (isa<GlobalValue>(I->second.getPoolDesc()) &&
-         F.hasExternalLinkage() && F.getNameStr() == "main")) {
+         F.hasExternalLinkage() && F.getName().str() == "main")) {
       errs() << "  COMPRESSING POOL:\nPCS:";
       I->second.dump();
     }
@@ -1367,7 +1367,7 @@ GetExtFunctionClone(Function *F, const std::vector<unsigned> &ArgsToComp) {
 
   // Next, create the clone prototype and insert it into the module.
   Clone = Function::Create (CFTy, GlobalValue::ExternalLinkage,
-                       F->getNameStr()+"_pc");
+                       F->getName().str()+"_pc");
   F->getParent()->getFunctionList().insert(F, Clone);
   return Clone;
 }
@@ -1413,7 +1413,7 @@ GetFunctionClone(Function *F, std::set<const DSNode*> &PoolsToCompress,
 
   // Next, create the clone prototype and insert it into the module.
   Clone = Function::Create (CFTy, GlobalValue::InternalLinkage,
-                            F->getNameStr()+".pc");
+                            F->getName().str()+".pc");
   F->getParent()->getFunctionList().insert(F, Clone);
 
   // Remember where this clone came from.
@@ -1421,8 +1421,8 @@ GetFunctionClone(Function *F, std::set<const DSNode*> &PoolsToCompress,
     ClonedFunctionInfoMap.insert(std::make_pair(Clone, F)).first->second;
 
   ++NumCloned;
-  errs() << " CLONING FUNCTION: " << F->getNameStr() << " -> "
-            << Clone->getNameStr() << "\n";
+  errs() << " CLONING FUNCTION: " << F->getName().str() << " -> "
+            << Clone->getName().str() << "\n";
 
   if (F->isDeclaration()) {
     Clone->setLinkage(GlobalValue::ExternalLinkage);
@@ -1441,7 +1441,7 @@ GetFunctionClone(Function *F, std::set<const DSNode*> &PoolsToCompress,
   for (Function::arg_iterator I = F->arg_begin(), E = F->arg_end();
        I != E; ++I, ++CI) {
     // Transfer the argument names over.
-    CI->setName(I->getNameStr());
+    CI->setName(I->getName().str());
 
     // If we are compressing this argument, set up RemappedArgs.
     if (CI->getType() != I->getType()) {

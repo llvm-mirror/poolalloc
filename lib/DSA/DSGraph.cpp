@@ -99,7 +99,7 @@ std::string DSGraph::getFunctionNames() const {
     std::string Return;
     for (DSGraph::retnodes_iterator I = retnodes_begin();
          I != retnodes_end(); ++I)
-      Return += I->first->getNameStr() + " ";
+      Return += I->first->getName().str() + " ";
     Return.erase(Return.end()-1, Return.end());   // Remove last space character
     return Return;
   }
@@ -765,7 +765,7 @@ void DSGraph::computeExternalFlags(unsigned Flags) {
       for (Function::const_arg_iterator I = F.arg_begin(), E = F.arg_end();
           I != E; ++I){
         if(TypeInferenceOptimize) {
-          if(I->getNameStr() == "argv")
+          if(I->getName().str() == "argv")
             continue;
         }
         if (isa<PointerType>(I->getType()))
@@ -820,13 +820,13 @@ void DSGraph::computeExternalFlags(unsigned Flags) {
       E = ScalarMap.global_end(); I != E; ++I) {
     if (const GlobalVariable *GV = dyn_cast<GlobalVariable>(*I)) {
       if(TypeInferenceOptimize) {
-        if(GV->getNameStr() == "stderr"){
+        if(GV->getName().str() == "stderr"){
           continue;
         }
-        if(GV->getNameStr() == "stdout"){
+        if(GV->getName().str() == "stdout"){
           continue;
         }
-        if(GV->getNameStr() == "stdin"){
+        if(GV->getName().str() == "stdin"){
           continue;
         }
       }

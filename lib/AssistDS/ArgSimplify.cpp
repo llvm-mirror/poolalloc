@@ -144,7 +144,7 @@ namespace {
 
       for (Module::iterator I = M.begin(); I != M.end(); ++I) 
         if (!I->isDeclaration() && !I->mayBeOverridden()) {
-          if(I->getNameStr() == "main")
+          if(I->getName().str() == "main")
             continue;
           std::vector<unsigned> Args;
           for (Function::arg_iterator ii = I->arg_begin(), ee = I->arg_end();

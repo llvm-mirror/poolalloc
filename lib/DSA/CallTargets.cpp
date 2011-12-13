@@ -142,13 +142,13 @@ void CallTargetFinder<dsa>::print(llvm::raw_ostream &O, const Module *M) const
         O << "* ";
         CallSite cs = ii->first;
         cs.getInstruction()->dump();
-        O << cs.getInstruction()->getParent()->getParent()->getNameStr() << " "
-          << cs.getInstruction()->getNameStr() << " ";
+        O << cs.getInstruction()->getParent()->getParent()->getName().str() << " "
+          << cs.getInstruction()->getName().str() << " ";
       }
       O << ii->first.getInstruction() << ":";
       for (std::vector<const Function*>::const_iterator i = ii->second.begin(),
              e = ii->second.end(); i != e; ++i) {
-        O << " " << (*i)->getNameStr();
+        O << " " << (*i)->getName().str();
       }
       O << "\n";
   }

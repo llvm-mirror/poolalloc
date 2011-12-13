@@ -144,7 +144,7 @@ bool AllocIdentify::runOnModule(Module& M) {
             if(changed) {
               ++numAllocators;
               allocators.insert(WrapperF->getName());
-              DEBUG(errs() << WrapperF->getNameStr() << "\n");
+              DEBUG(errs() << WrapperF->getName().str() << "\n");
             }
           }
         }
@@ -179,7 +179,7 @@ bool AllocIdentify::runOnModule(Module& M) {
             if(changed) {
               ++numDeallocators;
               deallocators.insert(WrapperF->getName());
-              DEBUG(errs() << WrapperF->getNameStr() << "\n");
+              DEBUG(errs() << WrapperF->getName().str() << "\n");
             }
           }
         }

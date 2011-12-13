@@ -140,7 +140,7 @@ bool LoadArgs::runOnModule(Module& M) {
           } else {
             NewF = Function::Create(NewFTy,
                                     GlobalValue::InternalLinkage,
-                                    F->getNameStr() + ".TEST",
+                                    F->getName().str() + ".TEST",
                                     &M);
 
             fnCache[std::make_pair(F, NewFTy)] = NewF;

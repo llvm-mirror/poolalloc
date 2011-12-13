@@ -65,7 +65,7 @@ void EntryPointAnalysis::print(llvm::raw_ostream& O, const Module* M) const {
   bool prev = false;
   for (std::vector<const Function*>::iterator ii = d.begin(), ee = d.end();
        ii != ee; ++ii) {
-    O << (prev ? ", " : "") << (*ii)->getNameStr();
+    O << (prev ? ", " : "") << (*ii)->getName().str();
     prev = true;
   }
   O << "\n";
@@ -88,7 +88,7 @@ bool EntryPointAnalysis::isEntryPoint(const llvm::Function* F) const {
     return !F->isDeclaration()
             && F->hasExternalLinkage()
             && F->hasName()
-            && names.find(F->getNameStr()) != names.end();
+            && names.find(F->getName().str()) != names.end();
   } else {
     return !F->isDeclaration()
             && F->hasExternalLinkage()
