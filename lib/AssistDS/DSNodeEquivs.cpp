@@ -42,9 +42,25 @@ void DSNodeEquivs::buildDSNodeEquivs(Module &M) {
         equivNodesThroughCallsite(Call);
       }
     }
-    
-    equivNodesToGlobals(TDDS.getDSGraph(F));
+
+    DSGraph *Graph = TDDS.getDSGraph(F);
+
+    // Ensure all nodes from this function's graph are in an equivalence class.
+    addNodesFromGraph(Graph);
+
+    equivNodesToGlobals(Graph);
   }
+
+  // Ensure all nodes from the globals graph are in an equivalence class.
+  addNodesFromGraph(TDDS.getGlobalsGraph());
+}
+
+// Add nodes from the given graph into the equivalence classes.
+void DSNodeEquivs::addNodesFromGraph(DSGraph *Graph) {
+  DSGraph::node_iterator NodeIt = Graph->node_begin();
+  DSGraph::node_iterator NodeItEnd = Graph->node_end();
+  for (; NodeIt != NodeItEnd; ++NodeIt)
+    Classes.insert(&*NodeIt);
 }
 
 FunctionList DSNodeEquivs::getCallees(CallSite &CS) {
@@ -82,7 +98,8 @@ FunctionList DSNodeEquivs::getCallees(CallSite &CS) {
   if (Callees.empty()) {
     Instruction *Inst = CS.getInstruction();
     Function *Parent = Inst->getParent()->getParent();
-    DSNodeHandle &NH = TDDS.getDSGraph(*Parent)->getNodeForValue(CS.getCalledValue());
+    Value *CalledValue = CS.getCalledValue();
+    DSNodeHandle &NH = TDDS.getDSGraph(*Parent)->getNodeForValue(CalledValue);
 
     if (!NH.isNull()) {
       DSNode *Node = NH.getNode();
@@ -195,6 +212,25 @@ bool DSNodeEquivs::runOnModule(Module &M) {
 const EquivalenceClasses<const DSNode *> &
 DSNodeEquivs::getEquivalenceClasses() {
   return Classes;
+}
+
+// Returns the DSNode in the equivalence classes for the specified value.
+// Returns null for a node that was not found.
+const DSNode *DSNodeEquivs::getMemberForValue(const Value *V) {
+  TDDataStructures &TDDS = getAnalysis<TDDataStructures>();
+  DSNodeHandle *NHForV = 0;
+
+  if (isa<GlobalValue>(V)) {
+    NHForV = &TDDS.getGlobalsGraph()->getNodeForValue(V);
+  } else if (isa<Instruction>(V)) {
+    const Function *Parent = cast<Instruction>(V)->getParent()->getParent();
+    NHForV = &TDDS.getDSGraph(*Parent)->getNodeForValue(V);
+  }
+
+  if (NHForV == 0 || NHForV->isNull())
+    return 0;
+  else
+    return NHForV->getNode();
 }
 
 }

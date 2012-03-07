@@ -21,7 +21,6 @@
 #include "llvm/ADT/EquivalenceClasses.h"
 
 #include <vector>
-#include <set>
 
 namespace llvm {
 
@@ -34,6 +33,7 @@ private:
 
   void buildDSNodeEquivs(Module &M);
 
+  void addNodesFromGraph(DSGraph *G);
   FunctionList getCallees(CallSite &CS);
   void equivNodesThroughCallsite(CallInst *CI);
   void equivNodesToGlobals(DSGraph *G);
@@ -53,6 +53,9 @@ public:
 
   // Returns the computed equivalence classes.
   const EquivalenceClasses<const DSNode*> &getEquivalenceClasses();
+
+  // Returns the DSNode in the equivalence classes for the specified value.
+  const DSNode *getMemberForValue(const Value *V);
 };
 
 }
