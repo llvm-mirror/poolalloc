@@ -21,7 +21,9 @@
    Engineering a sort function; Jon Bentley and M. Douglas McIlroy;
    Software - Practice and Experience; Vol. 23 (11), 1249-1265, 1993.  */
 
+#if defined(__linux__)
 #include <alloca.h>
+#endif
 #include <limits.h>
 #include <stdlib.h>
 #include <string.h>
