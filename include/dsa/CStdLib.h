@@ -67,6 +67,10 @@ namespace llvm {
     { "pool_fread",       1 },
     { "pool_gets",        1 },
     { "pool_puts",        1 },
+    { "pool_read",        1 },
+    { "pool_recv",        1 },
+    { "pool_write",       1 },
+    { "pool_send",        1 },
     {  0,                 0 }
   };
 

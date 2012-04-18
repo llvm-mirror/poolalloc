@@ -321,7 +321,11 @@ const struct {
   {"pool_strcasecmp", {NRET_NNYARGS, NRET_NARGS,    NRET_NARGS, NRET_NARGS,   false}},
   {"pool_strncasecmp",{NRET_NNYARGS, NRET_NARGS,    NRET_NARGS, NRET_NARGS,   false}},
   {"pool_bcopy",      {NRET_NNYARGS, NRET_NNNYARGS, NRET_NARGS, NRET_NNYARGS,  true}},
-  {"pool_bcmp",       {NRET_NNYARGS, NRET_NARGS,    NRET_NARGS, NRET_NARGS,    true}},
+  {"pool_bcmp",       {NRET_NNYARGS, NRET_NARGS,    NRET_NARGS, NRET_NARGS,   false}},
+  {"pool_read",       {NRET_NARGS,   NRET_YARGS,    NRET_NARGS, NRET_NARGS,   false}},
+  {"pool_recv",       {NRET_NARGS,   NRET_YARGS,    NRET_NARGS, NRET_NARGS,   false}},
+  {"pool_write",      {NRET_YARGS,   NRET_NARGS,    NRET_NARGS, NRET_NARGS,   false}},
+  {"pool_send",       {NRET_YARGS,   NRET_NARGS,    NRET_NARGS, NRET_NARGS,   false}},
 
   // format string intrinsics and functions
   {"sc.fsparameter",  {NRET_NARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
