@@ -296,6 +296,13 @@ DSNodeHandle GraphBuilder::getValueDest(Value* V) {
       // fix for some special cases.
       NH = getValueDest(cast<GlobalAlias>(C)->getAliasee());
       return NH;
+    } else if (isa<BlockAddress>(C)) {
+      //
+      // FIXME: This may not be quite right; we should probably add a
+      // BlockAddress flag to the DSNode instead of using the unknown flag.
+      //
+      N = createNode();
+      N->setUnknownMarker();
     } else {
       errs() << "Unknown constant: " << *C << "\n";
       assert(0 && "Unknown constant type!");
