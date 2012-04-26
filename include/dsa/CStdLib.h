@@ -71,6 +71,7 @@ namespace llvm {
     { "pool_recv",        1 },
     { "pool_write",       1 },
     { "pool_send",        1 },
+    { "pool_readlink",    2 },
     {  0,                 0 }
   };
 
