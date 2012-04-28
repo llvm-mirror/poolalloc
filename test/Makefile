@@ -472,9 +472,12 @@ lit.site.cfg: $(PROJ_SRC_ROOT)/test/lit.site.cfg.in
 	     -e "s#@PROJ_OBJ_ROOT@#$(PROJ_OBJ_ROOT)#g" \
 	     $(PROJ_SRC_ROOT)/test/lit.site.cfg.in > $@
 
+$(LLVM_OBJ_ROOT)/test/site.exp:
+	make -C $(LLVM_OBJ_ROOT)/test site.exp
+
 #Run the lit tests for this project
 .PHONY: lit lit-report
-lit: lit.site.cfg $(TOOLS)
+lit: lit.site.cfg $(TOOLS) $(LLVM_OBJ_ROOT)/test/site.exp
 	$(LLVM_SRC_ROOT)/utils/lit/lit.py $(PROJ_OBJ_ROOT)/test --path $(ToolDir) -s -v
 
 #Run the lit tests, but supress all error output--just report the test results.
