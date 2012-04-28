@@ -974,7 +974,7 @@ static void removeIdenticalCalls(std::list<DSCallSite> &Calls) {
 
     if (I != Calls.end() && CS == *I && I->isDirectCall()) {
      // LastCalleeNode = 0;
-      Calls.erase(OldIt);
+      //Calls.erase(OldIt);
       ++NumDeleted;
       continue;
     }
