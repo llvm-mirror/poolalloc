@@ -23,8 +23,7 @@ RUNOPT := $(RUNTOOLSAFELY) $(LLVM_OBJ_ROOT)/projects/poolalloc/$(CONFIGURATION)/
 # PASS - The dsgraph pass to run: ds, bu, td
 PASS := td
 
-ANALYZE_OPTS := -stats -time-passes -disable-output -dsstats
-#ANALYZE_OPTS := -stats -time-passes -dsstats 
+ANALYZE_OPTS := -stats -time-passes -dsstats
 ANALYZE_OPTS +=  -instcount -disable-verify -analyze
 MEM := -track-memory -time-passes -disable-output
 
