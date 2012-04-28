@@ -47,11 +47,11 @@ Output/%.$(TEST).ptrcomp64.bc: Output/%.llvm.bc $(PA_SO) $(LOPT)
 # This rule compiles the new .bc file into a .c file using CBE
 $(PROGRAMS_TO_TEST:%=Output/%.poolalloc.cbe.c): \
 Output/%.poolalloc.cbe.c: Output/%.$(TEST).poolalloc.bc $(LLC)
-	-$(LLC) -march=c -f $< -o $@
+	-$(LLC) -march=c $< -o $@
 
 $(PROGRAMS_TO_TEST:%=Output/%.ptrcomp64.cbe.c): \
 Output/%.ptrcomp64.cbe.c: Output/%.$(TEST).ptrcomp64.bc $(LLC)
-	-$(LLC) -march=c -f $< -o $@
+	-$(LLC) -march=c $< -o $@
 
 
 

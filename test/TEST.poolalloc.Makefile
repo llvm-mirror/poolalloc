@@ -88,23 +88,23 @@ Output/%.nonpa.bc: Output/%.base.bc $(LOPT)
 # This rule compiles the new .bc file into a .s file
 $(PROGRAMS_TO_TEST:%=Output/%.poolalloc.s): \
 Output/%.poolalloc.s: Output/%.poolalloc.bc $(LLC)
-	-$(LLC) -f $< -o $@
+	-$(LLC) $< -o $@
 
 $(PROGRAMS_TO_TEST:%=Output/%.basepa.s): \
 Output/%.basepa.s: Output/%.basepa.bc $(LLC)
-	-$(LLC) -f $< -o $@
+	-$(LLC) $< -o $@
 
 $(PROGRAMS_TO_TEST:%=Output/%.mallocrepl.s): \
 Output/%.mallocrepl.s: Output/%.mallocrepl.bc $(LLC)
-	-$(LLC) -f $< -o $@
+	-$(LLC) $< -o $@
 
 $(PROGRAMS_TO_TEST:%=Output/%.onlyoverhead.s): \
 Output/%.onlyoverhead.s: Output/%.onlyoverhead.bc $(LLC)
-	-$(LLC) -f $< -o $@
+	-$(LLC) $< -o $@
 
 $(PROGRAMS_TO_TEST:%=Output/%.nonpa.s): \
 Output/%.nonpa.s: Output/%.nonpa.bc $(LLC)
-	-$(LLC) -f $< -o $@
+	-$(LLC) $< -o $@
 
 
 

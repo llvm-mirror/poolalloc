@@ -67,7 +67,7 @@ Output/%.dsaopt.bc: Output/%.base.bc $(LOPT)
 
 # This rule compiles the new .bc file into a .s file
 Output/%.s: Output/%.bc $(LLC)
-	-$(LLC) -f $< -o $@
+	-$(LLC) $< -o $@
 
 Output/%: Output/%.s $(PA_RT_O)
 	-$(CC) $(CFLAGS) $< $(PA_RT_O) $(LLCLIBS) $(LDFLAGS) -o $@

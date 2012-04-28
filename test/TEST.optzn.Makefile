@@ -73,23 +73,23 @@ Output/%.$(TEST).freeelim.bc: Output/%.llvm.bc $(PA_SO) $(LOPT)
 # This rule compiles the new .bc file into a .c file using CBE
 $(PROGRAMS_TO_TEST:%=Output/%.basepa.cbe.c): \
 Output/%.basepa.cbe.c: Output/%.$(TEST).basepa.bc $(LLC)
-	-$(LLC) -march=c -f $< -o $@
+	-$(LLC) -march=c $< -o $@
 
 $(PROGRAMS_TO_TEST:%=Output/%.selectivepa.cbe.c): \
 Output/%.selectivepa.cbe.c: Output/%.$(TEST).selectivepa.bc $(LLC)
-	-$(LLC) -march=c -f $< -o $@
+	-$(LLC) -march=c $< -o $@
 
 $(PROGRAMS_TO_TEST:%=Output/%.bumpptr.cbe.c): \
 Output/%.bumpptr.cbe.c: Output/%.$(TEST).bumpptr.bc $(LLC)
-	-$(LLC) -march=c -f $< -o $@
+	-$(LLC) -march=c $< -o $@
 
 $(PROGRAMS_TO_TEST:%=Output/%.align.cbe.c): \
 Output/%.align.cbe.c: Output/%.$(TEST).align.bc $(LLC)
-	-$(LLC) -march=c -f $< -o $@
+	-$(LLC) -march=c $< -o $@
 
 $(PROGRAMS_TO_TEST:%=Output/%.freeelim.cbe.c): \
 Output/%.freeelim.cbe.c: Output/%.$(TEST).freeelim.bc $(LLC)
-	-$(LLC) -march=c -f $< -o $@
+	-$(LLC) -march=c $< -o $@
 
 
 
