@@ -14,8 +14,8 @@ RELDIR  := $(subst $(PROJ_OBJ_ROOT),,$(PROJ_OBJ_DIR))
 PADIR   := $(LLVM_OBJ_ROOT)/projects/poolalloc
 
 # Pathame to the DSA pass dynamic library
-DSA_SO   := $(PADIR)/$(CONFIGURATION)/lib/libLLVMDataStructure$(SHLIBEXT)
-ASSIST_SO := $(PADIR)/$(CONFIGURATION)/lib/libAssistDS$(SHLIBEXT)
+DSA_SO   := $(PADIR)/$(CONFIGURATION)/lib/LLVMDataStructure$(SHLIBEXT)
+ASSIST_SO := $(PADIR)/$(CONFIGURATION)/lib/AssistDS$(SHLIBEXT)
 
 # Command for running the opt program
 RUNOPT := $(RUNTOOLSAFELY) $(LLVM_OBJ_ROOT)/projects/poolalloc/$(CONFIGURATION)/bin/watchdog $(LOPT) -load $(DSA_SO)

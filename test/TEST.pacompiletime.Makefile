@@ -14,7 +14,7 @@ PROGDIR := $(shell cd $(LLVM_SRC_ROOT)/projects/test-suite/; pwd)/
 RELDIR  := $(subst $(PROGDIR),,$(CURDIR))
 
 # Pool allocator pass shared object
-PA_SO    := $(PROJECT_DIR)/$(CONFIGURATION)/lib/libpoolalloc$(SHLIBEXT)
+PA_SO    := $(PROJECT_DIR)/$(CONFIGURATION)/lib/poolalloc$(SHLIBEXT)
 
 # Command to run opt with the pool allocator pass loaded
 OPT_PA := $(RUNTOOLSAFELY) $(WATCHDOG) $(LOPT) -load $(DSA_SO) -load $(PA_SO)

@@ -29,12 +29,12 @@ WATCHDOG := $(LLVM_OBJ_ROOT)/projects/poolalloc/$(CONFIGURATION)/bin/watchdog
 PA_PRE_RT := $(PADIR)/$(CONFIGURATION)/lib/libpa_pre_rt.bca
 
 # Pool allocator pass shared object
-PA_SO    := $(PADIR)/$(CONFIGURATION)/lib/libpoolalloc$(SHLIBEXT)
-DSA_SO   := $(PADIR)/$(CONFIGURATION)/lib/libLLVMDataStructure$(SHLIBEXT)
-ASSIST_SO := $(PADIR)/$(CONFIGURATION)/lib/libAssistDS$(SHLIBEXT)
+PA_SO    := $(PADIR)/$(CONFIGURATION)/lib/poolalloc$(SHLIBEXT)
+DSA_SO   := $(PADIR)/$(CONFIGURATION)/lib/LLVMDataStructure$(SHLIBEXT)
+ASSIST_SO := $(PADIR)/$(CONFIGURATION)/lib/AssistDS$(SHLIBEXT)
 
 # Pool allocator runtime library
-#PA_RT    := $(PADIR)/$(CONFIGURATION)/lib/libpoolalloc_fl_rt.bc
+#PA_RT    := $(PADIR)/$(CONFIGURATION)/lib/poolalloc_fl_rt.bc
 #PA_RT_O  := $(PROJECT_DIR)/lib/$(CONFIGURATION)/poolalloc_rt.o
 PA_RT_O  := $(PADIR)/$(CONFIGURATION)/lib/libpoolalloc_rt.a
 #PA_RT_O  := $(PROJECT_DIR)/lib/$(CONFIGURATION)/poolalloc_fl_rt.o
