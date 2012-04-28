@@ -18,8 +18,16 @@ using std::cerr;
 
 #define DEBUG (0)
 
+#if ( __WORDSIZE == 64 )
+#define ARCH_64 1
+#endif
+
 /* Size of shadow memory.  We're hoping everything fits in 46bits. */
+#ifdef ARCH_64
 #define SIZE ((size_t)(1L << 46))
+#else
+#define SIZE ((size_t)(1L << 31))
+#endif
 
 /* Fixed start of memory.  Needs to be page-aligned,
  * and it needs to be large enough that program itself is loaded below it
@@ -29,7 +37,12 @@ using std::cerr;
  * For now, run a version of the tool without the base fixed, and 
  * choose address.
  */
+#ifdef ARCH_64
 #define BASE ((TypeTagTy *)(0x2aaaad01e000))
+#else
+#define BASE ((TypeTagTy *)(0))
+#endif
+
 /*
  * Do some macro magic to get mmap macros defined properly on all platforms.
  */
