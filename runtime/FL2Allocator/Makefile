@@ -17,8 +17,6 @@ endif
 
 CXXFLAGS += -fno-exceptions
 
-include $(LEVEL)/Makefile.common
-
 #
 # Do not build bitcode library on Mac OS X; XCode will pre-install llvm-gcc,
 # and that can cause the build to fail if it doesn't match the current version
@@ -27,4 +25,7 @@ include $(LEVEL)/Makefile.common
 ifneq ($(OS),Darwin)
 BYTECODE_LIBRARY=1
 endif
+
+include $(LEVEL)/Makefile.common
+
 

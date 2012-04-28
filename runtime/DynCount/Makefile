@@ -18,7 +18,6 @@ CXX.Flags += -march=nocona
 endif
 
 CXX.Flags += -fno-threadsafe-statics
-include $(LEVEL)/Makefile.common
 
 #
 # Do not build bitcode library on Mac OS X; XCode will pre-install llvm-gcc,
@@ -28,6 +27,8 @@ include $(LEVEL)/Makefile.common
 ifneq ($(OS),Darwin)
 BYTECODE_LIBRARY=1
 endif
+
+include $(LEVEL)/Makefile.common
 
 # Always build optimized and debug versions
 all:: $(LIBNAME_OBJO) $(LIBNAME_OBJG)
