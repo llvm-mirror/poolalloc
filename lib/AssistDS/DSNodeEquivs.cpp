@@ -225,6 +225,9 @@ const DSNode *DSNodeEquivs::getMemberForValue(const Value *V) {
   } else if (isa<Instruction>(V)) {
     const Function *Parent = cast<Instruction>(V)->getParent()->getParent();
     NHForV = &TDDS.getDSGraph(*Parent)->getNodeForValue(V);
+  } else if (isa<Argument>(V)) {
+    const Function *Parent = cast<Argument>(V)->getParent();
+    NHForV = &TDDS.getDSGraph(*Parent)->getNodeForValue(V);
   }
 
   if (NHForV == 0 || NHForV->isNull())
