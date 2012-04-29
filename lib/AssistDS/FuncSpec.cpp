@@ -105,7 +105,9 @@ bool FuncSpec::runOnModule(Module& M) {
 
   for (std::map<CallInst*, std::vector<std::pair<unsigned, Constant*> > >::iterator ii = cloneSites.begin(), ee = cloneSites.end(); ii != ee; ++ii) {
     // Transform the call sites, to call the clones
-    ii->first->setOperand(0, toClone[std::make_pair(cast<Function>(ii->first->getOperand(0)), ii->second)]);
+    Function *OldCallee = cast<Function>(ii->first->getCalledValue());
+    Function *NewCallee = toClone[std::make_pair(OldCallee, ii->second)];
+    ii->first->setCalledFunction(NewCallee);
     ++numReplaced;
   }
 
