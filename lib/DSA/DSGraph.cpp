@@ -334,7 +334,7 @@ namespace {
     bool PathExistsToClonedNode(const DSCallSite &CS) {
       if (PathExistsToClonedNode(CS.getRetVal().getNode()))
         return true;
-      if (CS.isDirectCall() || PathExistsToClonedNode(CS.getCalleeNode()))
+      if (CS.isIndirectCall() && PathExistsToClonedNode(CS.getCalleeNode()))
         return true;
       for (unsigned i = 0, e = CS.getNumPtrArgs(); i != e; ++i)
         if (PathExistsToClonedNode(CS.getPtrArg(i).getNode()))
