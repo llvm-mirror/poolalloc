@@ -32,7 +32,7 @@ using namespace llvm;
 //
 namespace {
   cl::list<std::string> OnlyPrint("dsa-only-print", cl::ReallyHidden);
-  cl::opt<bool> DontPrintAnything("dont-print-ds", cl::ReallyHidden);
+  cl::opt<bool> DontPrintGraphs("dont-print-ds", cl::ReallyHidden);
   cl::opt<bool> LimitPrint("dsa-limit-print", cl::Hidden);
   STATISTIC (MaxGraphSize   , "Maximum graph size");
   STATISTIC (NumFoldedNodes , "Number of folded nodes (in final graph)");
@@ -303,17 +303,22 @@ void DSGraph::writeGraphToFile(llvm::raw_ostream &O,
                                const std::string &GraphName) const {
   std::string Filename = GraphName + ".dot";
   O << "Writing '" << Filename << "'...";
-  std::string Error;
-  llvm::raw_fd_ostream F(Filename.c_str(), Error);
+  if (!DontPrintGraphs) {
+    std::string Error;
+    llvm::raw_fd_ostream F(Filename.c_str(), Error);
 
-  if (!Error.size()) {
+    if (Error.size()) {
+      O << "  error opening file for writing! " << Error << "\n";
+      return;
+    }
+
     print(F);
-    unsigned NumCalls = shouldUseAuxCalls() ?
-      getAuxFunctionCalls().size() : getFunctionCalls().size();
-    O << " [" << getGraphSize() << "+" << NumCalls << "]\n";
   } else {
-    O << "  error opening file for writing! " << Error << "\n";
+    O << "(disabled by command-line flag)";
   }
+  unsigned NumCalls = shouldUseAuxCalls() ?
+    getAuxFunctionCalls().size() : getFunctionCalls().size();
+  O << " [" << getGraphSize() << "+" << NumCalls << "]\n";
 }
 
 /// viewGraph - Emit a dot graph, run 'dot', run gv on the postscript file,
@@ -403,8 +408,8 @@ void DataStructures::dumpCallGraph() const {
 
 // print - Print out the analysis results...
 void DataStructures::print(llvm::raw_ostream &O, const Module *M) const {
-  if (DontPrintAnything) return;
   if (handleTest(O, M)) return;
+
   printCollection(*this, O, M, printname);
   //dumpCallGraph();
 }

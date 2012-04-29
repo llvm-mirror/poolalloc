@@ -24,7 +24,7 @@ RUNOPT := $(RUNTOOLSAFELY) $(LLVM_OBJ_ROOT)/projects/poolalloc/$(CONFIGURATION)/
 PASS := td
 
 ANALYZE_OPTS := -stats -time-passes -dsstats
-ANALYZE_OPTS +=  -instcount -disable-verify -analyze
+ANALYZE_OPTS +=  -instcount -disable-verify -analyze -dont-print-ds
 MEM := -track-memory -time-passes -disable-output
 
 #TYPE_INFERENCE_OPT := 1
