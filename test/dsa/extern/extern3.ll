@@ -19,6 +19,7 @@ define i32* @getPointer() nounwind {
 entry:
   %0 = tail call noalias i8* @malloc(i64 4) nounwind ; <i8*> [#uses=1]
   %ptr = bitcast i8* %0 to i32*                     ; <i32*> [#uses=1]
+  store i32 5, i32* %ptr ; Throw off malloc-wrapper analysis
   ret i32* %ptr
 }
 
@@ -38,6 +39,7 @@ define internal i32* @getPointerInternal() nounwind {
 entry:
   %0 = tail call noalias i8* @malloc(i64 4) nounwind ; <i8*> [#uses=1]
   %ptr = bitcast i8* %0 to i32*                     ; <i32*> [#uses=1]
+  store i32 5, i32* %ptr ; Throw off malloc-wrapper analysis
   ret i32* %ptr
 }
 
