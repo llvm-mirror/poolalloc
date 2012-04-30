@@ -151,9 +151,9 @@ IndClone::runOnModule(Module& M) {
       CallInst *CI = dyn_cast<CallInst>(*ui);
       ui++;
       if (CI) {
-        if (CI->getOperand(0) == Original) {
+        if (CI->getCalledFunction() == Original) {
           ++numReplaced;
-          CI->setOperand(0, DirectF);
+          CI->setCalledFunction(DirectF);
         }
       }
     }
