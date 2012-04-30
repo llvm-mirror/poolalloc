@@ -1228,7 +1228,8 @@ GraphBuilder::MergeConstantInitIntoNode(DSNodeHandle &NH,
         // will point into a different offset into that DSNode.
         //
         DSNodeHandle NewNH (NHN, offset);
-        assert ((NewNH.getOffset() == offset) && "Need to resize DSNode!\n");
+        assert ((NHN->isNodeCompletelyFolded() || (NewNH.getOffset() == offset))
+                && "Need to resize DSNode!");
 
         //
         // Recursively merge in this element of the constant struture into the
