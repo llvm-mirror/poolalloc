@@ -75,15 +75,15 @@ bool LoadArgs::runOnModule(Module& M) {
 
           // find the argument we must replace
           Function::arg_iterator ai = F->arg_begin(), ae = F->arg_end();
-          unsigned argNum = 1;
-          for(; argNum < CI->getNumOperands();argNum++, ++ai) {
+          unsigned argNum = 0;
+          for(; argNum < CI->getNumArgOperands();argNum++, ++ai) {
             // do not care about dead arguments
             if(ai->use_empty())
               continue;
             if(F->paramHasAttr(argNum, Attribute::SExt) ||
                F->paramHasAttr(argNum, Attribute::ZExt)) 
               continue;
-            if (isa<LoadInst>(CI->getOperand(argNum)))
+            if (isa<LoadInst>(CI->getArgOperand(argNum)))
               break;
           }
 
@@ -91,7 +91,7 @@ bool LoadArgs::runOnModule(Module& M) {
           if(ai == ae)
             continue;
 
-          LoadInst *LI = dyn_cast<LoadInst>(CI->getOperand(argNum));
+          LoadInst *LI = dyn_cast<LoadInst>(CI->getArgOperand(argNum));
           Instruction * InsertPt = &(Func->getEntryBlock().front());
           AllocaInst *NewVal = new AllocaInst(LI->getType(), "",InsertPt);
 
@@ -120,10 +120,10 @@ bool LoadArgs::runOnModule(Module& M) {
           // Construct the new Type
           // Appends the struct Type at the beginning
           std::vector<Type*>TP;
-          for(unsigned c = 1; c < CI->getNumOperands();c++) {
+          for(unsigned c = 0; c < CI->getNumArgOperands();c++) {
             if(c == argNum)
-              TP.push_back(LI->getOperand(0)->getType());
-            TP.push_back(CI->getOperand(c)->getType());
+              TP.push_back(LI->getPointerOperand()->getType());
+            TP.push_back(CI->getArgOperand(c)->getType());
           }
 
           //return type is same as that of original instruction
@@ -148,7 +148,7 @@ bool LoadArgs::runOnModule(Module& M) {
 
             ValueToValueMapTy ValueMap;
 
-            unsigned count = 1;
+            unsigned count = 0;
             for (Function::arg_iterator II = F->arg_begin(); NI != NewF->arg_end(); ++count, ++NI) {
               if(count == argNum) {
                 NI->setName("LDarg");
@@ -173,11 +173,10 @@ bool LoadArgs::runOnModule(Module& M) {
             NewF->setAttributes(NewF->getAttributes().addAttr(
                 ~0, F->getAttributes().getFnAttributes()));
             //Get the point to insert the GEP instr.
-            SmallVector<Value*, 8> Ops(CI->op_begin()+1, CI->op_end());
             Instruction *InsertPoint;
             for (BasicBlock::iterator insrt = NewF->front().begin(); isa<AllocaInst>(InsertPoint = insrt); ++insrt) {;}
-            LoadInst *LI_new = new LoadInst(fargs.at(argNum-1), "", InsertPoint);
-            fargs.at(argNum)->replaceAllUsesWith(LI_new);
+            LoadInst *LI_new = new LoadInst(fargs.at(argNum), "", InsertPoint);
+            fargs.at(argNum+1)->replaceAllUsesWith(LI_new);
           }
           SmallVector<AttributeWithIndex, 8> AttributesVec;
           // Get the initial attributes of the call
@@ -188,13 +187,13 @@ bool LoadArgs::runOnModule(Module& M) {
             AttributesVec.push_back(AttributeWithIndex::get(0, RAttrs));
 
           SmallVector<Value*, 8> Args;
-          for(unsigned j =1;j<CI->getNumOperands();j++) {
+          for(unsigned j =0;j<CI->getNumArgOperands();j++) {
             if(j == argNum) {
               Args.push_back(NewVal);
             }
-            Args.push_back(CI->getOperand(j));
+            Args.push_back(CI->getArgOperand(j));
             // position in the AttributesVec
-            if (Attributes Attrs = CallPAL.getParamAttributes(j))
+            if (Attributes Attrs = CallPAL.getParamAttributes(j+1))
               AttributesVec.push_back(AttributeWithIndex::get(Args.size(), Attrs));
           }
           // Create the new attributes vec.
