@@ -412,7 +412,7 @@ OutOfLoop:
       SCCStack.pop_back();
     }
   SCCStack.pop_back();
-  ThisNodeInfo.second = true;
+  ThisNodeInfo.second = AnyDirectSuccessorsReachClonedNodes;
   return ThisNodeInfo;
 }
 
