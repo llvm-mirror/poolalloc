@@ -22,7 +22,7 @@ endif
 # of LLVM.
 #
 ifneq ($(OS),Darwin)
-BYTECODE_LIBRARY=1
+#BYTECODE_LIBRARY=1
 endif
 
 include $(LEVEL)/Makefile.common
