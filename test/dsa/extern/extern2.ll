@@ -3,16 +3,16 @@
 ;RUN: dsaopt %s -dsa-local -analyze -verify-flags "main:ptr+IE"
 ;RUN: dsaopt %s -dsa-local -analyze -verify-flags "takesPointer:ptr+I-E"
 
-;RUN: dsaopt %s -dsa-bu -analyze -verify-flags "main:ptr+IE"
+;RUN: dsaopt %s -dsa-bu -analyze -verify-flags "main:ptr-I+E"
 ;RUN: dsaopt %s -dsa-bu -analyze -verify-flags "takesPointer:ptr+I-E"
 
 ;RUN: dsaopt %s -dsa-td -analyze -verify-flags "main:ptr-I+E"
 ;RUN: dsaopt %s -dsa-td -analyze -verify-flags "takesPointer:ptr-I+E"
 
-;RUN: dsaopt %s -dsa-cbu -analyze -verify-flags "main:ptr+IE"
+;RUN: dsaopt %s -dsa-cbu -analyze -verify-flags "main:ptr-I+E"
 ;RUN: dsaopt %s -dsa-cbu -analyze -verify-flags "takesPointer:ptr+I-E"
 
-;RUN: dsaopt %s -dsa-eq -analyze -verify-flags "main:ptr+IE"
+;RUN: dsaopt %s -dsa-eq -analyze -verify-flags "main:ptr-I+E"
 ;RUN: dsaopt %s -dsa-eq -analyze -verify-flags "takesPointer:ptr+I-E"
 
 ;RUN: dsaopt %s -dsa-eqtd -analyze -verify-flags "main:ptr-I+E"
