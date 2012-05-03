@@ -258,6 +258,8 @@ const struct {
   {"pool_init_logfile",{NRET_YNARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
   {"poolcheck",        {NRET_NARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
   {"poolcheckui",      {NRET_NARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
+  {"poolcheckstr",     {NRET_NARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
+  {"poolcheckstrui",   {NRET_NARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
   {"fastlscheck",      {NRET_NARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
   {"poolcheckalign",   {NRET_NARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
   {"poolcheckalignui", {NRET_NARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
@@ -268,6 +270,8 @@ const struct {
 
   {"poolcheck_debug",        {NRET_NARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
   {"poolcheckui_debug",      {NRET_NARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
+  {"poolcheckstr_debug",     {NRET_NARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
+  {"poolcheckstrui_debug",   {NRET_NARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
   {"fastlscheck_debug",      {NRET_NARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
   {"poolcheckalign_debug",   {NRET_NARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
   {"poolcheckalignui_debug", {NRET_NARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},

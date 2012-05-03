@@ -73,6 +73,7 @@ namespace llvm {
     { "pool_send",        1 },
     { "pool_readlink",    2 },
     { "pool_realpath",    2 },
+    { "poolcheckstr",     1 },
     {  0,                 0 }
   };
 
