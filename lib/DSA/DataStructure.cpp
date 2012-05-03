@@ -1089,6 +1089,20 @@ bool DSCallSite::isVarArg() const {
   return FT->isVarArg();
 }
 
+/// isUnresolvable - Determines if this call has properties that would
+/// prevent it from ever being resolvded.  Put another way, no amount
+/// additional information will make this callsite resolvable.
+///
+bool DSCallSite::isUnresolvable() const {
+  // Direct calls are forever unresolvable if they are calls to declarations.
+  if (isDirectCall())
+    return getCalleeFunc()->isDeclaration();
+  // Indirect calls are forever unresolvable if the call node is marked
+  // external.
+  // (Nodes can't become non-external through additional information)
+  return getCalleeNode()->isExternFuncNode();
+}
+
 /// remapLinks - Change all of the Links in the current node according to the
 /// specified mapping.
 ///

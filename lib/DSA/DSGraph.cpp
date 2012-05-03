@@ -483,16 +483,9 @@ void DSGraph::mergeInGraph(const DSCallSite &CS,
 
   if (!(CloneFlags & DontCloneAuxCallNodes))
     for (afc_const_iterator I = Graph.afc_begin(), E = Graph.afc_end(); I!=E; ++I)
-      if (SCCFinder.PathExistsToClonedNode(*I))
+      if (!I->isUnresolvable() && SCCFinder.PathExistsToClonedNode(*I))
         AuxCallToCopy.push_back(&*I);
-//       else if (I->isIndirectCall()){
-//  	//If the call node doesn't have any callees, clone it
-//  	std::vector< const Function *> List;
-//  	I->getCalleeNode()->addFullFunctionList(List);
-//  	if (!List.size())
-//  	  AuxCallToCopy.push_back(&*I);
-//        }
-  
+
   // Copy aux calls that are needed.
   // Copy these before calculating the globals to be copied, as there might be
   // globals that reach the nodes cloned due to aux calls.

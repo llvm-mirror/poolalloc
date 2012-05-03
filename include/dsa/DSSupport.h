@@ -362,6 +362,12 @@ public:
   /// function
   ///
   bool isVarArg() const;
+
+  /// isUnresolvable - Determines if this call has properties that would
+  /// prevent it from ever being resolvded.  Put another way, no amount
+  /// additional information will make this callsite resolvable.
+  ///
+  bool isUnresolvable() const;
 };
 
 } // End llvm namespace

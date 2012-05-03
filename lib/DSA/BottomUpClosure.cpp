@@ -613,6 +613,12 @@ void BUDataStructures::calculateGraph(DSGraph* Graph) {
       continue;
     }
 
+    // If this callsite is unresolvable, get rid of it now.
+    if (CS.isUnresolvable()) {
+      TempFCs.erase(TempFCs.begin());
+      continue;
+    }
+
     // Find all callees for this callsite, according to the DSGraph!
     // Do *not* use the callgraph, because we're updating that as we go!
     std::vector<const Function*> CalledFuncs;
