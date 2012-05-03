@@ -3,8 +3,8 @@ target datalayout = "e-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:64:64-f3
 target triple = "x86_64-unknown-linux-gnu"
 ;RUN: dsaopt %s -dsa-local -analyze -check-type=func:obj,FoldedVOID
 ;RUN: dsaopt %s -dsa-local -analyze -enable-type-inference-opts -check-type=func:obj,FoldedVOID
-;RUN: adsaopt %s -mem2reg -simplify-gep -mergearrgep -dce -o t.bc
-;RUN: dsaopt t.bc -dsa-local -analyze -enable-type-inference-opts -check-type=func:obj,0:i32|\\\[10xi32\\\]::40:i16|\\\[10xi16\\\]::60:i32|\\\[10xi32\\\]
+;RUN: adsaopt %s -mem2reg -simplify-gep -mergearrgep -dce -o %t.bc
+;RUN: dsaopt %t.bc -dsa-local -analyze -enable-type-inference-opts -check-type=func:obj,0:i32|\\\[10xi32\\\]::40:i16|\\\[10xi16\\\]::60:i32|\\\[10xi32\\\]
 
 %struct.StructType1 = type { [10 x i32], [10 x i16], [10 x i32] }
 %struct.StructType2 = type { [10 x i32], [10 x i32], [10 x i32] }
