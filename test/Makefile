@@ -418,10 +418,10 @@ PA_SO   := $(PADIR)/$(BuildMode)/lib/poolalloc$(SHLIBEXT)
 DSAOPT := $(PROJ_OBJ_ROOT)/test/tools/dsaopt
 ADSAOPT := $(PROJ_OBJ_ROOT)/test/tools/adsaopt
 PAOPT := $(PROJ_OBJ_ROOT)/test/tools/paopt
-TC_LINK := $(PROJ_OBJ_ROOT)/test/tools/tc-link
-PA_LINK := $(PROJ_OBJ_ROOT)/test/tools/pa-link
+TC_BUILD := $(PROJ_OBJ_ROOT)/test/tools/tc-build
+PA_BUILD := $(PROJ_OBJ_ROOT)/test/tools/pa-build
 
-TOOLS= $(DSAOPT) $(PAOPT) $(ADSAOPT) $(TC_LINK) $(PA_LINK)
+TOOLS= $(DSAOPT) $(PAOPT) $(ADSAOPT) $(TC_BUILD) $(PA_BUILD)
 
 #wrapper script for 'opt' so we can avoid manually loading the dsa lib
 $(DSAOPT):
@@ -447,18 +447,22 @@ $(PAOPT):
 	@mv $@.tmp $@
 
 #wrapper script for llvm-ld that links the type checking runtime
-$(TC_LINK):
+$(TC_BUILD):
 	@mkdir -p `dirname $@`
 	@echo "#!/bin/sh" > $@.tmp
-	@echo 'llvm-ld -link-as-library $$@ $(PROJ_OBJ_ROOT)/$(BuildMode)/lib/libtypechecks_rt.bca ' >> $@.tmp
+	@echo 'llc $$1 -o $$1.tc.S' >> $@.tmp
+	@echo 'clang $$1.tc.S -o $$2 -ltypechecks_rt -L$(PROJ_OBJ_ROOT)/$(BuildMode)/lib' \
+		'-Wl,-rpath $(PROJ_OBJ_ROOT)/$(BuildMode)/lib' >> $@.tmp
 	@chmod +x $@.tmp
 	@mv $@.tmp $@
 
-#wrapper script for llvm-ld that links the poolalloc runtime
-$(PA_LINK):
+#wrapper script for building bitcode and linking in poolalloc runtime
+$(PA_BUILD):
 	@mkdir -p `dirname $@`
 	@echo "#!/bin/sh" > $@.tmp
-	@echo 'llvm-ld -link-as-library $$@ $(PROJ_OBJ_ROOT)/$(BuildMode)/lib/libpoolalloc_rt.bca ' >> $@.tmp
+	@echo 'llc $$1 -o $$1.pa.S' >> $@.tmp
+	@echo 'clang $$1.pa.S -o $$2 -lpoolalloc_rt -L$(PROJ_OBJ_ROOT)/$(BuildMode)/lib' \
+		'-Wl,-rpath $(PROJ_OBJ_ROOT)/$(BuildMode)/lib' >> $@.tmp
 	@chmod +x $@.tmp
 	@mv $@.tmp $@
 

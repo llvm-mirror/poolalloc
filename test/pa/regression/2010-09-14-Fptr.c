@@ -2,9 +2,7 @@
  * Build this file into bitcode and run poolalloc on it
  * RUN: clang -O0 %s -emit-llvm -c -o %t.bc
  * RUN: paopt %t.bc -paheur-AllButUnreachableFromMemory -poolalloc -o %t.pa.bc 2>&1
- * RUN: pa-link %t.pa.bc -o %t.pa.ld.bc
- * RUN: llc %t.pa.ld.bc -o %t.pa.s
- * RUN: clang %t.pa.s -o %t.pa
+ * RUN: pa-build %t.pa.bc %t.pa
  *
  * Build the program without poolalloc:
  * RUN: clang -o %t.native %s
