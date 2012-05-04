@@ -481,12 +481,16 @@ $(LLVM_OBJ_ROOT)/test/site.exp:
 
 #Run the lit tests for this project
 .PHONY: lit lit-report
-lit: lit.site.cfg $(TOOLS) $(LLVM_OBJ_ROOT)/test/site.exp
+lit: lit.site.cfg $(TOOLS) $(LLVM_OBJ_ROOT)/test/site.exp check-asserts
 	$(LLVM_SRC_ROOT)/utils/lit/lit.py $(PROJ_OBJ_ROOT)/test --path $(ToolDir) -s -v
 
 #Run the lit tests, but supress all error output--just report the test results.
-lit-report: lit.site.cfg $(TOOLS)
+lit-report: lit.site.cfg $(TOOLS) check-asserts
 	$(LLVM_SRC_ROOT)/utils/lit/lit.py $(PROJ_OBJ_ROOT)/test --path $(ToolDir) -q
+
+check-asserts:
+	$(if $(findstring Asserts,$(BuildMode)), , \
+		$(error Error: Lit tests require assertions to be enabled))
 
 clean::
 	-$(RM) -rf  `find $(PROJ_OBJ_DIR) -name Output -type d -print`

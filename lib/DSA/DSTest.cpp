@@ -684,7 +684,7 @@ static bool checkCallees(llvm::raw_ostream &O, const Module *M,
     printCallees(expectedCallees, errs()); errs() << "\n";
     errs() << "                      *** Missing: \t";
     printCallees(missing, errs()); errs() << "\n";
-    assert(0 && "Analysis contained the specified callees!");
+    assert(0 && "Analysis didn't contain the specified callees!");
   }
 
   return true;
