@@ -572,7 +572,9 @@ void GraphBuilder::visitPtrToIntInst(PtrToIntInst& I) {
   }
   if(I.getNumUses() == 1) {
     Value *V = dyn_cast<Value>(*(I.use_begin()));
-    while(V && V->getNumUses() == 1) {
+    DenseSet<Value *> Seen;
+    while(V && V->getNumUses() == 1 &&
+          Seen.insert(V).second) {
       if(isa<LoadInst>(V))
         break;
       if(isa<StoreInst>(V))
