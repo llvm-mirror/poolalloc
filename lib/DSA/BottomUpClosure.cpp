@@ -253,8 +253,8 @@ BUDataStructures::postOrderInline (Module & M) {
           if (ConstantExpr *CE = dyn_cast<ConstantExpr>(FP))
             if (CE->isCast())
               FP = CE->getOperand(0);
-          if (Function *F = dyn_cast<Function>(FP)) {
-            if (F->isDeclaration()) continue;
+          Function *F = dyn_cast<Function>(FP);
+          if (F && !F->isDeclaration() && !ValMap.count(F)) {
             calculateGraphs(F, Stack, NextID, ValMap);
             CloneAuxIntoGlobal(getDSGraph(*F));
           }
