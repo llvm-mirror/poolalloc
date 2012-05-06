@@ -254,8 +254,9 @@ BUDataStructures::postOrderInline (Module & M) {
             if (CE->isCast())
               FP = CE->getOperand(0);
           if (Function *F = dyn_cast<Function>(FP)) {
-           calculateGraphs(F, Stack, NextID, ValMap);
-           CloneAuxIntoGlobal(getDSGraph(*F));
+            if (F->isDeclaration()) continue;
+            calculateGraphs(F, Stack, NextID, ValMap);
+            CloneAuxIntoGlobal(getDSGraph(*F));
           }
         }
       GlobalsGraph->removeTriviallyDeadNodes();
