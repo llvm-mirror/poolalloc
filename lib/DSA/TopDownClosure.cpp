@@ -198,14 +198,39 @@ void TDDataStructures::ComputePostOrder(const Function &F,
                                         std::vector<DSGraph*> &PostOrder) {
   if (F.isDeclaration()) return;
   DSGraph* G = getOrCreateGraph(&F);
-  if (Visited.count(G)) return;
-  Visited.insert(G);
+  if (!Visited.insert(G).second) return;
 
   // Recursively traverse all of the callee graphs.
-  for (DSGraph::fc_iterator CI = G->fc_begin(), CE = G->fc_end(); CI != CE; ++CI)
-    for (DSCallGraph::callee_iterator I = callgraph.callee_begin(CI->getCallSite()),
-           E = callgraph.callee_end(CI->getCallSite()); I != E; ++I)
-      ComputePostOrder(**I, Visited, PostOrder);
+  std::vector<const Function*> Callees;
+
+  // Go through all of the callsites in this graph and find all callees
+  // Here we're trying to capture all possible callees so that we can ensure
+  // each function has all possible callers inlined into it.
+  for (DSGraph::fc_iterator CI = G->fc_begin(), E = G->fc_end();
+       CI != E; ++CI) {
+    // Direct calls are easy, no reason to look at DSCallGraph
+    // or anything to do with SCC's
+    if (CI->isDirectCall()) {
+      ComputePostOrder(*CI->getCalleeFunc(), Visited, PostOrder);
+    }
+    else {
+      // Otherwise, ask the DSCallGraph for the full set of possible
+      // callees for this callsite.
+      // This includes all members of the SCC's of those callees,
+      // and well as others in F's SCC, since we must assume
+      // any indirect call might be intra-SCC.
+      callgraph.addFullFunctionList(CI->getCallSite(), Callees);
+    }
+  }
+
+  // Sort and eliminate duplicates.
+  // Not needed for correctness, but might as well.
+  std::sort(Callees.begin(), Callees.end());
+  Callees.erase(std::unique(Callees.begin(), Callees.end()), Callees.end());
+
+  for (std::vector<const Function*>::iterator I = Callees.begin(),
+       E = Callees.end(); I != E; ++I)
+    ComputePostOrder(**I, Visited, PostOrder);
 
   PostOrder.push_back(G);
 }
@@ -340,49 +365,36 @@ void TDDataStructures::InlineCallersIntoGraph(DSGraph* DSG) {
       continue;
     }
 
-    // For each function in the invoked function list at this call site...
-    DSCallGraph::callee_iterator IPI = callgraph.callee_begin(CI->getCallSite()),
-            IPE = callgraph.callee_end(CI->getCallSite());
+    std::vector<const Function*> AllCallees, Callees;
 
-    // Skip over all calls to this graph (SCC calls).
-    // Note that Functions that are just declarations are their own SCC
-    while (IPI != IPE && !(*IPI)->isDeclaration() && getDSGraph(**IPI) == DSG)
-      ++IPI;
+    // Get the list of callees
+    callgraph.addFullFunctionList(CI->getCallSite(), AllCallees);
+    std::sort(AllCallees.begin(), AllCallees.end());
+    AllCallees.erase(std::unique(AllCallees.begin(), AllCallees.end()), AllCallees.end());
 
-    // All SCC calls?
-    if (IPI == IPE) continue;
-
-    const Function *FirstCallee = *IPI;
-    ++IPI;
-
-    // Skip over more SCC calls.
-    while (IPI != IPE && !(*IPI)->isDeclaration() && getDSGraph(**IPI) == DSG)
-      ++IPI;
+    // Filter all non-declarations, and calls within this DSGraph
+    for (std::vector<const Function*>::iterator I = AllCallees.begin(),
+        E = AllCallees.end(); I != E; ++I) {
+      const Function *F = *I;
+      if (!F->isDeclaration() && getDSGraph(**I) != DSG)
+        Callees.push_back(F);
+    }
+    AllCallees.clear();
 
     // If there is exactly one callee from this call site, remember the edge in
     // CallerEdges.
-    if (IPI == IPE) {
-      if (!FirstCallee->isDeclaration())
-        CallerEdges[getOrCreateGraph(FirstCallee)]
-          .push_back(CallerCallEdge(DSG, &*CI, FirstCallee));
-      continue;
+    if (Callees.size() == 1) {
+      const Function * Callee = Callees[0];
+      CallerEdges[getOrCreateGraph(Callee)]
+          .push_back(CallerCallEdge(DSG, &*CI, Callee));
     }
+    if (Callees.size() <= 1) continue;
 
     // Otherwise, there are multiple callees from this call site, so it must be
     // an indirect call.  Chances are that there will be other call sites with
     // this set of targets.  If so, we don't want to do M*N inlining operations,
     // so we build up a new, private, graph that represents the calls of all
     // calls to this set of functions.
-    std::vector<const Function*> Callees;
-    for (DSCallGraph::callee_iterator I = callgraph.callee_begin(CI->getCallSite()),
-         E = callgraph.callee_end(CI->getCallSite()); I != E; ++I)
-      if (!(*I)->isDeclaration())
-        Callees.push_back(*I);
-    
-    // If all of the callees are declarations, there is no need to merge the calls.
-    if(Callees.empty())
-      continue;
-    std::sort(Callees.begin(), Callees.end());
 
     std::map<std::vector<const Function*>, DSGraph*>::iterator IndCallRecI =
       IndCallMap.lower_bound(Callees);
@@ -392,7 +404,7 @@ void TDDataStructures::InlineCallersIntoGraph(DSGraph* DSG) {
     // If we already have this graph, recycle it.
     if (IndCallRecI != IndCallMap.end() && IndCallRecI->first == Callees) {
       DEBUG(errs() << "  [TD] *** Reuse of indcall graph for " << Callees.size()
-	    << " callees!\n");
+            << " callees!\n");
       IndCallGraph = IndCallRecI->second;
     } else {
       // Otherwise, create a new DSGraph to represent this.
