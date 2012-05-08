@@ -399,24 +399,29 @@ void TDDataStructures::InlineCallersIntoGraph(DSGraph* DSG) {
     std::map<std::vector<const Function*>, DSGraph*>::iterator IndCallRecI =
       IndCallMap.lower_bound(Callees);
 
-    DSGraph *IndCallGraph;
-
     // If we already have this graph, recycle it.
     if (IndCallRecI != IndCallMap.end() && IndCallRecI->first == Callees) {
       DEBUG(errs() << "  [TD] *** Reuse of indcall graph for " << Callees.size()
             << " callees!\n");
-      IndCallGraph = IndCallRecI->second;
+      DSGraph * IndCallGraph = IndCallRecI->second;
+      assert(IndCallGraph->getFunctionCalls().size() == 1);
+
+      // Merge the call into the CS already in the IndCallGraph
+      ReachabilityCloner RC(IndCallGraph, DSG, 0);
+      RC.mergeCallSite(IndCallGraph->getFunctionCalls().front(), *CI);
     } else {
       // Otherwise, create a new DSGraph to represent this.
-      IndCallGraph = new DSGraph(DSG->getGlobalECs(), DSG->getTargetData(), *TypeSS);
-      // Make a nullary dummy call site, which will eventually get some content
-      // merged into it.  The actual callee function doesn't matter here, so we
-      // just pass it something to keep the ctor happy.
-      std::vector<DSNodeHandle> ArgDummyVec;
-      DSCallSite DummyCS(CI->getCallSite(), DSNodeHandle(), DSNodeHandle(),
-                         Callees[0]/*dummy*/, ArgDummyVec);
-      IndCallGraph->getFunctionCalls().push_back(DummyCS);
+      DSGraph* IndCallGraph = new DSGraph(DSG->getGlobalECs(),
+                                          DSG->getTargetData(), *TypeSS);
 
+      // Clone over the call into the new DSGraph
+      ReachabilityCloner RC(IndCallGraph, DSG, 0);
+      DSCallSite ClonedCS = RC.cloneCallSite(*CI);
+
+      // Add the cloned CS to the graph, as if it were an original call.
+      IndCallGraph->getFunctionCalls().push_back(ClonedCS);
+
+      // Save this graph for use later, should we need it.
       IndCallRecI = IndCallMap.insert(IndCallRecI,
                                       std::make_pair(Callees, IndCallGraph));
 
@@ -430,10 +435,5 @@ void TDDataStructures::InlineCallersIntoGraph(DSGraph* DSG) {
                                                             Callees[i]));
       }
     }
-
-    // Now that we know which graph to use for this, merge the caller
-    // information into the graph, based on information from the call site.
-    ReachabilityCloner RC(IndCallGraph, DSG, 0);
-    RC.mergeCallSite(IndCallGraph->getFunctionCalls().front(), *CI);
   }
 }
