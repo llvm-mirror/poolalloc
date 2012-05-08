@@ -311,6 +311,21 @@ BUDataStructures::postOrderInline (Module & M) {
         << I->getName() << "\n");
       calculateGraphs(I, Stack, NextID, ValMap);     // Calculate all graphs.
       CloneAuxIntoGlobal(getDSGraph(*I));
+
+      // Mark this graph as processed.  Do this by finding all functions
+      // in the graph that map to it, and mark them visited.
+      // Note that this really should be handled neatly by calculateGraphs
+      // itself, not here.  However this catches the worst offenders.
+      DSGraph *G = getDSGraph(*I);
+      for(DSGraph::retnodes_iterator RI = G->retnodes_begin(),
+          RE = G->retnodes_end(); RI != RE; ++RI) {
+        if (getDSGraph(*RI->first) == G) {
+          if (!ValMap.count(RI->first))
+            ValMap[RI->first] = ~0U;
+          else
+            assert(ValMap[RI->first] == ~0U);
+        }
+      }
     }
   return;
 }
@@ -486,8 +501,6 @@ BUDataStructures::calculateGraphs (const Function *F,
     }
     return MyID;
   }
-
-  return MyID;  // == Min
 }
 
   bool compareDSCallSites (const DSCallSite & DS1, const DSCallSite & DS2) {
