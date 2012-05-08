@@ -171,9 +171,11 @@ bool TDDataStructures::runOnModule(Module &M) {
 
   // Make sure each graph has updated external information about globals
   // in the globals graph.
+  VisitedGraph.clear();
   for (Module::iterator F = M.begin(); F != M.end(); ++F) {
     if (!(F->isDeclaration())){
       DSGraph *Graph  = getOrCreateGraph(F);
+      if (!VisitedGraph.insert(Graph).second) continue;
 
       cloneGlobalsInto(Graph, DSGraph::DontCloneCallNodes |
                         DSGraph::DontCloneAuxCallNodes);
