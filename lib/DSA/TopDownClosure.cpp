@@ -77,11 +77,11 @@ void TDDataStructures::markReachableFunctionsExternallyAccessible(DSNode *N,
 // program.
 //
 bool TDDataStructures::runOnModule(Module &M) {
-  
+
   init(useEQBU ? &getAnalysis<EquivBUDataStructures>()
-       : &getAnalysis<BUDataStructures>(), 
+       : &getAnalysis<BUDataStructures>(),
        true, true, true, false);
-  
+
   for (Module::iterator F = M.begin(); F != M.end(); ++F) {
     if (!(F->isDeclaration())){
       DSGraph *G = getOrCreateGraph(F);
@@ -111,7 +111,7 @@ bool TDDataStructures::runOnModule(Module &M) {
                                                  Visited);
   Visited.clear();
 
-  // Clear Aux of Globals Graph to be refilled in later by post-TD unresolved 
+  // Clear Aux of Globals Graph to be refilled in later by post-TD unresolved
   // functions
   GlobalsGraph->getAuxFunctionCalls().clear();
 
@@ -260,8 +260,8 @@ void TDDataStructures::InlineCallersIntoGraph(DSGraph* DSG) {
   cloneGlobalsInto(DSG, DSGraph::DontCloneCallNodes |
                         DSGraph::DontCloneAuxCallNodes);
 
-  DEBUG(errs() << "[TD] Inlining callers into '" 
-	<< DSG->getFunctionNames() << "'\n");
+  DEBUG(errs() << "[TD] Inlining callers into '"
+        << DSG->getFunctionNames() << "'\n");
 
   DSG->maskIncompleteMarkers();
   // Iteratively inline caller graphs into this graph.
@@ -278,16 +278,16 @@ void TDDataStructures::InlineCallersIntoGraph(DSGraph* DSG) {
     do {
       const DSCallSite &CS = *EdgesFromCaller.back().CS;
       const Function &CF = *EdgesFromCaller.back().CalledFunction;
-      DEBUG(errs() << "   [TD] Inlining graph into Fn '" 
-	    << CF.getName().str() << "' from ");
+      DEBUG(errs() << "   [TD] Inlining graph into Fn '"
+            << CF.getName().str() << "' from ");
       if (CallerGraph->getReturnNodes().empty()) {
         DEBUG(errs() << "SYNTHESIZED INDIRECT GRAPH");
       } else {
         DEBUG(errs() << "Fn '" << CS.getCallSite().getInstruction()->
-	      getParent()->getParent()->getName().str() << "'");
+              getParent()->getParent()->getName().str() << "'");
       }
-      DEBUG(errs() << ": " << CF.getFunctionType()->getNumParams() 
-	    << " args\n");
+      DEBUG(errs() << ": " << CF.getFunctionType()->getNumParams()
+            << " args\n");
 
       // Get the formal argument and return nodes for the called function and
       // merge them with the cloned subgraph.
