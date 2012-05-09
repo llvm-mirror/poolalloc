@@ -5,10 +5,8 @@
 #
 ##===----------------------------------------------------------------------===##
 
-# The default target in this directory is the test:: target
-test::
-#Eventually we'll want to automatically run the lit tests too
-#test:: lit
+# Simply run lit tests by default
+test:: lit
 
 LEVEL = ..
 include $(LEVEL)/Makefile.common
@@ -340,7 +338,7 @@ progtypes::
 
 # test target - Descend into projects/test-suite and run the TEST.poolalloc.Makefile
 # tests...
-test::
+fulltest::
 	(cd $(LLVM_OBJ_ROOT)/projects/test-suite/$(SUBDIR); \
                PROJECT_DIR=$(PROJ_OBJ_ROOT) $(MAKE) -j1 TEST=poolalloc \
                    $(LARGESIZE) $(STABLERUN) report report.html)
