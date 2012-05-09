@@ -390,7 +390,7 @@ void GraphBuilder::visitLoadInst(LoadInst &LI) {
 
   // check that it is the inserted value
   if(TypeInferenceOptimize)
-    if(LI.getNumUses() == 1) 
+    if(LI.hasOneUse())
       if(StoreInst *SI = dyn_cast<StoreInst>(*(LI.use_begin())))
         if(SI->getOperand(0) == &LI) {
         ++NumIgnoredInst;
@@ -415,7 +415,7 @@ void GraphBuilder::visitStoreInst(StoreInst &SI) {
     Dest.addEdgeTo(getValueDest(SI.getOperand(0)));
 
   if(TypeInferenceOptimize)
-    if(SI.getOperand(0)->getNumUses() == 1)
+    if(SI.getOperand(0)->hasOneUse())
       if(isa<LoadInst>(SI.getOperand(0))){
         ++NumIgnoredInst;
         return;
@@ -550,7 +550,7 @@ void GraphBuilder::visitVAArgInst(VAArgInst &I) {
 
 void GraphBuilder::visitIntToPtrInst(IntToPtrInst &I) {
   DSNode *N = createNode();
-  if(I.getNumUses() == 1) {
+  if(I.hasOneUse()) {
     if(isa<ICmpInst>(*(I.use_begin()))) {
       NumBoringIntToPtr++;
       return;
@@ -564,16 +564,16 @@ void GraphBuilder::visitIntToPtrInst(IntToPtrInst &I) {
 
 void GraphBuilder::visitPtrToIntInst(PtrToIntInst& I) {
   DSNode* N = getValueDest(I.getOperand(0)).getNode();
-  if(I.getNumUses() == 1) {
+  if(I.hasOneUse()) {
     if(isa<ICmpInst>(*(I.use_begin()))) {
       NumBoringIntToPtr++;
       return;
     }
   }
-  if(I.getNumUses() == 1) {
+  if(I.hasOneUse()) {
     Value *V = dyn_cast<Value>(*(I.use_begin()));
     DenseSet<Value *> Seen;
-    while(V && V->getNumUses() == 1 &&
+    while(V && V->hasOneUse() &&
           Seen.insert(V).second) {
       if(isa<LoadInst>(V))
         break;

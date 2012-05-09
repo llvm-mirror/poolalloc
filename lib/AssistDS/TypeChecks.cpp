@@ -2105,7 +2105,7 @@ bool TypeChecks::visitLoadInst(Module &M, LoadInst &LI) {
   }
   visitUses(&LI, AI, BCI);
 
-  if(AI->getNumUses() == 1) {
+  if(AI->hasOneUse()) {
     // No uses needed checks
     getTypeCall->eraseFromParent();
   }

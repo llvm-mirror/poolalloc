@@ -60,7 +60,7 @@ bool SimplifyIV::runOnModule(Module& M) {
           if(!IV)
             continue;
           // Find all insert value instructions.
-          if(IV->getNumUses() != 1)
+          if(!IV->hasOneUse())
             continue;
           // Check that its only use is a StoreInst
           StoreInst *SI = dyn_cast<StoreInst>(*(IV->use_begin()));
