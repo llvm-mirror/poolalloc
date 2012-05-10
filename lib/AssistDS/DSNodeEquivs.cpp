@@ -174,8 +174,12 @@ void DSNodeEquivs::equivNodesToGlobals(DSGraph *G) {
     const GlobalValue *Global = *GlobalIt;
 
     DSNode *LocalNode = G->getNodeForValue(Global).getNode();
+
+    // It's quite possible this (local) graph doesn't have this global.
+    // If that's the case, there's nothing to do here.
+    if (!LocalNode) continue;
+
     DSNode *GlobalNode = GlobalsGr->getNodeForValue(Global).getNode();
-    assert(LocalNode && "No node for global in local scalar map?");
     assert(GlobalNode && "No node for global in global scalar map?");
 
     // Map the two together and all reachable from each...
