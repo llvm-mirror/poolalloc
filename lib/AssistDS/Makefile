@@ -15,6 +15,7 @@ LOADABLE_MODULE=1
 endif
 endif
 LIBRARYNAME = AssistDS
+BUILD_ARCHIVE=1
 
 include $(LEVEL)/Makefile.common
 
