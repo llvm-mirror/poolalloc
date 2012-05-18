@@ -140,7 +140,7 @@ namespace PA {
   //
   // Description:
   //  This class provides a pool allocation heuristic that forces all DSNodes
-  //  to be pool allocated.
+  //  to be pool allocated (all heap nodes, I think).
   //
   class AllHeapNodesHeuristic: public Heuristic, public ModulePass {
   protected:
@@ -184,6 +184,60 @@ namespace PA {
       // Interface methods
       //
       virtual void findGlobalPoolNodes (DSNodeSet_t & Nodes);
+      virtual void AssignToPools (const DSNodeList_t & NodesToPA,
+                                  Function *F, DSGraph* G,
+                                  std::vector<OnePool> &ResultPools);
+  };
+
+  //
+  // Class: AllNodesHeuristic
+  //
+  // Description:
+  //  This class provides a pool allocation heuristic that forces all DSNodes
+  //  to be pool allocated.  Unlike the AllHeapNodes heuristic, this heuristic
+  //  will also pool allocate globals and stack objects.
+  //
+  class AllNodesHeuristic: public Heuristic, public ModulePass {
+    protected:
+      /// Find globally reachable DSNodes that need a pool
+      virtual void findGlobalPoolNodes (DSNodeSet_t & Nodes);
+
+      // Map of DSNodes to pool handles
+      std::map<const DSNode *, OnePool> PoolMap;
+
+    public:
+      // Pass ID
+      static char ID;
+
+      // Method used to implement analysis groups without C++ inheritance
+      virtual void *getAdjustedAnalysisPointer(AnalysisID ID) {
+        if (ID == &Heuristic::ID)
+          return (Heuristic*)this;
+        return this;
+      }
+
+      AllNodesHeuristic (char & IDp = ID): ModulePass (IDp) { }
+      virtual ~AllNodesHeuristic () {return;}
+      virtual bool runOnModule (Module & M);
+      virtual void releaseMemory ();
+      virtual const char * getPassName () const {
+        return "All Nodes (SAFECode) Pool Allocation Heurisitic";
+      }
+
+      virtual void getAnalysisUsage(AnalysisUsage &AU) const {
+        // We require DSA while this pass is still responding to queries
+        AU.addRequiredTransitive<EQTDDataStructures>();
+
+        // This pass does not modify anything when it runs
+        AU.setPreservesAll();
+      }
+
+      /// Find DSNodes local to a function that need a pool
+      virtual void getLocalPoolNodes (const Function & F, DSNodeList_t & Nodes);
+
+      //
+      // Interface methods
+      //
       virtual void AssignToPools (const DSNodeList_t & NodesToPA,
                                   Function *F, DSGraph* G,
                                   std::vector<OnePool> &ResultPools);
