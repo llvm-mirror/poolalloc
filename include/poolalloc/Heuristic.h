@@ -136,13 +136,13 @@ namespace PA {
   ////////////////////////////////////////////////////////////////////////////
 
   //
-  // Class: AllNodesHeuristic 
+  // Class: AllHeapNodesHeuristic 
   //
   // Description:
   //  This class provides a pool allocation heuristic that forces all DSNodes
   //  to be pool allocated.
   //
-  class AllNodesHeuristic: public Heuristic, public ModulePass {
+  class AllHeapNodesHeuristic: public Heuristic, public ModulePass {
   protected:
     // Map of DSNodes to pool handles
         std::map<const DSNode *, OnePool> PoolMap;
@@ -160,8 +160,8 @@ namespace PA {
         return this;
       }
 
-      AllNodesHeuristic (char & IDp = ID): ModulePass (IDp) { }
-      virtual ~AllNodesHeuristic () {return;}
+      AllHeapNodesHeuristic (char & IDp = ID): ModulePass (IDp) { }
+      virtual ~AllHeapNodesHeuristic () {return;}
       virtual bool runOnModule (Module & M);
       virtual const char * getPassName () const {
         return "All Nodes Pool Allocation Heurisitic";

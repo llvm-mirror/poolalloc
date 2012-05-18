@@ -7,7 +7,8 @@
 // 
 //===----------------------------------------------------------------------===//
 //
-// This implements the various pool allocation heuristics.
+// This file implements the old "AllNodes" heuristic which the SAFECode
+// heuristic claims only pool allocated heap nodes.
 //
 // FIXME: It seems that the old alignment heuristics contained in this file
 //        were designed for 32-bit x86 processors (which makes sense as
@@ -50,7 +51,7 @@ using namespace PA;
 //                     this container; it is not cleared by this function.
 //                     DSNodes from both the local and globals graph are added.
 void
-AllNodesHeuristic::GetNodesReachableFromGlobals (DSGraph* G,
+AllHeapNodesHeuristic::GetNodesReachableFromGlobals (DSGraph* G,
                               DenseSet<const DSNode*> &NodesFromGlobals) {
   //
   // Get the globals graph associated with this DSGraph.  If the globals graph
@@ -143,7 +144,7 @@ AllNodesHeuristic::GetNodesReachableFromGlobals (DSGraph* G,
 //          have global pools will be *added* to this container.
 //
 void
-AllNodesHeuristic::findGlobalPoolNodes (DSNodeSet_t & Nodes) {
+AllHeapNodesHeuristic::findGlobalPoolNodes (DSNodeSet_t & Nodes) {
   // Get the globals graph for the program.
   DSGraph* GG = Graphs->getGlobalsGraph();
 
@@ -200,13 +201,13 @@ AllNodesHeuristic::findGlobalPoolNodes (DSNodeSet_t & Nodes) {
   return;
 }
 
-//===-- AllNodes Heuristic ------------------------------------------------===//
+//===-- AllHeapNodes Heuristic ------------------------------------------------===//
 //
 // This heuristic pool allocates everything possible into separate pools.
 //
 
 bool
-AllNodesHeuristic::runOnModule (Module & Module) {
+AllHeapNodesHeuristic::runOnModule (Module & Module) {
   //
   // Remember which module we are analyzing.
   //
@@ -229,7 +230,7 @@ AllNodesHeuristic::runOnModule (Module & Module) {
 }
 
 void
-AllNodesHeuristic::AssignToPools (const std::vector<const DSNode*> &NodesToPA,
+AllHeapNodesHeuristic::AssignToPools (const std::vector<const DSNode*> &NodesToPA,
                                   Function *F, DSGraph* G,
                                   std::vector<OnePool> &ResultPools) {
   for (unsigned i = 0, e = NodesToPA.size(); i != e; ++i){
@@ -244,11 +245,11 @@ AllNodesHeuristic::AssignToPools (const std::vector<const DSNode*> &NodesToPA,
 //
 // Register all of the heuristic passes.
 //
-static RegisterPass<AllNodesHeuristic>
-A ("paheur-AllNodes", "Pool allocate all nodes");
+static RegisterPass<AllHeapNodesHeuristic>
+A ("paheur-AllHeapNodes", "Pool allocate all (heap?) nodes");
 
 RegisterAnalysisGroup<Heuristic> Heuristic1(A);
 
-char AllNodesHeuristic::ID = 0;
+char AllHeapNodesHeuristic::ID = 0;
 
 
