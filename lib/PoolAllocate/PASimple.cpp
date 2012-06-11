@@ -489,7 +489,7 @@ PoolAllocateSimple::ProcessFunctionBodySimple (Function& F, TargetData & TD) {
           CI->replaceAllUsesWith(Casted);
         } else if (CF && (CF->isDeclaration()) && ((CF->getName() == "free") || (CF->getName() == "cfree"))) {
           Type * VoidPtrTy = PointerType::getUnqual(Int8Type);
-          Value * FreedNode = castTo (CI->getOperand(1), VoidPtrTy, "cast", ii);
+          Value * FreedNode = castTo (CI->getOperand(0), VoidPtrTy, "cast", ii);
           toDelete.push_back(ii);
           Value* args[] = {TheGlobalPool, FreedNode};
           CallInst::Create(PoolFree, args, "", ii);
