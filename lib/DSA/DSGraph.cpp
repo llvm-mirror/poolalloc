@@ -1230,21 +1230,26 @@ void DSGraph::removeDeadNodes(unsigned Flags) {
       }
   } while (Iterate);
 
-  // Move dead aux function calls to the end of the list
-  for (FunctionListTy::iterator CI = AuxFunctionCalls.begin(),
-         E = AuxFunctionCalls.end(); CI != E; )
-    if (AuxFCallsAlive.count(&*CI))
-      ++CI;
-    else {
-      // Copy and merge global nodes and dead aux call nodes into the
-      // GlobalsGraph, and all nodes reachable from those nodes.  Update their
-      // target pointers using the GGCloner.
-      //
-      if (!(Flags & DSGraph::RemoveUnreachableGlobals))
-        GlobalsGraph->AuxFunctionCalls.push_back(DSCallSite(*CI, GGCloner));
+  // If only some of the aux calls are alive
+  if (AuxFCallsAlive.size() != AuxFunctionCalls.size()) {
+    // Move dead aux function calls to the end of the list
+    FunctionListTy::iterator Erase = AuxFunctionCalls.end();
+    for (FunctionListTy::iterator CI = AuxFunctionCalls.begin(); CI != Erase; )
+      if (AuxFCallsAlive.count(&*CI))
+        ++CI;
+      else {
+        // Copy and merge global nodes and dead aux call nodes into the
+        // GlobalsGraph, and all nodes reachable from those nodes.  Update their
+        // target pointers using the GGCloner.
+        //
+        if (!(Flags & DSGraph::RemoveUnreachableGlobals))
+          GlobalsGraph->AuxFunctionCalls.push_back(DSCallSite(*CI, GGCloner));
 
-      AuxFunctionCalls.erase(CI++);
-    }
+        std::swap(*CI, *--Erase);
+      }
+    AuxFunctionCalls.erase(Erase, AuxFunctionCalls.end());
+  }
+  AuxFCallsAlive.clear();
 
   // We are finally done with the GGCloner so we can destroy it.
   GGCloner.destroy();
