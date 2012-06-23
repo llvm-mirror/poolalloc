@@ -133,19 +133,25 @@ DSGraph::~DSGraph() {
 void DSGraph::dump() const { print(errs()); }
 
 void DSGraph::removeFunctionCalls(Function& F) {
-  for (std::list<DSCallSite>::iterator I = FunctionCalls.begin(),
-         E = FunctionCalls.end(); I != E; ++I)
-    if (I->isDirectCall() && I->getCalleeFunc() == &F) {
-      FunctionCalls.erase(I);
-      break;
-    }
+  std::list<DSCallSite>::iterator Erase = FunctionCalls.end();
+  for (std::list<DSCallSite>::iterator I = FunctionCalls.begin();
+       I != Erase; ) {
+    if (I->isDirectCall() && I->getCalleeFunc() == &F)
+      std::swap(*I, *--Erase);
+    else
+      ++I;
+  }
+  FunctionCalls.erase(Erase, FunctionCalls.end());
 
-  for (std::list<DSCallSite>::iterator I = AuxFunctionCalls.begin(),
-         E = AuxFunctionCalls.end(); I != E; ++I)
-    if (I->isDirectCall() && I->getCalleeFunc() == &F) {
-      AuxFunctionCalls.erase(I);
-      break;
-    }
+  Erase = AuxFunctionCalls.end();
+  for (std::list<DSCallSite>::iterator I = AuxFunctionCalls.begin();
+       I != Erase; ) {
+    if (I->isDirectCall() && I->getCalleeFunc() == &F)
+      std::swap(*I, *--Erase);
+    else
+      ++I;
+  }
+  AuxFunctionCalls.erase(Erase, AuxFunctionCalls.end());
 }
 
 /// addObjectToGraph - This method can be used to add global, stack, and heap

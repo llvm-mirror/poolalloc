@@ -446,23 +446,25 @@ const struct {
 //
 void
 StdLibDataStructures::eraseCallsTo(Function* F) {
+  typedef std::pair<DSGraph*,Function*> RemovalPair;
+  DenseSet<RemovalPair> ToRemove;
   for (Value::use_iterator ii = F->use_begin(), ee = F->use_end();
        ii != ee; ++ii)
     if (CallInst* CI = dyn_cast<CallInst>(*ii)){
       if (CI->getCalledValue() == F) {
         DSGraph* Graph = getDSGraph(*CI->getParent()->getParent());
         //delete the call
-        DEBUG(errs() << "Removing " << F->getName().str() << " from " 
-	      << CI->getParent()->getParent()->getName().str() << "\n");
-        Graph->removeFunctionCalls(*F);
+        DEBUG(errs() << "Removing " << F->getName().str() << " from "
+              << CI->getParent()->getParent()->getName().str() << "\n");
+        ToRemove.insert(std::make_pair(Graph, F));
       }
     }else if (InvokeInst* CI = dyn_cast<InvokeInst>(*ii)){
       if (CI->getCalledValue() == F) {
         DSGraph* Graph = getDSGraph(*CI->getParent()->getParent());
         //delete the call
-        DEBUG(errs() << "Removing " << F->getName().str() << " from " 
-	      << CI->getParent()->getParent()->getName().str() << "\n");
-        Graph->removeFunctionCalls(*F);
+        DEBUG(errs() << "Removing " << F->getName().str() << " from "
+              << CI->getParent()->getParent()->getName().str() << "\n");
+        ToRemove.insert(std::make_pair(Graph, F));
       }
     } else if(ConstantExpr *CE = dyn_cast<ConstantExpr>(*ii)) {
       if(CE->isCast()) {
@@ -472,14 +474,18 @@ StdLibDataStructures::eraseCallsTo(Function* F) {
             if(CI->getCalledValue() == CE) {
               DSGraph* Graph = getDSGraph(*CI->getParent()->getParent());
               //delete the call
-              DEBUG(errs() << "Removing " << F->getName().str() << " from " 
-	        << CI->getParent()->getParent()->getName().str() << "\n");
-              Graph->removeFunctionCalls(*F);
+              DEBUG(errs() << "Removing " << F->getName().str() << " from "
+                    << CI->getParent()->getParent()->getName().str() << "\n");
+              ToRemove.insert(std::make_pair(Graph, F));
             }
           }
         }
       }
     }
+
+  for(DenseSet<RemovalPair>::iterator I = ToRemove.begin(), E = ToRemove.end();
+      I != E; ++I)
+    I->first->removeFunctionCalls(*I->second);
 }
 
 //
