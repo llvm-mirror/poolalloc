@@ -269,7 +269,5 @@ void DSCallGraph::addFullFunctionSet(llvm::CallSite CS,
   }
   const Function *F1 = CS.getInstruction()->getParent()->getParent();
   F1 = sccLeader(&*F1);
-  DSCallGraph::scc_iterator sccii = scc_begin(F1),
-                            sccee = scc_end(F1);
   Set.insert(scc_begin(F1), scc_end(F1));
 }
