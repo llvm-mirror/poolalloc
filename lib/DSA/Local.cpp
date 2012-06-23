@@ -1395,6 +1395,7 @@ bool LocalDataStructures::runOnModule(Module &M) {
       cloneIntoGlobals(G, DSGraph::DontCloneCallNodes |
                        DSGraph::DontCloneAuxCallNodes |
                        DSGraph::StripAllocaBit);
+      formGlobalECs();
       DEBUG(G->AssertGraphOK());
     }
 
