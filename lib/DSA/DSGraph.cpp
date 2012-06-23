@@ -838,66 +838,16 @@ static inline void killIfUselessEdge(DSNodeHandle &Edge) {
           && !N->isNodeCompletelyFolded())
         Edge.setTo(0, 0);  // Kill the edge!
 }
-// TODO: This function removes DS call sites that are identical and need not
-// be inlined again. But the fact that poolallocation, and possibly other 
-// clients can query call graph, means we need callee information for all the 
-// call sites. And hence, we should not remove them without ever inlining them
 
 static void removeIdenticalCalls(DSGraph::FunctionListTy &Calls) {
   // Remove trivially identical function calls
-  sort(Calls);
-
-  // Scan the call list cleaning it up as necessary...
-  DSNodeHandle LastCalleeNode;
-#if 0
-  //Function *LastCalleeFunc = 0;
-  unsigned NumDuplicateCalls = 0;
-#endif
-  //bool LastCalleeContainsExternalFunction = false;
 
   unsigned NumDeleted = 0;
-  for (std::list<DSCallSite>::iterator I = Calls.begin(), E = Calls.end();
-       I != E;) {
+
+  // First, scan through killing off useless edges and trivially dead callsites
+  for (DSGraph::FunctionListTy::iterator I = Calls.begin(), E = Calls.end();
+       I != E; ) {
     DSCallSite &CS = *I;
-    std::list<DSCallSite>::iterator OldIt = I++;
-
-    if (!CS.isIndirectCall()) {
-      LastCalleeNode = 0;
-    } else {
-      
-      DSNode *Callee = CS.getCalleeNode();
-
-      // If the Callee is a useless edge, this must be an unreachable call site,
-      // eliminate it.
-      if (Callee->getNumReferrers() == 1 && Callee->isCompleteNode() &&
-          Callee->isEmptyGlobals()) {  // No useful info?
-        DEBUG(errs() << "WARNING: Useless call site found.\n");
-        Calls.erase(OldIt);
-        ++NumDeleted;
-        continue;
-      }
-
-      // If the last call site in the list has the same callee as this one, and
-      // if the callee contains an external function, it will never be
-      // resolvable, just merge the call sites.
-      if (!LastCalleeNode.isNull() && LastCalleeNode.getNode() == Callee) {
-        // check that arguments also match
-        DSGraph::FunctionListTy::iterator PrevIt = OldIt;
-        --PrevIt;
-        if(CS == *PrevIt) {
-        //  LastCalleeContainsExternalFunction = Callee->isExternFuncNode();
-
-          PrevIt->mergeWith(CS);
-
-          // No need to keep this call anymore.
-          Calls.erase(OldIt);
-          ++NumDeleted;
-          continue;
-        }
-      } else {
-        LastCalleeNode = Callee;
-      }
-    }
 
     // If the return value or any arguments point to a void node with no
     // information at all in it, and the call node is the only node to point
@@ -908,89 +858,43 @@ static void removeIdenticalCalls(DSGraph::FunctionListTy &Calls) {
     for (unsigned a = 0, e = CS.getNumPtrArgs(); a != e; ++a)
       killIfUselessEdge(CS.getPtrArg(a));
 
-#if 0
-    // If this call site calls the same function as the last call site, and if
-    // the function pointer contains an external function, this node will
-    // never be resolved.  Merge the arguments of the call node because no
-    // information will be lost.
-    //
-    if ((CS.isDirectCall()   && CS.getCalleeFunc() == LastCalleeFunc) ||
-        (CS.isIndirectCall() && CS.getCalleeNode() == LastCalleeNode)) {
-      ++NumDuplicateCalls;
-      if (NumDuplicateCalls == 1) {
-        if (LastCalleeNode)
-          LastCalleeContainsExternalFunction =
-            nodeContainsExternalFunction(LastCalleeNode);
-        else
-          LastCalleeContainsExternalFunction = LastCalleeFunc->isExternal();
-      }
-
-      // It is not clear why, but enabling this code makes DSA really
-      // sensitive to node forwarding.  Basically, with this enabled, DSA
-      // performs different number of inlinings based on which nodes are
-      // forwarding or not.  This is clearly a problem, so this code is
-      // disabled until this can be resolved.
-#if 1
-      if (LastCalleeContainsExternalFunction
-#if 0
-          ||
-          // This should be more than enough context sensitivity!
-          // FIXME: Evaluate how many times this is tripped!
-          NumDuplicateCalls > 20
-#endif
-          ) {
-
-        std::list<DSCallSite>::iterator PrevIt = OldIt;
-        --PrevIt;
-        PrevIt->mergeWith(CS);
-
-        // No need to keep this call anymore.
-        Calls.erase(OldIt);
+    // If this is an indirect callsite, but the Callee DSNode isn't
+    // tied to from anything, remove it trivially.
+    if (CS.isIndirectCall()) {
+      DSNode *Callee = CS.getCalleeNode();
+      if (Callee->getNumReferrers() == 1 && Callee->isCompleteNode() &&
+          Callee->isEmptyGlobals()) {  // No useful info?
+        DEBUG(errs() << "WARNING: Useless call site found.\n");
+        I = Calls.erase(I);
+        E = Calls.end();
         ++NumDeleted;
         continue;
       }
-#endif
-    } else {
-      if (CS.isDirectCall()) {
-        LastCalleeFunc = CS.getCalleeFunc();
-        LastCalleeNode = 0;
-      } else {
-        LastCalleeNode = CS.getCalleeNode();
-        LastCalleeFunc = 0;
-      }
-      NumDuplicateCalls = 0;
     }
-#endif
-
-    if (I != Calls.end() && CS == *I && I->isDirectCall()) {
-     // LastCalleeNode = 0;
-      //Calls.erase(OldIt);
-      ++NumDeleted;
-      continue;
-    }
+    ++I;
   }
 
-  // Resort now that we simplified things.
+  // Now scan for redundant indirect callsites
+  // First, sort by callee (using DSCallSite::operator<)
   sort(Calls);
 
-  // Now that we are in sorted order, eliminate duplicates.
-  DSGraph::FunctionListTy::iterator CI = Calls.begin(), CE = Calls.end();
-  if (CI != CE)
-    while (1) {
-      DSGraph::FunctionListTy::iterator OldIt = CI++;
-      if (CI == CE) break;
+  // Then find adjacent callsites that are equivalent and handle accordingly
+  DSGraph::FunctionListTy::iterator I = Calls.begin();
+  while((I = std::adjacent_find(I, Calls.end())) != Calls.end()) {
+    DSGraph::FunctionListTy::iterator Second = I;
+    DSCallSite &DCS1 = *I, &DCS2 = *++Second;
 
-      // If this call site is now the same as the previous one, we can delete it
-      // as a duplicate.
-      if (*OldIt == *CI && CI->isDirectCall() && OldIt->isDirectCall()) {
-      //  errs() << "Deleteing " << CI->getCallSite().getInstruction() << "\n";
-        Calls.erase(CI);
-        CI = OldIt;
-        ++NumDeleted;
-      }
+    if (DCS1.isIndirectCall()) {
+      // Merge them together (into the first one)
+      DCS1.mergeWith(DCS2);
     }
 
-  //Calls.erase(std::unique(Calls.begin(), Calls.end()), Calls.end());
+    // Remove the second one
+    ++NumDeleted;
+    Calls.erase(Second);
+
+    // Carry on, searching from 'I' (first one)...
+  }
 
   // Track the number of call nodes merged away...
   NumCallNodesMerged += NumDeleted;
