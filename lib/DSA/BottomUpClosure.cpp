@@ -614,22 +614,21 @@ void BUDataStructures::calculateGraph(DSGraph* Graph) {
   DSGraph::FunctionListTy &AuxCallsList = Graph->getAuxFunctionCalls();
   TempFCs.swap(AuxCallsList);
 
-  while (!TempFCs.empty()) {
+  for(DSGraph::FunctionListTy::iterator I = TempFCs.begin(), E = TempFCs.end();
+      I != E; ++I) {
     DEBUG(Graph->AssertGraphOK(); Graph->getGlobalsGraph()->AssertGraphOK());
-    
-    DSCallSite &CS = *TempFCs.begin();
-    
+
+    DSCallSite &CS = *I;
+
     // Fast path for noop calls.  Note that we don't care about merging globals
     // in the callee with nodes in the caller here.
     if (!CS.isIndirectCall() && CS.getRetVal().isNull()
         && CS.getNumPtrArgs() == 0 && !CS.isVarArg()) {
-      TempFCs.erase(TempFCs.begin());
       continue;
     }
 
     // If this callsite is unresolvable, get rid of it now.
     if (CS.isUnresolvable()) {
-      TempFCs.erase(TempFCs.begin());
       continue;
     }
 
@@ -643,7 +642,8 @@ void BUDataStructures::calculateGraph(DSGraph* Graph) {
       if (CS.isIndirectCall())
         ++NumIndUnresolved;
       // Remember that we could not resolve this yet!
-      AuxCallsList.splice(AuxCallsList.end(), TempFCs, TempFCs.begin());
+      DSGraph::FunctionListTy::iterator S = I++;
+      AuxCallsList.splice(AuxCallsList.end(), TempFCs, S);
       continue;
     }
     // If we get to this point, we know the callees, and can inline.
@@ -685,8 +685,8 @@ void BUDataStructures::calculateGraph(DSGraph* Graph) {
       ++NumInlines;
       DEBUG(Graph->AssertGraphOK(););
     }
-    TempFCs.erase(TempFCs.begin());
   }
+  TempFCs.clear();
 
   // Recompute the Incomplete markers
   Graph->maskIncompleteMarkers();
