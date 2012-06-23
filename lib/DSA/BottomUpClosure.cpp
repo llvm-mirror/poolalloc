@@ -610,8 +610,8 @@ void BUDataStructures::calculateGraph(DSGraph* Graph) {
 
   // Move our call site list into TempFCs so that inline call sites go into the
   // new call site list and doesn't invalidate our iterators!
-  std::list<DSCallSite> TempFCs;
-  std::list<DSCallSite> &AuxCallsList = Graph->getAuxFunctionCalls();
+  DSGraph::FunctionListTy TempFCs;
+  DSGraph::FunctionListTy &AuxCallsList = Graph->getAuxFunctionCalls();
   TempFCs.swap(AuxCallsList);
 
   while (!TempFCs.empty()) {

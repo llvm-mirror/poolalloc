@@ -133,8 +133,8 @@ DSGraph::~DSGraph() {
 void DSGraph::dump() const { print(errs()); }
 
 void DSGraph::removeFunctionCalls(Function& F) {
-  std::list<DSCallSite>::iterator Erase = FunctionCalls.end();
-  for (std::list<DSCallSite>::iterator I = FunctionCalls.begin();
+  FunctionListTy::iterator Erase = FunctionCalls.end();
+  for (FunctionListTy::iterator I = FunctionCalls.begin();
        I != Erase; ) {
     if (I->isDirectCall() && I->getCalleeFunc() == &F)
       std::swap(*I, *--Erase);
@@ -144,7 +144,7 @@ void DSGraph::removeFunctionCalls(Function& F) {
   FunctionCalls.erase(Erase, FunctionCalls.end());
 
   Erase = AuxFunctionCalls.end();
-  for (std::list<DSCallSite>::iterator I = AuxFunctionCalls.begin();
+  for (FunctionListTy::iterator I = AuxFunctionCalls.begin();
        I != Erase; ) {
     if (I->isDirectCall() && I->getCalleeFunc() == &F)
       std::swap(*I, *--Erase);
@@ -648,11 +648,11 @@ void DSGraph::markIncompleteNodes(unsigned Flags) {
 
   // Mark stuff passed into functions calls as being incomplete.
   if (!shouldUseAuxCalls())
-    for (std::list<DSCallSite>::iterator I = FunctionCalls.begin(),
+    for (FunctionListTy::iterator I = FunctionCalls.begin(),
            E = FunctionCalls.end(); I != E; ++I)
       markIncomplete(*I);
   else
-    for (std::list<DSCallSite>::iterator I = AuxFunctionCalls.begin(),
+    for (FunctionListTy::iterator I = AuxFunctionCalls.begin(),
            E = AuxFunctionCalls.end(); I != E; ++I)
       markIncomplete(*I);
 
@@ -852,7 +852,7 @@ static inline void killIfUselessEdge(DSNodeHandle &Edge) {
 // clients can query call graph, means we need callee information for all the 
 // call sites. And hence, we should not remove them without ever inlining them
 
-static void removeIdenticalCalls(std::list<DSCallSite> &Calls) {
+static void removeIdenticalCalls(DSGraph::FunctionListTy &Calls) {
   // Remove trivially identical function calls
   Calls.sort();  // Sort by callee as primary key!
 
@@ -891,7 +891,7 @@ static void removeIdenticalCalls(std::list<DSCallSite> &Calls) {
       // resolvable, just merge the call sites.
       if (!LastCalleeNode.isNull() && LastCalleeNode.getNode() == Callee) {
         // check that arguments also match
-        std::list<DSCallSite>::iterator PrevIt = OldIt;
+        DSGraph::FunctionListTy::iterator PrevIt = OldIt;
         --PrevIt;
         if(CS == *PrevIt) {
         //  LastCalleeContainsExternalFunction = Callee->isExternFuncNode();
@@ -983,10 +983,10 @@ static void removeIdenticalCalls(std::list<DSCallSite> &Calls) {
   Calls.sort();
 
   // Now that we are in sorted order, eliminate duplicates.
-  std::list<DSCallSite>::iterator CI = Calls.begin(), CE = Calls.end();
+  DSGraph::FunctionListTy::iterator CI = Calls.begin(), CE = Calls.end();
   if (CI != CE)
     while (1) {
-      std::list<DSCallSite>::iterator OldIt = CI++;
+      DSGraph::FunctionListTy::iterator OldIt = CI++;
       if (CI == CE) break;
 
       // If this call site is now the same as the previous one, we can delete it
@@ -1240,7 +1240,7 @@ void DSGraph::removeDeadNodes(unsigned Flags) {
   } while (Iterate);
 
   // Move dead aux function calls to the end of the list
-  for (std::list<DSCallSite>::iterator CI = AuxFunctionCalls.begin(),
+  for (FunctionListTy::iterator CI = AuxFunctionCalls.begin(),
          E = AuxFunctionCalls.end(); CI != E; )
     if (AuxFCallsAlive.count(&*CI))
       ++CI;
@@ -1662,8 +1662,8 @@ void DSGraph::buildCallGraph(DSCallGraph& DCG, std::vector<const Function*>& Glo
   //
   // Get the list of unresolved call sites.
   //
-  const std::list<DSCallSite>& Calls = getFunctionCalls();
-  for (std::list<DSCallSite>::const_iterator ii = Calls.begin(),
+  const FunctionListTy& Calls = getFunctionCalls();
+  for (FunctionListTy::const_iterator ii = Calls.begin(),
       ee = Calls.end();
       ii != ee; ++ii) {
     //
@@ -1718,11 +1718,11 @@ void DSGraph::buildCompleteCallGraph(DSCallGraph& DCG,
   //
   // Get the list of unresolved call sites.
   //
-  const std::list<DSCallSite>& Calls = getAuxFunctionCalls();
-  for (std::list<DSCallSite>::const_iterator ii = Calls.begin(),
+  const FunctionListTy& Calls = getAuxFunctionCalls();
+  for (FunctionListTy::const_iterator ii = Calls.begin(),
                                              ee = Calls.end();
        ii != ee; ++ii) {
-    
+
     if (ii->isDirectCall()) continue;
     CallSite CS = ii->getCallSite();
     if (DCG.callee_size(CS) != 0) continue;

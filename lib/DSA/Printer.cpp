@@ -248,10 +248,10 @@ struct DOTGraphTraits<const DSGraph*> : public DefaultDOTGraphTraits {
       }
 
     // Output all of the call nodes...
-    const std::list<DSCallSite> &FCs =
+    const DSGraph::FunctionListTy &FCs =
       G->shouldUseAuxCalls() ? G->getAuxFunctionCalls()
       : G->getFunctionCalls();
-    for (std::list<DSCallSite>::const_iterator I = FCs.begin(), E = FCs.end();
+    for (DSGraph::FunctionListTy::const_iterator I = FCs.begin(), E = FCs.end();
          I != E; ++I) {
       const DSCallSite &Call = *I;
       std::vector<std::string> EdgeSourceCaptions(Call.getNumPtrArgs()+2);

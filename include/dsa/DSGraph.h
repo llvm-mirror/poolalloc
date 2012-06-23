@@ -207,6 +207,7 @@ public:
   // InvNodeMapTy - This data type is used to represent the inverse of a node
   // map.
   typedef std::multimap<DSNodeHandle, const DSNode*> InvNodeMapTy;
+  typedef std::list<DSCallSite> FunctionListTy;
 private:
   DSGraph *GlobalsGraph;   // Pointer to the common graph of global objects
 
@@ -238,13 +239,13 @@ private:
   // scalar being invoked, and the rest are pointer arguments to the function.
   // This vector is built by the Local graph and is never modified after that.
   //
-  std::list<DSCallSite> FunctionCalls;
+  FunctionListTy FunctionCalls;
 
   // AuxFunctionCalls - This vector contains call sites that have been processed
   // by some mechanism.  In pratice, the BU Analysis uses this vector to hold
   // the _unresolved_ call sites, because it cannot modify FunctionCalls.
   //
-  std::list<DSCallSite> AuxFunctionCalls;
+  FunctionListTy AuxFunctionCalls;
 
   /// TD - This is the target data object for the machine this graph is
   /// constructed for.
@@ -331,19 +332,19 @@ public:
   /// getFunctionCalls - Return the list of call sites in the original local
   /// graph...
   ///
-  const std::list<DSCallSite> &getFunctionCalls() const { return FunctionCalls;}
-  std::list<DSCallSite> &getFunctionCalls() { return FunctionCalls;}
+  const FunctionListTy &getFunctionCalls() const { return FunctionCalls;}
+  FunctionListTy &getFunctionCalls() { return FunctionCalls;}
 
   /// getAuxFunctionCalls - Get the call sites as modified by whatever passes
   /// have been run.
   ///
-  std::list<DSCallSite> &getAuxFunctionCalls() { return AuxFunctionCalls; }
-  const std::list<DSCallSite> &getAuxFunctionCalls() const {
+  FunctionListTy &getAuxFunctionCalls() { return AuxFunctionCalls; }
+  const FunctionListTy &getAuxFunctionCalls() const {
     return AuxFunctionCalls;
   }
 
   // addAuxFunctionCall - Add a call site to the AuxFunctionCallList
-  void addAuxFunctionCall(DSCallSite D) { AuxFunctionCalls.push_front(D); }
+  void addAuxFunctionCall(DSCallSite D) { AuxFunctionCalls.push_back(D); }
 
   void buildCallGraph(DSCallGraph& DCG, std::vector<const Function*> &GlobalFunctionList, bool filter) const;
   void buildCompleteCallGraph(DSCallGraph& DCG, std::vector<const Function*> &GlobalFunctionList, bool filter) const;
@@ -353,16 +354,16 @@ public:
   void removeFunctionCalls(Function& F);
 
   // Function Call iteration
-  typedef std::list<DSCallSite>::const_iterator fc_iterator;
+  typedef FunctionListTy::const_iterator fc_iterator;
   fc_iterator fc_begin() const { return FunctionCalls.begin(); }
   fc_iterator fc_end() const { return FunctionCalls.end(); }
 
 
   // Aux Function Call iteration
-  typedef std::list<DSCallSite>::iterator afc_iterator;
+  typedef FunctionListTy::iterator afc_iterator;
   afc_iterator afc_begin() { return AuxFunctionCalls.begin(); }
   afc_iterator afc_end() { return AuxFunctionCalls.end(); }
-  typedef std::list<DSCallSite>::const_iterator afc_const_iterator;
+  typedef FunctionListTy::const_iterator afc_const_iterator;
   afc_const_iterator afc_begin() const { return AuxFunctionCalls.begin(); }
   afc_const_iterator afc_end() const { return AuxFunctionCalls.end(); }
 
