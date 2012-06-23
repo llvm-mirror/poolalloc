@@ -257,22 +257,21 @@ private:
   // Private typedefs
   typedef std::map<const Function*, unsigned> TarjanMap;
   typedef std::vector<const Function*>        TarjanStack;
+  typedef svset<const Function*>              FuncSet;
 
   void postOrderInline (Module & M);
   unsigned calculateGraphs (const Function *F,
                             TarjanStack & Stack,
                             unsigned & NextID,
                             TarjanMap & ValMap);
-  
+
   void calculateGraph(DSGraph* G);
 
   void CloneAuxIntoGlobal(DSGraph* G);
 
-  void getAllCallees(const DSCallSite &CS,
-                     std::vector<const Function*> &Callees);
-  void getAllAuxCallees (DSGraph* G, std::vector<const Function*> & Callees);
-  void applyCallsiteFilter(const DSCallSite &DCS,
-                           std::vector<const Function*> &Callees);
+  void getAllCallees(const DSCallSite &CS, FuncSet &Callees);
+  void getAllAuxCallees (DSGraph* G, FuncSet &Callees);
+  void applyCallsiteFilter(const DSCallSite &DCS, FuncSet &Callees);
 };
 
 /// CompleteBUDataStructures - This is the exact same as the bottom-up graphs,

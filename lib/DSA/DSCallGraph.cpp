@@ -258,24 +258,18 @@ void DSCallGraph::insureEntry(const llvm::Function* F) {
   SimpleCallees[F];
 }
 
-void DSCallGraph::addFullFunctionList(llvm::CallSite CS, 
-                    std::vector<const llvm::Function*> &List) const {
+void DSCallGraph::addFullFunctionSet(llvm::CallSite CS,
+                    svset<const llvm::Function*> &Set) const {
   DSCallGraph::callee_iterator csi = callee_begin(CS),
                                cse = callee_end(CS);
   while(csi != cse) {
-    const Function *F = *csi;        
-    DSCallGraph::scc_iterator sccii = scc_begin(F),
-                              sccee = scc_end(F);
-    for(;sccii != sccee; ++sccii) {
-      List.push_back (*sccii);
-    }
+    const Function *F = *csi;
+    Set.insert(scc_begin(F), scc_end(F));
     ++csi;
   }
   const Function *F1 = CS.getInstruction()->getParent()->getParent();
   F1 = sccLeader(&*F1);
   DSCallGraph::scc_iterator sccii = scc_begin(F1),
                             sccee = scc_end(F1);
-  for(;sccii != sccee; ++sccii) {
-    List.push_back (*sccii);
-  }
+  Set.insert(scc_begin(F1), scc_end(F1));
 }

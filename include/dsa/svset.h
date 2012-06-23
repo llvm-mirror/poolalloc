@@ -156,8 +156,8 @@ public:
     container_.swap(ctemp);
   }
 
-  void erase ( iterator position ) {
-    container_.erase(position);
+  iterator erase ( iterator position ) {
+    return container_.erase(position);
   }
 
   size_type erase(const key_type& x) {
@@ -169,8 +169,8 @@ public:
     return 0;
   }
 
-  void erase ( iterator first, iterator last ) {
-    container_.erase(first, last);
+  iterator erase ( iterator first, iterator last ) {
+    return container_.erase(first, last);
   }
 
   /// Swap the content of two sorted_vector.

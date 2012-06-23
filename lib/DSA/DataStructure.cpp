@@ -280,10 +280,10 @@ void DSNode::addValueList(std::vector<const Value*> &List) const {
 
   }
 }
-/// addFullGlobalsList - Compute the full set of global values that are
+/// addFullGlobalsSet - Compute the full set of global values that are
 /// represented by this node.  Unlike getGlobalsList(), this requires fair
 /// amount of work to compute, so don't treat this method call as free.
-void DSNode::addFullGlobalsList(std::vector<const GlobalValue*> &List) const {
+void DSNode::addFullGlobalsSet(svset<const GlobalValue*> &Set) const {
   if (globals_begin() == globals_end()) return;
 
   EquivalenceClasses<const GlobalValue*> &EC = getParentGraph()->getGlobalECs();
@@ -291,15 +291,15 @@ void DSNode::addFullGlobalsList(std::vector<const GlobalValue*> &List) const {
   for (globals_iterator I = globals_begin(), E = globals_end(); I != E; ++I) {
     EquivalenceClasses<const GlobalValue*>::iterator ECI = EC.findValue(*I);
     if (ECI == EC.end())
-      List.push_back(*I);
+      Set.insert(*I);
     else
-      List.insert(List.end(), EC.member_begin(ECI), EC.member_end());
+      Set.insert(EC.member_begin(ECI), EC.member_end());
   }
 }
 
-/// addFullFunctionList - Identical to addFullGlobalsList, but only return the
+/// addFullFunctionSet - Identical to addFullGlobalsSet, but only return the
 /// functions in the full list.
-void DSNode::addFullFunctionList(std::vector<const Function*> &List) const {
+void DSNode::addFullFunctionSet(svset<const Function*> &Set) const {
   if (globals_begin() == globals_end()) return;
 
   EquivalenceClasses<const GlobalValue*> &EC = getParentGraph()->getGlobalECs();
@@ -308,12 +308,12 @@ void DSNode::addFullFunctionList(std::vector<const Function*> &List) const {
     EquivalenceClasses<const GlobalValue*>::iterator ECI = EC.findValue(*I);
     if (ECI == EC.end()) {
       if (const Function *F = dyn_cast<Function>(*I))
-        List.push_back(F);
+        Set.insert(F);
     } else {
       for (EquivalenceClasses<const GlobalValue*>::member_iterator MI =
            EC.member_begin(ECI), E = EC.member_end(); MI != E; ++MI)
         if (const Function *F = dyn_cast<Function>(*MI))
-          List.push_back(F);
+          Set.insert(F);
     }
   }
 }

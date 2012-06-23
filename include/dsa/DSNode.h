@@ -316,14 +316,28 @@ public:
   bool isEmptyGlobals() const { return Globals.empty(); }
   unsigned numGlobals() const { return Globals.size(); }
 
-  /// addFullGlobalsList - Compute the full set of global values that are
+  /// addFullGlobalSet - Compute the full set of global values that are
   /// represented by this node.  Unlike getGlobalsList(), this requires fair
   /// amount of work to compute, so don't treat this method call as free.
-  void addFullGlobalsList(std::vector<const GlobalValue*> &List) const;
+  void addFullGlobalsSet(svset<const GlobalValue*> &Set) const;
+  /// Same as above, keeping for compat reasons
+  void addFullGlobalsList(std::vector<const GlobalValue*> &List) const {
+    svset<const GlobalValue*> Set;
+    addFullGlobalsSet(Set);
+    List.insert(List.end(), Set.begin(), Set.end());
+  }
 
-  /// addFullFunctionList - Identical to addFullGlobalsList, but only return the
+  /// addFullFunctionSet - Identical to addFullGlobalsSet, but only return the
   /// functions in the full list.
-  void addFullFunctionList(std::vector<const Function*> &List) const;
+  void addFullFunctionSet(svset<const Function*> &Set) const;
+  /// Same as above, keeping for compat reasons
+  void addFullFunctionList(std::vector<const Function*> &List) const {
+    svset<const Function*> Set;
+    addFullFunctionSet(Set);
+    List.insert(List.end(), Set.begin(), Set.end());
+  }
+  /// Same as above, only doesn't include duplicates
+  /// (keeping both for compat with existing clients)
 
   /// globals_iterator/begin/end - Provide iteration methods over the global
   /// value leaders set that is merged into this node.  Like the getGlobalsList

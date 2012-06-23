@@ -183,10 +183,16 @@ public:
   void buildSCCs();
 
   void buildRoots();
-  
+
   void buildIncompleteCalleeSet(svset<const llvm::Function*> callees);
-  
-  void addFullFunctionList(llvm::CallSite CS, std::vector<const llvm::Function*> &List) const;
+
+  void addFullFunctionSet(llvm::CallSite CS, svset<const llvm::Function*> &Set) const;
+  // Temporary compat wrapper
+  void addFullFunctionList(llvm::CallSite CS, std::vector<const llvm::Function*> &List) const {
+    svset<const llvm::Function*> Set;
+    addFullFunctionSet(CS, Set);
+    List.insert(List.end(), Set.begin(), Set.end());
+  }
 
   void dump();
 

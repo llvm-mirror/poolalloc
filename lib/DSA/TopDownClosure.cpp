@@ -55,9 +55,7 @@ void TDDataStructures::markReachableFunctionsExternallyAccessible(DSNode *N,
 
   // Handle this node
   {
-    std::vector<const Function*> Functions;
-    N->addFullFunctionList(Functions);
-    ExternallyCallable.insert(Functions.begin(), Functions.end());
+    N->addFullFunctionSet(ExternallyCallable);
   }
 
   for (DSNode::edge_iterator ii = N->edge_begin(),
@@ -65,9 +63,7 @@ void TDDataStructures::markReachableFunctionsExternallyAccessible(DSNode *N,
     if (!ii->second.isNull()) {
       DSNodeHandle &NH = ii->second;
       DSNode * NN = NH.getNode();
-      std::vector<const Function*> Functions;
-      NN->addFullFunctionList(Functions);
-      ExternallyCallable.insert(Functions.begin(), Functions.end());
+      NN->addFullFunctionSet(ExternallyCallable);
       markReachableFunctionsExternallyAccessible(NN, Visited);
     }
 }
@@ -203,7 +199,7 @@ void TDDataStructures::ComputePostOrder(const Function &F,
   if (!Visited.insert(G).second) return;
 
   // Recursively traverse all of the callee graphs.
-  std::vector<const Function*> Callees;
+  svset<const Function*> Callees;
 
   // Go through all of the callsites in this graph and find all callees
   // Here we're trying to capture all possible callees so that we can ensure
@@ -221,16 +217,11 @@ void TDDataStructures::ComputePostOrder(const Function &F,
       // This includes all members of the SCC's of those callees,
       // and well as others in F's SCC, since we must assume
       // any indirect call might be intra-SCC.
-      callgraph.addFullFunctionList(CI->getCallSite(), Callees);
+      callgraph.addFullFunctionSet(CI->getCallSite(), Callees);
     }
   }
 
-  // Sort and eliminate duplicates.
-  // Not needed for correctness, but might as well.
-  std::sort(Callees.begin(), Callees.end());
-  Callees.erase(std::unique(Callees.begin(), Callees.end()), Callees.end());
-
-  for (std::vector<const Function*>::iterator I = Callees.begin(),
+  for (svset<const Function*>::iterator I = Callees.begin(),
        E = Callees.end(); I != E; ++I)
     ComputePostOrder(**I, Visited, PostOrder);
 
@@ -367,15 +358,14 @@ void TDDataStructures::InlineCallersIntoGraph(DSGraph* DSG) {
       continue;
     }
 
-    std::vector<const Function*> AllCallees, Callees;
+    svset<const Function*> AllCallees;
+    std::vector<const Function*> Callees;
 
     // Get the list of callees
-    callgraph.addFullFunctionList(CI->getCallSite(), AllCallees);
-    std::sort(AllCallees.begin(), AllCallees.end());
-    AllCallees.erase(std::unique(AllCallees.begin(), AllCallees.end()), AllCallees.end());
+    callgraph.addFullFunctionSet(CI->getCallSite(), AllCallees);
 
     // Filter all non-declarations, and calls within this DSGraph
-    for (std::vector<const Function*>::iterator I = AllCallees.begin(),
+    for (svset<const Function*>::iterator I = AllCallees.begin(),
         E = AllCallees.end(); I != E; ++I) {
       const Function *F = *I;
       if (!F->isDeclaration() && getDSGraph(**I) != DSG)

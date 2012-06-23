@@ -139,11 +139,11 @@ bool BUDataStructures::runOnModuleInternal(Module& M) {
 //  Does no filtering if 'filterCallees' is set to false.
 //
 void BUDataStructures::
-applyCallsiteFilter(const DSCallSite &DCS, std::vector<const Function*> &Callees) {
+applyCallsiteFilter(const DSCallSite &DCS, FuncSet &Callees) {
 
   if (!filterCallees) return;
 
-  std::vector<const Function*>::iterator I = Callees.begin();
+  FuncSet::iterator I = Callees.begin();
   CallSite CS = DCS.getCallSite();
   while (I != Callees.end()) {
     if (functionIsCallable(CS, *I)) {
@@ -163,7 +163,7 @@ applyCallsiteFilter(const DSCallSite &DCS, std::vector<const Function*> &Callees
 //  only add the functions that are valid targets of this callsite.
 //
 void BUDataStructures::
-getAllCallees(const DSCallSite &CS, std::vector<const Function*> &Callees) {
+getAllCallees(const DSCallSite &CS, FuncSet &Callees) {
   //
   // FIXME: Should we check for the Unknown flag on indirect call sites?
   //
@@ -174,19 +174,19 @@ getAllCallees(const DSCallSite &CS, std::vector<const Function*> &Callees) {
   //
   if (CS.isDirectCall()) {
     if (!CS.getCalleeFunc()->isDeclaration())
-      Callees.push_back(CS.getCalleeFunc());
+      Callees.insert(CS.getCalleeFunc());
   } else if (CS.getCalleeNode()->isCompleteNode()) {
     // Get all callees.
     if (!CS.getCalleeNode()->isExternFuncNode()) {
       // Get all the callees for this callsite
-      std::vector<const Function *> tempCallees;
-      CS.getCalleeNode()->addFullFunctionList(tempCallees);
+      FuncSet TempCallees;
+      CS.getCalleeNode()->addFullFunctionSet(TempCallees);
       // Filter out the ones that are invalid targets with respect
       // to this particular callsite.
-      applyCallsiteFilter(CS, tempCallees);
+      applyCallsiteFilter(CS, TempCallees);
       // Insert the remaining callees (legal ones, if we're filtering)
       // into the master 'Callees' list
-      Callees.insert(Callees.end(),tempCallees.begin(),tempCallees.end());
+      Callees.insert(TempCallees.begin(), TempCallees.end());
     }
   }
 }
@@ -208,7 +208,7 @@ getAllCallees(const DSCallSite &CS, std::vector<const Function*> &Callees) {
 //            functions are added to it.
 //
 void BUDataStructures::
-getAllAuxCallees (DSGraph* G, std::vector<const Function*> & Callees) {
+getAllAuxCallees (DSGraph* G, FuncSet & Callees) {
   //
   // Clear out the list of callees.
   //
@@ -376,7 +376,7 @@ BUDataStructures::calculateGraphs (const Function *F,
   // Find all callee functions.  Use the DSGraph for this (do not use the call
   // graph (DSCallgraph) as we're still in the process of constructing it).
   //
-  std::vector<const Function*> CalleeFunctions;
+  FuncSet CalleeFunctions;
   getAllAuxCallees(Graph, CalleeFunctions);
 
   //
@@ -384,8 +384,9 @@ BUDataStructures::calculateGraphs (const Function *F,
   // node (i.e., the current function) in Tarjan graph parlance).  Find the
   // minimum assigned ID.
   //
-  for (unsigned i = 0, e = CalleeFunctions.size(); i != e; ++i) {
-    const Function *Callee = CalleeFunctions[i];
+  for (FuncSet::iterator I = CalleeFunctions.begin(), E = CalleeFunctions.end();
+       I != E; ++I) {
+    const Function *Callee = *I;
     unsigned M;
     //
     // If we have not visited this callee before, visit it now (this is the
@@ -634,7 +635,7 @@ void BUDataStructures::calculateGraph(DSGraph* Graph) {
 
     // Find all callees for this callsite, according to the DSGraph!
     // Do *not* use the callgraph, because we're updating that as we go!
-    std::vector<const Function*> CalledFuncs;
+    FuncSet CalledFuncs;
     getAllCallees(CS,CalledFuncs);
 
     if (CalledFuncs.empty()) {
@@ -659,8 +660,9 @@ void BUDataStructures::calculateGraph(DSGraph* Graph) {
 
     DSGraph *GI;
 
-    for (unsigned x = 0; x < CalledFuncs.size(); ++x) {
-      const Function *Callee = CalledFuncs[x];
+    for (FuncSet::iterator I = CalledFuncs.begin(), E = CalledFuncs.end();
+         I != E; ++I) {
+      const Function *Callee = *I;
       // Get the data structure graph for the called function.
 
       GI = getDSGraph(*Callee);  // Graph to inline
