@@ -16,6 +16,7 @@
 #include "dsa/DSGraph.h"
 #include "dsa/DSSupport.h"
 #include "dsa/DSNode.h"
+#include "dsa/stl_util.h"
 #include "llvm/Constants.h"
 #include "llvm/Function.h"
 #include "llvm/GlobalVariable.h"
@@ -270,29 +271,19 @@ void DSGraph::spliceFrom(DSGraph* RHS) {
        I != E; ++I)
     I->setParentGraph(this);
   // Take all of the nodes.
-  Nodes.splice(Nodes.end(), RHS->Nodes);
+  splice(Nodes, RHS->Nodes);
 
   // Take all of the calls.
-  FunctionCalls.splice(FunctionCalls.end(), RHS->FunctionCalls);
-  AuxFunctionCalls.splice(AuxFunctionCalls.end(), RHS->AuxFunctionCalls);
+  splice(FunctionCalls, RHS->FunctionCalls);
+  splice(AuxFunctionCalls, RHS->AuxFunctionCalls);
 
   // Take all of the return nodes.
-  if (ReturnNodes.empty()) {
-    ReturnNodes.swap(RHS->ReturnNodes);
-  } else {
-    ReturnNodes.insert(RHS->ReturnNodes.begin(), RHS->ReturnNodes.end());
-    RHS->ReturnNodes.clear();
-  }
+  splice(ReturnNodes, RHS->ReturnNodes);
 
   // Same for the VA nodes
-  if (VANodes.empty()) {
-    VANodes.swap(RHS->VANodes);
-  } else {
-    VANodes.insert(RHS->VANodes.begin(), RHS->VANodes.end());
-    RHS->VANodes.clear();
-  }
+  splice(VANodes, RHS->VANodes);
 
- // Merge the scalar map in.
+  // Merge the scalar map in.
   ScalarMap.spliceFrom(RHS->ScalarMap);
 }
 
@@ -854,7 +845,7 @@ static inline void killIfUselessEdge(DSNodeHandle &Edge) {
 
 static void removeIdenticalCalls(DSGraph::FunctionListTy &Calls) {
   // Remove trivially identical function calls
-  Calls.sort();  // Sort by callee as primary key!
+  sort(Calls);
 
   // Scan the call list cleaning it up as necessary...
   DSNodeHandle LastCalleeNode;
@@ -980,7 +971,7 @@ static void removeIdenticalCalls(DSGraph::FunctionListTy &Calls) {
   }
 
   // Resort now that we simplified things.
-  Calls.sort();
+  sort(Calls);
 
   // Now that we are in sorted order, eliminate duplicates.
   DSGraph::FunctionListTy::iterator CI = Calls.begin(), CE = Calls.end();
