@@ -45,6 +45,9 @@ namespace llvm {
     virtual ~AllocIdentify();
     bool runOnModule(llvm::Module&);
     virtual void getAnalysisUsage(llvm::AnalysisUsage &Info) const;
+    virtual const char * getPassName() const {
+      return "Allocator Identification Analysis (find malloc/free wrappers)";
+    }
   };
 
 }
