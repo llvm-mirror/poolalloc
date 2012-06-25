@@ -101,7 +101,7 @@ class NodeValue {
   typedef SmallVector<unsigned,3> OffsetVectorTy;
   OffsetVectorTy offsets;
 
-  NodeValue() {};
+  NodeValue() {}
   void operator=(const NodeValue&);
   NodeValue(const NodeValue&);
 
@@ -227,7 +227,7 @@ public:
     : F(NULL), V(NULL), serialized(raw) {
       initialize(M,DS);
       assert(V && NH.getNode() && "Parse failed!");
-    };
+  }
 
   /// Accessors
   DSNodeHandle & getNodeH() { return NH;                          }

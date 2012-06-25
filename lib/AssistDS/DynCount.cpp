@@ -36,7 +36,7 @@ public:
   virtual void getAnalysisUsage(AnalysisUsage &AU) const {
     AU.addRequired<TargetData>();
     AU.addRequired<dsa::TypeSafety<TDDataStructures> >();
-  };
+  }
 };
 
 char Dyncount::ID = 0;

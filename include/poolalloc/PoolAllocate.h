@@ -522,7 +522,6 @@ class PoolAllocateSimple : public PoolAllocate {
   Value * TheGlobalPool;
   DSGraph * CombinedDSGraph;
   EquivalenceClasses<const GlobalValue*> GlobalECs;
-  TargetData * TD;
   bool CompleteDSA;
 public:
   static char ID;
@@ -565,7 +564,6 @@ public:
 
 // FIXME: Is this used?  Should it be removed?
 class PoolAllocateMultipleGlobalPool : public PoolAllocate {
-  TargetData * TD;
   void ProcessFunctionBodySimple(Function& F, TargetData & TD);
   /// Mapping between DSNodes and Pool descriptors. For this pass, it is a
   /// one-to-one relationship.
