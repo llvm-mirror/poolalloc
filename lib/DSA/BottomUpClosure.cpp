@@ -32,7 +32,9 @@ namespace {
   STATISTIC (NumIndResolved, "Number of resolved IndCalls");
   STATISTIC (NumIndUnresolved, "Number of unresolved IndCalls");
   // NumEmptyCalls = NumIndUnresolved + Number of calls to external functions
-  STATISTIC (NumEmptyCalls, "Number of calls we know nothing about"); 
+  STATISTIC (NumEmptyCalls, "Number of calls we know nothing about");
+  STATISTIC (NumRecalculations, "Number of DSGraph recalculations");
+  STATISTIC (NumRecalculationsSkipped, "Number of DSGraph recalculations skipped");
 
   RegisterPass<BUDataStructures>
   X("dsa-bu", "Bottom-up Data Structure Analysis");
@@ -330,6 +332,18 @@ BUDataStructures::postOrderInline (Module & M) {
   return;
 }
 
+static bool hasNewCallees(svset<const Function*> &New,
+                          svset<const Function*> &Old) {
+  if (New.size() > Old.size()) return true;
+
+  svset<const Function*>::iterator NI = New.begin(), NE = New.end();
+
+  for (; NI != NE; ++NI)
+    if (!Old.count(*NI)) return true;
+
+  return false;
+}
+
 //
 // Method: calculateGraphs()
 //
@@ -434,14 +448,18 @@ BUDataStructures::calculateGraphs (const Function *F,
     //
     // Should we revisit the graph?  Only do it if there are now new resolvable
     // callees.
-    getAllAuxCallees(G, CalleeFunctions);
-    if (!CalleeFunctions.empty()) {
-      DEBUG(errs() << "Recalculating " << F->getName() << " due to new knowledge\n");
-      ValMap.erase(F);
-      return calculateGraphs(F, Stack, NextID, ValMap);
-    } else {
-      ValMap[F] = ~0U;
+    FuncSet NewCallees;
+    getAllAuxCallees(G, NewCallees);
+    if (!NewCallees.empty()) {
+      if (hasNewCallees(NewCallees, CalleeFunctions)) {
+        DEBUG(errs() << "Recalculating " << F->getName() << " due to new knowledge\n");
+        ValMap.erase(F);
+        ++NumRecalculations;
+        return calculateGraphs(F, Stack, NextID, ValMap);
+      }
+      ++NumRecalculationsSkipped;
     }
+    ValMap[F] = ~0U;
     return MyID;
   } else {
     unsigned SCCSize = 1;
@@ -492,22 +510,21 @@ BUDataStructures::calculateGraphs (const Function *F,
     DEBUG(errs() << "  [BU] Done inlining SCC  [" << SCCGraph->getGraphSize()
 	  << "+" << SCCGraph->getAuxFunctionCalls().size() << "]\n"
 	  << "DONE with SCC #: " << MyID << "\n");
-    getAllAuxCallees(SCCGraph, CalleeFunctions);
-    if (!CalleeFunctions.empty()) {
-      DEBUG(errs() << "Recalculating SCC Graph " << F->getName() << " due to new knowledge\n");
-      ValMap.erase(F);
-      return calculateGraphs(F, Stack, NextID, ValMap);
-    } else {
-      ValMap[F] = ~0U;
+    FuncSet NewCallees;
+    getAllAuxCallees(SCCGraph, NewCallees);
+    if (!NewCallees.empty()) {
+      if (hasNewCallees(NewCallees, CalleeFunctions)) {
+        DEBUG(errs() << "Recalculating SCC Graph " << F->getName() << " due to new knowledge\n");
+        ValMap.erase(F);
+        ++NumRecalculations;
+        return calculateGraphs(F, Stack, NextID, ValMap);
+      }
+      ++NumRecalculationsSkipped;
     }
+    ValMap[F] = ~0U;
     return MyID;
   }
 }
-
-  bool compareDSCallSites (const DSCallSite & DS1, const DSCallSite & DS2) {
-    return (DS1.getCallSite().getCalledValue() <
-            DS2.getCallSite().getCalledValue());
-  }
 
 //
 // Method: CloneAuxIntoGlobal()
