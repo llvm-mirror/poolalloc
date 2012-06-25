@@ -12,14 +12,14 @@
 #ifndef _ALLOCATORIDENTIFICATION_H
 #define	_ALLOCATORIDENTIFICATION_H
 
+#include <string>
+#include "llvm/Pass.h"
+#include "llvm/Value.h"
+
 namespace llvm {
   class Function;
   class Module;
   class Instruction;
-
-
-#include <string>
-#include "llvm/Pass.h"
 
   class AllocIdentify : public llvm::ModulePass {
   protected:
