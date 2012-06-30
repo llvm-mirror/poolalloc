@@ -804,6 +804,7 @@ void GraphBuilder::visitGetElementPtrInst(User &GEP) {
 
   // Check the offset
   DSNode *N = Value.getNode();
+  Offset = Value.getOffset();
   if (N &&
       !N->isNodeCompletelyFolded() &&
       (N->getSize() != 0 || Offset != 0) &&
