@@ -39,6 +39,7 @@ using namespace llvm;
 #define COLLAPSE_ARRAYS_AGGRESSIVELY 0
 namespace {
   STATISTIC (NumFolds, "Number of nodes completely folded");
+  STATISTIC (NumFoldsOOBOffset, "Number of OOB offsets that caused node folding");
   STATISTIC (NumNodeAllocated  , "Number of nodes allocated");
 }
 
@@ -722,6 +723,25 @@ void DSNode::cleanEdges() {
   }
 }
 
+void DSNode::checkOffsetFoldIfNeeded(int Offset) {
+  if (!isNodeCompletelyFolded() &&
+      (Size != 0 || Offset != 0) &&
+      !isForwarding()) {
+    if ((Offset >= (int)Size) || Offset < 0) {
+      // Accessing offsets out of node size range
+      // This is seen in the "magic" struct in named (from bind), where the
+      // fourth field is an array of length 0, presumably used to create struct
+      // instances of different sizes
+      // More generally this happens whenever code indexes past the end
+      // of a struct type.  We don't model this, so fold!
+
+      // Collapse the node since its size is now variable
+      foldNodeCompletely();
+
+      ++NumFoldsOOBOffset;
+    }
+  }
+}
 //===----------------------------------------------------------------------===//
 // ReachabilityCloner Implementation
 //===----------------------------------------------------------------------===//
@@ -733,7 +753,12 @@ DSNodeHandle ReachabilityCloner::getClonedNH(const DSNodeHandle &SrcNH) {
   DSNodeHandle &NH = NodeMap[SN];
   if (!NH.isNull()) { // Node already mapped?
     DSNode *NHN = NH.getNode();
-    return DSNodeHandle(NHN, NH.getOffset() + SrcNH.getOffset());
+    unsigned NewOffset = NH.getOffset() + SrcNH.getOffset();
+    if (NHN) {
+      NHN->checkOffsetFoldIfNeeded(NewOffset);
+      NHN = NH.getNode();
+    }
+    return DSNodeHandle(NHN, NewOffset);
   }
 
   // If SrcNH has globals and the destination graph has one of the same globals,
@@ -749,7 +774,12 @@ DSNodeHandle ReachabilityCloner::getClonedNH(const DSNodeHandle &SrcNH) {
         merge(GI->second, Src->getNodeForValue(GV));
         assert(!NH.isNull() && "Didn't merge node!");
         DSNode *NHN = NH.getNode();
-        return DSNodeHandle(NHN, NH.getOffset()+SrcNH.getOffset());
+        unsigned NewOffset = NH.getOffset() + SrcNH.getOffset();
+        if (NHN) {
+          NHN->checkOffsetFoldIfNeeded(NewOffset);
+          NHN = NH.getNode();
+        }
+        return DSNodeHandle(NHN, NewOffset);
       }
     }
   }
@@ -797,7 +827,13 @@ DSNodeHandle ReachabilityCloner::getClonedNH(const DSNodeHandle &SrcNH) {
   }
   NH.getNode()->mergeGlobals(*SN);
 
-  return DSNodeHandle(NH.getNode(), NH.getOffset()+SrcNH.getOffset());
+  DSNode* NHN = NH.getNode();
+  unsigned NewOffset = NH.getOffset() + SrcNH.getOffset();
+  if (NHN) {
+    NHN->checkOffsetFoldIfNeeded(NewOffset);
+    NHN = NH.getNode();
+  }
+  return DSNodeHandle(NHN, NewOffset);
 }
 
 void ReachabilityCloner::merge(const DSNodeHandle &NH,

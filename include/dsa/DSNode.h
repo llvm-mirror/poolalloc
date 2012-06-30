@@ -441,6 +441,10 @@ public:
   ///
   void markReachableNodes(llvm::DenseSet<const DSNode*> &ReachableNodes) const;
 
+
+  /// checkOffsetFoldIfNeeded - Fold DSNode if the specified offset is
+  /// larger than its size, and the node isn't an array or forwarding.
+  void checkOffsetFoldIfNeeded(int Offset);
 private:
   friend class DSNodeHandle;
 

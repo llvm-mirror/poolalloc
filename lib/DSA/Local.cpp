@@ -804,23 +804,9 @@ void GraphBuilder::visitGetElementPtrInst(User &GEP) {
 
   // Check the offset
   DSNode *N = Value.getNode();
-  Offset = Value.getOffset();
-  if (N &&
-      !N->isNodeCompletelyFolded() &&
-      (N->getSize() != 0 || Offset != 0) &&
-      !N->isForwarding()) {
-    if ((Offset >= (int)N->getSize()) || Offset < 0) {
-      // Accessing offsets out of node size range
-      // This is seen in the "magic" struct in named (from bind), where the
-      // fourth field is an array of length 0, presumably used to create struct
-      // instances of different sizes
+  if (N) N->checkOffsetFoldIfNeeded(Value.getOffset());
 
-      // Collapse the node since its size is now variable
-      N->foldNodeCompletely();
-    }
-  }
-
-  // Value is now the pointer we want to GEP to be...  
+  // Value is now the pointer we want to GEP to be...
   setDestTo(GEP, Value);
 }
 
