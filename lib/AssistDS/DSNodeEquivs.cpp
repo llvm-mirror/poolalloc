@@ -17,6 +17,9 @@
 #include "llvm/Constants.h"
 #include "llvm/Module.h"
 #include "llvm/Support/InstIterator.h"
+#include "llvm/ADT/SmallSet.h"
+
+#include <deque>
 
 namespace llvm {
 
@@ -233,6 +236,46 @@ const DSNode *DSNodeEquivs::getMemberForValue(const Value *V) {
   } else if (isa<Argument>(V)) {
     const Function *Parent = cast<Argument>(V)->getParent();
     NHForV = &TDDS.getDSGraph(*Parent)->getNodeForValue(V);
+  } else {
+    //
+    // Iterate over the users to attempt to discover a DSNode that the value
+    // maps to.
+    //
+    std::deque<const User *> WL;
+    SmallSet<const User *, 8> Visited;
+
+    WL.insert(WL.end(), V->use_begin(), V->use_end());
+    do {
+      const User *TheUser = WL.front();
+      WL.pop_front();
+
+      if (Visited.count(TheUser))
+        continue;
+      else
+        Visited.insert(TheUser);
+
+      //
+      // If the use is a global variable or instruction, then the value should
+      // be in the corresponding DSGraph.
+      //
+      // TODO: Is it possible for a value to belong to some DSGraph and never
+      // be relied upon by a GlobalValue or Instruction?
+      //
+      if (isa<Instruction>(TheUser)) {
+        const Function *Parent =
+          cast<Instruction>(TheUser)->getParent()->getParent();
+        NHForV = &TDDS.getDSGraph(*Parent)->getNodeForValue(V);
+        break;
+      } else if (isa<GlobalValue>(TheUser)) {
+        NHForV = &TDDS.getGlobalsGraph()->getNodeForValue(V);
+        break;
+      } else {
+        //
+        // If this use is of some other nature, look at the users of this use.
+        //
+        WL.insert(WL.end(), TheUser->use_begin(), TheUser->use_end());
+      }
+    } while (!WL.empty());
   }
 
   if (NHForV == 0 || NHForV->isNull())
