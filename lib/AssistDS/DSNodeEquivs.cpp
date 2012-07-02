@@ -249,10 +249,8 @@ const DSNode *DSNodeEquivs::getMemberForValue(const Value *V) {
       const User *TheUser = WL.front();
       WL.pop_front();
 
-      if (Visited.count(TheUser))
+      if (!Visited.insert(TheUser))
         continue;
-      else
-        Visited.insert(TheUser);
 
       //
       // If the use is a global variable or instruction, then the value should
@@ -261,9 +259,8 @@ const DSNode *DSNodeEquivs::getMemberForValue(const Value *V) {
       // TODO: Is it possible for a value to belong to some DSGraph and never
       // be relied upon by a GlobalValue or Instruction?
       //
-      if (isa<Instruction>(TheUser)) {
-        const Function *Parent =
-          cast<Instruction>(TheUser)->getParent()->getParent();
+      if (const Instruction *I = dyn_cast<Instruction>(TheUser)) {
+        const Function *Parent = I->getParent()->getParent();
         NHForV = &TDDS.getDSGraph(*Parent)->getNodeForValue(V);
         break;
       } else if (isa<GlobalValue>(TheUser)) {
