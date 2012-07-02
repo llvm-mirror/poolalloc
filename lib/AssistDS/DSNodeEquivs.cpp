@@ -275,10 +275,9 @@ const DSNode *DSNodeEquivs::getMemberForValue(const Value *V) {
     } while (!WL.empty());
   }
 
-  if (NHForV == 0 || NHForV->isNull())
-    return 0;
-  else
-    return NHForV->getNode();
+  assert(NHForV && "Unable to find node handle for given value!");
+
+  return NHForV->getNode();
 }
 
 }
