@@ -422,8 +422,10 @@ protected:
       return I->second;
   }
 
-  // Get the initial pool argument count for a CStdLib function.
-  unsigned getCStdLibPoolArguments(StringRef funcname);
+  /// getNumInitialPoolArguments - If the passed function name is recognized
+  /// as a runtime check, return the number of initial pool arguments for
+  /// the runtime check. Otherwise return 0.
+  static unsigned getNumInitialPoolArguments(StringRef Name);
 
 protected:
   
@@ -432,6 +434,10 @@ protected:
   /// them.
   ///
   void AddPoolPrototypes(Module*);
+
+  /// createGlobalPoolCtor - Create an empty function and insert it into the
+  /// constructor list. The created function can be used for poolinit calls.
+  Function *createGlobalPoolCtor(Module &M);
 
  private:
 

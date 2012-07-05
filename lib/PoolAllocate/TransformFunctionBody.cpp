@@ -17,6 +17,7 @@
 #include "dsa/DSGraph.h"
 #include "dsa/CallTargets.h"
 #include "poolalloc/PoolAllocate.h"
+#include "poolalloc/RuntimeChecks.h"
 #include "llvm/Module.h"
 #include "llvm/DerivedTypes.h"
 #include "llvm/Constants.h"
@@ -72,8 +73,7 @@ namespace {
     void visitReallocCall(CallSite CS);
     void visitMemAlignCall(CallSite CS);
     void visitStrdupCall(CallSite CS);
-    void visitRuntimeCheck(CallSite CS);
-    void visitCStdLibCheck(CallSite CS, const unsigned argc);
+    void visitRuntimeCheck(CallSite CS, const unsigned PoolArgc);
     void visitFreeCall(CallSite &CS);
     void visitCallSite(CallSite &CS);
     void visitCallInst(CallInst &CI) {
@@ -715,74 +715,37 @@ void FuncTransform::visitStrdupCall(CallSite CS) {
 //
 // Description:
 //  Visit a call to a run-time check (or related function) and insert pool
-//  arguments where needed.
+//  arguments where needed. PoolArgc is the number of initial pool arguments
+//  that should be filled at the call site with pool handles for the
+//  corresponding pointer arguments.
 //
 void
-FuncTransform::visitRuntimeCheck (CallSite CS) {
-  // A run-time check should have at least one argument for a pool
-  assert ((CS.arg_size() > 1) && "Runtime check takes more than one argument!");
+FuncTransform::visitRuntimeCheck (CallSite CS, const unsigned PoolArgc) {
+  // A call to the runtime check should have positions for each pool argument
+  // and the corresponding pointer.
+  assert ((CS.arg_size() >= 2 * PoolArgc) &&
+    "Not enough arguments to call of a runtime check!");
 
-  //
-  // Get the pool handle for the pointer argument.
-  //
-  Value *PH = getPoolHandle(CS.getArgument(1)->stripPointerCasts());
-  //assert (PH && "Pool Handle for run-time checks is null!\n");
-
-  //
-  // Insert the pool handle into the run-time check.
-  //
-  if (PH) {
-    Type * Int8Type  = Type::getInt8Ty(CS.getInstruction()->getContext());
-    Type * VoidPtrTy = PointerType::getUnqual(Int8Type);
-    PH = castTo (PH, VoidPtrTy, PH->getName(), CS.getInstruction());
-    CS.setArgument (0, PH);
+  for (unsigned PoolIndex = 0; PoolIndex < PoolArgc; ++PoolIndex) {
+    //
+    // Get the pool handle for the pointer argument.
+    //
+    Value *PH =
+      getPoolHandle(CS.getArgument(PoolArgc + PoolIndex)->stripPointerCasts());
 
     //
-    // Record that we've used the pool here.
+    // Insert the pool handle into the run-time check.
     //
-    AddPoolUse (*(CS.getInstruction()), PH, PoolUses);
-  }
-}
-
-/**
- * Visit the call site and replace null pool arguments with the correct ones
- *
- * @param       argc       Number of pool arguments to insert
- */
-void FuncTransform::visitCStdLibCheck(CallSite CS, const unsigned argc) {
-  // Check for the correct number of pool arguments
-  assert ((CS.arg_size() > argc) && "Incorrect number of pool arguments!");
-
-  Type *Int8Ty = Type::getInt8Ty(CS.getInstruction()->getContext());
-  Type *VoidPtrTy = PointerType::getUnqual(Int8Ty);
-
-  if (argc == 1) {
-    // Get the pool handle for the pointer argument
-    Value *PH = getPoolHandle(CS.getArgument(1)->stripPointerCasts());
-
-    // Insert the pool handle
     if (PH) {
-      PH = castTo(PH, VoidPtrTy, PH->getName(), CS.getInstruction());
-      CS.setArgument(0, PH);
-      AddPoolUse(*(CS.getInstruction()), PH, PoolUses);
-    }
-  } else if (argc == 2) {
-    // Get the pool handles for the pointer arguments
-    Value *dstPH = getPoolHandle(CS.getArgument(2)->stripPointerCasts());
-    Value *srcPH = getPoolHandle(CS.getArgument(3)->stripPointerCasts());
+      Type * Int8Type  = Type::getInt8Ty(CS.getInstruction()->getContext());
+      Type * VoidPtrTy = PointerType::getUnqual(Int8Type);
+      PH = castTo (PH, VoidPtrTy, PH->getName(), CS.getInstruction());
+      CS.setArgument (PoolIndex, PH);
 
-    // Insert the destination pool handle
-    if (dstPH) {
-      dstPH = castTo(dstPH, VoidPtrTy, dstPH->getName(), CS.getInstruction());
-      CS.setArgument(0, dstPH);
-      AddPoolUse(*(CS.getInstruction()), dstPH, PoolUses);
-    }
-
-    // Insert the source pool handle
-    if (srcPH) {
-      srcPH = castTo(srcPH, VoidPtrTy, srcPH->getName(), CS.getInstruction());
-      CS.setArgument(1, srcPH);
-      AddPoolUse(*(CS.getInstruction()), srcPH, PoolUses);
+      //
+      // Record that we've used the pool here.
+      //
+      AddPoolUse (*(CS.getInstruction()), PH, PoolUses);
     }
   }
 }
@@ -801,7 +764,6 @@ void FuncTransform::visitCallSite(CallSite& CS) {
   const Function *CF = CS.getCalledFunction();
   Instruction *TheCall = CS.getInstruction();
   bool thread_creation_point = false;
-  unsigned argc;
 
   //
   // Get the value that is called at this call site.  Strip away any pointer
@@ -838,49 +800,33 @@ void FuncTransform::visitCallSite(CallSite& CS) {
   // If this function is one of the memory manipulating functions built into
   // libc, emulate it with pool calls as appropriate.
   if (CF && CF->isDeclaration()) {
-    if (CF->getName() == "free" ||
-        CF->getName() == "cfree") {
+    std::string Name = CF->getName();
+
+    if (Name == "free" || Name == "cfree") {
       visitFreeCall(CS);
       return;
-    } else if (CF->getName() == "malloc") {
+    } else if (Name == "malloc") {
       visitMallocCall(CS);
       return;
-    } else if (CF->getName() == "calloc") {
+    } else if (Name == "calloc") {
       visitCallocCall(CS);
       return;
-    } else if (CF->getName() == "realloc") {
+    } else if (Name == "realloc") {
       visitReallocCall(CS);
       return;
-    } else if (CF->getName() == "memalign" ||
-               CF->getName() == "posix_memalign") {
+    } else if (Name == "memalign" || Name == "posix_memalign") {
       visitMemAlignCall(CS);
       return;
-    } else if (CF->getName() == "strdup") {
+    } else if (Name == "strdup") {
       visitStrdupCall(CS);
       return;
-    } else if (CF->getName() == "valloc") {
+    } else if (Name == "valloc") {
       errs() << "VALLOC USED BUT NOT HANDLED!\n";
       abort();
-    } else if ((CF->getName() == "sc.lscheck") ||
-               (CF->getName() == "sc.lscheckui") ||
-               (CF->getName() == "sc.lscheckalign") ||
-               (CF->getName() == "sc.lscheckalignui") ||
-               (CF->getName() == "sc.boundscheck") ||
-               (CF->getName() == "sc.boundscheckui") ||
-               (CF->getName() == "sc.pool_register_stack") ||
-               (CF->getName() == "sc.pool_unregister_stack") ||
-               (CF->getName() == "sc.pool_register_global") ||
-               (CF->getName() == "sc.pool_unregister_global") ||
-               (CF->getName() == "sc.pool_register") ||
-               (CF->getName() == "sc.pool_unregister") ||
-               (CF->getName() == "sc.get_actual_val") ||
-               (CF->getName() == "__if_pool_get_label") ||
-               (CF->getName() == "__if_pool_set_label") ||
-               (CF->getName() == "sc.fsparameter")) {
-      visitRuntimeCheck (CS);
-    } else if ((argc = PAInfo.getCStdLibPoolArguments(CF->getName())) > 0) {
-      visitCStdLibCheck(CS, argc);
-    } else if (CF->getName() == "pthread_create") {
+    } else if (unsigned PoolArgc = PAInfo.getNumInitialPoolArguments(Name)) {
+      visitRuntimeCheck(CS, PoolArgc);
+      return;
+    } else if (Name == "pthread_create") {
       thread_creation_point = true;
 
       //
@@ -888,8 +834,7 @@ void FuncTransform::visitCallSite(CallSite& CS) {
       // the pthread_create call
       //
       DSNode* thread_callee_node = G->getNodeForValue(CS.getArgument(2)).getNode();
-      if(!thread_callee_node)
-      {
+      if (!thread_callee_node) {
     	  assert(0 && "apparently you need this code");
     	  FuncInfo *CFI = PAInfo.getFuncInfo(*CF);
     	  thread_callee_node = G->getNodeForValue(CFI->MapValueToOriginal(CS.getArgument(2))).getNode();

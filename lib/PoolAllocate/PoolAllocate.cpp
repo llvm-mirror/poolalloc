@@ -16,11 +16,11 @@
 
 #define DEBUG_TYPE "poolalloc"
 
-#include "dsa/CStdLib.h"
 #include "dsa/DataStructure.h"
 #include "dsa/DSGraph.h"
 #include "poolalloc/Heuristic.h"
 #include "poolalloc/PoolAllocate.h"
+#include "poolalloc/RuntimeChecks.h"
 #include "llvm/Constants.h"
 #include "llvm/DerivedTypes.h"
 #include "llvm/Instructions.h"
@@ -114,8 +114,7 @@ createPoolAllocInit (Module & M) {
 //  (i.e., global ctor).  Pool Allocation will eventually add code to it to
 //  initialize all of the global pools.
 //
-static Function *
-createGlobalPoolCtor (Module & M) {
+Function * PoolAllocate::createGlobalPoolCtor (Module & M) {
   //
   // Create the global pool ctor function.
   //
@@ -140,7 +139,12 @@ createGlobalPoolCtor (Module & M) {
   //
   Type * Int32Type = IntegerType::getInt32Ty(Context);
   std::vector<Constant *> CtorInits;
-  CtorInits.push_back (ConstantInt::get (Int32Type, 65535));
+
+  //
+  // We need to ensure that this constructor gets called before any other code
+  // in the module executes, so give the constructor a priority of 0 (highest).
+  //
+  CtorInits.push_back (ConstantInt::get (Int32Type, 0));
   CtorInits.push_back (InitFunc);
   Constant * RuntimeCtorInit = ConstantStruct::getAnon(Context, CtorInits);
 
@@ -1577,11 +1581,39 @@ void PoolAllocate::InitializeAndDestroyPools(Function &F,
   }
 }
 
-// Return the number of initial pool arguments for the specified CStdLib
-// function, or 0 if it is not found in the table.
-unsigned PoolAllocate::getCStdLibPoolArguments(StringRef funcname) {
-  const CStdLibPoolArgCountEntry *entries = &CStdLibPoolArgCounts[0];
-  while (entries->function && entries->function != funcname)
-    entries++;
-  return entries->pool_argc;
+//
+// Function: getNumInitialPoolArguments()
+//
+// Description:
+//  This function determines if the specified function has inital pool arguments
+//  that should be replaced, and if so, returns the numbers of initial pool arguments
+//  to replace.
+//
+// Inputs:
+//  funcname - A reference to a string containing the name of the function.
+//
+// Return value:
+//  0 - The function does not have any initial pool arguments to replace.
+//  Otherwise, the number of initial pool arguments to replace.
+//
+unsigned PoolAllocate::getNumInitialPoolArguments(StringRef FuncName) {
+  const unsigned EntryCount =
+    sizeof(RuntimeCheckEntries) / sizeof(RuntimeCheckEntries[0]);
+
+  for (unsigned Index = 0; Index < EntryCount; ++Index) {
+
+    if (RuntimeCheckEntries[Index].Function == FuncName)
+      return RuntimeCheckEntries[Index].PoolArgc;
+
+    else if (RuntimeCheckEntries[Index].CheckKind == CStdLibCheck) {
+      // Check for _debug() versions of CStdLib functions.
+      std::string DebugName =
+        RuntimeCheckEntries[Index].Function + std::string("_debug");
+
+      if (DebugName == FuncName)
+        return RuntimeCheckEntries[Index].PoolArgc;
+    }
+  }
+  
+  return 0;
 }

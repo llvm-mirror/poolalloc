@@ -70,45 +70,6 @@ castTo (Value * V, Type * Ty, std::string Name, Instruction * InsertPt) {
   return CastInst::CreateZExtOrBitCast (V, Ty, Name, InsertPt);
 }
 
-//
-// Function: initialPoolArguments()
-//
-// Description:
-//  This function determines if the specified function has inital pool arguments
-//  that should be replaced, and if so, returns the numbers of initial pool arguments
-//  to replace.
-//
-// Inputs:
-//  funcname - A reference to a string containing the name of the function.
-//
-// Return value:
-//  0 - The function does not have any initial pool arguments to replace.
-//  Otherwise, the number of initial pool arguments to replace.
-//
-static unsigned
-initialPoolArguments(const std::string & funcname) {
-  if ((funcname == "sc.lscheck") ||
-      (funcname == "sc.lscheckui") ||
-      (funcname == "sc.lscheckalign") ||
-      (funcname == "sc.lscheckalignui") ||
-      (funcname == "sc.boundscheck") ||
-      (funcname == "sc.boundscheckui") ||
-      (funcname == "sc.pool_register_stack") ||
-      (funcname == "sc.pool_unregister_stack") ||
-      (funcname == "sc.pool_register_global") ||
-      (funcname == "sc.pool_unregister_global") ||
-      (funcname == "sc.pool_register") ||
-      (funcname == "sc.pool_unregister") ||
-      (funcname == "sc.get_actual_val") ||
-      (funcname == "__if_pool_get_label") ||
-      (funcname == "__if_pool_set_label") ||
-      (funcname == "sc.fsparameter")) {
-    return 1;
-  }
-  
-  return 0;
-}
-
 void PoolAllocateSimple::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.addRequired<TargetData>();
   // Get the Target Data information and the Graphs
@@ -290,7 +251,7 @@ PoolAllocateSimple::ProcessFunctionBodySimple (Function& F, TargetData & TD) {
           //
           // Insert the call to poolalloc()
           //
-          Value* Opts[3] = {TheGlobalPool, Size};
+          Value* Opts[2] = {TheGlobalPool, Size};
           Instruction *V = CallInst::Create (PoolAlloc,
                                              Opts,
                                              Name,
@@ -501,14 +462,11 @@ PoolAllocateSimple::ProcessFunctionBodySimple (Function& F, TargetData & TD) {
         // pool.
         //
         if (CF) {
-          unsigned count;
-          if ((count = initialPoolArguments(CF->getName())) || \
-                (count = getCStdLibPoolArguments(CF->getName()))) {
-            Type * VoidPtrTy = PointerType::getUnqual(Int8Type);
-            Value * Pool = castTo (TheGlobalPool, VoidPtrTy, "pool", ii);
-            for (unsigned index = 1; index <= count; index++ )
-              CI->setOperand (index, Pool);
-          }
+          unsigned Count = getNumInitialPoolArguments(CF->getName());
+          Type * VoidPtrTy = PointerType::getUnqual(Int8Type);
+          Value * Pool = castTo (TheGlobalPool, VoidPtrTy, "pool", ii);
+          for (unsigned ArgIndex = 0; ArgIndex < Count; ArgIndex++ )
+            CI->setArgOperand (ArgIndex, Pool);
         }
       }
     }
@@ -522,8 +480,7 @@ PoolAllocateSimple::ProcessFunctionBodySimple (Function& F, TargetData & TD) {
 }
 
 /// CreateGlobalPool - Create a global pool descriptor object, and insert a
-/// poolinit for it into main.  IPHint is an instruction that we should insert
-/// the poolinit before if not null.
+/// poolinit for it into the global constructor.
 GlobalVariable *
 PoolAllocateSimple::CreateGlobalPool (unsigned RecSize,
                                       unsigned Align,
@@ -537,32 +494,26 @@ PoolAllocateSimple::CreateGlobalPool (unsigned RecSize,
   }
 
   //
-  // Give poolinit() a dummy body.  A later transform will remove the dummy
-  // body.
+  // Create the global pool descriptor.
   //
-  if (SAFECodeEnabled) {
-    LLVMContext & Context = M.getContext();
-    Function * PoolInitFunc = dyn_cast<Function>(PoolInit);
-    BasicBlock * entryBB = BasicBlock::Create (Context, "entry", PoolInitFunc);
-    ReturnInst::Create (Context, entryBB);
-  }
-
   GlobalVariable *GV =
     new GlobalVariable(M,
-                       getPoolType(&M.getContext()), false, GlobalValue::ExternalLinkage,
-                       ConstantAggregateZero::get(getPoolType(&M.getContext())),
-		       "__poolalloc_GlobalPool");
+          getPoolType(&M.getContext()), false, GlobalValue::ExternalLinkage,
+          ConstantAggregateZero::get(getPoolType(&M.getContext())),
+		       "__poolalloc_GlobalPool"
+        );
 
-  Function *InitFunc = Function::Create
-    (FunctionType::get(VoidType, std::vector<Type*>(), false),
-    GlobalValue::ExternalLinkage, "__poolalloc_init", &M);
-
-  BasicBlock * BB = BasicBlock::Create(M.getContext(), "entry", InitFunc);
+  //
+  // Get the global pool constructor. Create and insert the poolinit call
+  // inside it.
+  //
+  Function *InitFunc = createGlobalPoolCtor(M);
   Value *ElSize = ConstantInt::get(Int32Type, RecSize);
   Value *AlignV = ConstantInt::get(Int32Type, Align);
-  Value* Opts[3] = {GV, ElSize, AlignV};
-  CallInst::Create(PoolInit, Opts, "", BB);
+  Value *Opts[3] = { GV, ElSize, AlignV };
 
-  ReturnInst::Create(M.getContext(), BB);
+  CallInst *InitCall = CallInst::Create(PoolInit, Opts, "");
+  InitCall->insertBefore(&InitFunc->getEntryBlock().front());
+
   return GV;
 }
