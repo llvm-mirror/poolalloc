@@ -192,7 +192,7 @@ Devirtualize::buildBounce (CallSite CS, std::vector<const Function*>& Targets) {
     BasicBlock* BL = BasicBlock::Create (M->getContext(), FL->getName(), F);
     targets[FL] = BL;
     // Create the direct function call
-    Value* directCall = CallInst::Create ((Value *)FL,
+    Value* directCall = CallInst::Create (const_cast<Function*>(FL),
                                           fargs,
                                           "",
                                           BL);
@@ -231,7 +231,7 @@ Devirtualize::buildBounce (CallSite CS, std::vector<const Function*>& Targets) {
     // Cast the function pointer to an integer.  This can go in the entry
     // block.
     //
-    Value * TargetInt = castTo ((Value *)(Targets[index]),
+    Value * TargetInt = castTo (const_cast<Function*>(Targets[index]),
                                 VoidPtrType,
                                 "",
                                 InsertPt);
@@ -322,7 +322,7 @@ Devirtualize::makeDirectCall (CallSite & CS) {
     if (CallInst* CI = dyn_cast<CallInst>(CS.getInstruction())) {
       std::vector<Value*> Params (CI->op_begin(), CI->op_end());
       std::string name = CI->hasName() ? CI->getName().str() + ".dv" : "";
-      CallInst* CN = CallInst::Create ((Value *) NF,
+      CallInst* CN = CallInst::Create (const_cast<Function*>(NF),
                                        Params,
                                        name,
                                        CI);
@@ -331,7 +331,7 @@ Devirtualize::makeDirectCall (CallSite & CS) {
     } else if (InvokeInst* CI = dyn_cast<InvokeInst>(CS.getInstruction())) {
       std::vector<Value*> Params (CI->op_begin(), CI->op_end());
       std::string name = CI->hasName() ? CI->getName().str() + ".dv" : "";
-      InvokeInst* CN = InvokeInst::Create((Value *) NF,
+      InvokeInst* CN = InvokeInst::Create(const_cast<Function*>(NF),
                                           CI->getNormalDest(),
                                           CI->getUnwindDest(),
                                           Params,
