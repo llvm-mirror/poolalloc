@@ -332,6 +332,7 @@ const struct {
   {"pool_send",       {NRET_YARGS,   NRET_NARGS,    NRET_NARGS, NRET_NARGS,   false}},
   {"pool_readlink",   {NRET_YNARGS,  NRET_NYARGS,   NRET_NARGS, NRET_NARGS,   true}},
   {"pool_realpath",   {NRET_YNARGS,  NRET_NYARGS,   NRET_NARGS, NRET_NARGS,   true}},
+  {"pool_getcwd",     {NRET_YARGS,   NRET_NYARGS,   NRET_NARGS, YRET_NYARGS,  false}},
 
   // format string intrinsics and functions
   {"sc.fsparameter",  {NRET_NARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},

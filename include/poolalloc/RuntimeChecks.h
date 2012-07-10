@@ -117,6 +117,7 @@ const struct RuntimeCheckEntry {
   { "pool_send",              1, CStdLibCheck  },
   { "pool_readlink",          2, CStdLibCheck  },
   { "pool_realpath",          2, CStdLibCheck  },
+  { "pool_getcwd",            1, CStdLibCheck  },
 
   //
   // CIFCheck intrinsics
