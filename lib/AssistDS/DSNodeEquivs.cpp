@@ -187,6 +187,7 @@ void DSNodeEquivs::equivNodesToGlobals(DSGraph *G) {
     assert(GlobalNode && "No node for global in global scalar map?");
 
     // Map the two together and all reachable from each...
+    NodeMap.clear();
     DSGraph::computeNodeMapping(LocalNode, GlobalNode, NodeMap, false);
 
     // Build EC's with this mapping.
