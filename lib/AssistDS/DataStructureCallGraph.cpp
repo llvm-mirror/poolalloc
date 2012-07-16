@@ -26,10 +26,14 @@ using namespace llvm;
 
 char DataStructureCallGraph::ID;
 
+namespace {
+
 static RegisterPass<DataStructureCallGraph>
 X("dsa-cg", "DSA-based CallGraph implementation");
 
 RegisterAnalysisGroup<CallGraph> Y(X); 
+
+}
 
 bool DataStructureCallGraph::runOnModule(Module &M) {
   CallGraph::initialize(M);
