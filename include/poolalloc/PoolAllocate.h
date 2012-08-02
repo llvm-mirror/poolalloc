@@ -32,7 +32,6 @@
 #include "dsa/DataStructure.h"
 #include "dsa/DSGraph.h"
 #include "dsa/CallTargets.h"
-#include "poolalloc/Config/config.h"
 #include "poolalloc/Heuristic.h"
 
 #include <utility>

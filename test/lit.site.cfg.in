@@ -19,5 +19,13 @@ config.llvm_bindings = "@LLVM_BINDINGS@"
 config.host_os = "@HOST_OS@"
 config.host_arch = "@HOST_ARCH@"
 
+# Support substitution of the tools_dir with user parameters. This is
+# used when we can't determine the tool dir at configuration time.
+try:
+    config.llvm_tools_dir = config.llvm_tools_dir % lit.params
+except KeyError,e:
+    key, = e.args
+    lit.fatal("unable to find %r parameter, use '--param=%s=VALUE'" % (key,key))
+
 # Let the main config do the real work.
 lit.load_config(config, "@PROJ_SRC_ROOT@/test/lit.cfg")

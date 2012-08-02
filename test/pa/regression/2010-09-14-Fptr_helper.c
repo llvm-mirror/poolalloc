@@ -5,7 +5,7 @@
  * Build this file into bitcode and run poolalloc on it
  * RUN: clang -O0 %s -emit-llvm -c -o %t.bc
  * RUN: paopt %t.bc -paheur-AllButUnreachableFromMemory -poolalloc -o %t.pa.bc 2>&1
- * RUN: pa-build %t.pa.bc %t.pa
+ * RUN: clang %t.pa.bc -o %t.pa -L%llvmshlibdir -lpoolalloc_rt -Wl,-rpath %llvmshlibdir
  *
  * Build the program without poolalloc:
  * RUN: clang -o %t.native %s

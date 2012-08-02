@@ -404,66 +404,6 @@ cputrack::
 
 .PHONY: lit lit-report
 
-# Pathname to poolalloc object tree
-PADIR   := $(PROJ_OBJ_ROOT)
-# Pathame to the DSA pass dynamic library
-DSA_SO   := $(PADIR)/$(BuildMode)/lib/LLVMDataStructure$(SHLIBEXT)
-# Pathame to the Assist DSA pass dynamic library
-ADSA_SO   := $(PADIR)/$(BuildMode)/lib/AssistDS$(SHLIBEXT)
-# Pathname to the PA pass dynamic library
-PA_SO   := $(PADIR)/$(BuildMode)/lib/poolalloc$(SHLIBEXT)
-
-DSAOPT := $(PROJ_OBJ_ROOT)/test/tools/dsaopt
-ADSAOPT := $(PROJ_OBJ_ROOT)/test/tools/adsaopt
-PAOPT := $(PROJ_OBJ_ROOT)/test/tools/paopt
-TC_BUILD := $(PROJ_OBJ_ROOT)/test/tools/tc-build
-PA_BUILD := $(PROJ_OBJ_ROOT)/test/tools/pa-build
-
-TOOLS= $(DSAOPT) $(PAOPT) $(ADSAOPT) $(TC_BUILD) $(PA_BUILD)
-
-#wrapper script for 'opt' so we can avoid manually loading the dsa lib
-$(DSAOPT):
-	@mkdir -p `dirname $@`
-	@echo "#!/bin/sh" > $@.tmp
-	@echo 'opt -load $(DSA_SO) $$@' >> $@.tmp
-	@chmod +x $@.tmp
-	@mv $@.tmp $@
-
-$(ADSAOPT):
-	@mkdir -p `dirname $@`
-	@echo "#!/bin/sh" > $@.tmp
-	@echo 'opt -load $(DSA_SO) -load $(ADSA_SO) $$@' >> $@.tmp
-	@chmod +x $@.tmp
-	@mv $@.tmp $@
-
-#wrapper script for 'opt' that loads dsa and poolalloc
-$(PAOPT):
-	@mkdir -p `dirname $@`
-	@echo "#!/bin/sh" > $@.tmp
-	@echo 'opt -load $(DSA_SO) -load $(PA_SO) $$@' >> $@.tmp
-	@chmod +x $@.tmp
-	@mv $@.tmp $@
-
-#wrapper script for llvm-ld that links the type checking runtime
-$(TC_BUILD):
-	@mkdir -p `dirname $@`
-	@echo "#!/bin/sh" > $@.tmp
-	@echo 'llc $$1 -o $$1.tc.S' >> $@.tmp
-	@echo 'clang $$1.tc.S -o $$2 -ltypechecks_rt -L$(PROJ_OBJ_ROOT)/$(BuildMode)/lib' \
-		'-Wl,-rpath $(PROJ_OBJ_ROOT)/$(BuildMode)/lib' >> $@.tmp
-	@chmod +x $@.tmp
-	@mv $@.tmp $@
-
-#wrapper script for building bitcode and linking in poolalloc runtime
-$(PA_BUILD):
-	@mkdir -p `dirname $@`
-	@echo "#!/bin/sh" > $@.tmp
-	@echo 'llc $$1 -o $$1.pa.S' >> $@.tmp
-	@echo 'clang $$1.pa.S -o $$2 -lpoolalloc_rt -L$(PROJ_OBJ_ROOT)/$(BuildMode)/lib' \
-		'-Wl,-rpath $(PROJ_OBJ_ROOT)/$(BuildMode)/lib' >> $@.tmp
-	@chmod +x $@.tmp
-	@mv $@.tmp $@
-
 ifeq ($(DISABLE_ASSERTIONS),1)
 ENABLE_ASSERTIONS=0
 else
