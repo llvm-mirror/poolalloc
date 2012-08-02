@@ -27,7 +27,6 @@
 #include "llvm/Support/FormattedStream.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/ADT/StringMap.h"
-#include "llvm/ADT/VectorExtras.h"
 
 #include <iostream>
 using namespace llvm;

@@ -600,7 +600,8 @@ void TypeChecks::addTypeMap(Module &M) {
 
   // Add an entry for uninitialized(Type Number = 0)
 
-  Constant *CA = ConstantArray::get(M.getContext(), "UNINIT", true);
+  Constant *CA = ConstantDataArray::getString(M.getContext(),
+                                              "UNINIT", true);
   GlobalVariable *GV = new GlobalVariable(M, 
                                           CA->getType(),
                                           true,
@@ -621,7 +622,8 @@ void TypeChecks::addTypeMap(Module &M) {
 
     *test << TI->first;
     //WriteTypeSymbolic(*test, TI->first, &M);
-    Constant *CA = ConstantArray::get(M.getContext(), test->str(), true);
+    Constant *CA = ConstantDataArray::getString(M.getContext(),
+                                                test->str(), true);
     GlobalVariable *GV = new GlobalVariable(M, 
                                             CA->getType(),
                                             true,
@@ -1081,8 +1083,7 @@ bool TypeChecks::visitInternalByValFunction(Module &M, Function &F) {
         if (FnAttrs != Attribute::None)
           AttributesVec.push_back(AttributeWithIndex::get(~0, FnAttrs));
 
-        AttrListPtr NewCallPAL = AttrListPtr::get(AttributesVec.begin(),
-                                                  AttributesVec.end());
+        AttrListPtr NewCallPAL = AttrListPtr::get(AttributesVec);
 
 
         // Create the substitute call
@@ -1129,9 +1130,7 @@ bool TypeChecks::visitInternalByValFunction(Module &M, Function &F) {
         if (FnAttrs != Attribute::None)
           AttributesVec.push_back(AttributeWithIndex::get(~0, FnAttrs));
 
-        AttrListPtr NewCallPAL = AttrListPtr::get(AttributesVec.begin(),
-                                                  AttributesVec.end());
-
+        AttrListPtr NewCallPAL = AttrListPtr::get(AttributesVec);
 
         // Create the substitute call
         CallInst *CallI = CallInst::Create(&F,
@@ -1185,7 +1184,7 @@ bool TypeChecks::visitExternalByValFunction(Module &M, Function &F) {
   // Find all basic blocks which terminate the function.
   std::set<BasicBlock *> exitBlocks;
   for (inst_iterator I = inst_begin(&F), E = inst_end(&F); I != E; ++I) {
-    if (isa<ReturnInst>(*I) || isa<UnwindInst>(*I)) {
+    if (isa<ReturnInst>(*I) || isa<ResumeInst>(*I)) {
       exitBlocks.insert(I->getParent());
     }
   }

@@ -23,7 +23,6 @@
 #include "llvm/DerivedTypes.h"
 #include "llvm/Support/CallSite.h"
 #include "llvm/ADT/EquivalenceClasses.h"
-#include "llvm/ADT/VectorExtras.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/Support/CommandLine.h"
 

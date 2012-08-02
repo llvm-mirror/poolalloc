@@ -1415,7 +1415,7 @@ void PoolAllocate::InitializeAndDestroyPool(Function &F, const DSNode *Node,
     if (F.getName().str() != "main")
       for (Function::iterator BB = F.begin(), E = F.end(); BB != E; ++BB)
         if (isa<ReturnInst>(BB->getTerminator()) ||
-            isa<UnwindInst>(BB->getTerminator()))
+            isa<ResumeInst>(BB->getTerminator()))
           PoolDestroyPoints.push_back(BB->getTerminator());
   } else {
     // Keep track of the blocks we have inserted poolinit/destroy into.

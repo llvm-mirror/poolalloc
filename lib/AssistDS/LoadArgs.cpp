@@ -200,8 +200,8 @@ bool LoadArgs::runOnModule(Module& M) {
           if (FnAttrs != Attribute::None)
             AttributesVec.push_back(AttributeWithIndex::get(~0, FnAttrs));
 
-          AttrListPtr NewCallPAL = AttrListPtr::get(AttributesVec.begin(),
-                                                    AttributesVec.end());
+          AttrListPtr NewCallPAL = AttrListPtr::get(AttributesVec);
+
           CallInst *CallI = CallInst::Create(NewF,Args,"", CI);
           CallI->setCallingConv(CI->getCallingConv());
           CallI->setAttributes(NewCallPAL);
