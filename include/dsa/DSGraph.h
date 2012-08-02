@@ -707,7 +707,7 @@ public:
 //  false - The function F cannot be called by the call site.
 //
 bool
-functionIsCallable (CallSite CS, const Function* F);
+functionIsCallable (ImmutableCallSite CS, const Function* F);
 
 } // End llvm namespace
 
