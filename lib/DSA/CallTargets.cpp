@@ -59,6 +59,9 @@ void CallTargetFinder<dsa>::findIndTargets(Module &M)
             AllSites.push_back(cs);
             Function* CF = cs.getCalledFunction();
 
+            if (isa<UndefValue>(cs.getCalledValue())) continue;
+            if (isa<InlineAsm>(cs.getCalledValue())) continue;
+
             //
             // If the called function is casted from one function type to
             // another, peer into the cast instruction and pull out the actual
@@ -103,7 +106,7 @@ void CallTargetFinder<dsa>::findIndTargets(Module &M)
 
                 DSNode* N = T->getDSGraph(*cs.getCaller())
                   ->getNodeForValue(cs.getCalledValue()).getNode();
-                assert (N && "CallTarget: findIndTargets: No DSNode!\n");
+                assert (N && "CallTarget: findIndTargets: No DSNode!");
 
                 if (!N->isIncompleteNode() && !N->isExternalNode() && IndMap[cs].size()) {
                   CompleteSites.insert(cs);
