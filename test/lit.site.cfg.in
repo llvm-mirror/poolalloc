@@ -3,9 +3,21 @@
 config.llvm_src_root = "@LLVM_SOURCE_DIR@"
 config.llvm_obj_root = "@LLVM_BINARY_DIR@"
 config.llvm_tools_dir = "@LLVM_TOOLS_DIR@"
-config.llvmgcc_dir = "@LLVMGCCDIR@"
 config.proj_src_root = "@PROJ_SRC_ROOT@"
 config.proj_obj_root = "@PROJ_OBJ_ROOT@"
+
+config.target_triple = "@TARGET_TRIPLE@"
+config.llvm_shlib_dir = "@SHLIBDIR@"
+config.llvm_shlib_ext = "@SHLIBEXT@"
+config.lit_tools_dir = "@LLVM_LIT_TOOLS_DIR@"
+config.python_executable = "@PYTHON_EXECUTABLE@"
+config.ocamlopt_executable = "@OCAMLOPT@"
+config.enable_shared = @ENABLE_SHARED@
+config.enable_assertions = @ENABLE_ASSERTIONS@
+config.targets_to_build = "@TARGETS_TO_BUILD@"
+config.llvm_bindings = "@LLVM_BINDINGS@"
+config.host_os = "@HOST_OS@"
+config.host_arch = "@HOST_ARCH@"
 
 # Let the main config do the real work.
 lit.load_config(config, "@PROJ_SRC_ROOT@/test/lit.cfg")

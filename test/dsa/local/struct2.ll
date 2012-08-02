@@ -1,6 +1,6 @@
 ; casting a struct to int
 
-;RUN: dsaopt %s -dsa-local -analyze -check-type=main:r,0:i64|i32*::8:i32*
+;RUN: dsaopt %s -dsa-local -analyze -check-type=main:r,0:i64\|i32*::8:i32*
 ;RUN: dsaopt %s -dsa-local -analyze -check-same-node=main:r:0,main:x
 ;RUN: dsaopt %s -dsa-local -analyze -verify-flags "main:r+SUP2"
 ;RUN: dsaopt %s -dsa-local -analyze -verify-flags "main:r1+SUP2"

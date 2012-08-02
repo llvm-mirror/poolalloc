@@ -1,7 +1,7 @@
 ;RUN: dsaopt %s -dsa-local -analyze -verify-flags "main:obj1+UP2"
 ;RUN: dsaopt %s -dsa-local -analyze -verify-flags "main:obj+UP2"
 ;RUN: dsaopt %s -dsa-local -analyze -check-type=main:obj,0:i32*::4:i32
-;RUN: dsaopt %s -dsa-local -analyze -check-type=main:obj1,0:i32|i32*
+;RUN: dsaopt %s -dsa-local -analyze -check-type=main:obj1,0:i32\|i32*
 
 ; if any part of pointer overlaps with an interger, we must mark the into to ptr flag.
  

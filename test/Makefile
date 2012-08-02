@@ -464,22 +464,38 @@ $(PA_BUILD):
 	@chmod +x $@.tmp
 	@mv $@.tmp $@
 
-lit.site.cfg: $(PROJ_SRC_ROOT)/test/lit.site.cfg.in
-	@echo "Making LLVM 'lit.site.cfg' file..."
-	@sed -e "s#@LLVM_SOURCE_DIR@#$(LLVM_SRC_ROOT)#g" \
-	     -e "s#@LLVM_BINARY_DIR@#$(LLVM_OBJ_ROOT)#g" \
-	     -e "s#@LLVM_TOOLS_DIR@#$(LLVMToolDir)#g" \
-	     -e "s#@LLVMGCCDIR@#$(LLVMGCCDIR)#g" \
-	     -e "s#@PROJ_SRC_ROOT@#$(PROJ_SRC_ROOT)#g" \
-	     -e "s#@PROJ_OBJ_ROOT@#$(PROJ_OBJ_ROOT)#g" \
-	     $(PROJ_SRC_ROOT)/test/lit.site.cfg.in > $@
+ifeq ($(DISABLE_ASSERTIONS),1)
+ENABLE_ASSERTIONS=0
+else
+ENABLE_ASSERTIONS=1
+endif
 
-$(LLVM_OBJ_ROOT)/test/site.exp:
-	make -C $(LLVM_OBJ_ROOT)/test site.exp
+FORCE:
+
+lit.site.cfg: FORCE
+	@echo "Making Poolalloc/DSA 'lit.site.cfg' file..."
+	@$(ECHOPATH) s=@TARGET_TRIPLE@=$(TARGET_TRIPLE)=g > lit.tmp
+	@$(ECHOPATH) s=@LLVM_SOURCE_DIR@=$(LLVM_SRC_ROOT)=g >> lit.tmp
+	@$(ECHOPATH) s=@LLVM_BINARY_DIR@=$(LLVM_OBJ_ROOT)=g >> lit.tmp
+	@$(ECHOPATH) s=@PROJ_SRC_ROOT@=$(PROJ_SRC_ROOT)=g >> lit.tmp
+	@$(ECHOPATH) s=@PROJ_OBJ_ROOT@=$(PROJ_OBJ_ROOT)=g >> lit.tmp
+	@$(ECHOPATH) s=@LLVM_TOOLS_DIR@=$(LLVMToolDir)=g >> lit.tmp
+	@$(ECHOPATH) s=@SHLIBDIR@=$(SharedLibDir)=g >> lit.tmp
+	@$(ECHOPATH) s=@SHLIBEXT@=$(SHLIBEXT)=g >> lit.tmp
+	@$(ECHOPATH) s=@PYTHON_EXECUTABLE@=python=g >> lit.tmp
+	@$(ECHOPATH) s,@OCAMLOPT@,$(OCAMLOPT) -cc \\\\\"$(CXX_FOR_OCAMLOPT)\\\\\" -I $(LibDir)/ocaml,g >> lit.tmp
+	@$(ECHOPATH) s=@ENABLE_SHARED@=$(ENABLE_SHARED)=g >> lit.tmp
+	@$(ECHOPATH) s=@ENABLE_ASSERTIONS@=$(ENABLE_ASSERTIONS)=g >> lit.tmp
+	@$(ECHOPATH) s=@TARGETS_TO_BUILD@=$(TARGETS_TO_BUILD)=g >> lit.tmp
+	@$(ECHOPATH) s=@LLVM_BINDINGS@=$(BINDINGS_TO_BUILD)=g >> lit.tmp
+	@$(ECHOPATH) s=@HOST_OS@=$(HOST_OS)=g >> lit.tmp
+	@$(ECHOPATH) s=@HOST_ARCH@=$(HOST_ARCH)=g >> lit.tmp
+	@sed -f lit.tmp $(PROJ_SRC_ROOT)/test/lit.site.cfg.in > $@
+	@-rm -f lit.tmp
 
 #Run the lit tests for this project
 .PHONY: lit lit-report
-lit: lit.site.cfg $(TOOLS) $(LLVM_OBJ_ROOT)/test/site.exp check-asserts
+lit: lit.site.cfg $(TOOLS) check-asserts
 	$(LLVM_SRC_ROOT)/utils/lit/lit.py $(PROJ_OBJ_ROOT)/test --path $(ToolDir) -s -v
 
 #Run the lit tests, but supress all error output--just report the test results.
