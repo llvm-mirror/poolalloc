@@ -952,6 +952,8 @@ bool GraphBuilder::visitIntrinsic(CallSite CS, Function *F) {
       N->setModifiedMarker();
     return true;
 
+    // TODO: Add support for the new EH system
+#if 0
   case Intrinsic::eh_exception: {
     DSNode * Node = createNode();
     Node->setIncompleteMarker();
@@ -973,6 +975,8 @@ bool GraphBuilder::visitIntrinsic(CallSite CS, Function *F) {
     }
     return true;
   }
+#endif
+
   case Intrinsic::eh_typeid_for: {
     DSNodeHandle Ptr = getValueDest(*CS.arg_begin());
     Ptr.getNode()->setReadMarker();
