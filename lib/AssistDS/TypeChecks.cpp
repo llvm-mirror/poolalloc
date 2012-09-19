@@ -786,7 +786,8 @@ bool TypeChecks::visitVarArgFunction(Module &M, Function &F) {
   }
 
   // create internal clone
-  Function *F_clone = CloneFunction(&F);
+  ValueToValueMapTy VMap;
+  Function *F_clone = CloneFunction(&F, VMap, false);
   F_clone->setName(F.getName().str() + "internal");
   F.setLinkage(GlobalValue::InternalLinkage);
   F.getParent()->getFunctionList().push_back(F_clone);
@@ -1019,7 +1020,8 @@ bool TypeChecks::visitByValFunction(Module &M, Function &F) {
     visitInternalByValFunction(M, F);
   } else {
     // create internal clone
-    Function *F_clone = CloneFunction(&F);
+    ValueToValueMapTy VMap;
+    Function *F_clone = CloneFunction(&F, VMap, false);
     F_clone->setName(F.getName().str() + "internal");
     F.setLinkage(GlobalValue::InternalLinkage);
     F.getParent()->getFunctionList().push_back(F_clone);

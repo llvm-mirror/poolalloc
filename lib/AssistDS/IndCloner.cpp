@@ -127,7 +127,8 @@ IndClone::runOnModule(Module& M) {
     // be used for direct function calls.
     //
     Function * Original = toClone[index];
-    Function* DirectF = CloneFunction(Original);
+    ValueToValueMapTy VMap;
+    Function* DirectF = CloneFunction(Original, VMap, false);
     DirectF->setName(Original->getName() + "_DIRECT");
 
     //

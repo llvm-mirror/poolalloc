@@ -96,7 +96,8 @@ bool FuncSpec::runOnModule(Module& M) {
 
   for (std::map<std::pair<Function*, std::vector<std::pair<unsigned, Constant*> > >, Function* >::iterator I = toClone.begin(), E = toClone.end(); I != E; ++I) {
     // Clone all the functions we need cloned
-    Function* DirectF = CloneFunction(I->first.first);
+    ValueToValueMapTy VMap;
+    Function* DirectF = CloneFunction(I->first.first, VMap, false);
     DirectF->setName(I->first.first->getName().str() + "_SPEC");
     DirectF->setLinkage(GlobalValue::InternalLinkage);
     I->first.first->getParent()->getFunctionList().push_back(DirectF);
