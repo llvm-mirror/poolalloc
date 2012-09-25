@@ -1070,12 +1070,17 @@ DSCallSite ReachabilityCloner::cloneCallSite(const DSCallSite& SrcCS) {
                       getClonedNH(SrcCS.getVAVal()),
                       SrcCS.getCalleeFunc(),
                       Args);
-  else
-    return DSCallSite(SrcCS.getCallSite(),
-                      getClonedNH(SrcCS.getRetVal()),
-                      getClonedNH(SrcCS.getVAVal()),
-                      getClonedNH(SrcCS.getCalleeNode()).getNode(),
-                      Args);
+  else {
+    DSNodeHandle Ret = getClonedNH(SrcCS.getRetVal()),
+                 VA = getClonedNH(SrcCS.getVAVal()),
+                 Callee = getClonedNH(SrcCS.getCalleeNode());
+    // Resolve forwarding now as much as possible.
+    Ret.getNode(); VA.getNode();
+    // Most importantly, ensure the node passed to DSCallSite
+    // is not a forwarding node:
+    DSNode * CalleeN = Callee.getNode();
+    return DSCallSite(SrcCS.getCallSite(), Ret, VA, CalleeN, Args);
+  }
 }
 
 //===----------------------------------------------------------------------===//
