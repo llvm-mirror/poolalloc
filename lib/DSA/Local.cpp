@@ -303,6 +303,13 @@ DSNodeHandle GraphBuilder::getValueDest(Value* V) {
       //
       N = createNode();
       N->setUnknownMarker();
+    } else if (isa<ConstantStruct>(C) || isa<ConstantArray>(C) ||
+               isa<ConstantDataSequential>(C) || isa<ConstantDataArray>(C) ||
+               isa<ConstantDataVector>(C)) {
+      // Treat these the same way we treat global initializers
+      N = createNode();
+      NH.mergeWith(N);
+      MergeConstantInitIntoNode(NH, C->getType(), C);
     } else {
       errs() << "Unknown constant: " << *C << "\n";
       assert(0 && "Unknown constant type!");
@@ -604,6 +611,36 @@ void GraphBuilder::visitCmpInst(CmpInst &I) {
   //Address can escape through cmps
 }
 
+unsigned getValueOffset(Type *Ty, ArrayRef<unsigned> Idxs,
+                        const TargetData &TD) {
+  unsigned Offset = 0;
+  for (ArrayRef<unsigned>::iterator I = Idxs.begin(), E = Idxs.end(); I != E;
+       ++I) {
+    // Lifted from TargetData.cpp's getIndexedOffset.
+    // We can't use that because it insists on only allowing pointer types.
+    if (StructType *STy = dyn_cast<StructType>(Ty)) {
+      unsigned FieldNo = *I;
+
+      // Get structure layout information...
+      const StructLayout *Layout = TD.getStructLayout(STy);
+
+      // Add in the offset, as calculated by the structure layout info...
+      Offset += Layout->getElementOffset(FieldNo);
+
+      // Update Ty to refer to current element
+      Ty = STy->getElementType(FieldNo);
+    } else {
+      // Update Ty to refer to current element
+      Ty = cast<SequentialType>(Ty)->getElementType();
+
+      // Get the array index and the size of each array element.
+      int64_t arrayIdx = *I;
+      Offset += (uint64_t)arrayIdx * TD.getTypeAllocSize(Ty);
+    }
+  }
+  return Offset;
+}
+
 void GraphBuilder::visitInsertValueInst(InsertValueInst& I) {
   setDestTo(I, createNode()->setAllocaMarker());
 
@@ -613,17 +650,12 @@ void GraphBuilder::visitInsertValueInst(InsertValueInst& I) {
 
   // Mark that the node is written to...
   Dest.getNode()->setModifiedMarker();
-  unsigned Offset = 0;
   Type* STy = I.getAggregateOperand()->getType();
-  llvm::InsertValueInst::idx_iterator i = I.idx_begin(), e = I.idx_end(); 
-  for (; i != e; i++) {
-    const StructLayout *SL = TD.getStructLayout(cast<StructType>(STy));
-    Offset += SL->getElementOffset(*i);
-    STy = (cast<StructType>(STy))->getTypeAtIndex(*i);
-  }
+
+  unsigned Offset = getValueOffset(STy, I.getIndices(), TD);
 
   // Ensure a type-record exists...
-  Dest.getNode()->mergeTypeInfo(StoredTy, Offset); 
+  Dest.getNode()->mergeTypeInfo(StoredTy, Offset);
 
   // Avoid adding edges from null, or processing non-"pointer" stores
   if (isa<PointerType>(StoredTy))
@@ -631,18 +663,13 @@ void GraphBuilder::visitInsertValueInst(InsertValueInst& I) {
 }
 
 void GraphBuilder::visitExtractValueInst(ExtractValueInst& I) {
-  DSNodeHandle Ptr = getValueDest(I.getOperand(0));
+  DSNodeHandle Ptr = getValueDest(I.getAggregateOperand());
 
   // Make that the node is read from...
   Ptr.getNode()->setReadMarker();
-  unsigned Offset = 0;
   Type* STy = I.getAggregateOperand()->getType();
-  llvm::ExtractValueInst::idx_iterator i = I.idx_begin(), e = I.idx_end();
-  for (; i != e; i++) {
-    const StructLayout *SL = TD.getStructLayout(cast<StructType>(STy));
-    Offset += SL->getElementOffset(*i);
-    STy = (cast<StructType>(STy))->getTypeAtIndex(*i);
-  }
+
+  unsigned Offset = getValueOffset(STy, I.getIndices(), TD);
 
   // Ensure a typerecord exists...
   Ptr.getNode()->mergeTypeInfo(I.getType(), Offset);
