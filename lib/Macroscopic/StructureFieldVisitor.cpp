@@ -63,7 +63,7 @@ DSGraph &LatticeValue::getParentGraph() const {
 /// getFieldOffset - Return the offset of this field from the start of the node.
 ///
 unsigned LatticeValue::getFieldOffset() const {
-  const TargetData &TD = getNode()->getParentGraph()->getTargetData();
+  const DataLayout &TD = getNode()->getParentGraph()->getDataLayout();
 
   unsigned Offset = 0;
   const Type *Ty = Node->getType();
@@ -181,7 +181,7 @@ namespace {
 
 static void ComputeStructureFieldIndices(const Type *Ty, unsigned Offset,
                                          std::vector<unsigned> &Idxs,
-                                         const TargetData &TD) {
+                                         const DataLayout &TD) {
   if (Ty->isFirstClassType()) {
     assert(Offset == 0 && "Illegal structure index!");
     return;
@@ -225,7 +225,7 @@ LatticeValue *SFVInstVisitor::getLatticeValueForField(Value *Ptr) {
   // Okay, next convert the node offset to a field index expression.
   std::vector<unsigned> Idxs;
   ComputeStructureFieldIndices(Node->getType(), NH->getOffset(), Idxs,
-                               Node->getParentGraph()->getTargetData());
+                               Node->getParentGraph()->getDataLayout());
 
   for (; I != NodeLVs.end() && I->first == Node; ++I)
     if (I->second->getIndices() == Idxs)
@@ -329,7 +329,7 @@ visitNodes(const std::set<DSNode*> &Nodes) {
 ///
 static bool VisitGlobalInit(LatticeValue *LV, Constant *Init,
                             unsigned FieldOffset) {
-  const TargetData &TD = LV->getParentGraph().getTargetData();
+  const DataLayout &TD = LV->getParentGraph().getDataLayout();
 
   if (Init->isNullValue())
     return LV->visitGlobalInit(Constant::getNullValue(LV->getFieldType()));

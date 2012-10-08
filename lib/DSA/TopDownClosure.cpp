@@ -404,7 +404,7 @@ void TDDataStructures::InlineCallersIntoGraph(DSGraph* DSG) {
     } else {
       // Otherwise, create a new DSGraph to represent this.
       DSGraph* IndCallGraph = new DSGraph(DSG->getGlobalECs(),
-                                          DSG->getTargetData(), *TypeSS);
+                                          DSG->getDataLayout(), *TypeSS);
 
       // Clone over the call into the new DSGraph
       ReachabilityCloner RC(IndCallGraph, DSG, 0);

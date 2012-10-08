@@ -49,7 +49,7 @@ SteensgaardDataStructures::print(std::ostream &O, const Module *M) const {
 bool
 SteensgaardDataStructures::runOnModule(Module &M) {
   DS = &getAnalysis<StdLibDataStructures>();
-  init(&getAnalysis<TargetData>());
+  init(&getAnalysis<DataLayout>());
   return runOnModuleInternal(M);
 }
 
@@ -62,7 +62,7 @@ SteensgaardDataStructures::runOnModuleInternal(Module &M) {
   GlobalsGraph = new DSGraph(GG, GG->getGlobalECs(), 0, 0);
 
   // Create a new, empty, graph...
-  ResultGraph = new DSGraph(GG->getGlobalECs(), getTargetData(), GlobalsGraph);
+  ResultGraph = new DSGraph(GG->getGlobalECs(), getDataLayout(), GlobalsGraph);
   
   // Loop over the rest of the module, merging graphs for non-external functions
   // into this graph.

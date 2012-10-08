@@ -22,7 +22,7 @@
 #include "llvm/DerivedTypes.h"
 #include "llvm/Constants.h"
 #include "llvm/Instructions.h"
-#include "llvm/Target/TargetData.h"
+#include "llvm/DataLayout.h"
 #include "llvm/Support/InstVisitor.h"
 #include "llvm/Support/FormattedStream.h"
 #include "llvm/Support/Debug.h"

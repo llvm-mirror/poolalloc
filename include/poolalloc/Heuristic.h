@@ -31,7 +31,7 @@ namespace llvm {
   class DSGraph;
   class DSNode;
   class PoolAllocate;
-  class TargetData;
+  class DataLayout;
   class Type;
 
 namespace PA {
@@ -128,7 +128,7 @@ namespace PA {
     ///
     static unsigned getRecommendedAlignment(const DSNode *N);
     static unsigned getRecommendedAlignment(Type *Ty,
-                                            const TargetData &TD);
+                                            const DataLayout &TD);
   };
 
   ////////////////////////////////////////////////////////////////////////////

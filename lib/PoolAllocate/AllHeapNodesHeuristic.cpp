@@ -25,7 +25,7 @@
 #include "llvm/ADT/DepthFirstIterator.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/FormattedStream.h"
-#include "llvm/Target/TargetData.h"
+#include "llvm/DataLayout.h"
 #include <iostream>
 
 using namespace llvm;

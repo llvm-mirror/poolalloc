@@ -27,7 +27,7 @@
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/FormattedStream.h"
 #include "llvm/Support/Timer.h"
-#include "llvm/Target/TargetData.h"
+#include "llvm/DataLayout.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/Triple.h"
@@ -73,7 +73,7 @@ namespace {
     DSGraph &G;
     Function* FB;
     LocalDataStructures* DS;
-    const TargetData& TD;
+    const DataLayout& TD;
 
     ////////////////////////////////////////////////////////////////////////////
     // Helper functions used to implement the visitation functions...
@@ -142,7 +142,7 @@ namespace {
 
   public:
     GraphBuilder(Function &f, DSGraph &g, LocalDataStructures& DSi)
-      : G(g), FB(&f), DS(&DSi), TD(g.getTargetData()) {
+      : G(g), FB(&f), DS(&DSi), TD(g.getDataLayout()) {
       // Create scalar nodes for all pointer arguments...
       for (Function::arg_iterator I = f.arg_begin(), E = f.arg_end();
            I != E; ++I) {
@@ -204,7 +204,7 @@ namespace {
 
     // GraphBuilder ctor for working on the globals graph
     explicit GraphBuilder(DSGraph& g)
-      :G(g), FB(0), TD(g.getTargetData())
+      :G(g), FB(0), TD(g.getDataLayout())
     {}
 
     void mergeInGlobalInitializer(GlobalVariable *GV);
@@ -612,11 +612,11 @@ void GraphBuilder::visitCmpInst(CmpInst &I) {
 }
 
 unsigned getValueOffset(Type *Ty, ArrayRef<unsigned> Idxs,
-                        const TargetData &TD) {
+                        const DataLayout &TD) {
   unsigned Offset = 0;
   for (ArrayRef<unsigned>::iterator I = Idxs.begin(), E = Idxs.end(); I != E;
        ++I) {
-    // Lifted from TargetData.cpp's getIndexedOffset.
+    // Lifted from DataLayout.cpp's getIndexedOffset.
     // We can't use that because it insists on only allowing pointer types.
     if (StructType *STy = dyn_cast<StructType>(Ty)) {
       unsigned FieldNo = *I;
@@ -1365,7 +1365,7 @@ void handleMagicSections(DSGraph* GlobalsGraph, Module& M) {
 char LocalDataStructures::ID;
 
 bool LocalDataStructures::runOnModule(Module &M) {
-  init(&getAnalysis<TargetData>());
+  init(&getAnalysis<DataLayout>());
   addrAnalysis = &getAnalysis<AddressTakenAnalysis>();
 
   // First step, build the globals graph.
@@ -1405,7 +1405,7 @@ bool LocalDataStructures::runOnModule(Module &M) {
   // Calculate all of the graphs...
   for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I)
     if (!I->isDeclaration()) {
-      DSGraph* G = new DSGraph(GlobalECs, getTargetData(), *TypeSS, GlobalsGraph);
+      DSGraph* G = new DSGraph(GlobalECs, getDataLayout(), *TypeSS, GlobalsGraph);
       GraphBuilder GGB(*I, *G, *this);
       G->getAuxFunctionCalls() = G->getFunctionCalls();
       setDSGraph(*I, G);

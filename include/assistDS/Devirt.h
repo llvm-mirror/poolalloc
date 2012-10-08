@@ -22,7 +22,7 @@
 #include "llvm/Instructions.h"
 #include "llvm/DerivedTypes.h"
 #include "llvm/Support/InstVisitor.h"
-#include "llvm/Target/TargetData.h"
+#include "llvm/DataLayout.h"
 
 using namespace llvm;
 
@@ -41,7 +41,7 @@ namespace llvm {
       dsa::CallTargetFinder<EQTDDataStructures> *CTF;
 
       // Access to the target data analysis pass
-      TargetData * TD;
+      DataLayout * TD;
 
       // Worklist of call sites to transform
       std::vector<Instruction *> Worklist;
@@ -63,7 +63,7 @@ namespace llvm {
 
       virtual void getAnalysisUsage(AnalysisUsage &AU) const {
         AU.addRequired<dsa::CallTargetFinder<EQTDDataStructures> >();
-        AU.addRequired<TargetData>();
+        AU.addRequired<DataLayout>();
       }
 
       // Visitor methods for analyzing instructions

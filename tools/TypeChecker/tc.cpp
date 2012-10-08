@@ -23,7 +23,7 @@
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/PluginLoader.h"
 #include "llvm/Support/FileUtilities.h"
-#include "llvm/Target/TargetData.h"
+#include "llvm/DataLayout.h"
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/Analysis/Verifier.h"
 #include "llvm/System/Signals.h"
@@ -92,7 +92,7 @@ int main(int argc, char **argv) {
   // Build up all of the passes that we want to do to the module...
   PassManager Passes;
 
-  Passes.add(new TargetData(M.get()));
+  Passes.add(new DataLayout(M.get()));
 
   // Currently deactiviated
   Passes.add(new TypeChecks());

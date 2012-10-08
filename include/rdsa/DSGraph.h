@@ -236,13 +236,13 @@ private:
 
   /// TD - This is the target data object for the machine this graph is
   /// constructed for.
-  const TargetData &TD;
+  const DataLayout &TD;
 
   void operator=(const DSGraph &); // DO NOT IMPLEMENT
   DSGraph(const DSGraph&);         // DO NOT IMPLEMENT
 public:
   // Create a new, empty, DSGraph.
-  DSGraph(EquivalenceClasses<const GlobalValue*> &ECs, const TargetData &td,
+  DSGraph(EquivalenceClasses<const GlobalValue*> &ECs, const DataLayout &td,
           DSGraph *GG) 
     :GlobalsGraph(GG), UseAuxCalls(false), 
      ScalarMap(ECs), TD(td)
@@ -268,9 +268,9 @@ public:
     return ScalarMap.getGlobalECs();
   }
 
-  /// getTargetData - Return the TargetData object for the current target.
+  /// getDataLayout - Return the DataLayout object for the current target.
   ///
-  const TargetData &getTargetData() const { return TD; }
+  const DataLayout &getDataLayout() const { return TD; }
 
   /// setUseAuxCalls - If you call this method, the auxillary call vector will
   /// be printed instead of the standard call vector to the dot file.

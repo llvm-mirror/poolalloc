@@ -536,7 +536,7 @@ public:
   bool runOnModule(Module &M);
   GlobalVariable *CreateGlobalPool(unsigned RecSize, unsigned Align,
                                    Module& M);
-  void ProcessFunctionBodySimple(Function& F, TargetData & TD);
+  void ProcessFunctionBodySimple(Function& F, DataLayout & TD);
 
 
   virtual DSGraph* getDSGraph (const Function & F) const {
@@ -568,7 +568,7 @@ public:
 
 // FIXME: Is this used?  Should it be removed?
 class PoolAllocateMultipleGlobalPool : public PoolAllocate {
-  void ProcessFunctionBodySimple(Function& F, TargetData & TD);
+  void ProcessFunctionBodySimple(Function& F, DataLayout & TD);
   /// Mapping between DSNodes and Pool descriptors. For this pass, it is a
   /// one-to-one relationship.
   typedef DenseMap<const DSNode *, GlobalVariable *> PoolMapTy;

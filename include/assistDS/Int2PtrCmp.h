@@ -16,7 +16,7 @@
 #include "llvm/Instructions.h"
 #include "llvm/Module.h"
 #include "llvm/Pass.h"
-#include "llvm/Target/TargetData.h"
+#include "llvm/DataLayout.h"
 
 
 namespace llvm {
@@ -26,13 +26,13 @@ namespace llvm {
   //
   class Int2PtrCmp : public ModulePass {
   private:
-    TargetData * TD;
+    DataLayout * TD;
   public:
     static char ID;
     Int2PtrCmp() : ModulePass(ID) {}
     virtual bool runOnModule(Module& M);
     virtual void getAnalysisUsage(AnalysisUsage &AU) const {
-      AU.addRequired<TargetData>();
+      AU.addRequired<DataLayout>();
     }
 
   };

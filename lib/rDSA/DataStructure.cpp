@@ -20,7 +20,7 @@
 #include "llvm/GlobalVariable.h"
 #include "llvm/Instructions.h"
 #include "llvm/DerivedTypes.h"
-#include "llvm/Target/TargetData.h"
+#include "llvm/DataLayout.h"
 #include "llvm/Assembly/Writer.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
@@ -144,10 +144,10 @@ DSNode::~DSNode() {
   assert(hasNoReferrers() && "Referrers to dead node exist!");
 }
 
-/// getTargetData - Get the target data object used to construct this node.
+/// getDataLayout - Get the target data object used to construct this node.
 ///
-const TargetData &DSNode::getTargetData() const {
-  return ParentGraph->getTargetData();
+const DataLayout &DSNode::getDataLayout() const {
+  return ParentGraph->getDataLayout();
 }
 
 void DSNode::assertOK() const {
@@ -330,9 +330,9 @@ namespace {
     };
 
     std::vector<StackState> Stack;
-    const TargetData &TD;
+    const DataLayout &TD;
   public:
-    TypeElementWalker(const Type *T, const TargetData &td) : TD(td) {
+    TypeElementWalker(const Type *T, const DataLayout &td) : TD(td) {
       Stack.push_back(T);
       StepToLeaf();
     }
@@ -416,7 +416,7 @@ namespace {
 /// is true, then we also allow a larger T1.
 ///
 static bool ElementTypesAreCompatible(const Type *T1, const Type *T2,
-                                      bool AllowLargerT1, const TargetData &TD){
+                                      bool AllowLargerT1, const DataLayout &TD){
   TypeElementWalker T1W(T1, TD), T2W(T2, TD);
 
   while (!T1W.isDone() && !T2W.isDone()) {
@@ -447,7 +447,7 @@ static bool ElementTypesAreCompatible(const Type *T1, const Type *T2,
 bool DSNode::mergeTypeInfo(const Type *NewTy, unsigned Offset,
                            bool FoldIfIncompatible) {
   //DOUT << "merging " << *NewTy << " at " << Offset << " with " << *Ty << "\n";
-  const TargetData &TD = getTargetData();
+  const DataLayout &TD = getDataLayout();
   // Check to make sure the Size member is up-to-date.  Size can be one of the
   // following:
   //  Size = 0, Ty = Void: Nothing is known about this node.
@@ -2527,7 +2527,7 @@ DSGraph* DataStructures::getOrFetchDSGraph(const Function* F) {
       G = new DSGraph(BaseGraph, GlobalECs, GlobalsGraph, 
 		      DSGraph::DontCloneAuxCallNodes);
     } else {
-      G = new DSGraph(GlobalECs, GraphSource->getTargetData(),
+      G = new DSGraph(GlobalECs, GraphSource->getDataLayout(),
 		      GlobalsGraph);
       G->spliceFrom(BaseGraph);
       if (resetAuxCalls) 
@@ -2662,7 +2662,7 @@ void DataStructures::init(DataStructures* D, bool clone, bool useAuxCalls,
   if (!clone) D->DSGraphsStolen = true;
 }
 
-void DataStructures::init(TargetData* T) {
+void DataStructures::init(DataLayout* T) {
   assert (!TD && "Already init");
   GraphSource = 0;
   Clone = false;

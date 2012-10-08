@@ -11,7 +11,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "llvm/Target/TargetData.h"
+#include "llvm/DataLayout.h"
 #include "llvm/Instructions.h"
 #include "llvm/Module.h"
 #include "llvm/Pass.h"
@@ -22,13 +22,13 @@ namespace llvm {
   //
   class SimplifyGEP : public ModulePass {
   private:
-    TargetData * TD;
+    DataLayout * TD;
   public:
     static char ID;
     SimplifyGEP() : ModulePass(ID) {}
     virtual bool runOnModule(Module& M);
     virtual void getAnalysisUsage(AnalysisUsage &AU) const {
-      AU.addRequired<TargetData>();
+      AU.addRequired<DataLayout>();
     }
   };
 }

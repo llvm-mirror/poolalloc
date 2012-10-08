@@ -399,7 +399,7 @@ Devirtualize::runOnModule (Module & M) {
   // Get information on the target system.
   //
   //
-  TD = &getAnalysis<TargetData>();
+  TD = &getAnalysis<DataLayout>();
 
   // Visit all of the call instructions in this function and record those that
   // are indirect function calls.

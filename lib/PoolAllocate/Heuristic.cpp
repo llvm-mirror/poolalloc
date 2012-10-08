@@ -24,7 +24,7 @@
 #include "llvm/ADT/DepthFirstIterator.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/FormattedStream.h"
-#include "llvm/Target/TargetData.h"
+#include "llvm/DataLayout.h"
 #include <iostream>
 
 using namespace llvm;
@@ -85,7 +85,7 @@ unsigned Heuristic::getRecommendedSize(const DSNode *N) {
 //  Offs - The offset of the type within a derived type (e.g., a structure).
 //         We will try to align a structure on an 8 byte boundary if one of its
 //         elements can/needs to be.
-//  TD   - A reference to the TargetData pass.
+//  TD   - A reference to the DataLayout pass.
 //
 // Return value:
 //  true - This type should be allocated on an 8-byte boundary.
@@ -97,7 +97,7 @@ unsigned Heuristic::getRecommendedSize(const DSNode *N) {
 //  FIXME: This code needs to handle LLVM first-class structures and vectors.
 //
 static bool
-Wants8ByteAlignment(Type *Ty, unsigned Offs, const TargetData &TD) {
+Wants8ByteAlignment(Type *Ty, unsigned Offs, const DataLayout &TD) {
   //
   // If the user has requested this optimization to be turned off, don't bother
   // doing it.
@@ -110,7 +110,7 @@ Wants8ByteAlignment(Type *Ty, unsigned Offs, const TargetData &TD) {
   //
   if ((Offs & 7) == 0) {
     //
-    // Doubles always want to be 8-byte aligned regardless of what TargetData
+    // Doubles always want to be 8-byte aligned regardless of what DataLayout
     // claims.
     //
     if (Ty->isDoubleTy()) return true;
@@ -154,7 +154,7 @@ Wants8ByteAlignment(Type *Ty, unsigned Offs, const TargetData &TD) {
 }
 
 unsigned Heuristic::getRecommendedAlignment(Type *Ty,
-                                            const TargetData &TD) {
+                                            const DataLayout &TD) {
   if (!Ty || Ty->isVoidTy())  // Is this void or collapsed?
     return 0;  // No known alignment, let runtime decide.
 
@@ -174,9 +174,9 @@ unsigned Heuristic::getRecommendedAlignment(Type *Ty,
 unsigned
 Heuristic::getRecommendedAlignment(const DSNode *Node) {
   //
-  // Get the TargetData information from the DSNode's DSGraph.
+  // Get the DataLayout information from the DSNode's DSGraph.
   //
-  const TargetData &TD = Node->getParentGraph()->getTargetData();
+  const DataLayout &TD = Node->getParentGraph()->getDataLayout();
 
   //
   // Iterate through all the types that the DSA type-inference algorithm

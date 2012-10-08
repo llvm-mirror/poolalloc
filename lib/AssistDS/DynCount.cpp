@@ -16,7 +16,7 @@
 #include "llvm/Module.h"
 #include "llvm/Instructions.h"
 #include "llvm/Constants.h"
-#include "llvm/Target/TargetData.h"
+#include "llvm/DataLayout.h"
 #include "dsa/TypeSafety.h"
 
 using namespace llvm;
@@ -34,7 +34,7 @@ public:
   }
   virtual bool runOnModule (Module & M);
   virtual void getAnalysisUsage(AnalysisUsage &AU) const {
-    AU.addRequired<TargetData>();
+    AU.addRequired<DataLayout>();
     AU.addRequired<dsa::TypeSafety<TDDataStructures> >();
   }
 };

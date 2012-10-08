@@ -64,7 +64,7 @@ namespace {
   class DSGraphStats : public FunctionPass, public InstVisitor<DSGraphStats> {
     void countCallees(const Function &F);
     const TDDataStructures *DS;
-    const TargetData *TD;
+    const DataLayout *TD;
     const DSGraph *TDGraph;
     dsa::TypeSafety<TDDataStructures> *TS;
     DSNodeHandle getNodeHandleForValue(Value *V);
@@ -80,7 +80,7 @@ namespace {
     void getAnalysisUsage(AnalysisUsage &AU) const {
       AU.setPreservesAll();
       AU.addRequired<TDDataStructures>();
-      AU.addRequired<TargetData>();
+      AU.addRequired<DataLayout>();
       AU.addRequired<dsa::TypeSafety<TDDataStructures> >();
     }
 
@@ -236,7 +236,7 @@ void DSGraphStats::visitStore(StoreInst &SI) {
 
 bool DSGraphStats::runOnFunction(Function& F) {
   DS = &getAnalysis<TDDataStructures>();
-  TD = &getAnalysis<TargetData>();
+  TD = &getAnalysis<DataLayout>();
   TS = &getAnalysis<dsa::TypeSafety<TDDataStructures> >();
   TDGraph = DS->getDSGraph(F);
   countCallees(F);

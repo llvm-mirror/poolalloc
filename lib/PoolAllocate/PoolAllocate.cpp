@@ -28,7 +28,7 @@
 #include "llvm/Constants.h"
 #include "llvm/Attributes.h"
 #include "llvm/Support/CFG.h"
-#include "llvm/Target/TargetData.h"
+#include "llvm/DataLayout.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/Transforms/Utils/Cloning.h"
 #include "llvm/ADT/DepthFirstIterator.h"
@@ -219,7 +219,7 @@ void PoolAllocate::getAnalysisUsage(AnalysisUsage &AU) const {
   if (lie_preserve_passes == LIE_PRESERVE_ALL)
     AU.setPreservesAll();
 
-  AU.addRequired<TargetData>();
+  AU.addRequired<DataLayout>();
 }
 
 bool PoolAllocate::runOnModule(Module &M) {

@@ -21,7 +21,7 @@
 #include "llvm/GlobalVariable.h"
 #include "llvm/Instructions.h"
 #include "llvm/DerivedTypes.h"
-#include "llvm/Target/TargetData.h"
+#include "llvm/DataLayout.h"
 #include "llvm/Assembly/Writer.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
@@ -334,7 +334,7 @@ void DSNode::dumpFuncs() {
 void DSNode::markIntPtrFlags() {
   // check if the types merged have both int and pointer at the same offset,
 
-  const TargetData &TD = getParentGraph()->getTargetData();
+  const DataLayout &TD = getParentGraph()->getDataLayout();
   // check all offsets for that node.
   for(unsigned offset = 0; offset < getSize() ; offset++) {
     // if that Node has no Type information, skip
@@ -414,7 +414,7 @@ void DSNode::growSizeForType(Type *NewTy, unsigned Offset) {
   if (isArrayNode() && getSize() > 0) {
     Offset %= getSize();
   }
-  const TargetData &TD = getParentGraph()->getTargetData();
+  const DataLayout &TD = getParentGraph()->getDataLayout();
   if (Offset + TD.getTypeAllocSize(NewTy) >= getSize())
     growSize(Offset + TD.getTypeAllocSize(NewTy));
 
@@ -441,7 +441,7 @@ void DSNode::mergeTypeInfo(Type *NewTy, unsigned Offset) {
   // individually(at the appropriate offset), instead of the 
   // struct type.
   if(NewTy->isStructTy()) {
-    const TargetData &TD = getParentGraph()->getTargetData();
+    const DataLayout &TD = getParentGraph()->getDataLayout();
     StructType *STy = cast<StructType>(NewTy);
     const StructLayout *SL = TD.getStructLayout(cast<StructType>(STy));
     unsigned count = 0;
@@ -460,7 +460,7 @@ void DSNode::mergeTypeInfo(const TyMapTy::mapped_type TyIt, unsigned Offset) {
   if (isCollapsedNode()) return;
   if (isArrayNode()) Offset %= getSize();
 
-  const TargetData &TD = getParentGraph()->getTargetData();
+  const DataLayout &TD = getParentGraph()->getDataLayout();
   if (!TyMap[Offset]){
     TyMap[Offset] = TyIt;
     for (svset<Type*>::const_iterator ni = TyMap[Offset]->begin(),
@@ -1300,7 +1300,7 @@ DSGraph* DataStructures::getOrCreateGraph(const Function* F) {
       if (resetAuxCalls)
         G->getAuxFunctionCalls() = G->getFunctionCalls();
     } else {
-      G = new DSGraph(GlobalECs, GraphSource->getTargetData(), *TypeSS);
+      G = new DSGraph(GlobalECs, GraphSource->getDataLayout(), *TypeSS);
       G->spliceFrom(BaseGraph);
       if (resetAuxCalls)
         G->getAuxFunctionCalls() = G->getFunctionCalls();
@@ -1491,7 +1491,7 @@ void DataStructures::init(DataStructures* D, bool clone, bool useAuxCalls,
   if (!clone) D->DSGraphsStolen = true;
 }
 
-void DataStructures::init(TargetData* T) {
+void DataStructures::init(DataLayout* T) {
   assert (!TD && "Already init");
   GraphSource = 0;
   Clone = false;

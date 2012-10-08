@@ -194,7 +194,7 @@ namespace {
     /// Initialize - When we know all of the pools in a function that are going
     /// to be compressed, initialize our state based on that data.
     void Initialize(std::map<const DSNode*, CompressedPoolInfo> &Nodes,
-                    const TargetData &TD);
+                    const DataLayout &TD);
 
     const DSNode *getNode() const { return Pool; }
     Type *getNewType() const { return NewTy; }
@@ -225,7 +225,7 @@ namespace {
 /// to be compressed, initialize our state based on that data.
 void CompressedPoolInfo::Initialize(std::map<const DSNode*, 
                                              CompressedPoolInfo> &Nodes,
-                                    const TargetData &TD) {
+                                    const DataLayout &TD) {
   // First step, compute the type of the compressed node.  This basically
   // replaces all pointers to compressed pools with uints.
 //FIXME: TYPE
@@ -263,7 +263,7 @@ ComputeCompressedType(Type *OrigTy, unsigned NodeOffset,
     return OrigTy;
 
 
-  const TargetData &TD = getNode()->getParentGraph()->getTargetData();
+  const DataLayout &TD = getNode()->getParentGraph()->getDataLayout();
 
   // Okay, we have an aggregate type.
   if (StructType *STy = dyn_cast<StructType>(OrigTy)) {
@@ -323,7 +323,7 @@ Value *CompressedPoolInfo::EmitPoolBaseLoad(Instruction &I) const {
 /// dump - Emit a debugging dump for this pool info.
 ///
 void CompressedPoolInfo::dump() const {
-//  const TargetData &TD = getNode()->getParentGraph()->getTargetData();
+//  const DataLayout &TD = getNode()->getParentGraph()->getDataLayout();
 //FIXME: type
   //errs() << "  From size: "
 //            << (getNode()->getType()->isSized() ?
@@ -352,9 +352,9 @@ namespace {
   
     const PointerCompress::PoolInfoMap &PoolInfo;
 
-    /// TD - The TargetData object for the current target.
+    /// TD - The DataLayout object for the current target.
     ///
-    const TargetData &TD;
+    const DataLayout &TD;
 
 
     DSGraph* DSG;
@@ -373,7 +373,7 @@ namespace {
     InstructionRewriter(const PointerCompress::PoolInfoMap &poolInfo,
                         DSGraph* dsg, PA::FuncInfo &pafi,
                         FunctionCloneRecord *fcr, PointerCompress &ptrcomp)
-      : PoolInfo(poolInfo), TD(dsg->getTargetData()), DSG(dsg),
+      : PoolInfo(poolInfo), TD(dsg->getDataLayout()), DSG(dsg),
         PAFuncInfo(pafi), FCR(fcr), PtrComp(ptrcomp) {
     }
 
@@ -1312,7 +1312,7 @@ CompressPoolsInFunction(Function &F,
   // Use these to compute the closure of compression information.  In
   // particular, if one pool points to another, we need to know if the outgoing
   // pointer is compressed.
-  const TargetData &TD = DSG->getTargetData();
+  const DataLayout &TD = DSG->getDataLayout();
   errs() << "In function '" << F.getName().str() << "':\n";
   for (std::map<const DSNode*, CompressedPoolInfo>::iterator
          I = PoolsToCompress.begin(), E = PoolsToCompress.end(); I != E; ++I) {

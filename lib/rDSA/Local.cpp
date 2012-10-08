@@ -23,7 +23,7 @@
 #include "llvm/Intrinsics.h"
 #include "llvm/Support/GetElementPtrTypeIterator.h"
 #include "llvm/Support/InstVisitor.h"
-#include "llvm/Target/TargetData.h"
+#include "llvm/DataLayout.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/FormattedStream.h"
@@ -510,7 +510,7 @@ void GraphBuilderBase::visitGetElementPtrInst(User &GEP) {
     return;
   }
 
-  const TargetData &TD = Value.getNode()->getTargetData();
+  const DataLayout &TD = Value.getNode()->getDataLayout();
 
 #if 0
   // Handle the pointer index specially...
@@ -894,7 +894,7 @@ void GraphBuilderGlobal::MergeConstantInitIntoNode(DSNodeHandle &NH, const Type*
 
   if (Ty->isIntOrIntVector() || Ty->isFPOrFPVector()) return;
 
-  const TargetData &TD = NH.getNode()->getTargetData();
+  const DataLayout &TD = NH.getNode()->getDataLayout();
 
   if (ConstantArray *CA = dyn_cast<ConstantArray>(C)) {
     for (unsigned i = 0, e = CA->getNumOperands(); i != e; ++i)
@@ -944,7 +944,7 @@ void GraphBuilderGlobal::mergeFunction(Function* F) {
 char LocalDataStructures::ID;
 
 bool LocalDataStructures::runOnModule(Module &M) {
-  init(&getAnalysis<TargetData>());
+  init(&getAnalysis<DataLayout>());
 
   // First step, build the globals graph.
   {
@@ -972,7 +972,7 @@ bool LocalDataStructures::runOnModule(Module &M) {
   // Calculate all of the graphs...
   for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I)
     if (!I->isDeclaration()) {
-      DSGraph* G = new DSGraph(GlobalECs, getTargetData(), GlobalsGraph);
+      DSGraph* G = new DSGraph(GlobalECs, getDataLayout(), GlobalsGraph);
       GraphBuilderLocal GGB(*I, G->getOrCreateReturnNodeFor(*I), G, *this);
       G->getAuxFunctionCalls() = G->getFunctionCalls();
       setDSGraph(I, G);

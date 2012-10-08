@@ -26,7 +26,7 @@
 #include "llvm/Module.h"
 #include "llvm/TypeBuilder.h"
 #include "llvm/Support/CFG.h"
-#include "llvm/Target/TargetData.h"
+#include "llvm/DataLayout.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/Transforms/Utils/Cloning.h"
 #include "llvm/ADT/DepthFirstIterator.h"
@@ -74,7 +74,7 @@ castTo (Value * V, Type * Ty, const std::string & Name, Instruction * InsertPt) 
 }
 
 void PoolAllocateMultipleGlobalPool::getAnalysisUsage(AnalysisUsage &AU) const {
-  AU.addRequired<TargetData>();
+  AU.addRequired<DataLayout>();
   assert(0 && "PoolAllocateMultipleGlobalPool doesn't work! Needs Steensgard-like analysis, which was removed!");
   //AU.addRequiredTransitive<SteensgaardDataStructures>();
   // It is a big lie.
@@ -96,7 +96,7 @@ bool PoolAllocateMultipleGlobalPool::runOnModule(Module &M) {
   Graphs = NULL;
   assert (Graphs && "No DSA pass available!\n");
 
-  TargetData & TD = getAnalysis<TargetData>();
+  DataLayout & TD = getAnalysis<DataLayout>();
 
   // Add the pool* prototypes to the module
   AddPoolPrototypes(&M);
@@ -120,7 +120,7 @@ bool PoolAllocateMultipleGlobalPool::runOnModule(Module &M) {
 }
 
 void
-PoolAllocateMultipleGlobalPool::ProcessFunctionBodySimple (Function& F, TargetData & TD) {
+PoolAllocateMultipleGlobalPool::ProcessFunctionBodySimple (Function& F, DataLayout & TD) {
   std::vector<Instruction*> toDelete;
   std::vector<ReturnInst*> Returns;
 

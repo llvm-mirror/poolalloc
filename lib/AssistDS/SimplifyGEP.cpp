@@ -20,7 +20,7 @@
 #include "llvm/Support/FormattedStream.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Operator.h"
-#include "llvm/Target/TargetData.h"
+#include "llvm/DataLayout.h"
 
 #include <vector>
 
@@ -75,7 +75,7 @@ static void preprocess(Module& M) {
 //  false - The module was not modified.
 //
 bool SimplifyGEP::runOnModule(Module& M) {
-  TD = &getAnalysis<TargetData>();
+  TD = &getAnalysis<DataLayout>();
   preprocess(M);
   for (Module::iterator F = M.begin(); F != M.end(); ++F){
     for (Function::iterator B = F->begin(), FE = F->end(); B != FE; ++B) {      

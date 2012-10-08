@@ -18,7 +18,7 @@
 
 #include "llvm/Instructions.h"
 #include "llvm/Pass.h"
-#include "llvm/Target/TargetData.h"
+#include "llvm/DataLayout.h"
 #include "llvm/Support/CallSite.h"
 
 #include <list>
