@@ -132,11 +132,11 @@ bool ArgCast::runOnModule(Module& M) {
                                                         FormalType, true, "", CI);
           Args.push_back(CastI);
         } else {
-          if(F->paramHasAttr(i+1, Attribute::SExt)) {
+          if(F->getParamAttributes(i+1).SExt) {
             CastInst *CastI = CastInst::CreateIntegerCast(CI->getOperand(i+1), 
                                                           FormalType, true, "", CI);
             Args.push_back(CastI);
-          } else if(F->paramHasAttr(i+1, Attribute::ZExt)) {
+          } else if(F->getParamAttributes(i+1).ZExt) {
             CastInst *CastI = CastInst::CreateIntegerCast(CI->getOperand(i+1), 
                                                           FormalType, false, "", CI);
             Args.push_back(CastI);
