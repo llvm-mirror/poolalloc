@@ -1082,7 +1082,7 @@ bool TypeChecks::visitInternalByValFunction(Module &M, Function &F) {
         }
 
         // Create the new attributes vec.
-        if (FnAttrs != Attribute::None)
+        if (FnAttrs.hasAttributes())
           AttributesVec.push_back(AttributeWithIndex::get(~0, FnAttrs));
 
         AttrListPtr NewCallPAL = AttrListPtr::get(AttributesVec);
@@ -1129,7 +1129,7 @@ bool TypeChecks::visitInternalByValFunction(Module &M, Function &F) {
         }
 
         // Create the new attributes vec.
-        if (FnAttrs != Attribute::None)
+        if (FnAttrs.hasAttributes())
           AttributesVec.push_back(AttributeWithIndex::get(~0, FnAttrs));
 
         AttrListPtr NewCallPAL = AttrListPtr::get(AttributesVec);
@@ -1156,7 +1156,7 @@ bool TypeChecks::visitInternalByValFunction(Module &M, Function &F) {
   for (Function::arg_iterator I = F.arg_begin(); I != F.arg_end(); ++I) {
     if (!I->hasByValAttr())
       continue;
-    I->removeAttr(llvm::Attribute::ByVal);
+    I->removeAttr(Attributes(Attributes::ByVal));
   }
   return true;
 }

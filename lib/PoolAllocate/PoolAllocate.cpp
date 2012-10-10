@@ -997,7 +997,7 @@ PoolAllocate::MakeFunctionClone (Function & F) {
   Function::ArgumentListType & ArgList = New->getArgumentList ();
   Function::ArgumentListType::iterator arg = ArgList.begin();
   for (; arg != ArgList.end(); ++arg) {
-    arg->removeAttr (Attribute::StructRet);
+    arg->removeAttr (Attributes(Attributes::StructRet));
   }
 
   //

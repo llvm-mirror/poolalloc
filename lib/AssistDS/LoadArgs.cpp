@@ -197,7 +197,7 @@ bool LoadArgs::runOnModule(Module& M) {
               AttributesVec.push_back(AttributeWithIndex::get(Args.size(), Attrs));
           }
           // Create the new attributes vec.
-          if (FnAttrs != Attribute::None)
+          if (FnAttrs.hasAttributes())
             AttributesVec.push_back(AttributeWithIndex::get(~0, FnAttrs));
 
           AttrListPtr NewCallPAL = AttrListPtr::get(AttributesVec);
