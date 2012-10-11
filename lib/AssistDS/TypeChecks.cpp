@@ -1153,10 +1153,12 @@ bool TypeChecks::visitInternalByValFunction(Module &M, Function &F) {
   }
 
   // remove the byval attribute from the function
+  Attributes::Builder B;
+  B.addAttribute(Attributes::ByVal);
   for (Function::arg_iterator I = F.arg_begin(); I != F.arg_end(); ++I) {
     if (!I->hasByValAttr())
       continue;
-    I->removeAttr(Attributes(Attributes::ByVal));
+    I->removeAttr(Attributes::get(B));
   }
   return true;
 }
