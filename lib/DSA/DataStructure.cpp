@@ -353,8 +353,9 @@ void DSNode::markIntPtrFlags() {
     for (svset<Type*>::const_iterator ni = TyMap[offset]->begin(),
          ne = TyMap[offset]->end(); ni != ne; ++ni) {
       if((*ni)->isPointerTy()) {
+        PointerType * PT = dyn_cast<PointerType>(*ni);
         pointerTy = true;
-        ptrSize = TD.getPointerSize();
+        ptrSize = TD.getPointerSize(PT->getAddressSpace());
       }
       if((*ni)->isIntegerTy()) {
         integerTy = true;
