@@ -169,9 +169,9 @@ bool LoadArgs::runOnModule(Module& M) {
             }
 
             NewF->setAttributes(NewF->getAttributes().addAttr(
-                0, F->getAttributes().getRetAttributes()));
+                F->getContext(), 0, F->getAttributes().getRetAttributes()));
             NewF->setAttributes(NewF->getAttributes().addAttr(
-                ~0, F->getAttributes().getFnAttributes()));
+                F->getContext(), ~0, F->getAttributes().getFnAttributes()));
             //Get the point to insert the GEP instr.
             Instruction *InsertPoint;
             for (BasicBlock::iterator insrt = NewF->front().begin(); isa<AllocaInst>(InsertPoint = insrt); ++insrt) {;}
@@ -183,7 +183,7 @@ bool LoadArgs::runOnModule(Module& M) {
           AttrListPtr CallPAL = CI->getAttributes();
           Attributes RAttrs = CallPAL.getRetAttributes();
           Attributes FnAttrs = CallPAL.getFnAttributes();
-          if (RAttrs)
+          if (RAttrs.hasAttributes())
             AttributesVec.push_back(AttributeWithIndex::get(0, RAttrs));
 
           SmallVector<Value*, 8> Args;
@@ -193,7 +193,8 @@ bool LoadArgs::runOnModule(Module& M) {
             }
             Args.push_back(CI->getArgOperand(j));
             // position in the AttributesVec
-            if (Attributes Attrs = CallPAL.getParamAttributes(j+1))
+            Attributes Attrs = CallPAL.getParamAttributes(j+1);
+            if (Attrs.hasAttributes())
               AttributesVec.push_back(AttributeWithIndex::get(Args.size(), Attrs));
           }
           // Create the new attributes vec.

@@ -194,7 +194,7 @@ Function* RTAssociate::MakeFunctionClone(Function &F, FuncInfo& FI, DSGraph* G) 
       if (argIndex) ++argIndex;
 
       // Add the parameter to the new list.
-      NewAttrsVector.addAttr(argIndex, PAWI.Attrs);
+      NewAttrsVector.addAttr(F.getContext(), argIndex, PAWI.Attrs);
     }
 
     // Assign the new attributes to the function clone

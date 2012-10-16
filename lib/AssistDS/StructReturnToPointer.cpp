@@ -95,9 +95,9 @@ bool StructRet::runOnModule(Module& M) {
       fargs.push_back(ai);
     }
     NF->setAttributes(NF->getAttributes().addAttr(
-        0, F->getAttributes().getRetAttributes()));
+        M.getContext(), 0, F->getAttributes().getRetAttributes()));
     NF->setAttributes(NF->getAttributes().addAttr(
-        ~0, F->getAttributes().getFnAttributes()));
+        M.getContext(), ~0, F->getAttributes().getFnAttributes()));
     
     for (Function::iterator B = NF->begin(), FE = NF->end(); B != FE; ++B) {      
       for (BasicBlock::iterator I = B->begin(), BE = B->end(); I != BE;) {
@@ -127,14 +127,15 @@ bool StructRet::runOnModule(Module& M) {
       Attributes RAttrs = CallPAL.getRetAttributes();
       Attributes FnAttrs = CallPAL.getFnAttributes();
       
-      if (RAttrs)
+      if (RAttrs.hasAttributes())
         AttributesVec.push_back(AttributeWithIndex::get(0, RAttrs));
 
       Args.push_back(AllocaNew);
       for(unsigned j =1;j<CI->getNumOperands();j++) {
         Args.push_back(CI->getOperand(j));
         // position in the AttributesVec
-        if (Attributes Attrs = CallPAL.getParamAttributes(j))
+        Attributes Attrs = CallPAL.getParamAttributes(j);
+        if (Attrs.hasAttributes())
           AttributesVec.push_back(AttributeWithIndex::get(Args.size(), Attrs));
       }
       // Create the new attributes vec.

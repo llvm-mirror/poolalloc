@@ -684,9 +684,9 @@ bool TypeChecks::visitAddressTakenFunction(Module &M, Function &F) {
 
   // 4. Copy over attributes for the function
   NewF->setAttributes(NewF->getAttributes()
-                      .addAttr(0, F.getAttributes().getRetAttributes()));
+                      .addAttr(M.getContext(), 0, F.getAttributes().getRetAttributes()));
   NewF->setAttributes(NewF->getAttributes()
-                      .addAttr(~0, F.getAttributes().getFnAttributes()));
+                      .addAttr(M.getContext(), ~0, F.getAttributes().getFnAttributes()));
 
   // 5. Perform the cloning
   SmallVector<ReturnInst*, 100>Returns;
@@ -850,9 +850,9 @@ bool TypeChecks::visitInternalVarArgFunction(Module &M, Function &F) {
 
   // 4. Copy over attributes for the function
   NewF->setAttributes(NewF->getAttributes()
-                      .addAttr(0, F.getAttributes().getRetAttributes()));
+                      .addAttr(M.getContext(), 0, F.getAttributes().getRetAttributes()));
   NewF->setAttributes(NewF->getAttributes()
-                      .addAttr(~0, F.getAttributes().getFnAttributes()));
+                      .addAttr(M.getContext(), ~0, F.getAttributes().getFnAttributes()));
 
   // 5. Perform the cloning
   SmallVector<ReturnInst*, 100>Returns;
@@ -1064,7 +1064,7 @@ bool TypeChecks::visitInternalByValFunction(Module &M, Function &F) {
         Attributes RAttrs = CallPAL.getRetAttributes();
         Attributes FnAttrs = CallPAL.getFnAttributes();
 
-        if (RAttrs)
+        if (RAttrs.hasAttributes())
           AttributesVec.push_back(AttributeWithIndex::get(0, RAttrs));
 
         Function::arg_iterator NI = F.arg_begin();
@@ -1076,7 +1076,8 @@ bool TypeChecks::visitInternalByValFunction(Module &M, Function &F) {
           //FIXME: copy the rest of the attributes.
           if(NI->hasByValAttr()) 
             continue;
-          if (Attributes Attrs = CallPAL.getParamAttributes(j)) {
+          Attributes Attrs = CallPAL.getParamAttributes(j);
+          if (Attrs.hasAttributes()) {
             AttributesVec.push_back(AttributeWithIndex::get(j, Attrs));
           }
         }
@@ -1111,7 +1112,7 @@ bool TypeChecks::visitInternalByValFunction(Module &M, Function &F) {
         Attributes RAttrs = CallPAL.getRetAttributes();
         Attributes FnAttrs = CallPAL.getFnAttributes();
 
-        if (RAttrs)
+        if (RAttrs.hasAttributes())
           AttributesVec.push_back(AttributeWithIndex::get(0, RAttrs));
 
         Function::arg_iterator II = F.arg_begin();
@@ -1123,7 +1124,8 @@ bool TypeChecks::visitInternalByValFunction(Module &M, Function &F) {
           //FIXME: copy the rest of the attributes.
           if(II->hasByValAttr()) 
             continue;
-          if (Attributes Attrs = CallPAL.getParamAttributes(j)) {
+          Attributes Attrs = CallPAL.getParamAttributes(j);
+          if (Attrs.hasAttributes()) {
             AttributesVec.push_back(AttributeWithIndex::get(j, Attrs));
           }
         }
@@ -1153,12 +1155,12 @@ bool TypeChecks::visitInternalByValFunction(Module &M, Function &F) {
   }
 
   // remove the byval attribute from the function
-  Attributes::Builder B;
+  AttrBuilder B;
   B.addAttribute(Attributes::ByVal);
   for (Function::arg_iterator I = F.arg_begin(); I != F.arg_end(); ++I) {
     if (!I->hasByValAttr())
       continue;
-    I->removeAttr(Attributes::get(B));
+    I->removeAttr(Attributes::get(M.getContext(), B));
   }
   return true;
 }
