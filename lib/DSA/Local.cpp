@@ -21,6 +21,7 @@
 #include "llvm/Intrinsics.h"
 #include "llvm/DerivedTypes.h"
 #include "llvm/Instructions.h"
+#include "llvm/IntrinsicInst.h"
 #include "llvm/Support/GetElementPtrTypeIterator.h"
 #include "llvm/Support/InstVisitor.h"
 #include "llvm/Support/CommandLine.h"
@@ -933,6 +934,13 @@ void GraphBuilder::visitVAStartNode(DSNode* N) {
 ///
 bool GraphBuilder::visitIntrinsic(CallSite CS, Function *F) {
   ++NumIntrinsicCall;
+
+  //
+  // If this is a debug intrinsic, then don't do any special processing.
+  //
+  if (isa<DbgInfoIntrinsic>(CS.getInstruction()))
+    return true;
+
   switch (F->getIntrinsicID()) {
   case Intrinsic::vastart: {
     visitVAStartInst(CS);

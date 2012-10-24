@@ -87,11 +87,15 @@ SanityCheck::checkLoad (LoadInst & LI) {
   // of the load is loaded.
   //
   DSNode::LinkMapTy::iterator linki = PtrNode->edge_begin();
+#ifndef NDEBUG
   bool found = false;
+#endif
   for (; linki != PtrNode->edge_end(); ++linki) {
     DSNodeHandle & LinkNode = linki->second;
     if (LinkNode.getNode() == ResultNode) {
+#ifndef NDEBUG
       found = true;
+#endif
     }
   }
 

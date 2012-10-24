@@ -1401,7 +1401,9 @@ void DataStructures::eliminateUsesOfECGlobals(DSGraph &G,
   DSScalarMap &SM = G.getScalarMap();
   EquivalenceClasses<const GlobalValue*> &GlobalECs = SM.getGlobalECs();
 
+#ifndef NDEBUG
   bool MadeChange = false;
+#endif
   std::vector<const GlobalValue*> SMGVV(SM.global_begin(), SM.global_end());
 
   for (std::vector<const GlobalValue*>::iterator GI = SMGVV.begin(),
@@ -1434,7 +1436,9 @@ void DataStructures::eliminateUsesOfECGlobals(DSGraph &G,
 
     // Finally, remove the global from the ScalarMap.
     SM.erase(GV);
+#ifndef NDEBUG
     MadeChange = true;
+#endif
   }
 
   DEBUG(if(MadeChange) G.AssertGraphOK());
