@@ -72,7 +72,7 @@ bool Int2PtrCmp::runOnModule(Module& M) {
             if (Instruction *LHSI = dyn_cast<Instruction>(Op0)){
               if(LHSI->getOpcode() == Instruction::IntToPtr) {
                 if (RHSC->isNullValue() && TD &&
-                    TD->getIntPtrType(RHSC->getContext()) ==
+                    TD->getIntPtrType(RHSC->getContext(), 0) ==
                     LHSI->getOperand(0)->getType()){
                   ICmpInst *CI_new = new ICmpInst(CI, CI->getPredicate(), LHSI->getOperand(0),
                                                   Constant::getNullValue(LHSI->getOperand(0)->getType()));
