@@ -138,7 +138,7 @@ namespace {
 
     bool visitIntrinsic(CallSite CS, Function* F);
     void visitCallSite(CallSite CS);
-    void visitVAStartInst(CallSite CS);
+    void visitVAStart(CallSite CS);
     void visitVAStartNode(DSNode* N);
 
   public:
@@ -847,7 +847,7 @@ void GraphBuilder::visitInvokeInst(InvokeInst &II) {
   visitCallSite(&II);
 }
 
-void GraphBuilder::visitVAStartInst(CallSite CS) {
+void GraphBuilder::visitVAStart(CallSite CS) {
   // Build out DSNodes for the va_list depending on the target arch
   // And assosiate the right node with the VANode for this function
   // so it can be merged with the right arguments from callsites
@@ -943,7 +943,7 @@ bool GraphBuilder::visitIntrinsic(CallSite CS, Function *F) {
 
   switch (F->getIntrinsicID()) {
   case Intrinsic::vastart: {
-    visitVAStartInst(CS);
+    visitVAStart(CS);
     return true;
   }
   case Intrinsic::vacopy: {
