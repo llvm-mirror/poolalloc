@@ -75,6 +75,7 @@ namespace {
     Function* FB;
     LocalDataStructures* DS;
     const DataLayout& TD;
+    DSNode *VAArray;
 
     ////////////////////////////////////////////////////////////////////////////
     // Helper functions used to implement the visitation functions...
@@ -143,7 +144,7 @@ namespace {
 
   public:
     GraphBuilder(Function &f, DSGraph &g, LocalDataStructures& DSi)
-      : G(g), FB(&f), DS(&DSi), TD(g.getDataLayout()) {
+      : G(g), FB(&f), DS(&DSi), TD(g.getDataLayout()), VAArray(0) {
       // Create scalar nodes for all pointer arguments...
       for (Function::arg_iterator I = f.arg_begin(), E = f.arg_end();
            I != E; ++I) {
@@ -205,7 +206,7 @@ namespace {
 
     // GraphBuilder ctor for working on the globals graph
     explicit GraphBuilder(DSGraph& g)
-      :G(g), FB(0), TD(g.getDataLayout())
+      :G(g), FB(0), TD(g.getDataLayout()), VAArray(0)
     {}
 
     void mergeInGlobalInitializer(GlobalVariable *GV);
@@ -852,7 +853,7 @@ void GraphBuilder::visitVAStart(CallSite CS) {
   // And assosiate the right node with the VANode for this function
   // so it can be merged with the right arguments from callsites
 
-  DSNodeHandle RetNH = getValueDest(*CS.arg_begin());
+  DSNodeHandle RetNH = getValueDest(CS.getArgument(0));
 
   if (DSNode *N = RetNH.getNode())
     visitVAStartNode(N);
@@ -872,7 +873,9 @@ void GraphBuilder::visitVAStartNode(DSNode* N) {
   if (VANH.isNull()) VANH.mergeWith(createNode());
 
   // Create a dsnode for an array of pointers to the VAInfo for this func
-  DSNode * VAArray = createNode();
+  // We create one such array for each function analyzed, as all
+  // calls to va_start will populate their argument with the same data.
+  if (!VAArray) VAArray = createNode();
   VAArray->setArrayMarker();
   VAArray->foldNodeCompletely();
   VAArray->setLink(0,VANH);
@@ -900,6 +903,7 @@ void GraphBuilder::visitVAStartNode(DSNode* N) {
       N->growSize(24); //sizeof the va_list struct mentioned above
     N->setLink(8,VAArray); //first i8*
     N->setLink(16,VAArray); //second i8*
+
     break;
   default:
     // FIXME: For now we abort if we don't know how to handle this arch
@@ -971,19 +975,21 @@ bool GraphBuilder::visitIntrinsic(CallSite CS, Function *F) {
       ->foldNodeCompletely();
     return true;
   case Intrinsic::vaend:
+    // TODO: What to do here?
+    return true;
   case Intrinsic::memcpy: 
   case Intrinsic::memmove: {
     // Merge the first & second arguments, and mark the memory read and
     // modified.
-    DSNodeHandle RetNH = getValueDest(*CS.arg_begin());
-    RetNH.mergeWith(getValueDest(*(CS.arg_begin()+1)));
+    DSNodeHandle RetNH = getValueDest(CS.getArgument(0));
+    RetNH.mergeWith(getValueDest(CS.getArgument(1)));
     if (DSNode *N = RetNH.getNode())
       N->setModifiedMarker()->setReadMarker();
     return true;
   }
   case Intrinsic::memset:
     // Mark the memory modified.
-    if (DSNode *N = getValueDest(*CS.arg_begin()).getNode())
+    if (DSNode *N = getValueDest(CS.getArgument(0)).getNode())
       N->setModifiedMarker();
     return true;
 
@@ -1013,7 +1019,7 @@ bool GraphBuilder::visitIntrinsic(CallSite CS, Function *F) {
 #endif
 
   case Intrinsic::eh_typeid_for: {
-    DSNodeHandle Ptr = getValueDest(*CS.arg_begin());
+    DSNodeHandle Ptr = getValueDest(CS.getArgument(0));
     Ptr.getNode()->setReadMarker();
     Ptr.getNode()->setIncompleteMarker();
     return true;
@@ -1125,7 +1131,7 @@ void GraphBuilder::visitCallSite(CallSite CS) {
            "Too many arguments/incorrect function signature!");
 
   std::vector<DSNodeHandle> Args;
-  Args.reserve(CS.arg_end()-CS.arg_begin());
+  Args.reserve(CS.arg_size());
   DSNodeHandle VarArgNH;
 
   // Calculate the arguments vector...
