@@ -418,6 +418,8 @@ const struct {
   {"_ZNSolsEPFRSoS_E", {NRET_YARGS, NRET_YNARGS, NRET_NARGS, NRET_NARGS, false}},
   //endl
   {"_ZSt4endlIcSt11char_traitsIcEERSt13basic_ostreamIT_T0_ES6_", {NRET_NARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
+  // Added by Jingyue
+  {"strtoll",       {NRET_YARGS, NRET_NYARGS, NRET_NYARGS, NRET_YARGS, false}},
   // Terminate the list of special functions recognized by this pass
   {0,            {NRET_NARGS, NRET_NARGS, NRET_NARGS, NRET_NARGS, false}},
 };
@@ -703,11 +705,11 @@ void StdLibDataStructures::processFunction(int x, Function *F) {
         for (unsigned y = 0; y < CI->getNumArgOperands(); ++y)
           if (isa<PointerType>(CI->getArgOperand(y)->getType())){
             if (Graph->hasNodeForValue(CI->getArgOperand(y))){
-              if (recFuncs[x].action.read[y])
+              if (recFuncs[x].action.read[y + 1])
                 Graph->getNodeForValue(CI->getArgOperand(y)).getNode()->setReadMarker();
-              if (recFuncs[x].action.write[y])
+              if (recFuncs[x].action.write[y + 1])
                 Graph->getNodeForValue(CI->getArgOperand(y)).getNode()->setModifiedMarker();
-              if (recFuncs[x].action.heap[y])
+              if (recFuncs[x].action.heap[y + 1])
                 Graph->getNodeForValue(CI->getArgOperand(y)).getNode()->setHeapMarker();
             }
           }
@@ -722,7 +724,7 @@ void StdLibDataStructures::processFunction(int x, Function *F) {
             if (Graph->hasNodeForValue(CI))
               toMerge.push_back(Graph->getNodeForValue(CI));
         for (unsigned y = 0; y < CI->getNumArgOperands(); ++y)
-          if (recFuncs[x].action.mergeNodes[y])
+          if (recFuncs[x].action.mergeNodes[y + 1])
             if (isa<PointerType>(CI->getArgOperand(y)->getType()))
               if (Graph->hasNodeForValue(CI->getArgOperand(y)))
                 toMerge.push_back(Graph->getNodeForValue(CI->getArgOperand(y)));
@@ -775,11 +777,11 @@ void StdLibDataStructures::processFunction(int x, Function *F) {
         for (unsigned y = 0; y < CI->getNumArgOperands(); ++y)
           if (isa<PointerType>(CI->getArgOperand(y)->getType())){
             if (Graph->hasNodeForValue(CI->getArgOperand(y))){
-              if (recFuncs[x].action.read[y])
+              if (recFuncs[x].action.read[y + 1])
                 Graph->getNodeForValue(CI->getArgOperand(y)).getNode()->setReadMarker();
-              if (recFuncs[x].action.write[y])
+              if (recFuncs[x].action.write[y + 1])
                 Graph->getNodeForValue(CI->getArgOperand(y)).getNode()->setModifiedMarker();
-              if (recFuncs[x].action.heap[y])
+              if (recFuncs[x].action.heap[y + 1])
                 Graph->getNodeForValue(CI->getArgOperand(y)).getNode()->setHeapMarker();
             }
           }
@@ -794,7 +796,7 @@ void StdLibDataStructures::processFunction(int x, Function *F) {
             if (Graph->hasNodeForValue(CI))
               toMerge.push_back(Graph->getNodeForValue(CI));
         for (unsigned y = 0; y < CI->getNumArgOperands(); ++y)
-          if (recFuncs[x].action.mergeNodes[y])
+          if (recFuncs[x].action.mergeNodes[y + 1])
             if (isa<PointerType>(CI->getArgOperand(y)->getType()))
               if (Graph->hasNodeForValue(CI->getArgOperand(y)))
                 toMerge.push_back(Graph->getNodeForValue(CI->getArgOperand(y)));
@@ -850,7 +852,7 @@ void StdLibDataStructures::processFunction(int x, Function *F) {
               // as appropriate.
               //
               for (unsigned y = 0; y < CI->getNumArgOperands(); ++y)
-                if (recFuncs[x].action.read[y]){
+                if (recFuncs[x].action.read[y + 1]){
                   if (isa<PointerType>(CI->getArgOperand(y)->getType())){
                     if (Graph->hasNodeForValue(CI->getArgOperand(y)))
                       Graph->getNodeForValue(CI->getArgOperand(y)).getNode()->setReadMarker();
@@ -871,7 +873,7 @@ void StdLibDataStructures::processFunction(int x, Function *F) {
                   if (Graph->hasNodeForValue(CI))
                     toMerge.push_back(Graph->getNodeForValue(CI));
               for (unsigned y = 0; y < CI->getNumArgOperands(); ++y)
-                if (recFuncs[x].action.mergeNodes[y])
+                if (recFuncs[x].action.mergeNodes[y + 1])
                   if (isa<PointerType>(CI->getArgOperand(y)->getType()))
                     if (Graph->hasNodeForValue(CI->getArgOperand(y)))
                       toMerge.push_back(Graph->getNodeForValue(CI->getArgOperand(y)));
