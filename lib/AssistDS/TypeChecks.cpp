@@ -1086,7 +1086,8 @@ bool TypeChecks::visitInternalByValFunction(Module &M, Function &F) {
         if (FnAttrs.hasAttributes())
           AttributesVec.push_back(AttributeWithIndex::get(~0, FnAttrs));
 
-        AttrListPtr NewCallPAL = AttrListPtr::get(AttributesVec);
+        AttrListPtr NewCallPAL = AttrListPtr::get(F.getContext(),
+                                                  AttributesVec);
 
 
         // Create the substitute call
@@ -1134,7 +1135,8 @@ bool TypeChecks::visitInternalByValFunction(Module &M, Function &F) {
         if (FnAttrs.hasAttributes())
           AttributesVec.push_back(AttributeWithIndex::get(~0, FnAttrs));
 
-        AttrListPtr NewCallPAL = AttrListPtr::get(AttributesVec);
+        AttrListPtr NewCallPAL = AttrListPtr::get(F.getContext(),
+                                                  AttributesVec);
 
         // Create the substitute call
         CallInst *CallI = CallInst::Create(&F,

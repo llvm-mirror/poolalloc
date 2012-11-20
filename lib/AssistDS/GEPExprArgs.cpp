@@ -174,7 +174,8 @@ bool GEPExprArgs::runOnModule(Module& M) {
           if (FnAttrs.hasAttributes())
             AttributesVec.push_back(AttributeWithIndex::get(~0, FnAttrs));
 
-          AttrListPtr NewCallPAL = AttrListPtr::get(AttributesVec);
+          AttrListPtr NewCallPAL = AttrListPtr::get(F->getContext(),
+                                                    AttributesVec);
 
           CallInst *CallI = CallInst::Create(NewF,Args,"", CI);
           CallI->setCallingConv(CI->getCallingConv());
