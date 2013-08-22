@@ -8,6 +8,7 @@ namespace {
       if (std::getenv("bar") != (char*) -1)
         return;
 
+      (void)new EntryPointAnalysis();
       (void)new llvm::BasicDataStructures();
       (void)new llvm::LocalDataStructures();
       (void)new llvm::StdLibDataStructures();
@@ -16,7 +17,6 @@ namespace {
       (void)new llvm::EquivBUDataStructures();
       (void)new llvm::TDDataStructures();
       (void)new llvm::EQTDDataStructures();
-      (void)new llvm::SteensgaardDataStructures();
       (void)new llvm::RTAssociate();
     }
   } ForceDSALinking; // Force link by creating a global definition.

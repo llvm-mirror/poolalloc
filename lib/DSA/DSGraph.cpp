@@ -569,8 +569,13 @@ DSCallSite DSGraph::getDSCallSiteForCallSite(CallSite CS) const {
       }
     }
 
-  // Add a new function call entry...
-  if (Function *F = CS.getCalledFunction())
+  //
+  // Add a new function call entry.  We get the called value from the call site
+  // and strip pointer casts instead of asking the CallSite class to do that
+  // since CallSite::getCalledFunction() returns 0 if the called value is
+  // a bit-casted function constant.
+  //
+  if (Function *F=dyn_cast<Function>(CS.getCalledValue()->stripPointerCasts()))
     return DSCallSite(CS, RetVal, VarArg, F, Args);
   else
     return DSCallSite(CS, RetVal, VarArg,

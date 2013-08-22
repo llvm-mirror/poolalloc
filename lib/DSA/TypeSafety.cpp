@@ -283,7 +283,7 @@ TypeSafety<dsa>::isTypeSafe (const DSNode * N) {
 
   //
   // If the pointer to the memory object came from some source not understood
-  // by DSA or somehow came from/escape to the realm of integers, declare it
+  // by DSA or somehow came from/escapes to the realm of integers, declare it
   // type-unsafe.
   //
   if (N->isUnknownNode() || N->isIntToPtrNode() || N->isPtrToIntNode()) {

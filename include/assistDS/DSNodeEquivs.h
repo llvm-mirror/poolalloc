@@ -51,10 +51,15 @@ public:
 
   bool runOnModule(Module &M);
 
-  // Returns the computed equivalence classes.
+  // Returns the computed equivalence classes.  Two DSNodes in the same
+  // equivalence class may alias.  DSNodes may also alias if they have the
+  // Incomplete, Unknown, or External flags set (even if they are in different
+  // equivalence classes).
   const EquivalenceClasses<const DSNode*> &getEquivalenceClasses();
 
-  // Returns the DSNode in the equivalence classes for the specified value.
+  // Returns a DSNode for the specified value.  Note that two nodes may alias
+  // even if they have different DSNodes (because the DSNodes may belong to
+  // different DSGraphs).
   const DSNode *getMemberForValue(const Value *V);
 };
 

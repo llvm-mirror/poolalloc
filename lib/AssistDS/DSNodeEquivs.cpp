@@ -223,7 +223,7 @@ DSNodeEquivs::getEquivalenceClasses() {
   return Classes;
 }
 
-// Returns the DSNode in the equivalence classes for the specified value.
+// Returns a DSNode for the specified value.
 // Returns null for a node that was not found.
 const DSNode *DSNodeEquivs::getMemberForValue(const Value *V) {
   TDDataStructures &TDDS = getAnalysis<TDDataStructures>();
