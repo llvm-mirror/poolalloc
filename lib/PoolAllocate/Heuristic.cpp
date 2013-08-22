@@ -19,12 +19,12 @@
 #include "dsa/DSGraphTraits.h"
 #include "poolalloc/Heuristic.h"
 #include "poolalloc/PoolAllocate.h"
-#include "llvm/Instructions.h"
-#include "llvm/Module.h"
+#include "llvm/IR/Instructions.h"
+#include "llvm/IR/Module.h"
 #include "llvm/ADT/DepthFirstIterator.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/FormattedStream.h"
-#include "llvm/DataLayout.h"
+#include "llvm/IR/DataLayout.h"
 #include <iostream>
 
 using namespace llvm;

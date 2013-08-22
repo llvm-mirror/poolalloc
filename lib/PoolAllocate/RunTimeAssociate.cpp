@@ -18,12 +18,11 @@
 #include "dsa/DataStructure.h"
 #include "dsa/DSGraph.h"
 #include "poolalloc/RunTimeAssociate.h"
-#include "llvm/Constants.h"
-#include "llvm/DerivedTypes.h"
-#include "llvm/Instructions.h"
-#include "llvm/Module.h"
-#include "llvm/Constants.h"
-#include "llvm/Attributes.h"
+#include "llvm/IR/Attributes.h"
+#include "llvm/IR/Constants.h"
+#include "llvm/IR/DerivedTypes.h"
+#include "llvm/IR/Instructions.h"
+#include "llvm/IR/Module.h"
 #include "llvm/Support/CFG.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/Transforms/Utils/Cloning.h"
@@ -182,23 +181,23 @@ Function* RTAssociate::MakeFunctionClone(Function &F, FuncInfo& FI, DSGraph* G) 
   // verbatim.  This is incorrect; each attribute should be shifted one so
   // that the pool descriptor has no attributes.
   //
-  const AttrListPtr OldAttrs = New->getAttributes();
+  const AttributeSet OldAttrs = New->getAttributes();
   if (!OldAttrs.isEmpty()) {
-    AttrListPtr NewAttrsVector;
+    AttributeSet NewAttrs;
     for (unsigned index = 0; index < OldAttrs.getNumSlots(); ++index) {
-      const AttributeWithIndex & PAWI = OldAttrs.getSlot(index);
-      unsigned argIndex = PAWI.Index;
+      const AttributeSet & PAWI = OldAttrs.getSlotAttributes(index);
+      unsigned argIndex = OldAttrs.getSlotIndex(index);
 
       // If it's not the return value, move the attribute to the next
       // parameter.
       if (argIndex) ++argIndex;
 
       // Add the parameter to the new list.
-      NewAttrsVector.addAttr(F.getContext(), argIndex, PAWI.Attrs);
+      NewAttrs = NewAttrs.addAttributes(F.getContext(), argIndex, PAWI);
     }
 
     // Assign the new attributes to the function clone
-    New->setAttributes(NewAttrsVector);
+    New->setAttributes(NewAttrs);
   }
 
   for (ValueToValueMapTy::iterator I = ValueMap.begin(),

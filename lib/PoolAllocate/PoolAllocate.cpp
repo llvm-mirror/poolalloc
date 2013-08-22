@@ -21,14 +21,13 @@
 #include "poolalloc/Heuristic.h"
 #include "poolalloc/PoolAllocate.h"
 #include "poolalloc/RuntimeChecks.h"
-#include "llvm/Constants.h"
-#include "llvm/DerivedTypes.h"
-#include "llvm/Instructions.h"
-#include "llvm/Module.h"
-#include "llvm/Constants.h"
-#include "llvm/Attributes.h"
+#include "llvm/IR/Attributes.h"
+#include "llvm/IR/Constants.h"
+#include "llvm/IR/DataLayout.h"
+#include "llvm/IR/DerivedTypes.h"
+#include "llvm/IR/Instructions.h"
+#include "llvm/IR/Module.h"
 #include "llvm/Support/CFG.h"
-#include "llvm/DataLayout.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/Transforms/Utils/Cloning.h"
 #include "llvm/ADT/DepthFirstIterator.h"
@@ -997,9 +996,9 @@ PoolAllocate::MakeFunctionClone (Function & F) {
   Function::ArgumentListType & ArgList = New->getArgumentList ();
   Function::ArgumentListType::iterator arg = ArgList.begin();
   AttrBuilder B;
-  B.addAttribute(Attributes::StructRet);
+  B.addAttribute(Attribute::StructRet);
   for (; arg != ArgList.end(); ++arg) {
-    arg->removeAttr (Attributes::get(F.getContext(), B));
+    arg->removeAttr(AttributeSet::get(F.getContext(), 0, B));
   }
 
   //

@@ -17,11 +17,11 @@
 #ifndef POOLALLOCATE_H
 #define POOLALLOCATE_H
 
-#include "llvm/Argument.h"
-#include "llvm/Constants.h"
-#include "llvm/Instructions.h"
+#include "llvm/IR/Argument.h"
+#include "llvm/IR/Constants.h"
+#include "llvm/IR/DerivedTypes.h"
+#include "llvm/IR/Instructions.h"
 #include "llvm/Pass.h"
-#include "llvm/DerivedTypes.h"
 #include "llvm/Support/CallSite.h"
 #include "llvm/ADT/EquivalenceClasses.h"
 #include "llvm/ADT/DenseMap.h"

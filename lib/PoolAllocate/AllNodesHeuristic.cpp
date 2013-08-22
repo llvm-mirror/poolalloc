@@ -15,7 +15,7 @@
 
 #include "poolalloc/Heuristic.h"
 
-#include "llvm/Module.h"
+#include "llvm/IR/Module.h"
 
 using namespace llvm;
 using namespace PA;
