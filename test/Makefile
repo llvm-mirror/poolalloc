@@ -422,7 +422,7 @@ lit.site.cfg: FORCE
 	@$(ECHOPATH) s=@LLVM_TOOLS_DIR@=$(LLVMToolDir)=g >> lit.tmp
 	@$(ECHOPATH) s=@SHLIBDIR@=$(SharedLibDir)=g >> lit.tmp
 	@$(ECHOPATH) s=@SHLIBEXT@=$(SHLIBEXT)=g >> lit.tmp
-	@$(ECHOPATH) s=@PYTHON_EXECUTABLE@=python=g >> lit.tmp
+	@$(ECHOPATH) s=@PYTHON_EXECUTABLE@=$(PYTHON)=g >> lit.tmp
 	@$(ECHOPATH) s,@OCAMLOPT@,$(OCAMLOPT) -cc \\\\\"$(CXX_FOR_OCAMLOPT)\\\\\" -I $(LibDir)/ocaml,g >> lit.tmp
 	@$(ECHOPATH) s=@ENABLE_SHARED@=$(ENABLE_SHARED)=g >> lit.tmp
 	@$(ECHOPATH) s=@ENABLE_ASSERTIONS@=$(ENABLE_ASSERTIONS)=g >> lit.tmp
@@ -436,11 +436,11 @@ lit.site.cfg: FORCE
 #Run the lit tests for this project
 .PHONY: lit lit-report
 lit: lit.site.cfg $(TOOLS) check-asserts
-	$(LLVM_SRC_ROOT)/utils/lit/lit.py $(PROJ_OBJ_ROOT)/test --path $(ToolDir) -s -v
+	$(PYTHON) $(LLVM_SRC_ROOT)/utils/lit/lit.py $(PROJ_OBJ_ROOT)/test --path $(ToolDir) -s -v
 
 #Run the lit tests, but supress all error output--just report the test results.
 lit-report: lit.site.cfg $(TOOLS) check-asserts
-	$(LLVM_SRC_ROOT)/utils/lit/lit.py $(PROJ_OBJ_ROOT)/test --path $(ToolDir) -q
+	$(PYTHON) $(LLVM_SRC_ROOT)/utils/lit/lit.py $(PROJ_OBJ_ROOT)/test --path $(ToolDir) -q
 
 check-asserts:
 	$(if $(findstring Asserts,$(BuildMode)), , \
