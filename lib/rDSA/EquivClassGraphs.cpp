@@ -20,7 +20,7 @@
 #include "llvm/Module.h"
 #include "llvm/Pass.h"
 #include "rdsa/DSGraph.h"
-#include "llvm/Support/CallSite.h"
+#include "llvm/IR/CallSite.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/ADT/SCCIterator.h"
 #include "llvm/ADT/Statistic.h"

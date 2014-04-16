@@ -49,7 +49,7 @@ SteensgaardDataStructures::print(std::ostream &O, const Module *M) const {
 bool
 SteensgaardDataStructures::runOnModule(Module &M) {
   DS = &getAnalysis<StdLibDataStructures>();
-  init(&getAnalysis<DataLayout>());
+  init(&getAnalysis<DataLayoutPass>().getDataLayout());
   return runOnModuleInternal(M);
 }
 

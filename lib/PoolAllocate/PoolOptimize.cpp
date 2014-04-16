@@ -54,7 +54,7 @@ static void getCallsOf(Constant *C, std::vector<CallInst*> &Calls) {
       assert (0 && "Constant is not a Function of ConstantExpr!"); 
   }
   Calls.clear();
-  for (Value::use_iterator UI = F->use_begin(), E = F->use_end(); UI != E; ++UI)
+  for (Value::user_iterator UI = F->user_begin(), E = F->user_end(); UI != E; ++UI)
     Calls.push_back(cast<CallInst>(*UI));
 }
 
@@ -216,8 +216,8 @@ bool PoolOptimize::runOnModule(Module &M) {
        PI != E; ++PI) {
     bool HasPoolAlloc = false, HasOtherUse = false;
     Value *PoolDesc = *PI;
-    for (Value::use_iterator UI = PoolDesc->use_begin(),
-           E = PoolDesc->use_end(); UI != E; ++UI) {
+    for (Value::user_iterator UI = PoolDesc->user_begin(),
+           E = PoolDesc->user_end(); UI != E; ++UI) {
       if (CallInst *CI = dyn_cast<CallInst>(*UI)) {
         if (CI->getCalledFunction() == PoolInit ||
             CI->getCalledFunction() == PoolDestroy) {
@@ -239,14 +239,14 @@ bool PoolOptimize::runOnModule(Module &M) {
       // Yes, if there are uses at all, nuke the pool init, destroy, and the PD.
       if (!HasPoolAlloc) {
         while (!PoolDesc->use_empty())
-          cast<Instruction>(PoolDesc->use_back())->eraseFromParent();
+          cast<Instruction>(PoolDesc->user_back())->eraseFromParent();
         if (AllocaInst *AI = dyn_cast<AllocaInst>(PoolDesc))
           AI->eraseFromParent();
         else
           cast<GlobalVariable>(PoolDesc)->eraseFromParent();
       } else {
         // Convert all of the pool descriptor users to the BumpPtr flavor.
-        std::vector<User*> PDUsers(PoolDesc->use_begin(), PoolDesc->use_end());
+        std::vector<User*> PDUsers(PoolDesc->user_begin(), PoolDesc->user_end());
         
         while (!PDUsers.empty()) {
           CallInst *CI = cast<CallInst>(PDUsers.back());

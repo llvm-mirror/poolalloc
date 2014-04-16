@@ -2,7 +2,6 @@ set(SOURCES
   ArgCast.cpp
   ArgSimplify.cpp
   DSNodeEquivs.cpp
-  DataStructureCallGraph.cpp
   Devirt.cpp
   DynCount.cpp
   FuncSimplify.cpp

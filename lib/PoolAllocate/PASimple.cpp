@@ -23,7 +23,7 @@
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Module.h"
-#include "llvm/Support/CFG.h"
+#include "llvm/IR/CFG.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/Transforms/Utils/Cloning.h"
 #include "llvm/ADT/DepthFirstIterator.h"
@@ -70,7 +70,7 @@ castTo (Value * V, Type * Ty, std::string Name, Instruction * InsertPt) {
 }
 
 void PoolAllocateSimple::getAnalysisUsage(AnalysisUsage &AU) const {
-  AU.addRequired<DataLayout>();
+  AU.addRequired<DataLayoutPass>();
   // Get the Target Data information and the Graphs
   if (CompleteDSA) {
     AU.addRequiredTransitive<EQTDDataStructures>();
@@ -131,7 +131,7 @@ bool PoolAllocateSimple::runOnModule(Module &M) {
     Graphs = &getAnalysis<BasicDataStructures>();
   }
   assert (Graphs && "No DSA pass available!\n");
-  DataLayout & TD = getAnalysis<DataLayout>();
+  const DataLayout & TD = getAnalysis<DataLayoutPass>().getDataLayout();
 
   // Add the pool* prototypes to the module
   AddPoolPrototypes(&M);
@@ -187,7 +187,7 @@ bool PoolAllocateSimple::runOnModule(Module &M) {
 }
 
 void
-PoolAllocateSimple::ProcessFunctionBodySimple (Function& F, DataLayout & TD) {
+PoolAllocateSimple::ProcessFunctionBodySimple (Function& F, const DataLayout & TD) {
   // Set of instructions to delete because they have been replaced.  We record
   // all instructions to delete first and then delete them later to avoid
   // invalidating the iterators over the instruction list.

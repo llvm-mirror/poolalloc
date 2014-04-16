@@ -31,8 +31,8 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/FormattedStream.h"
-#include "llvm/Support/GetElementPtrTypeIterator.h"
-#include "llvm/InstVisitor.h"
+#include "llvm/IR/GetElementPtrTypeIterator.h"
+#include "llvm/IR/InstVisitor.h"
 #include "llvm/Support/Timer.h"
 
 #include <fstream>
@@ -402,7 +402,7 @@ void GraphBuilder::visitLoadInst(LoadInst &LI) {
   // check that it is the inserted value
   if(TypeInferenceOptimize)
     if(LI.hasOneUse())
-      if(StoreInst *SI = dyn_cast<StoreInst>(*(LI.use_begin())))
+      if(StoreInst *SI = dyn_cast<StoreInst>(*(LI.user_begin())))
         if(SI->getOperand(0) == &LI) {
         ++NumIgnoredInst;
         return;
@@ -562,7 +562,7 @@ void GraphBuilder::visitVAArgInst(VAArgInst &I) {
 void GraphBuilder::visitIntToPtrInst(IntToPtrInst &I) {
   DSNode *N = createNode();
   if(I.hasOneUse()) {
-    if(isa<ICmpInst>(*(I.use_begin()))) {
+    if(isa<ICmpInst>(*(I.user_begin()))) {
       NumBoringIntToPtr++;
       return;
     }
@@ -576,13 +576,13 @@ void GraphBuilder::visitIntToPtrInst(IntToPtrInst &I) {
 void GraphBuilder::visitPtrToIntInst(PtrToIntInst& I) {
   DSNode* N = getValueDest(I.getOperand(0)).getNode();
   if(I.hasOneUse()) {
-    if(isa<ICmpInst>(*(I.use_begin()))) {
+    if(isa<ICmpInst>(*(I.user_begin()))) {
       NumBoringIntToPtr++;
       return;
     }
   }
   if(I.hasOneUse()) {
-    Value *V = dyn_cast<Value>(*(I.use_begin()));
+    Value *V = dyn_cast<Value>(*(I.user_begin()));
     DenseSet<Value *> Seen;
     while(V && V->hasOneUse() &&
           Seen.insert(V).second) {
@@ -592,7 +592,7 @@ void GraphBuilder::visitPtrToIntInst(PtrToIntInst& I) {
         break;
       if(isa<CallInst>(V))
         break;
-      V = dyn_cast<Value>(*(V->use_begin()));
+      V = dyn_cast<Value>(*(V->user_begin()));
     }
     if(isa<BranchInst>(V)){
       NumBoringIntToPtr++;
@@ -1440,7 +1440,7 @@ void handleMagicSections(DSGraph* GlobalsGraph, Module& M) {
 char LocalDataStructures::ID;
 
 bool LocalDataStructures::runOnModule(Module &M) {
-  init(&getAnalysis<DataLayout>());
+  init(&getAnalysis<DataLayoutPass>().getDataLayout());
   addrAnalysis = &getAnalysis<AddressTakenAnalysis>();
 
   // First step, build the globals graph.

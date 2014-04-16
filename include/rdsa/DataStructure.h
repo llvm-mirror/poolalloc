@@ -16,7 +16,7 @@
 
 #include "llvm/Pass.h"
 #include "llvm/DataLayout.h"
-#include "llvm/Support/CallSite.h"
+#include "llvm/IR/CallSite.h"
 #include "llvm/ADT/EquivalenceClasses.h"
 
 #include "poolalloc/ADT/HashExtras.h"
@@ -203,7 +203,7 @@ public:
   /// getAnalysisUsage - This obviously provides a data structure graph.
   ///
   virtual void getAnalysisUsage(AnalysisUsage &AU) const {
-    AU.addRequired<DataLayout>();
+    AU.addRequired<DataLayoutPass>();
     AU.setPreservesAll();
   }
 };
@@ -427,7 +427,7 @@ public:
   virtual void releaseMemory();
 
   virtual void getAnalysisUsage(AnalysisUsage &AU) const {
-    AU.addRequired<DataLayout>();
+    AU.addRequired<DataLayoutPass>();
     AU.addRequired<StdLibDataStructures>();
     AU.setPreservesAll();
   }

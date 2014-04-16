@@ -21,7 +21,7 @@
 #include "llvm/DerivedTypes.h"
 #include "llvm/Instructions.h"
 #include "llvm/Intrinsics.h"
-#include "llvm/Support/GetElementPtrTypeIterator.h"
+#include "llvm/IR/GetElementPtrTypeIterator.h"
 #include "llvm/Support/InstVisitor.h"
 #include "llvm/DataLayout.h"
 #include "llvm/Support/CommandLine.h"
@@ -944,7 +944,7 @@ void GraphBuilderGlobal::mergeFunction(Function* F) {
 char LocalDataStructures::ID;
 
 bool LocalDataStructures::runOnModule(Module &M) {
-  init(&getAnalysis<DataLayout>());
+  init(&getAnalysis<DataLayoutPass>().getDataLayout());
 
   // First step, build the globals graph.
   {

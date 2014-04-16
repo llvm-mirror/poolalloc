@@ -22,7 +22,7 @@
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/Pass.h"
-#include "llvm/Support/CallSite.h"
+#include "llvm/IR/CallSite.h"
 #include "llvm/ADT/EquivalenceClasses.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/DenseSet.h"
@@ -536,7 +536,7 @@ public:
   bool runOnModule(Module &M);
   GlobalVariable *CreateGlobalPool(unsigned RecSize, unsigned Align,
                                    Module& M);
-  void ProcessFunctionBodySimple(Function& F, DataLayout & TD);
+  void ProcessFunctionBodySimple(Function& F, const DataLayout & TD);
 
 
   virtual DSGraph* getDSGraph (const Function & F) const {
@@ -568,7 +568,7 @@ public:
 
 // FIXME: Is this used?  Should it be removed?
 class PoolAllocateMultipleGlobalPool : public PoolAllocate {
-  void ProcessFunctionBodySimple(Function& F, DataLayout & TD);
+  void ProcessFunctionBodySimple(Function& F, const DataLayout & TD);
   /// Mapping between DSNodes and Pool descriptors. For this pass, it is a
   /// one-to-one relationship.
   typedef DenseMap<const DSNode *, GlobalVariable *> PoolMapTy;

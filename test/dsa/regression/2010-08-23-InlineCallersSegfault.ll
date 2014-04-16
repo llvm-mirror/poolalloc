@@ -69,21 +69,6 @@ target triple = "x86_64-unknown-linux-gnu"
 @_ZTV16mrSurfaceTexture = internal constant [9 x i32 (...)*] [i32 (...)* null, i32 (...)* bitcast (%struct.__si_class_type_info_pseudo* @_ZTI16mrSurfaceTexture to i32 (...)*), i32 (...)* bitcast (i32 (%struct.mrSurfaceTexture*, %"struct.std::basic_ostream<char,std::char_traits<char> >"*)* @_ZNK16mrSurfaceTexture5printERSo to i32 (...)*), i32 (...)* bitcast (i32 (%struct.mrSurfaceTexture*, %struct.ggBox3*, double, double, double, double*, %struct.ggPoint3*, i32*, %struct.ggSpectrum*)* @_ZNK16mrSurfaceTexture9shadowHitERK6ggRay3dddRdR9ggVector3RiR10ggSpectrum to i32 (...)*), i32 (...)* bitcast (i32 (%struct.mrSurfaceTexture*, %struct.ggBox3*, double, double, double, %struct.mrViewingHitRecord*, %struct.ggMaterialRecord*)* @_ZNK16mrSurfaceTexture10viewingHitERK6ggRay3dddR18mrViewingHitRecordR16ggMaterialRecord to i32 (...)*), i32 (...)* bitcast (i32 (%struct.mrSurfaceTexture*, double, double, %struct.ggBox3*)* @_ZNK16mrSurfaceTexture11boundingBoxEddR6ggBox3 to i32 (...)*), i32 (...)* bitcast (i32 (%struct.ggBRDF*, double, double, %struct.ggBox3*)* @_ZNK9mrSurface11overlapsBoxEddRK6ggBox3 to i32 (...)*), i32 (...)* bitcast (i32 (%struct.mrSurfaceTexture*, %struct.ggPoint3*, %struct.ggPoint3*, %struct.ggPoint2*, double, %struct.ggPoint3*, double*)* @_ZNK16mrSurfaceTexture18selectVisiblePointERK8ggPoint3RK9ggVector3RK8ggPoint2dRS0_Rd to i32 (...)*), i32 (...)* bitcast (i32 (%struct.ggBRDF*, %struct.ggPoint3*, %struct.ggPoint3*, double, %struct.ggSpectrum*)* @_ZNK9mrSurface25approximateDirectRadianceERK8ggPoint3RK9ggVector3dR10ggSpectrum to i32 (...)*)], align 32 ; <[9 x i32 (...)*]*> [#uses=1]
 @_ZTI16mrSurfaceTexture = external constant %struct.__si_class_type_info_pseudo, align 16 ; <%struct.__si_class_type_info_pseudo*> [#uses=1]
 
-@_ZL20__gthrw_pthread_oncePiPFvvE = alias weak i32 (i32*, void ()*)* @pthread_once ; <i32 (i32*, void ()*)*> [#uses=0]
-@_ZL27__gthrw_pthread_getspecificj = alias weak i8* (i32)* @pthread_getspecific ; <i8* (i32)*> [#uses=0]
-@_ZL27__gthrw_pthread_setspecificjPKv = alias weak i32 (i32, i8*)* @pthread_setspecific ; <i32 (i32, i8*)*> [#uses=0]
-@_ZL22__gthrw_pthread_createPmPK14pthread_attr_tPFPvS3_ES3_ = alias weak i32 (i64*, %union.pthread_attr_t*, i8* (i8*)*, i8*)* @pthread_create ; <i32 (i64*, %union.pthread_attr_t*, i8* (i8*)*, i8*)*> [#uses=0]
-@_ZL22__gthrw_pthread_cancelm = alias weak i32 (i64)* @pthread_cancel ; <i32 (i64)*> [#uses=0]
-@_ZL26__gthrw_pthread_mutex_lockP15pthread_mutex_t = alias weak i32 (%union.pthread_mutex_t*)* @pthread_mutex_lock ; <i32 (%union.pthread_mutex_t*)*> [#uses=0]
-@_ZL29__gthrw_pthread_mutex_trylockP15pthread_mutex_t = alias weak i32 (%union.pthread_mutex_t*)* @pthread_mutex_trylock ; <i32 (%union.pthread_mutex_t*)*> [#uses=0]
-@_ZL28__gthrw_pthread_mutex_unlockP15pthread_mutex_t = alias weak i32 (%union.pthread_mutex_t*)* @pthread_mutex_unlock ; <i32 (%union.pthread_mutex_t*)*> [#uses=0]
-@_ZL26__gthrw_pthread_mutex_initP15pthread_mutex_tPK19pthread_mutexattr_t = alias weak i32 (%union.pthread_mutex_t*, %"union.__mbstate_t::._2"*)* @pthread_mutex_init ; <i32 (%union.pthread_mutex_t*, %"union.__mbstate_t::._2"*)*> [#uses=0]
-@_ZL26__gthrw_pthread_key_createPjPFvPvE = alias weak i32 (i32*, void (i8*)*)* @pthread_key_create ; <i32 (i32*, void (i8*)*)*> [#uses=0]
-@_ZL26__gthrw_pthread_key_deletej = alias weak i32 (i32)* @pthread_key_delete ; <i32 (i32)*> [#uses=0]
-@_ZL30__gthrw_pthread_mutexattr_initP19pthread_mutexattr_t = alias weak i32 (%"union.__mbstate_t::._2"*)* @pthread_mutexattr_init ; <i32 (%"union.__mbstate_t::._2"*)*> [#uses=0]
-@_ZL33__gthrw_pthread_mutexattr_settypeP19pthread_mutexattr_ti = alias weak i32 (%"union.__mbstate_t::._2"*, i32)* @pthread_mutexattr_settype ; <i32 (%"union.__mbstate_t::._2"*, i32)*> [#uses=0]
-@_ZL33__gthrw_pthread_mutexattr_destroyP19pthread_mutexattr_t = alias weak i32 (%"union.__mbstate_t::._2"*)* @pthread_mutexattr_destroy ; <i32 (%"union.__mbstate_t::._2"*)*> [#uses=0]
-
 declare i8* @_Znwm(i64)
 
 define fastcc void @_ZN7mrScene4ReadERSi(%struct.mrScene* %this, %"struct.std::basic_istream<char,std::char_traits<char> >"* %surfaces) nounwind align 2 {

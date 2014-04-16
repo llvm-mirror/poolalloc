@@ -18,7 +18,6 @@
 #include "dsa/DSGraphTraits.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Constants.h"
-#include "llvm/Assembly/Writer.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/GraphWriter.h"
 #include "llvm/ADT/Statistic.h"
@@ -116,7 +115,7 @@ static std::string getCaption(const DSNode *N, const DSGraph *G) {
 
   for (DSNode::globals_iterator i = N->globals_begin(), e = N->globals_end(); 
        i != e; ++i) {
-    WriteAsOperand(OS, *i, false, M);
+    (*i)->print(OS);
 
     // Figure out how many globals are equivalent to this one.
     if (GlobalECs) {
@@ -195,17 +194,6 @@ struct DOTGraphTraits<const DSGraph*> : public DefaultDOTGraphTraits {
   ///
   static void addCustomGraphFeatures(const DSGraph *G,
                                      GraphWriter<const DSGraph*> &GW) {
-    const Module *CurMod = 0;
-    if (G->retnodes_begin() != G->retnodes_end())
-      CurMod = G->retnodes_begin()->first->getParent();
-    else {
-      // If there is a global in the graph, we can use it to find the module.
-      const DSScalarMap &SM = G->getScalarMap();
-      if (SM.global_begin() != SM.global_end())
-        CurMod = (*SM.global_begin())->getParent();
-    }
-
-
     if (!LimitPrint) {
       // Add scalar nodes to the graph...
       const DSGraph::ScalarMapTy &VM = G->getScalarMap();
@@ -214,7 +202,7 @@ struct DOTGraphTraits<const DSGraph*> : public DefaultDOTGraphTraits {
         if (!isa<GlobalValue>(I->first)) {
           std::string OS_str;
           llvm::raw_string_ostream OS(OS_str);
-          WriteAsOperand(OS, I->first, false, CurMod);
+          I->first->print(OS);
           GW.emitSimpleNode(I->first, "", OS.str());
           
           // Add edge from return node to real destination
@@ -305,7 +293,7 @@ void DSGraph::writeGraphToFile(llvm::raw_ostream &O,
   O << "Writing '" << Filename << "'...";
   if (!DontPrintGraphs) {
     std::string Error;
-    llvm::raw_fd_ostream F(Filename.c_str(), Error);
+    llvm::raw_fd_ostream F(Filename.c_str(), Error, sys::fs::F_Text);
 
     if (Error.size()) {
       O << "  error opening file for writing! " << Error << "\n";

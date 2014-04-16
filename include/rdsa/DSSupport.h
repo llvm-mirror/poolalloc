@@ -15,7 +15,7 @@
 #define LLVM_ANALYSIS_DSSUPPORT_H
 
 #include <functional>
-#include "llvm/Support/CallSite.h"
+#include "llvm/IR/CallSite.h"
 #include "poolalloc/ADT/HashExtras.h"
 
 namespace llvm {

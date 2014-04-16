@@ -23,7 +23,7 @@
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/DataLayout.h"
-#include "llvm/InstVisitor.h"
+#include "llvm/IR/InstVisitor.h"
 #include "llvm/Support/FormattedStream.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/ADT/StringMap.h"

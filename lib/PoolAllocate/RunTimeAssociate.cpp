@@ -23,7 +23,7 @@
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Module.h"
-#include "llvm/Support/CFG.h"
+#include "llvm/IR/CFG.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/Transforms/Utils/Cloning.h"
 #include "llvm/ADT/DepthFirstIterator.h"

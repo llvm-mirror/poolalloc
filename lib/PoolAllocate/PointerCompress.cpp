@@ -24,8 +24,8 @@
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
-#include "llvm/Support/GetElementPtrTypeIterator.h"
-#include "llvm/InstVisitor.h"
+#include "llvm/IR/GetElementPtrTypeIterator.h"
+#include "llvm/IR/InstVisitor.h"
 #include "llvm/Support/FormattedStream.h"
 
 #include "llvm/Transforms/Utils/Cloning.h"

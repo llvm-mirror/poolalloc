@@ -16,7 +16,7 @@
 #include "llvm/DerivedTypes.h"
 #include "llvm/Instructions.h"
 #include "llvm/Intrinsics.h"
-#include "llvm/Support/GetElementPtrTypeIterator.h"
+#include "llvm/IR/GetElementPtrTypeIterator.h"
 #include "llvm/DataLayout.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
@@ -177,7 +177,7 @@ const struct {
 };
 
 void StdLibDataStructures::eraseCallsTo(Function* F) {
-  for (Value::use_iterator ii = F->use_begin(), ee = F->use_end();
+  for (Value::user_iterator ii = F->user_begin(), ee = F->user_end();
        ii != ee; ++ii)
     if (CallInst* CI = dyn_cast<CallInst>(ii))
       if (CI->getOperand(0) == F) {
@@ -220,7 +220,7 @@ bool StdLibDataStructures::runOnModule(Module &M) {
   for (int x = 0; recFuncs[x].name; ++x)
     if (Function* F = M.getFunction(recFuncs[x].name))
       if (F->isDeclaration()) {
-        for (Value::use_iterator ii = F->use_begin(), ee = F->use_end();
+        for (Value::user_iterator ii = F->user_begin(), ee = F->user_end();
              ii != ee; ++ii)
           if (CallInst* CI = dyn_cast<CallInst>(ii))
             if (CI->getOperand(0) == F) {

@@ -16,7 +16,7 @@
 
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/Module.h"
-#include "llvm/Support/InstIterator.h"
+#include "llvm/IR/InstIterator.h"
 #include "llvm/ADT/SmallSet.h"
 
 #include <deque>
@@ -245,7 +245,7 @@ const DSNode *DSNodeEquivs::getMemberForValue(const Value *V) {
     std::deque<const User *> WL;
     SmallSet<const User *, 8> Visited;
 
-    WL.insert(WL.end(), V->use_begin(), V->use_end());
+    WL.insert(WL.end(), V->user_begin(), V->user_end());
     do {
       const User *TheUser = WL.front();
       WL.pop_front();
@@ -271,7 +271,7 @@ const DSNode *DSNodeEquivs::getMemberForValue(const Value *V) {
         //
         // If this use is of some other nature, look at the users of this use.
         //
-        WL.insert(WL.end(), TheUser->use_begin(), TheUser->use_end());
+        WL.insert(WL.end(), TheUser->user_begin(), TheUser->user_end());
       }
     } while (!WL.empty());
   }

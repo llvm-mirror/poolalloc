@@ -871,7 +871,7 @@ OnlyOverheadHeuristic::HackFunctionBody(Function &F,
   for (std::map<const DSNode*, Value*>::iterator PDI = PDs.begin(),
          E = PDs.end(); PDI != E; ++PDI) {
     Value *OldPD = PDI->second;
-    std::vector<User*> OldPDUsers(OldPD->use_begin(), OldPD->use_end());
+    std::vector<User*> OldPDUsers(OldPD->user_begin(), OldPD->user_end());
     for (unsigned i = 0, e = OldPDUsers.size(); i != e; ++i) {
       CallSite PDUser(cast<Instruction>(OldPDUsers[i]));
       if (PDUser.getCalledValue() != PoolInit &&

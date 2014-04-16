@@ -16,7 +16,7 @@
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Support/FormattedStream.h"
 #include "llvm/Support/Debug.h"
-#include "llvm/Support/PatternMatch.h"
+#include "llvm/IR/PatternMatch.h"
 #include "llvm/IR/DataLayout.h"
 
 #include <set>
@@ -57,7 +57,7 @@ bool SimplifyLoad::runOnModule(Module& M) {
           if(!LI)
             continue;
           if(LI->hasOneUse()) {
-            if(CastInst *CI = dyn_cast<CastInst>(*(LI->use_begin()))) {
+            if(CastInst *CI = dyn_cast<CastInst>(*(LI->user_begin()))) {
               if(LI->getType()->isPointerTy()) {
                 if(ConstantExpr *CE = dyn_cast<ConstantExpr>(LI->getOperand(0))) {
                   if(const PointerType *PTy = dyn_cast<PointerType>(CE->getOperand(0)->getType()))
