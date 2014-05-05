@@ -11,6 +11,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+#define DEBUG_TYPE "type-checks"
+
 #include "assistDS/TypeChecks.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/Transforms/Utils/Cloning.h"

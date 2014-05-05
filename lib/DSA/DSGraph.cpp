@@ -11,6 +11,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+#define DEBUG_TYPE "dsgraph"
+
 #include "dsa/DSGraphTraits.h"
 #include "dsa/DataStructure.h"
 #include "dsa/DSGraph.h"

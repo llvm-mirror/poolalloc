@@ -10,6 +10,8 @@
 // may query it.
 //===----------------------------------------------------------------------===//
 
+#define DEBUG_TYPE "dsa-stdlib"
+
 #include "llvm/ADT/Statistic.h"
 #include "dsa/DataStructure.h"
 #include "dsa/AllocatorIdentification.h"

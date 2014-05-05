@@ -12,6 +12,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+#define DEBUG_TYPE "dsnodeequivs"
+
 #include "assistDS/DSNodeEquivs.h"
 
 #include "llvm/IR/Constants.h"

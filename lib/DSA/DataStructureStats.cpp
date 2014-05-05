@@ -11,6 +11,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+#define DEBUG_TYPE "dsa-stats"
+
 #include "dsa/DataStructure.h"
 #include "dsa/DSGraph.h"
 #include "dsa/TypeSafety.h"

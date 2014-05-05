@@ -17,6 +17,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+#define DEBUG_TYPE "dsa-calltargets"
+
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Instructions.h"
 #include "dsa/DataStructure.h"
