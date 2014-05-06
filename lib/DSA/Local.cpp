@@ -77,7 +77,7 @@ namespace {
     Function* FB;
     LocalDataStructures* DS;
     const DataLayout& TD;
-    DSNode *VAArray;
+    DSNodeHandle VAArrayNH;
 
     ////////////////////////////////////////////////////////////////////////////
     // Helper functions used to implement the visitation functions...
@@ -146,7 +146,7 @@ namespace {
 
   public:
     GraphBuilder(Function &f, DSGraph &g, LocalDataStructures& DSi)
-      : G(g), FB(&f), DS(&DSi), TD(g.getDataLayout()), VAArray(0) {
+      : G(g), FB(&f), DS(&DSi), TD(g.getDataLayout()), VAArrayNH(0) {
       // Create scalar nodes for all pointer arguments...
       for (Function::arg_iterator I = f.arg_begin(), E = f.arg_end();
            I != E; ++I) {
@@ -208,7 +208,7 @@ namespace {
 
     // GraphBuilder ctor for working on the globals graph
     explicit GraphBuilder(DSGraph& g)
-      :G(g), FB(0), TD(g.getDataLayout()), VAArray(0)
+      :G(g), FB(0), TD(g.getDataLayout()), VAArrayNH(0)
     {}
 
     void mergeInGlobalInitializer(GlobalVariable *GV);
@@ -936,10 +936,10 @@ void GraphBuilder::visitVAStartNode(DSNode* N) {
   // Create a dsnode for an array of pointers to the VAInfo for this func
   // We create one such array for each function analyzed, as all
   // calls to va_start will populate their argument with the same data.
-  if (!VAArray) VAArray = createNode();
-  VAArray->setArrayMarker();
-  VAArray->foldNodeCompletely();
-  VAArray->setLink(0,VANH);
+  if (VAArrayNH.isNull()) VAArrayNH.mergeWith(createNode());
+  VAArrayNH.getNode()->setArrayMarker();
+  VAArrayNH.getNode()->foldNodeCompletely();
+  VAArrayNH.setLink(0,VANH);
 
   //VAStart modifies its argument
   N->setModifiedMarker();
@@ -950,9 +950,10 @@ void GraphBuilder::visitVAStartNode(DSNode* N) {
   case Triple::x86:
     // On x86, we have:
     // va_list as a pointer to an array of pointers to the variable arguments
-    if (N->getSize() < 1)
+    if (!N->isCollapsedNode() && N->getSize() < 1) {
       N->growSize(1);
-    N->setLink(0, VAArray);
+    }
+    N->addEdgeTo(0, VAArrayNH);
     break;
   case Triple::x86_64:
     // On x86_64, we have va_list as a struct {i32, i32, i8*, i8* }
@@ -960,10 +961,11 @@ void GraphBuilder::visitVAStartNode(DSNode* N) {
     // be used also to pass arguments by register.
     // We model this by having both the i8*'s point to an array of pointers
     // to the arguments.
-    if (N->getSize() < 24)
+    if (!N->isCollapsedNode() && N->getSize() < 24) {
       N->growSize(24); //sizeof the va_list struct mentioned above
-    N->setLink(8,VAArray); //first i8*
-    N->setLink(16,VAArray); //second i8*
+    }
+    N->addEdgeTo(8, VAArrayNH); // first i8*
+    N->addEdgeTo(16, VAArrayNH); // second i8*
 
     break;
   default:
