@@ -19,7 +19,7 @@ PROJ_OBJ_ROOT := $(subst //,/,@abs_top_objdir@)
 # Set the root directory of this project's install prefix
 PROJ_INSTALL_ROOT := @prefix@
 
-CXXFLAGS += -Werror -Wall -Wno-deprecated
+CXXFLAGS += -Wall -Wno-deprecated
 
 #
 # Paths to various utilities
