@@ -25,6 +25,7 @@
 #include "llvm/Config/config.h"
 #include "llvm/Support/FormattedStream.h"
 #include <sstream>
+#include <system_error>
 using namespace llvm;
 
 // OnlyPrintMain - The DataStructure printer exposes this option to allow
@@ -293,11 +294,11 @@ void DSGraph::writeGraphToFile(llvm::raw_ostream &O,
   std::string Filename = GraphName + ".dot";
   O << "Writing '" << Filename << "'...";
   if (!DontPrintGraphs) {
-    std::string Error;
-    llvm::raw_fd_ostream F(Filename.c_str(), Error, sys::fs::F_Text);
+    std::error_code Error;
+    llvm::raw_fd_ostream F(Filename, Error, sys::fs::F_Text);
 
-    if (Error.size()) {
-      O << "  error opening file for writing! " << Error << "\n";
+    if (Error) {
+      O << "  error opening file for writing! " << Error.message() << "\n";
       return;
     }
 
