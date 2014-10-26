@@ -1452,7 +1452,7 @@ bool LocalDataStructures::runOnModule(Module &M) {
     // Add initializers for all of the globals to the globals graph.
     for (Module::global_iterator I = M.global_begin(), E = M.global_end();
          I != E; ++I)
-      if (!(I->hasSection() && I->getSection() == "llvm.metadata")) {
+      if (!(I->hasSection() && StringRef(I->getSection()) == "llvm.metadata")) {
         if (I->isDeclaration())
           GGB.mergeExternalGlobal(I);
         else
