@@ -120,7 +120,7 @@ declare i32 @icmData_get_size(%struct._icmBase* nocapture) nounwind uwtable read
 
 declare void @llvm.trap() noreturn nounwind
 
-!0 = metadata !{metadata !"any pointer", metadata !1}
-!1 = metadata !{metadata !"omnipotent char", metadata !2}
-!2 = metadata !{metadata !"Simple C/C++ TBAA"}
+!0 = !{!"any pointer", !1}
+!1 = !{!"omnipotent char", !2}
+!2 = !{!"Simple C/C++ TBAA"}
 

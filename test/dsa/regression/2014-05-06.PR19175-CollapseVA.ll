@@ -23,7 +23,3 @@ entry:
 
 attributes #0 = { nounwind }
 attributes #1 = { nounwind uwtable "less-precise-fpmad"="false" "no-frame-pointer-elim"="true" "no-frame-pointer-elim-non-leaf" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
-
-!llvm.ident = !{!0}
-
-!0 = metadata !{metadata !"clang version 3.5.0 (git://github.com/llvm-mirror/clang.git 2afa00ce8693eaf81335e4ab629ac1247a461cac) (git://github.com/llvm-mirror/llvm.git 3b4c8c2b2ab2a4af00d03b1b39b1b1eaf564ab76)"}
