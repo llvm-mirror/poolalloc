@@ -552,7 +552,7 @@ void TypeChecks::optimizeChecks(Module &M) {
     if(F.isDeclaration())
       continue;
     DominatorTree & DT = getAnalysis<DominatorTreeWrapperPass>(F).getDomTree();
-    LoopInfo & LI = getAnalysis<LoopInfo>(F);
+    LoopInfo & LI = getAnalysis<LoopInfoWrapperPass>(F).getLoopInfo();
     std::deque<DomTreeNode *> Worklist;
     Worklist.push_back (DT.getRootNode());
     while(Worklist.size()) {
