@@ -40,7 +40,7 @@ KernelGetAttr.exit42:                             ; preds = %bb21
   unreachable
 
 bb23:                                             ; preds = %bb21
-  %tmp72 = getelementptr inbounds %struct.RefObj* undef, i64 0, i32 1 ; <%struct.TypeToken*> [#uses=1]
+  %tmp72 = getelementptr inbounds %struct.RefObj, %struct.RefObj* undef, i64 0, i32 1 ; <%struct.TypeToken*> [#uses=1]
   %tmp85 = call fastcc i32 @ImageGetObject(%struct.TypeToken* %tmp72, i32* %Status, i8** %RefObject) nounwind ; <i32> [#uses=0]
   unreachable
 

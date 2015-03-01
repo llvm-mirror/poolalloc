@@ -10,12 +10,12 @@ entry:
   %struct = call noalias i8* @malloc(i64 8) nounwind
 
   ; Index into first, store 0 there
-  %ptr = getelementptr inbounds i8* %struct, i64 0
+  %ptr = getelementptr inbounds i8, i8* %struct, i64 0
   %conv = bitcast i8* %ptr to i32*
   store i32 0, i32* %conv, align 4
 
   ; Index into second, store 0 there also
-  %ptr2 = getelementptr inbounds i8* %struct, i64 4
+  %ptr2 = getelementptr inbounds i8, i8* %struct, i64 4
   %conv2 = bitcast i8* %ptr2 to i32*
   store i32 0, i32* %conv2, align 4
   ret void

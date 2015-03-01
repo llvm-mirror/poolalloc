@@ -61,10 +61,10 @@ entry:
   %"alloca point" = bitcast i32 0 to i32          ; <i32> [#uses=0]
   store %struct.DerivedClass1* %this, %struct.DerivedClass1** %this_addr
   %0 = load %struct.DerivedClass1*, %struct.DerivedClass1** %this_addr, align 8 ; <%struct.DerivedClass1*> [#uses=1]
-  %1 = getelementptr inbounds %struct.DerivedClass1* %0, i32 0, i32 0 ; <%struct.BaseClass*> [#uses=1]
-  %2 = getelementptr inbounds %struct.BaseClass* %1, i32 0, i32 0 ; <i32 (...)***> [#uses=1]
+  %1 = getelementptr inbounds %struct.DerivedClass1, %struct.DerivedClass1* %0, i32 0, i32 0 ; <%struct.BaseClass*> [#uses=1]
+  %2 = getelementptr inbounds %struct.BaseClass, %struct.BaseClass* %1, i32 0, i32 0 ; <i32 (...)***> [#uses=1]
   %3 = load i32 (...)**, i32 (...)*** %2, align 8              ; <i32 (...)**> [#uses=1]
-  %4 = getelementptr inbounds i32 (...)** %3, i64 1 ; <i32 (...)**> [#uses=1]
+  %4 = getelementptr inbounds i32 (...)*, i32 (...)** %3, i64 1 ; <i32 (...)**> [#uses=1]
   %5 = load i32 (...)*, i32 (...)** %4, align 1               ; <i32 (...)*> [#uses=1]
   %6 = bitcast i32 (...)* %5 to void (%struct.DerivedClass1*)* ; <void (%struct.DerivedClass1*)*> [#uses=1]
   %7 = load %struct.DerivedClass1*, %struct.DerivedClass1** %this_addr, align 8 ; <%struct.DerivedClass1*> [#uses=1]
@@ -112,9 +112,9 @@ entry:
   %1 = call %struct.BaseClass* @_ZL4initi(i32 2) nounwind ; <%struct.BaseClass*> [#uses=1]
   store %struct.BaseClass* %1, %struct.BaseClass** %p, align 8
   %2 = load %struct.BaseClass*, %struct.BaseClass** %p, align 8       ; <%struct.BaseClass*> [#uses=1]
-  %3 = getelementptr inbounds %struct.BaseClass* %2, i32 0, i32 0 ; <i32 (...)***> [#uses=1]
+  %3 = getelementptr inbounds %struct.BaseClass, %struct.BaseClass* %2, i32 0, i32 0 ; <i32 (...)***> [#uses=1]
   %4 = load i32 (...)**, i32 (...)*** %3, align 8              ; <i32 (...)**> [#uses=1]
-  %5 = getelementptr inbounds i32 (...)** %4, i64 0 ; <i32 (...)**> [#uses=1]
+  %5 = getelementptr inbounds i32 (...)*, i32 (...)** %4, i64 0 ; <i32 (...)**> [#uses=1]
   %6 = load i32 (...)*, i32 (...)** %5, align 1               ; <i32 (...)*> [#uses=1]
   %7 = bitcast i32 (...)* %6 to void (%struct.BaseClass*)* ; <void (%struct.BaseClass*)*> [#uses=1]
   %8 = load %struct.BaseClass*, %struct.BaseClass** %p, align 8       ; <%struct.BaseClass*> [#uses=1]
@@ -135,7 +135,7 @@ entry:
   %"alloca point" = bitcast i32 0 to i32          ; <i32> [#uses=0]
   store %struct.BaseClass* %this, %struct.BaseClass** %this_addr
   %0 = load %struct.BaseClass*, %struct.BaseClass** %this_addr, align 8 ; <%struct.BaseClass*> [#uses=1]
-  %1 = getelementptr inbounds %struct.BaseClass* %0, i32 0, i32 0 ; <i32 (...)***> [#uses=1]
+  %1 = getelementptr inbounds %struct.BaseClass, %struct.BaseClass* %0, i32 0, i32 0 ; <i32 (...)***> [#uses=1]
   store i32 (...)** getelementptr inbounds ([4 x i32 (...)*]* @_ZTV9BaseClass, i64 0, i64 2), i32 (...)*** %1, align 8
   br label %return
 
@@ -149,7 +149,7 @@ entry:
   %"alloca point" = bitcast i32 0 to i32          ; <i32> [#uses=0]
   store %struct.BaseClass* %this, %struct.BaseClass** %this_addr
   %0 = load %struct.BaseClass*, %struct.BaseClass** %this_addr, align 8 ; <%struct.BaseClass*> [#uses=1]
-  %1 = getelementptr inbounds %struct.BaseClass* %0, i32 0, i32 0 ; <i32 (...)***> [#uses=1]
+  %1 = getelementptr inbounds %struct.BaseClass, %struct.BaseClass* %0, i32 0, i32 0 ; <i32 (...)***> [#uses=1]
   store i32 (...)** getelementptr inbounds ([4 x i32 (...)*]* @_ZTV9BaseClass, i64 0, i64 2), i32 (...)*** %1, align 8
   br label %return
 
@@ -163,11 +163,11 @@ entry:
   %"alloca point" = bitcast i32 0 to i32          ; <i32> [#uses=0]
   store %struct.DerivedClass1* %this, %struct.DerivedClass1** %this_addr
   %0 = load %struct.DerivedClass1*, %struct.DerivedClass1** %this_addr, align 8 ; <%struct.DerivedClass1*> [#uses=1]
-  %1 = getelementptr inbounds %struct.DerivedClass1* %0, i32 0, i32 0 ; <%struct.BaseClass*> [#uses=1]
+  %1 = getelementptr inbounds %struct.DerivedClass1, %struct.DerivedClass1* %0, i32 0, i32 0 ; <%struct.BaseClass*> [#uses=1]
   call void @_ZN9BaseClassC2Ev(%struct.BaseClass* %1) nounwind
   %2 = load %struct.DerivedClass1*, %struct.DerivedClass1** %this_addr, align 8 ; <%struct.DerivedClass1*> [#uses=1]
-  %3 = getelementptr inbounds %struct.DerivedClass1* %2, i32 0, i32 0 ; <%struct.BaseClass*> [#uses=1]
-  %4 = getelementptr inbounds %struct.BaseClass* %3, i32 0, i32 0 ; <i32 (...)***> [#uses=1]
+  %3 = getelementptr inbounds %struct.DerivedClass1, %struct.DerivedClass1* %2, i32 0, i32 0 ; <%struct.BaseClass*> [#uses=1]
+  %4 = getelementptr inbounds %struct.BaseClass, %struct.BaseClass* %3, i32 0, i32 0 ; <i32 (...)***> [#uses=1]
   store i32 (...)** getelementptr inbounds ([4 x i32 (...)*]* @_ZTV13DerivedClass1, i64 0, i64 2), i32 (...)*** %4, align 8
   br label %return
 

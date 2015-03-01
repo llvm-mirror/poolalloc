@@ -14,8 +14,8 @@ declare void @llvm.va_start(i8*) #0
 ; Function Attrs: nounwind uwtable
 define void @test_va_bugging_func(i32 %p1, ...) #1 {
 entry:
-  %v = getelementptr inbounds %struct.t.1.3.17* undef, i32 0, i32 0
-  %arraydecay = getelementptr inbounds [1 x %struct.__va_list_tag.0.2.16]* %v, i32 0, i32 0
+  %v = getelementptr inbounds %struct.t.1.3.17, %struct.t.1.3.17* undef, i32 0, i32 0
+  %arraydecay = getelementptr inbounds [1 x %struct.__va_list_tag.0.2.16], [1 x %struct.__va_list_tag.0.2.16]* %v, i32 0, i32 0
   %arraydecay1 = bitcast %struct.__va_list_tag.0.2.16* %arraydecay to i8*
   call void @llvm.va_start(i8* %arraydecay1)
   unreachable

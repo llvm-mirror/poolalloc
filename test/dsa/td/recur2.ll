@@ -59,7 +59,7 @@ entry:
   %2 = load i32*, i32** %b3_addr, align 8               ; <i32*> [#uses=1]
   %3 = load i32, i32* %2, align 4                      ; <i32> [#uses=1]
   %4 = sext i32 %3 to i64                         ; <i64> [#uses=1]
-  %5 = getelementptr inbounds i32* %1, i64 %4     ; <i32*> [#uses=1]
+  %5 = getelementptr inbounds i32, i32* %1, i64 %4     ; <i32*> [#uses=1]
   store i32* %5, i32** %0, align 8
   %6 = load i32*, i32** %0, align 8                     ; <i32*> [#uses=1]
   store i32* %6, i32** %retval, align 8

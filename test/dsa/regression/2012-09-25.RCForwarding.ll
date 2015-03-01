@@ -42,7 +42,7 @@ for.body:                                         ; preds = %entry, %for.body
 
 for.body30:                                       ; preds = %entry, %for.body30
   %idxprom26144 = phi i64 [ 44, %for.body30 ], [ 0, %entry ]
-  %ttype28 = getelementptr inbounds [25 x %struct.anon]* @typetable, i64 0, i64 %idxprom26144, i32 0
+  %ttype28 = getelementptr inbounds [25 x %struct.anon], [25 x %struct.anon]* @typetable, i64 0, i64 %idxprom26144, i32 0
   %1 = load i32, i32* %ttype28, align 16, !tbaa !1
   %cmp34 = icmp eq i32 %1, %ttype
   br i1 %cmp34, label %for.cond49.preheader, label %for.body30
@@ -62,15 +62,15 @@ declare %struct._icmBase* @new_icmCurve(%struct._icc*) nounwind uwtable
 
 define noalias %struct._icmBase* @new_icmData(%struct._icc* %icp) nounwind uwtable {
 entry:
-  %al = getelementptr inbounds %struct._icc* %icp, i64 0, i32 17
+  %al = getelementptr inbounds %struct._icc, %struct._icc* %icp, i64 0, i32 17
   %0 = load %struct._icmAlloc*, %struct._icmAlloc** %al, align 8, !tbaa !0
-  %calloc = getelementptr inbounds %struct._icmAlloc* %0, i64 0, i32 1
+  %calloc = getelementptr inbounds %struct._icmAlloc, %struct._icmAlloc* %0, i64 0, i32 1
   %1 = load i8* (%struct._icmAlloc*, i64, i64)*, i8* (%struct._icmAlloc*, i64, i64)** %calloc, align 8, !tbaa !0
   %call = tail call i8* %1(%struct._icmAlloc* %0, i64 1, i64 96) nounwind
-  %get_size = getelementptr inbounds i8* %call, i64 24
+  %get_size = getelementptr inbounds i8, i8* %call, i64 24
   %2 = bitcast i8* %get_size to i32 (%struct._icmBase*)**
   store i32 (%struct._icmBase*)* @icmData_get_size, i32 (%struct._icmBase*)** %2, align 8, !tbaa !0
-  %icp2 = getelementptr inbounds i8* %call, i64 8
+  %icp2 = getelementptr inbounds i8, i8* %call, i64 8
   %3 = bitcast i8* %icp2 to %struct._icc**
   store %struct._icc* %icp, %struct._icc** %3, align 8, !tbaa !0
   ret %struct._icmBase* null

@@ -19,12 +19,12 @@ entry:
   %obj = alloca %union.UnionType                  ; <%union.UnionType*> [#uses=2]
   %ptr = alloca %struct.StructType*               ; <%struct.StructType**> [#uses=1]
   %"alloca point" = bitcast i32 0 to i32          ; <i32> [#uses=0]
-  %0 = getelementptr inbounds %union.UnionType* %obj, i32 0, i32 0 ; <[100 x %struct.StructType]*> [#uses=1]
+  %0 = getelementptr inbounds %union.UnionType, %union.UnionType* %obj, i32 0, i32 0 ; <[100 x %struct.StructType]*> [#uses=1]
   %1 = bitcast [100 x %struct.StructType]* %0 to i32* ; <i32*> [#uses=1]
   store i32 123456, i32* %1, align 8
-  %2 = getelementptr inbounds %union.UnionType* %obj, i32 0, i32 0 ; <[100 x %struct.StructType]*> [#uses=1]
-  %3 = getelementptr inbounds [100 x %struct.StructType]* %2, i64 0, i64 0 ; <%struct.StructType*> [#uses=1]
-  %4 = getelementptr inbounds %struct.StructType* %3, i32 0, i32 0 ; <%struct.StructType**> [#uses=1]
+  %2 = getelementptr inbounds %union.UnionType, %union.UnionType* %obj, i32 0, i32 0 ; <[100 x %struct.StructType]*> [#uses=1]
+  %3 = getelementptr inbounds [100 x %struct.StructType], [100 x %struct.StructType]* %2, i64 0, i64 0 ; <%struct.StructType*> [#uses=1]
+  %4 = getelementptr inbounds %struct.StructType, %struct.StructType* %3, i32 0, i32 0 ; <%struct.StructType**> [#uses=1]
   %5 = load %struct.StructType*, %struct.StructType** %4, align 8      ; <%struct.StructType*> [#uses=1]
   store %struct.StructType* %5, %struct.StructType** %ptr, align 8
   br label %return

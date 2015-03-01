@@ -33,7 +33,7 @@ entry:
   %1 = load i8*, i8** %ap, align 4                     ; <i8*> [#uses=1]
   store i8* %1, i8** %ap.0, align 4
   %2 = load i8*, i8** %ap.0, align 4                   ; <i8*> [#uses=1]
-  %3 = getelementptr inbounds i8* %2, i64 4       ; <i8*> [#uses=1]
+  %3 = getelementptr inbounds i8, i8* %2, i64 4       ; <i8*> [#uses=1]
   store i8* %3, i8** %ap, align 4
   %4 = load i8*, i8** %ap.0, align 4                   ; <i8*> [#uses=1]
   %5 = bitcast i8* %4 to i32**                    ; <i32**> [#uses=1]

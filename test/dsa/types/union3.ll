@@ -13,31 +13,31 @@ entry:
   %obj = alloca %union.UnionType                  ; <%union.UnionType*> [#uses=4]
   %s = alloca %struct.StructType2                 ; <%struct.StructType2*> [#uses=4]
   %"alloca point" = bitcast i32 0 to i32          ; <i32> [#uses=0]
-  %0 = getelementptr inbounds %union.UnionType* %obj, i32 0, i32 0 ; <%struct.StructType1*> [#uses=1]
-  %1 = getelementptr inbounds %struct.StructType1* %0, i32 0, i32 0 ; <i32*> [#uses=1]
+  %0 = getelementptr inbounds %union.UnionType, %union.UnionType* %obj, i32 0, i32 0 ; <%struct.StructType1*> [#uses=1]
+  %1 = getelementptr inbounds %struct.StructType1, %struct.StructType1* %0, i32 0, i32 0 ; <i32*> [#uses=1]
   store i32 2, i32* %1, align 4
-  %2 = getelementptr inbounds %union.UnionType* %obj, i32 0, i32 0 ; <%struct.StructType1*> [#uses=1]
-  %3 = getelementptr inbounds %struct.StructType1* %2, i32 0, i32 1 ; <i32*> [#uses=1]
+  %2 = getelementptr inbounds %union.UnionType, %union.UnionType* %obj, i32 0, i32 0 ; <%struct.StructType1*> [#uses=1]
+  %3 = getelementptr inbounds %struct.StructType1, %struct.StructType1* %2, i32 0, i32 1 ; <i32*> [#uses=1]
   store i32 33, i32* %3, align 4
-  %4 = getelementptr inbounds %union.UnionType* %obj, i32 0, i32 0 ; <%struct.StructType1*> [#uses=1]
-  %5 = getelementptr inbounds %struct.StructType1* %4, i32 0, i32 2 ; <i32*> [#uses=1]
+  %4 = getelementptr inbounds %union.UnionType, %union.UnionType* %obj, i32 0, i32 0 ; <%struct.StructType1*> [#uses=1]
+  %5 = getelementptr inbounds %struct.StructType1, %struct.StructType1* %4, i32 0, i32 2 ; <i32*> [#uses=1]
   store i32 22, i32* %5, align 4
-  %6 = getelementptr inbounds %union.UnionType* %obj, i32 0, i32 0 ; <%struct.StructType1*> [#uses=1]
+  %6 = getelementptr inbounds %union.UnionType, %union.UnionType* %obj, i32 0, i32 0 ; <%struct.StructType1*> [#uses=1]
   %7 = bitcast %struct.StructType1* %6 to %struct.StructType2* ; <%struct.StructType2*> [#uses=4]
-  %8 = getelementptr inbounds %struct.StructType2* %s, i32 0, i32 0 ; <i32*> [#uses=1]
-  %9 = getelementptr inbounds %struct.StructType2* %7, i32 0, i32 0 ; <i32*> [#uses=1]
+  %8 = getelementptr inbounds %struct.StructType2, %struct.StructType2* %s, i32 0, i32 0 ; <i32*> [#uses=1]
+  %9 = getelementptr inbounds %struct.StructType2, %struct.StructType2* %7, i32 0, i32 0 ; <i32*> [#uses=1]
   %10 = load i32, i32* %9, align 4                     ; <i32> [#uses=1]
   store i32 %10, i32* %8, align 4
-  %11 = getelementptr inbounds %struct.StructType2* %s, i32 0, i32 1 ; <i16*> [#uses=1]
-  %12 = getelementptr inbounds %struct.StructType2* %7, i32 0, i32 1 ; <i16*> [#uses=1]
+  %11 = getelementptr inbounds %struct.StructType2, %struct.StructType2* %s, i32 0, i32 1 ; <i16*> [#uses=1]
+  %12 = getelementptr inbounds %struct.StructType2, %struct.StructType2* %7, i32 0, i32 1 ; <i16*> [#uses=1]
   %13 = load i16, i16* %12, align 4                    ; <i16> [#uses=1]
   store i16 %13, i16* %11, align 4
-  %14 = getelementptr inbounds %struct.StructType2* %s, i32 0, i32 2 ; <i16*> [#uses=1]
-  %15 = getelementptr inbounds %struct.StructType2* %7, i32 0, i32 2 ; <i16*> [#uses=1]
+  %14 = getelementptr inbounds %struct.StructType2, %struct.StructType2* %s, i32 0, i32 2 ; <i16*> [#uses=1]
+  %15 = getelementptr inbounds %struct.StructType2, %struct.StructType2* %7, i32 0, i32 2 ; <i16*> [#uses=1]
   %16 = load i16, i16* %15, align 2                    ; <i16> [#uses=1]
   store i16 %16, i16* %14, align 2
-  %17 = getelementptr inbounds %struct.StructType2* %s, i32 0, i32 3 ; <i32*> [#uses=1]
-  %18 = getelementptr inbounds %struct.StructType2* %7, i32 0, i32 3 ; <i32*> [#uses=1]
+  %17 = getelementptr inbounds %struct.StructType2, %struct.StructType2* %s, i32 0, i32 3 ; <i32*> [#uses=1]
+  %18 = getelementptr inbounds %struct.StructType2, %struct.StructType2* %7, i32 0, i32 3 ; <i32*> [#uses=1]
   %19 = load i32, i32* %18, align 4                    ; <i32> [#uses=1]
   store i32 %19, i32* %17, align 4
   br label %return

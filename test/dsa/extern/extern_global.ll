@@ -36,9 +36,9 @@ define i32 @main() nounwind {
 entry:
 ;Create the struct and initialize it
   %s = alloca %struct.myStruct, align 8           ; <%struct.myStruct*> [#uses=1]
-  %0 = getelementptr inbounds %struct.myStruct* %s, i32 0, i32 1 ; <%struct.myStruct**> [#uses=1]
+  %0 = getelementptr inbounds %struct.myStruct, %struct.myStruct* %s, i32 0, i32 1 ; <%struct.myStruct**> [#uses=1]
   store %struct.myStruct* %s, %struct.myStruct** %0, align 8
-  %1 = getelementptr inbounds %struct.myStruct* %s, i32 0, i32 0 ; <i32*> [#uses=1]
+  %1 = getelementptr inbounds %struct.myStruct, %struct.myStruct* %s, i32 0, i32 0 ; <i32*> [#uses=1]
   store i32 100, i32* %1, align 8
 ;Store the struct into the global
   store %struct.myStruct* %s, %struct.myStruct** getelementptr inbounds (%struct.myStruct* @globalStructWithPointers, i64 0, i32 1), align 8

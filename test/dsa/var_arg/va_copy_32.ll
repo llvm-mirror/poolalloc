@@ -35,7 +35,7 @@ entry:
   %2 = load i8*, i8** %ap, align 4                     ; <i8*> [#uses=1]
   store i8* %2, i8** %ap.1, align 4
   %3 = load i8*, i8** %ap.1, align 4                   ; <i8*> [#uses=1]
-  %4 = getelementptr inbounds i8* %3, i64 4       ; <i8*> [#uses=1]
+  %4 = getelementptr inbounds i8, i8* %3, i64 4       ; <i8*> [#uses=1]
   store i8* %4, i8** %ap, align 4
   %5 = load i8*, i8** %ap.1, align 4                   ; <i8*> [#uses=1]
   %6 = bitcast i8* %5 to i32**                    ; <i32**> [#uses=1]
@@ -46,7 +46,7 @@ entry:
   %8 = load i8*, i8** %ap_copy, align 4                ; <i8*> [#uses=1]
   store i8* %8, i8** %ap_copy.3, align 4
   %9 = load i8*, i8** %ap_copy.3, align 4              ; <i8*> [#uses=1]
-  %10 = getelementptr inbounds i8* %9, i64 4      ; <i8*> [#uses=1]
+  %10 = getelementptr inbounds i8, i8* %9, i64 4      ; <i8*> [#uses=1]
   store i8* %10, i8** %ap_copy, align 4
   %11 = load i8*, i8** %ap_copy.3, align 4             ; <i8*> [#uses=1]
   %12 = bitcast i8* %11 to i32**                  ; <i32**> [#uses=1]

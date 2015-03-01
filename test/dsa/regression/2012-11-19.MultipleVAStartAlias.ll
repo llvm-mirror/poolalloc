@@ -22,9 +22,9 @@ for.end.thread:                                   ; preds = %entry
   br label %for.end26
 
 for.body.lr.ph:                                   ; preds = %entry
-  %gp_offset_p = getelementptr inbounds [1 x %struct.__va_list_tag]* %vl, i64 0, i64 0, i32 0
-  %0 = getelementptr inbounds [1 x %struct.__va_list_tag]* %vl, i64 0, i64 0, i32 3
-  %overflow_arg_area_p = getelementptr inbounds [1 x %struct.__va_list_tag]* %vl, i64 0, i64 0, i32 2
+  %gp_offset_p = getelementptr inbounds [1 x %struct.__va_list_tag], [1 x %struct.__va_list_tag]* %vl, i64 0, i64 0, i32 0
+  %0 = getelementptr inbounds [1 x %struct.__va_list_tag], [1 x %struct.__va_list_tag]* %vl, i64 0, i64 0, i32 3
+  %overflow_arg_area_p = getelementptr inbounds [1 x %struct.__va_list_tag], [1 x %struct.__va_list_tag]* %vl, i64 0, i64 0, i32 2
   %gp_offset.pre = load i32, i32* %gp_offset_p, align 16
   br label %for.body
 
@@ -38,14 +38,14 @@ for.body:                                         ; preds = %vaarg.end, %for.bod
 vaarg.in_reg:                                     ; preds = %for.body
   %reg_save_area = load i8*, i8** %0, align 16
   %1 = sext i32 %gp_offset to i64
-  %2 = getelementptr i8* %reg_save_area, i64 %1
+  %2 = getelementptr i8, i8* %reg_save_area, i64 %1
   %3 = add i32 %gp_offset, 8
   store i32 %3, i32* %gp_offset_p, align 16
   br label %vaarg.end
 
 vaarg.in_mem:                                     ; preds = %for.body
   %overflow_arg_area = load i8*, i8** %overflow_arg_area_p, align 8
-  %overflow_arg_area.next = getelementptr i8* %overflow_arg_area, i64 8
+  %overflow_arg_area.next = getelementptr i8, i8* %overflow_arg_area, i64 8
   store i8* %overflow_arg_area.next, i8** %overflow_arg_area_p, align 8
   br label %vaarg.end
 
@@ -65,9 +65,9 @@ for.end:                                          ; preds = %vaarg.end
   br i1 %cmp32, label %for.body9.lr.ph, label %for.end26
 
 for.body9.lr.ph:                                  ; preds = %for.end
-  %gp_offset_p12 = getelementptr inbounds [1 x %struct.__va_list_tag]* %vl, i64 0, i64 0, i32 0
-  %5 = getelementptr inbounds [1 x %struct.__va_list_tag]* %vl, i64 0, i64 0, i32 3
-  %overflow_arg_area_p18 = getelementptr inbounds [1 x %struct.__va_list_tag]* %vl, i64 0, i64 0, i32 2
+  %gp_offset_p12 = getelementptr inbounds [1 x %struct.__va_list_tag], [1 x %struct.__va_list_tag]* %vl, i64 0, i64 0, i32 0
+  %5 = getelementptr inbounds [1 x %struct.__va_list_tag], [1 x %struct.__va_list_tag]* %vl, i64 0, i64 0, i32 3
+  %overflow_arg_area_p18 = getelementptr inbounds [1 x %struct.__va_list_tag], [1 x %struct.__va_list_tag]* %vl, i64 0, i64 0, i32 2
   %gp_offset13.pre = load i32, i32* %gp_offset_p12, align 16
   br label %for.body9
 
@@ -81,14 +81,14 @@ for.body9:                                        ; preds = %vaarg.end21, %for.b
 vaarg.in_reg15:                                   ; preds = %for.body9
   %reg_save_area16 = load i8*, i8** %5, align 16
   %6 = sext i32 %gp_offset13 to i64
-  %7 = getelementptr i8* %reg_save_area16, i64 %6
+  %7 = getelementptr i8, i8* %reg_save_area16, i64 %6
   %8 = add i32 %gp_offset13, 8
   store i32 %8, i32* %gp_offset_p12, align 16
   br label %vaarg.end21
 
 vaarg.in_mem17:                                   ; preds = %for.body9
   %overflow_arg_area19 = load i8*, i8** %overflow_arg_area_p18, align 8
-  %overflow_arg_area.next20 = getelementptr i8* %overflow_arg_area19, i64 8
+  %overflow_arg_area.next20 = getelementptr i8, i8* %overflow_arg_area19, i64 8
   store i8* %overflow_arg_area.next20, i8** %overflow_arg_area_p18, align 8
   br label %vaarg.end21
 

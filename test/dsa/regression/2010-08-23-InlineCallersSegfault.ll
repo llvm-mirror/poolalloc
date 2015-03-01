@@ -131,12 +131,12 @@ bb10.loopexit.i:                                  ; preds = %bb.nph65.i
 
 bb12.i:                                           ; preds = %bb.nph65.i
   %0 = call i8* @_Znwm(i64 320) nounwind          ; <i8*> [#uses=2]
-  %1 = getelementptr inbounds i8* %0, i64 264     ; <i8*> [#uses=1]
+  %1 = getelementptr inbounds i8, i8* %0, i64 264     ; <i8*> [#uses=1]
   %2 = bitcast i8* %1 to %struct.ggBRDF**         ; <%struct.ggBRDF**> [#uses=1]
   %3 = load %struct.ggBRDF*, %struct.ggBRDF** %2, align 8          ; <%struct.ggBRDF*> [#uses=2]
-  %4 = getelementptr inbounds %struct.ggBRDF* %3, i64 0, i32 0 ; <i32 (...)***> [#uses=1]
+  %4 = getelementptr inbounds %struct.ggBRDF, %struct.ggBRDF* %3, i64 0, i32 0 ; <i32 (...)***> [#uses=1]
   %5 = load i32 (...)**, i32 (...)*** %4, align 8              ; <i32 (...)**> [#uses=1]
-  %6 = getelementptr inbounds i32 (...)** %5, i64 3 ; <i32 (...)**> [#uses=1]
+  %6 = getelementptr inbounds i32 (...)*, i32 (...)** %5, i64 3 ; <i32 (...)**> [#uses=1]
   %7 = load i32 (...)*, i32 (...)** %6, align 8               ; <i32 (...)*> [#uses=1]
   %8 = bitcast i32 (...)* %7 to i32 (%struct.ggBRDF*, double, double, %struct.ggBox3*)* ; <i32 (%struct.ggBRDF*, double, double, %struct.ggBox3*)*> [#uses=1]
   %9 = call i32 %8(%struct.ggBRDF* %3, double 0.000000e+00, double 0.000000e+00, %struct.ggBox3* undef) nounwind ; <i32> [#uses=0]
@@ -153,7 +153,7 @@ bb16.i:                                           ; preds = %_ZN10mrInstance9Set
   %11 = call i8* @_Znwm(i64 136) nounwind         ; <i8*> [#uses=3]
   %12 = bitcast i8* %11 to i32 (...)***           ; <i32 (...)***> [#uses=1]
   store i32 (...)** getelementptr inbounds ([9 x i32 (...)*]* @_ZTV16mrSurfaceTexture, i64 0, i64 2), i32 (...)*** %12, align 8
-  %13 = getelementptr inbounds i8* %11, i64 8     ; <i8*> [#uses=1]
+  %13 = getelementptr inbounds i8, i8* %11, i64 8     ; <i8*> [#uses=1]
   %14 = bitcast i8* %13 to %struct.ggBRDF**       ; <%struct.ggBRDF**> [#uses=1]
   store %struct.ggBRDF* %10, %struct.ggBRDF** %14, align 8
   %15 = bitcast i8* %11 to %struct.ggBRDF*        ; <%struct.ggBRDF*> [#uses=1]

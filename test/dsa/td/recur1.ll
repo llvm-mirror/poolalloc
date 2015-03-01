@@ -13,7 +13,7 @@ entry:
   %"alloca point" = bitcast i32 0 to i32          ; <i32> [#uses=0]
   store i32* %b3, i32** %b3_addr
   %1 = load i32*, i32** %b3_addr, align 8               ; <i32*> [#uses=1]
-  %2 = getelementptr inbounds i32* %1, i64 1      ; <i32*> [#uses=1]
+  %2 = getelementptr inbounds i32, i32* %1, i64 1      ; <i32*> [#uses=1]
   store i32* %2, i32** %0, align 8
   %3 = load i32*, i32** %0, align 8                     ; <i32*> [#uses=1]
   store i32* %3, i32** %retval, align 8

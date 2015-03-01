@@ -34,26 +34,26 @@ entry:
 
 bb:                                               ; preds = %bb1
   %2 = load %struct.InfoStruct*, %struct.InfoStruct** %temp, align 8   ; <%struct.InfoStruct*> [#uses=3]
-  %3 = getelementptr inbounds %struct.InfoStruct* %elem, i32 0, i32 0 ; <i32*> [#uses=1]
-  %4 = getelementptr inbounds %struct.InfoStruct* %2, i32 0, i32 0 ; <i32*> [#uses=1]
+  %3 = getelementptr inbounds %struct.InfoStruct, %struct.InfoStruct* %elem, i32 0, i32 0 ; <i32*> [#uses=1]
+  %4 = getelementptr inbounds %struct.InfoStruct, %struct.InfoStruct* %2, i32 0, i32 0 ; <i32*> [#uses=1]
   %5 = load i32, i32* %4, align 4                      ; <i32> [#uses=1]
   store i32 %5, i32* %3, align 4
-  %6 = getelementptr inbounds %struct.InfoStruct* %elem, i32 0, i32 1 ; <i32*> [#uses=1]
-  %7 = getelementptr inbounds %struct.InfoStruct* %2, i32 0, i32 1 ; <i32*> [#uses=1]
+  %6 = getelementptr inbounds %struct.InfoStruct, %struct.InfoStruct* %elem, i32 0, i32 1 ; <i32*> [#uses=1]
+  %7 = getelementptr inbounds %struct.InfoStruct, %struct.InfoStruct* %2, i32 0, i32 1 ; <i32*> [#uses=1]
   %8 = load i32, i32* %7, align 4                      ; <i32> [#uses=1]
   store i32 %8, i32* %6, align 4
-  %9 = getelementptr inbounds %struct.InfoStruct* %elem, i32 0, i32 2 ; <float*> [#uses=1]
-  %10 = getelementptr inbounds %struct.InfoStruct* %2, i32 0, i32 2 ; <float*> [#uses=1]
+  %9 = getelementptr inbounds %struct.InfoStruct, %struct.InfoStruct* %elem, i32 0, i32 2 ; <float*> [#uses=1]
+  %10 = getelementptr inbounds %struct.InfoStruct, %struct.InfoStruct* %2, i32 0, i32 2 ; <float*> [#uses=1]
   %11 = load float, float* %10, align 4                  ; <float> [#uses=1]
   store float %11, float* %9, align 4
-  %12 = getelementptr inbounds %struct.InfoStruct* %elem, i32 0, i32 0 ; <i32*> [#uses=1]
+  %12 = getelementptr inbounds %struct.InfoStruct, %struct.InfoStruct* %elem, i32 0, i32 0 ; <i32*> [#uses=1]
   store i32 0, i32* %12, align 4
-  %13 = getelementptr inbounds %struct.InfoStruct* %elem, i32 0, i32 1 ; <i32*> [#uses=1]
+  %13 = getelementptr inbounds %struct.InfoStruct, %struct.InfoStruct* %elem, i32 0, i32 1 ; <i32*> [#uses=1]
   store i32 0, i32* %13, align 4
-  %14 = getelementptr inbounds %struct.InfoStruct* %elem, i32 0, i32 2 ; <float*> [#uses=1]
+  %14 = getelementptr inbounds %struct.InfoStruct, %struct.InfoStruct* %elem, i32 0, i32 2 ; <float*> [#uses=1]
   store float 0.000000e+00, float* %14, align 4
   %15 = load %struct.InfoStruct*, %struct.InfoStruct** %temp, align 8  ; <%struct.InfoStruct*> [#uses=1]
-  %16 = getelementptr inbounds %struct.InfoStruct* %15, i64 1 ; <%struct.InfoStruct*> [#uses=1]
+  %16 = getelementptr inbounds %struct.InfoStruct, %struct.InfoStruct* %15, i64 1 ; <%struct.InfoStruct*> [#uses=1]
   store %struct.InfoStruct* %16, %struct.InfoStruct** %temp, align 8
   br label %bb1
 
@@ -62,7 +62,7 @@ bb1:                                              ; preds = %bb, %entry
   %18 = load %struct.InfoStruct*, %struct.InfoStruct** %17, align 8    ; <%struct.InfoStruct*> [#uses=1]
   %19 = load i32, i32* %size_addr, align 4             ; <i32> [#uses=1]
   %20 = sext i32 %19 to i64                       ; <i64> [#uses=1]
-  %21 = getelementptr inbounds %struct.InfoStruct* %18, i64 %20 ; <%struct.InfoStruct*> [#uses=1]
+  %21 = getelementptr inbounds %struct.InfoStruct, %struct.InfoStruct* %18, i64 %20 ; <%struct.InfoStruct*> [#uses=1]
   %22 = load %struct.InfoStruct*, %struct.InfoStruct** %temp, align 8  ; <%struct.InfoStruct*> [#uses=1]
   %23 = icmp ugt %struct.InfoStruct* %21, %22     ; <i1> [#uses=1]
   br i1 %23, label %bb, label %bb2
@@ -93,26 +93,26 @@ entry:
   %2 = load %struct.InfoStruct*, %struct.InfoStruct** %ptr, align 8    ; <%struct.InfoStruct*> [#uses=1]
   %3 = load i32, i32* %loc_addr, align 4               ; <i32> [#uses=1]
   %4 = sext i32 %3 to i64                         ; <i64> [#uses=1]
-  %5 = getelementptr inbounds %struct.InfoStruct* %2, i64 %4 ; <%struct.InfoStruct*> [#uses=3]
-  %6 = getelementptr inbounds %struct.InfoStruct* %obj, i32 0, i32 0 ; <i32*> [#uses=1]
-  %7 = getelementptr inbounds %struct.InfoStruct* %5, i32 0, i32 0 ; <i32*> [#uses=1]
+  %5 = getelementptr inbounds %struct.InfoStruct, %struct.InfoStruct* %2, i64 %4 ; <%struct.InfoStruct*> [#uses=3]
+  %6 = getelementptr inbounds %struct.InfoStruct, %struct.InfoStruct* %obj, i32 0, i32 0 ; <i32*> [#uses=1]
+  %7 = getelementptr inbounds %struct.InfoStruct, %struct.InfoStruct* %5, i32 0, i32 0 ; <i32*> [#uses=1]
   %8 = load i32, i32* %7, align 1                      ; <i32> [#uses=1]
   store i32 %8, i32* %6, align 1
-  %9 = getelementptr inbounds %struct.InfoStruct* %obj, i32 0, i32 1 ; <i32*> [#uses=1]
-  %10 = getelementptr inbounds %struct.InfoStruct* %5, i32 0, i32 1 ; <i32*> [#uses=1]
+  %9 = getelementptr inbounds %struct.InfoStruct, %struct.InfoStruct* %obj, i32 0, i32 1 ; <i32*> [#uses=1]
+  %10 = getelementptr inbounds %struct.InfoStruct, %struct.InfoStruct* %5, i32 0, i32 1 ; <i32*> [#uses=1]
   %11 = load i32, i32* %10, align 1                    ; <i32> [#uses=1]
   store i32 %11, i32* %9, align 1
-  %12 = getelementptr inbounds %struct.InfoStruct* %obj, i32 0, i32 2 ; <float*> [#uses=1]
-  %13 = getelementptr inbounds %struct.InfoStruct* %5, i32 0, i32 2 ; <float*> [#uses=1]
+  %12 = getelementptr inbounds %struct.InfoStruct, %struct.InfoStruct* %obj, i32 0, i32 2 ; <float*> [#uses=1]
+  %13 = getelementptr inbounds %struct.InfoStruct, %struct.InfoStruct* %5, i32 0, i32 2 ; <float*> [#uses=1]
   %14 = load float, float* %13, align 1                  ; <float> [#uses=1]
   store float %14, float* %12, align 1
-  %15 = getelementptr inbounds %struct.InfoStruct* %obj, i32 0, i32 0 ; <i32*> [#uses=1]
+  %15 = getelementptr inbounds %struct.InfoStruct, %struct.InfoStruct* %obj, i32 0, i32 0 ; <i32*> [#uses=1]
   %16 = load i32, i32* %count_addr, align 4            ; <i32> [#uses=1]
   store i32 %16, i32* %15, align 4
-  %17 = getelementptr inbounds %struct.InfoStruct* %obj, i32 0, i32 2 ; <float*> [#uses=1]
+  %17 = getelementptr inbounds %struct.InfoStruct, %struct.InfoStruct* %obj, i32 0, i32 2 ; <float*> [#uses=1]
   %18 = load float, float* %fact_addr, align 4           ; <float> [#uses=1]
   store float %18, float* %17, align 4
-  %19 = getelementptr inbounds %struct.InfoStruct* %obj, i32 0, i32 1 ; <i32*> [#uses=1]
+  %19 = getelementptr inbounds %struct.InfoStruct, %struct.InfoStruct* %obj, i32 0, i32 1 ; <i32*> [#uses=1]
   store i32 1, i32* %19, align 4
   br label %return
 

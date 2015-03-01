@@ -26,12 +26,12 @@ entry:
   %obj_addr = alloca %struct.S                    ; <%struct.S*> [#uses=3]
   %"alloca point" = bitcast i32 0 to i32          ; <i32> [#uses=0]
   %0 = bitcast %struct.S* %obj_addr to %0*        ; <%0*> [#uses=1]
-  %1 = getelementptr inbounds %0* %0, i32 0, i32 0 ; <double*> [#uses=1]
+  %1 = getelementptr inbounds %0, %0* %0, i32 0, i32 0 ; <double*> [#uses=1]
   store double %obj.0, double* %1
   %2 = bitcast %struct.S* %obj_addr to %0*        ; <%0*> [#uses=1]
-  %3 = getelementptr inbounds %0* %2, i32 0, i32 1 ; <float*> [#uses=1]
+  %3 = getelementptr inbounds %0, %0* %2, i32 0, i32 1 ; <float*> [#uses=1]
   store float %obj.1, float* %3
-  %4 = getelementptr inbounds %struct.S* %obj_addr, i32 0, i32 0 ; <float*> [#uses=1]
+  %4 = getelementptr inbounds %struct.S, %struct.S* %obj_addr, i32 0, i32 0 ; <float*> [#uses=1]
   store float 0x3FF3333340000000, float* %4, align 4
   br label %return
 
@@ -45,17 +45,17 @@ entry:
   %0 = alloca i32                                 ; <i32*> [#uses=2]
   %s = alloca %struct.S                           ; <%struct.S*> [#uses=5]
   %"alloca point" = bitcast i32 0 to i32          ; <i32> [#uses=0]
-  %1 = getelementptr inbounds %struct.S* %s, i32 0, i32 0 ; <float*> [#uses=1]
+  %1 = getelementptr inbounds %struct.S, %struct.S* %s, i32 0, i32 0 ; <float*> [#uses=1]
   store float 1.000000e+00, float* %1, align 4
-  %2 = getelementptr inbounds %struct.S* %s, i32 0, i32 1 ; <float*> [#uses=1]
+  %2 = getelementptr inbounds %struct.S, %struct.S* %s, i32 0, i32 1 ; <float*> [#uses=1]
   store float 1.000000e+00, float* %2, align 4
-  %3 = getelementptr inbounds %struct.S* %s, i32 0, i32 2 ; <float*> [#uses=1]
+  %3 = getelementptr inbounds %struct.S, %struct.S* %s, i32 0, i32 2 ; <float*> [#uses=1]
   store float 1.000000e+00, float* %3, align 4
   %4 = bitcast %struct.S* %s to %0*               ; <%0*> [#uses=1]
-  %elt = getelementptr inbounds %0* %4, i32 0, i32 0 ; <double*> [#uses=1]
+  %elt = getelementptr inbounds %0, %0* %4, i32 0, i32 0 ; <double*> [#uses=1]
   %val = load double, double* %elt                        ; <double> [#uses=1]
   %5 = bitcast %struct.S* %s to %0*               ; <%0*> [#uses=1]
-  %elt1 = getelementptr inbounds %0* %5, i32 0, i32 1 ; <float*> [#uses=1]
+  %elt1 = getelementptr inbounds %0, %0* %5, i32 0, i32 1 ; <float*> [#uses=1]
   %val2 = load float, float* %elt1                       ; <float> [#uses=1]
   call void @_Z3foo1S(double %val, float %val2) nounwind
   store i32 0, i32* %0, align 4

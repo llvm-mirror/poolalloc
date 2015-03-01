@@ -92,7 +92,7 @@ entry:
   %"alloca point" = bitcast i32 0 to i32          ; <i32> [#uses=0]
   store %struct.S* %o, %struct.S** %o_addr
   %0 = load %struct.S*, %struct.S** %o_addr, align 8          ; <%struct.S*> [#uses=1]
-  %1 = getelementptr inbounds %struct.S* %0, i32 0, i32 0 ; <i32* (i32*)**> [#uses=1]
+  %1 = getelementptr inbounds %struct.S, %struct.S* %0, i32 0, i32 0 ; <i32* (i32*)**> [#uses=1]
   store i32* (i32*)* bitcast (i32* ()* @B to i32* (i32*)*), i32* (i32*)** %1, align 8
   br label %return
 
@@ -109,7 +109,7 @@ entry:
   store %struct.S* %1, %struct.S** %t, align 8
   %2 = load i32* (i32*)*, i32* (i32*)** @FP, align 8            ; <i32* (i32*)*> [#uses=1]
   %3 = load %struct.S*, %struct.S** %t, align 8               ; <%struct.S*> [#uses=1]
-  %4 = getelementptr inbounds %struct.S* %3, i32 0, i32 0 ; <i32* (i32*)**> [#uses=1]
+  %4 = getelementptr inbounds %struct.S, %struct.S* %3, i32 0, i32 0 ; <i32* (i32*)**> [#uses=1]
   store i32* (i32*)* %2, i32* (i32*)** %4, align 8
   %5 = load %struct.S*, %struct.S** %t, align 8               ; <%struct.S*> [#uses=1]
   call void @init2(%struct.S* %5) nounwind

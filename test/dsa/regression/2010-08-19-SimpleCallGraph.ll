@@ -11,11 +11,11 @@ entry:
   %retval = alloca i32                            ; <i32*> [#uses=2]
   %0 = alloca i32                                 ; <i32*> [#uses=2]
   %"alloca point" = bitcast i32 0 to i32          ; <i32> [#uses=0]
-  %1 = getelementptr inbounds %struct.a* %bar, i32 0, i32 6 ; <i32*> [#uses=1]
+  %1 = getelementptr inbounds %struct.a, %struct.a* %bar, i32 0, i32 6 ; <i32*> [#uses=1]
   %2 = load i32, i32* %1, align 4                      ; <i32> [#uses=1]
-  %3 = getelementptr inbounds %struct.a* %bar, i32 0, i32 0 ; <i32*> [#uses=1]
+  %3 = getelementptr inbounds %struct.a, %struct.a* %bar, i32 0, i32 0 ; <i32*> [#uses=1]
   store i32 %2, i32* %3, align 4
-  %4 = getelementptr inbounds %struct.a* %bar, i32 0, i32 1 ; <i32*> [#uses=1]
+  %4 = getelementptr inbounds %struct.a, %struct.a* %bar, i32 0, i32 1 ; <i32*> [#uses=1]
   %5 = load i32, i32* %4, align 4                      ; <i32> [#uses=1]
   %6 = mul nsw i32 %5, 2                          ; <i32> [#uses=1]
   store i32 %6, i32* %0, align 4
@@ -33,19 +33,19 @@ entry:
   %retval = alloca i32                            ; <i32*> [#uses=2]
   %0 = alloca i32                                 ; <i32*> [#uses=2]
   %"alloca point" = bitcast i32 0 to i32          ; <i32> [#uses=0]
-  %1 = getelementptr inbounds %struct.a* %bar, i32 0, i32 6 ; <i32*> [#uses=1]
+  %1 = getelementptr inbounds %struct.a, %struct.a* %bar, i32 0, i32 6 ; <i32*> [#uses=1]
   %2 = load i32, i32* %1, align 4                      ; <i32> [#uses=1]
-  %3 = getelementptr inbounds %struct.a* %bar, i32 0, i32 0 ; <i32*> [#uses=1]
+  %3 = getelementptr inbounds %struct.a, %struct.a* %bar, i32 0, i32 0 ; <i32*> [#uses=1]
   store i32 %2, i32* %3, align 4
-  %4 = getelementptr inbounds %struct.a* %bar, i32 0, i32 0 ; <i32*> [#uses=1]
+  %4 = getelementptr inbounds %struct.a, %struct.a* %bar, i32 0, i32 0 ; <i32*> [#uses=1]
   %5 = load i32, i32* %4, align 4                      ; <i32> [#uses=1]
-  %6 = getelementptr inbounds %struct.a* %bar, i32 0, i32 1 ; <i32*> [#uses=1]
+  %6 = getelementptr inbounds %struct.a, %struct.a* %bar, i32 0, i32 1 ; <i32*> [#uses=1]
   %7 = load i32, i32* %6, align 4                      ; <i32> [#uses=1]
   %8 = add nsw i32 %5, %7                         ; <i32> [#uses=1]
-  %9 = getelementptr inbounds %struct.a* %bar, i32 0, i32 2 ; <i32*> [#uses=1]
+  %9 = getelementptr inbounds %struct.a, %struct.a* %bar, i32 0, i32 2 ; <i32*> [#uses=1]
   %10 = load i32, i32* %9, align 4                     ; <i32> [#uses=1]
   %11 = add nsw i32 %8, %10                       ; <i32> [#uses=1]
-  %12 = getelementptr inbounds %struct.a* %bar, i32 0, i32 7 ; <i32*> [#uses=1]
+  %12 = getelementptr inbounds %struct.a, %struct.a* %bar, i32 0, i32 7 ; <i32*> [#uses=1]
   %13 = load i32, i32* %12, align 4                    ; <i32> [#uses=1]
   %14 = add nsw i32 %11, %13                      ; <i32> [#uses=1]
   store i32 %14, i32* %0, align 4
@@ -69,7 +69,7 @@ entry:
   %"alloca point" = bitcast i32 0 to i32          ; <i32> [#uses=0]
   store i32 %argc, i32* %argc_addr
   store i8** %argv, i8*** %argv_addr
-  %1 = getelementptr inbounds %struct.a* %data, i32 0, i32 0 ; <i32*> [#uses=1]
+  %1 = getelementptr inbounds %struct.a, %struct.a* %data, i32 0, i32 0 ; <i32*> [#uses=1]
   %2 = load i32, i32* %argc_addr, align 4              ; <i32> [#uses=1]
   store i32 %2, i32* %1, align 4
   %3 = load i32, i32* %argc_addr, align 4              ; <i32> [#uses=1]
@@ -87,7 +87,7 @@ bb1:                                              ; preds = %entry
 bb2:                                              ; preds = %bb1, %bb
   %5 = load i32 (%struct.a*)*, i32 (%struct.a*)** %f, align 8        ; <i32 (%struct.a*)*> [#uses=1]
   %6 = call fastcc i32 %5(%struct.a* byval %data) nounwind ; <i32> [#uses=0]
-  %7 = getelementptr inbounds %struct.a* %data, i32 0, i32 0 ; <i32*> [#uses=1]
+  %7 = getelementptr inbounds %struct.a, %struct.a* %data, i32 0, i32 0 ; <i32*> [#uses=1]
   %8 = load i32, i32* %7, align 4                      ; <i32> [#uses=1]
   store i32 %8, i32* %0, align 4
   %9 = load i32, i32* %0, align 4                      ; <i32> [#uses=1]

@@ -24,7 +24,7 @@ bb:                                               ; preds = %bb1
   %2 = load i32*, i32** %arr, align 8                   ; <i32*> [#uses=1]
   %3 = load i32, i32* %i, align 4                      ; <i32> [#uses=1]
   %4 = sext i32 %3 to i64                         ; <i64> [#uses=1]
-  %5 = getelementptr inbounds i32* %2, i64 %4     ; <i32*> [#uses=1]
+  %5 = getelementptr inbounds i32, i32* %2, i64 %4     ; <i32*> [#uses=1]
   %6 = load i32, i32* %i, align 4                      ; <i32> [#uses=1]
   store i32 %6, i32* %5, align 1
   %7 = load i32, i32* %i, align 4                      ; <i32> [#uses=1]
@@ -39,10 +39,10 @@ bb1:                                              ; preds = %bb, %entry
 
 bb2:                                              ; preds = %bb1
   %11 = load i32*, i32** %arr, align 8                  ; <i32*> [#uses=1]
-  %12 = getelementptr inbounds i32* %11, i64 5    ; <i32*> [#uses=1]
+  %12 = getelementptr inbounds i32, i32* %11, i64 5    ; <i32*> [#uses=1]
   store i32* %12, i32** %b, align 8
   store i32** %arr, i32*** %c, align 8
-  %13 = getelementptr inbounds i32** %arr, i64 4  ; <i32**> [#uses=1]
+  %13 = getelementptr inbounds i32*, i32** %arr, i64 4  ; <i32**> [#uses=1]
   store i32** %13, i32*** %d, align 8
   br label %return
 

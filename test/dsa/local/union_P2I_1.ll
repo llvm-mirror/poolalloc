@@ -15,12 +15,12 @@ entry:
   %obj = alloca %union.UnionType                  ; <%union.UnionType*> [#uses=2]
   %c = alloca i32*                                ; <i32**> [#uses=1]
   %"alloca point" = bitcast i32 0 to i32          ; <i32> [#uses=0]
-  %0 = getelementptr inbounds %union.UnionType* %obj, i32 0, i32 0 ; <[100 x i32*]*> [#uses=1]
+  %0 = getelementptr inbounds %union.UnionType, %union.UnionType* %obj, i32 0, i32 0 ; <[100 x i32*]*> [#uses=1]
   %1 = bitcast [100 x i32*]* %0 to [100 x i32]*   ; <[100 x i32]*> [#uses=1]
-  %2 = getelementptr inbounds [100 x i32]* %1, i64 0, i64 3 ; <i32*> [#uses=1]
+  %2 = getelementptr inbounds [100 x i32], [100 x i32]* %1, i64 0, i64 3 ; <i32*> [#uses=1]
   store i32 123456, i32* %2, align 4
-  %3 = getelementptr inbounds %union.UnionType* %obj, i32 0, i32 0 ; <[100 x i32*]*> [#uses=1]
-  %4 = getelementptr inbounds [100 x i32*]* %3, i64 0, i64 3 ; <i32**> [#uses=1]
+  %3 = getelementptr inbounds %union.UnionType, %union.UnionType* %obj, i32 0, i32 0 ; <[100 x i32*]*> [#uses=1]
+  %4 = getelementptr inbounds [100 x i32*], [100 x i32*]* %3, i64 0, i64 3 ; <i32**> [#uses=1]
   %5 = load i32*, i32** %4, align 8                     ; <i32*> [#uses=1]
   store i32* %5, i32** %c, align 8
   br label %return

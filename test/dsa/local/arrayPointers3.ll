@@ -22,10 +22,10 @@ entry:
   %"alloca point" = bitcast i32 0 to i32          ; <i32> [#uses=0]
   store i32 2, i32* %nrows, align 4
   store i32 10, i32* %ncolumns, align 4
-  %0 = getelementptr inbounds [10 x %struct.structType*]* %array, i64 0, i64 0 ; <%struct.structType**> [#uses=1]
+  %0 = getelementptr inbounds [10 x %struct.structType*], [10 x %struct.structType*]* %array, i64 0, i64 0 ; <%struct.structType**> [#uses=1]
   %row11 = bitcast [10 x %struct.structType]* %row1 to %struct.structType* ; <%struct.structType*> [#uses=1]
   store %struct.structType* %row11, %struct.structType** %0, align 8
-  %1 = getelementptr inbounds [10 x %struct.structType*]* %array, i64 0, i64 1 ; <%struct.structType**> [#uses=1]
+  %1 = getelementptr inbounds [10 x %struct.structType*], [10 x %struct.structType*]* %array, i64 0, i64 1 ; <%struct.structType**> [#uses=1]
   %row22 = bitcast [10 x %struct.structType]* %row2 to %struct.structType* ; <%struct.structType*> [#uses=1]
   store %struct.structType* %row22, %struct.structType** %1, align 8
   store i32 0, i32* %i, align 4
@@ -38,12 +38,12 @@ bb:                                               ; preds = %bb6
 bb3:                                              ; preds = %bb4
   %2 = load i32, i32* %i, align 4                      ; <i32> [#uses=1]
   %3 = sext i32 %2 to i64                         ; <i64> [#uses=1]
-  %4 = getelementptr inbounds [10 x %struct.structType*]* %array, i64 0, i64 %3 ; <%struct.structType**> [#uses=1]
+  %4 = getelementptr inbounds [10 x %struct.structType*], [10 x %struct.structType*]* %array, i64 0, i64 %3 ; <%struct.structType**> [#uses=1]
   %5 = load %struct.structType*, %struct.structType** %4, align 8      ; <%struct.structType*> [#uses=1]
   %6 = load i32, i32* %j, align 4                      ; <i32> [#uses=1]
   %7 = sext i32 %6 to i64                         ; <i64> [#uses=1]
-  %8 = getelementptr inbounds %struct.structType* %5, i64 %7 ; <%struct.structType*> [#uses=1]
-  %9 = getelementptr inbounds %struct.structType* %8, i32 0, i32 0 ; <i32*> [#uses=1]
+  %8 = getelementptr inbounds %struct.structType, %struct.structType* %5, i64 %7 ; <%struct.structType*> [#uses=1]
+  %9 = getelementptr inbounds %struct.structType, %struct.structType* %8, i32 0, i32 0 ; <i32*> [#uses=1]
   %10 = load i32, i32* %i, align 4                     ; <i32> [#uses=1]
   store i32 %10, i32* %9, align 4
   %11 = load i32, i32* %j, align 4                     ; <i32> [#uses=1]
@@ -60,21 +60,21 @@ bb4:                                              ; preds = %bb3, %bb
 bb5:                                              ; preds = %bb4
   %16 = load i32, i32* %i, align 4                     ; <i32> [#uses=1]
   %17 = sext i32 %16 to i64                       ; <i64> [#uses=1]
-  %18 = getelementptr inbounds [10 x %struct.structType*]* %array, i64 0, i64 %17 ; <%struct.structType**> [#uses=1]
+  %18 = getelementptr inbounds [10 x %struct.structType*], [10 x %struct.structType*]* %array, i64 0, i64 %17 ; <%struct.structType**> [#uses=1]
   %19 = load %struct.structType*, %struct.structType** %18, align 8    ; <%struct.structType*> [#uses=1]
   %20 = load i32, i32* %j, align 4                     ; <i32> [#uses=1]
   %21 = sext i32 %20 to i64                       ; <i64> [#uses=1]
-  %22 = getelementptr inbounds %struct.structType* %19, i64 %21 ; <%struct.structType*> [#uses=1]
-  %23 = getelementptr inbounds %struct.structType* %22, i32 0, i32 1 ; <i32*> [#uses=1]
+  %22 = getelementptr inbounds %struct.structType, %struct.structType* %19, i64 %21 ; <%struct.structType*> [#uses=1]
+  %23 = getelementptr inbounds %struct.structType, %struct.structType* %22, i32 0, i32 1 ; <i32*> [#uses=1]
   %24 = load i32, i32* %j, align 4                     ; <i32> [#uses=1]
   store i32 %24, i32* %23, align 4
   %25 = load i32, i32* %i, align 4                     ; <i32> [#uses=1]
   %26 = sext i32 %25 to i64                       ; <i64> [#uses=1]
-  %27 = getelementptr inbounds [10 x %struct.structType*]* %array, i64 0, i64 %26 ; <%struct.structType**> [#uses=1]
+  %27 = getelementptr inbounds [10 x %struct.structType*], [10 x %struct.structType*]* %array, i64 0, i64 %26 ; <%struct.structType**> [#uses=1]
   %28 = load %struct.structType*, %struct.structType** %27, align 8    ; <%struct.structType*> [#uses=1]
   %29 = load i32, i32* %j, align 4                     ; <i32> [#uses=1]
   %30 = sext i32 %29 to i64                       ; <i64> [#uses=1]
-  %31 = getelementptr inbounds %struct.structType* %28, i64 %30 ; <%struct.structType*> [#uses=1]
+  %31 = getelementptr inbounds %struct.structType, %struct.structType* %28, i64 %30 ; <%struct.structType*> [#uses=1]
   %32 = load i32, i32* %i, align 4                     ; <i32> [#uses=1]
   %33 = sitofp i32 %32 to double                  ; <double> [#uses=1]
   %34 = fdiv double %33, 2.000000e+00             ; <double> [#uses=1]
@@ -83,7 +83,7 @@ bb5:                                              ; preds = %bb4
   %37 = fdiv double %36, 2.000000e+00             ; <double> [#uses=1]
   %38 = fadd double %34, %37                      ; <double> [#uses=1]
   %39 = fptrunc double %38 to float               ; <float> [#uses=1]
-  %40 = getelementptr inbounds %struct.structType* %31, i32 0, i32 2 ; <float*> [#uses=1]
+  %40 = getelementptr inbounds %struct.structType, %struct.structType* %31, i32 0, i32 2 ; <float*> [#uses=1]
   store float %39, float* %40, align 4
   %41 = load i32, i32* %i, align 4                     ; <i32> [#uses=1]
   %42 = add nsw i32 %41, 1                        ; <i32> [#uses=1]

@@ -55,8 +55,8 @@ entry:
 bb:                                               ; preds = %bb3
   %1 = load i32, i32* %i, align 4                      ; <i32> [#uses=1]
   %2 = sext i32 %1 to i64                         ; <i64> [#uses=1]
-  %3 = getelementptr inbounds [2 x %struct.parse_table]* @table, i64 0, i64 %2 ; <%struct.parse_table*> [#uses=1]
-  %4 = getelementptr inbounds %struct.parse_table* %3, i32 0, i32 0 ; <i8**> [#uses=1]
+  %3 = getelementptr inbounds [2 x %struct.parse_table], [2 x %struct.parse_table]* @table, i64 0, i64 %2 ; <%struct.parse_table*> [#uses=1]
+  %4 = getelementptr inbounds %struct.parse_table, %struct.parse_table* %3, i32 0, i32 0 ; <i8**> [#uses=1]
   %5 = load i8*, i8** %4, align 8                      ; <i8*> [#uses=1]
   %6 = load i8*, i8** %s_addr, align 8                 ; <i8*> [#uses=1]
   %7 = call i32 (...)* bitcast (i32 (i8*, i8*)* @strcmp to i32 (...)*)(i8* %5, i8* %6) nounwind readonly ; <i32> [#uses=1]
@@ -66,8 +66,8 @@ bb:                                               ; preds = %bb3
 bb1:                                              ; preds = %bb
   %9 = load i32, i32* %i, align 4                      ; <i32> [#uses=1]
   %10 = sext i32 %9 to i64                        ; <i64> [#uses=1]
-  %11 = getelementptr inbounds [2 x %struct.parse_table]* @table, i64 0, i64 %10 ; <%struct.parse_table*> [#uses=1]
-  %12 = getelementptr inbounds %struct.parse_table* %11, i32 0, i32 1 ; <i32 ()**> [#uses=1]
+  %11 = getelementptr inbounds [2 x %struct.parse_table], [2 x %struct.parse_table]* @table, i64 0, i64 %10 ; <%struct.parse_table*> [#uses=1]
+  %12 = getelementptr inbounds %struct.parse_table, %struct.parse_table* %11, i32 0, i32 1 ; <i32 ()**> [#uses=1]
   %13 = load i32 ()*, i32 ()** %12, align 8                ; <i32 ()*> [#uses=1]
   store i32 ()* %13, i32 ()** %0, align 8
   br label %bb5
@@ -109,7 +109,7 @@ entry:
   store i32 %argc, i32* %argc_addr
   store i8** %argv, i8*** %argv_addr
   %0 = load i8**, i8*** %argv_addr, align 8             ; <i8**> [#uses=1]
-  %1 = getelementptr inbounds i8** %0, i64 1      ; <i8**> [#uses=1]
+  %1 = getelementptr inbounds i8*, i8** %0, i64 1      ; <i8**> [#uses=1]
   %2 = load i8*, i8** %1, align 1                      ; <i8*> [#uses=1]
   %3 = call i32 ()* (i8*)* @find_p_func(i8* %2) nounwind ; <i32 ()*> [#uses=1]
   store i32 ()* %3, i32 ()** %parse_func, align 8

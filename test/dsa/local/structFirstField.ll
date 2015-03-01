@@ -26,16 +26,16 @@ entry:
   store %struct.S* %s, %struct.S** %p, align 8
   store i32* %x, i32** %q, align 8
   %q1 = bitcast i32** %q to %struct.S*            ; <%struct.S*> [#uses=1]
-  %1 = getelementptr inbounds %struct.S* %0, i32 0, i32 0 ; <i32**> [#uses=1]
-  %2 = getelementptr inbounds %struct.S* %q1, i32 0, i32 0 ; <i32**> [#uses=1]
+  %1 = getelementptr inbounds %struct.S, %struct.S* %0, i32 0, i32 0 ; <i32**> [#uses=1]
+  %2 = getelementptr inbounds %struct.S, %struct.S* %q1, i32 0, i32 0 ; <i32**> [#uses=1]
   %3 = load i32*, i32** %2, align 8                     ; <i32*> [#uses=1]
   store i32* %3, i32** %1, align 8
   %4 = load %struct.S*, %struct.S** %p, align 8               ; <%struct.S*> [#uses=1]
-  %5 = getelementptr inbounds %struct.S* %4, i32 0, i32 0 ; <i32**> [#uses=1]
-  %6 = getelementptr inbounds %struct.S* %0, i32 0, i32 0 ; <i32**> [#uses=1]
+  %5 = getelementptr inbounds %struct.S, %struct.S* %4, i32 0, i32 0 ; <i32**> [#uses=1]
+  %6 = getelementptr inbounds %struct.S, %struct.S* %0, i32 0, i32 0 ; <i32**> [#uses=1]
   %7 = load i32*, i32** %6, align 8                     ; <i32*> [#uses=1]
   store i32* %7, i32** %5, align 8
-  %8 = getelementptr inbounds %struct.S* %s, i32 0, i32 0 ; <i32**> [#uses=1]
+  %8 = getelementptr inbounds %struct.S, %struct.S* %s, i32 0, i32 0 ; <i32**> [#uses=1]
   %9 = load i32*, i32** %8, align 8                     ; <i32*> [#uses=1]
   store i32* %9, i32** %r, align 8
   br label %return

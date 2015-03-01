@@ -19,19 +19,19 @@ entry:
   %0 = call noalias i8* @malloc(i64 4) nounwind   ; <i8*> [#uses=1]
   %1 = bitcast i8* %0 to i32*                     ; <i32*> [#uses=1]
   store i32* %1, i32** %tmp, align 8
-  %2 = getelementptr inbounds %struct.StructType* %s1, i32 0, i32 0 ; <i32*> [#uses=1]
+  %2 = getelementptr inbounds %struct.StructType, %struct.StructType* %s1, i32 0, i32 0 ; <i32*> [#uses=1]
   store i32 10, i32* %2, align 8
-  %3 = getelementptr inbounds %struct.StructType* %s1, i32 0, i32 1 ; <i32**> [#uses=1]
+  %3 = getelementptr inbounds %struct.StructType, %struct.StructType* %s1, i32 0, i32 1 ; <i32**> [#uses=1]
   %4 = load i32*, i32** %tmp, align 8                   ; <i32*> [#uses=1]
   store i32* %4, i32** %3, align 8
-  %5 = getelementptr inbounds %struct.StructType* %s1, i32 0, i32 0 ; <i32*> [#uses=1]
+  %5 = getelementptr inbounds %struct.StructType, %struct.StructType* %s1, i32 0, i32 0 ; <i32*> [#uses=1]
   store i32* %5, i32** %c, align 8
-  %6 = getelementptr inbounds %struct.StructType* %s2, i32 0, i32 0 ; <i32*> [#uses=1]
-  %7 = getelementptr inbounds %struct.StructType* %s1, i32 0, i32 0 ; <i32*> [#uses=1]
+  %6 = getelementptr inbounds %struct.StructType, %struct.StructType* %s2, i32 0, i32 0 ; <i32*> [#uses=1]
+  %7 = getelementptr inbounds %struct.StructType, %struct.StructType* %s1, i32 0, i32 0 ; <i32*> [#uses=1]
   %8 = load i32, i32* %7, align 8                      ; <i32> [#uses=1]
   store i32 %8, i32* %6, align 8
-  %9 = getelementptr inbounds %struct.StructType* %s2, i32 0, i32 1 ; <i32**> [#uses=1]
-  %10 = getelementptr inbounds %struct.StructType* %s1, i32 0, i32 1 ; <i32**> [#uses=1]
+  %9 = getelementptr inbounds %struct.StructType, %struct.StructType* %s2, i32 0, i32 1 ; <i32**> [#uses=1]
+  %10 = getelementptr inbounds %struct.StructType, %struct.StructType* %s1, i32 0, i32 1 ; <i32**> [#uses=1]
   %11 = load i32*, i32** %10, align 8                   ; <i32*> [#uses=1]
   store i32* %11, i32** %9, align 8
   br label %return

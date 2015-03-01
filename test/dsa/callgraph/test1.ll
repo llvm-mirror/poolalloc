@@ -18,18 +18,18 @@ entry:
   %"alloca point" = bitcast i32 0 to i32          ; <i32> [#uses=0]
   store %struct.gen_readio* %f, %struct.gen_readio** %f_addr
   %1 = load %struct.gen_readio*, %struct.gen_readio** %f_addr, align 8 ; <%struct.gen_readio*> [#uses=1]
-  %2 = getelementptr inbounds %struct.gen_readio* %1, i32 0, i32 0 ; <i32 (i8*)**> [#uses=1]
+  %2 = getelementptr inbounds %struct.gen_readio, %struct.gen_readio* %1, i32 0, i32 0 ; <i32 (i8*)**> [#uses=1]
   %3 = load i32 (i8*)*, i32 (i8*)** %2, align 8               ; <i32 (i8*)*> [#uses=1]
   %4 = load %struct.gen_readio*, %struct.gen_readio** %f_addr, align 8 ; <%struct.gen_readio*> [#uses=1]
-  %5 = getelementptr inbounds %struct.gen_readio* %4, i32 0, i32 2 ; <i8**> [#uses=1]
+  %5 = getelementptr inbounds %struct.gen_readio, %struct.gen_readio* %4, i32 0, i32 2 ; <i8**> [#uses=1]
   %6 = load i8*, i8** %5, align 8                      ; <i8*> [#uses=1]
   %7 = call i32 %3(i8* %6) nounwind               ; <i32> [#uses=1]
   store i32 %7, i32* %t, align 4
   %8 = load %struct.gen_readio*, %struct.gen_readio** %f_addr, align 8 ; <%struct.gen_readio*> [#uses=1]
-  %9 = getelementptr inbounds %struct.gen_readio* %8, i32 0, i32 1 ; <void (i32, i8*)**> [#uses=1]
+  %9 = getelementptr inbounds %struct.gen_readio, %struct.gen_readio* %8, i32 0, i32 1 ; <void (i32, i8*)**> [#uses=1]
   %10 = load void (i32, i8*)*, void (i32, i8*)** %9, align 8        ; <void (i32, i8*)*> [#uses=1]
   %11 = load %struct.gen_readio*, %struct.gen_readio** %f_addr, align 8 ; <%struct.gen_readio*> [#uses=1]
-  %12 = getelementptr inbounds %struct.gen_readio* %11, i32 0, i32 2 ; <i8**> [#uses=1]
+  %12 = getelementptr inbounds %struct.gen_readio, %struct.gen_readio* %11, i32 0, i32 2 ; <i8**> [#uses=1]
   %13 = load i8*, i8** %12, align 8                    ; <i8*> [#uses=1]
   %14 = load i32, i32* %t, align 4                     ; <i32> [#uses=1]
   call void %10(i32 %14, i8* %13) nounwind
@@ -55,7 +55,7 @@ entry:
   store %struct.gen_readio* %f, %struct.gen_readio** %f_addr
   store i32 (i8*)* %fcn, i32 (i8*)** %fcn_addr
   %0 = load %struct.gen_readio*, %struct.gen_readio** %f_addr, align 8 ; <%struct.gen_readio*> [#uses=1]
-  %1 = getelementptr inbounds %struct.gen_readio* %0, i32 0, i32 0 ; <i32 (i8*)**> [#uses=1]
+  %1 = getelementptr inbounds %struct.gen_readio, %struct.gen_readio* %0, i32 0, i32 0 ; <i32 (i8*)**> [#uses=1]
   %2 = load i32 (i8*)*, i32 (i8*)** %fcn_addr, align 8        ; <i32 (i8*)*> [#uses=1]
   store i32 (i8*)* %2, i32 (i8*)** %1, align 8
   br label %return
@@ -74,15 +74,15 @@ entry:
   %"alloca point" = bitcast i32 0 to i32          ; <i32> [#uses=0]
   store %struct.FILE* %f, %struct.FILE** %f_addr
   call void @init(%struct.gen_readio* %s, i32 (i8*)* bitcast (i32 (%struct.FILE*)* @f_getc to i32 (i8*)*)) nounwind
-  %1 = getelementptr inbounds %struct.gen_readio* %s, i32 0, i32 1 ; <void (i32, i8*)**> [#uses=1]
+  %1 = getelementptr inbounds %struct.gen_readio, %struct.gen_readio* %s, i32 0, i32 1 ; <void (i32, i8*)**> [#uses=1]
   store void (i32, i8*)* bitcast (void (i32, %struct.FILE*)* @f_ungetc to void (i32, i8*)*), void (i32, i8*)** %1, align 8
-  %2 = getelementptr inbounds %struct.gen_readio* %s, i32 0, i32 2 ; <i8**> [#uses=1]
+  %2 = getelementptr inbounds %struct.gen_readio, %struct.gen_readio* %s, i32 0, i32 2 ; <i8**> [#uses=1]
   %3 = load %struct.FILE*, %struct.FILE** %f_addr, align 8       ; <%struct.FILE*> [#uses=1]
   %4 = bitcast %struct.FILE* %3 to i8*            ; <i8*> [#uses=1]
   store i8* %4, i8** %2, align 8
-  %5 = getelementptr inbounds %struct.gen_readio* %s, i32 0, i32 1 ; <void (i32, i8*)**> [#uses=1]
+  %5 = getelementptr inbounds %struct.gen_readio, %struct.gen_readio* %s, i32 0, i32 1 ; <void (i32, i8*)**> [#uses=1]
   %6 = load void (i32, i8*)*, void (i32, i8*)** %5, align 8         ; <void (i32, i8*)*> [#uses=1]
-  %7 = getelementptr inbounds %struct.gen_readio* %s, i32 0, i32 2 ; <i8**> [#uses=1]
+  %7 = getelementptr inbounds %struct.gen_readio, %struct.gen_readio* %s, i32 0, i32 2 ; <i8**> [#uses=1]
   %8 = load i8*, i8** %7, align 8                      ; <i8*> [#uses=1]
   %9 = load i32, i32* %c, align 4                      ; <i32> [#uses=1]
   call void %6(i32 %9, i8* %8) nounwind

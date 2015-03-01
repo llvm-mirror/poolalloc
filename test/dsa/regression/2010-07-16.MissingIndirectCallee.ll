@@ -54,7 +54,7 @@ entry:
   br i1 undef, label %bb12, label %bb11
 
 bb11:                                             ; preds = %entry
-  %tmp38 = getelementptr inbounds %struct.SV* %tmp1, i64 0, i32 0 ; <i8**> [#uses=1]
+  %tmp38 = getelementptr inbounds %struct.SV, %struct.SV* %tmp1, i64 0, i32 0 ; <i8**> [#uses=1]
   %tmp43 = load i8*, i8** %tmp38, align 8              ; <i8*> [#uses=1]
   %tmp44 = bitcast i8* %tmp43 to i8**             ; <i8**> [#uses=1]
   %tmp45 = load i8*, i8** %tmp44, align 8              ; <i8*> [#uses=1]
@@ -89,11 +89,11 @@ bb35:                                             ; preds = %bb32
   br i1 undef, label %bb1.i, label %bb.i4
 
 bb.i4:                                            ; preds = %bb35
-  %tmp109 = getelementptr inbounds %struct.SV* %tmp107, i64 0, i32 0 ; <i8**> [#uses=1]
+  %tmp109 = getelementptr inbounds %struct.SV, %struct.SV* %tmp107, i64 0, i32 0 ; <i8**> [#uses=1]
   %tmp110 = load i8*, i8** %tmp109, align 8            ; <i8*> [#uses=1]
   %tmp111 = bitcast i8* %tmp110 to %struct.SV*    ; <%struct.SV*> [#uses=1]
   store %struct.SV* %tmp111, %struct.SV** @PL_sv_root, align 8
-  %tmp115 = getelementptr inbounds %struct.SV* %tmp107, i64 0, i32 0 ; <i8**> [#uses=1]
+  %tmp115 = getelementptr inbounds %struct.SV, %struct.SV* %tmp107, i64 0, i32 0 ; <i8**> [#uses=1]
   br label %bb46
 
 bb1.i:                                            ; preds = %bb35
@@ -127,7 +127,7 @@ entry:
   br i1 undef, label %bb117, label %bb1
 
 bb1:                                              ; preds = %entry
-  %tmp17 = getelementptr inbounds %struct.SV* %tmp11, i64 0, i32 0 ; <i8**> [#uses=1]
+  %tmp17 = getelementptr inbounds %struct.SV, %struct.SV* %tmp11, i64 0, i32 0 ; <i8**> [#uses=1]
   %tmp18 = load i8*, i8** %tmp17, align 8              ; <i8*> [#uses=1]
   %tmp19 = bitcast i8* %tmp18 to %struct.SV**     ; <%struct.SV**> [#uses=1]
   %tmp20 = load %struct.SV*, %struct.SV** %tmp19, align 8      ; <%struct.SV*> [#uses=1]
@@ -135,7 +135,7 @@ bb1:                                              ; preds = %entry
 
 bb2:                                              ; preds = %bb1
   %tmp25 = bitcast %struct.SV* %tmp20 to %struct.CV* ; <%struct.CV*> [#uses=3]
-  %tmp26 = getelementptr inbounds %struct.CV* %tmp25, i64 0, i32 0 ; <%struct.XPVCV**> [#uses=1]
+  %tmp26 = getelementptr inbounds %struct.CV, %struct.CV* %tmp25, i64 0, i32 0 ; <%struct.XPVCV**> [#uses=1]
   %tmp90 = load %struct.PERL_CONTEXT*, %struct.PERL_CONTEXT** undef, align 8 ; <%struct.PERL_CONTEXT*> [#uses=2]
   br i1 undef, label %bb.i.i, label %dopoptosub.exit
 
@@ -210,7 +210,7 @@ bb48:                                             ; preds = %bb47
 
 bb49:                                             ; preds = %bb47
   %tmp336 = load %struct.XPVCV*, %struct.XPVCV** %tmp26, align 8  ; <%struct.XPVCV*> [#uses=1]
-  %tmp337 = getelementptr inbounds %struct.XPVCV* %tmp336, i64 0, i32 10 ; <void (%struct.CV*)**> [#uses=1]
+  %tmp337 = getelementptr inbounds %struct.XPVCV, %struct.XPVCV* %tmp336, i64 0, i32 10 ; <void (%struct.CV*)**> [#uses=1]
   %tmp338 = load void (%struct.CV*)*, void (%struct.CV*)** %tmp337, align 8 ; <void (%struct.CV*)*> [#uses=1]
   call void %tmp338(%struct.CV* %tmp25) nounwind
   unreachable
@@ -223,7 +223,7 @@ bb52:                                             ; preds = %bb51
   br label %bb53
 
 bb53:                                             ; preds = %bb52, %bb51
-  %tmp391 = getelementptr inbounds %struct.PERL_CONTEXT* %tmp90, i64 undef, i32 1, i32 0, i32 7, i32 0, i32 0 ; <i8**> [#uses=1]
+  %tmp391 = getelementptr inbounds %struct.PERL_CONTEXT, %struct.PERL_CONTEXT* %tmp90, i64 undef, i32 1, i32 0, i32 7, i32 0, i32 0 ; <i8**> [#uses=1]
   %.c = bitcast %struct.CV* %tmp25 to i8*         ; <i8*> [#uses=1]
   store i8* %.c, i8** %tmp391
   br i1 undef, label %bb83, label %bb57
@@ -232,16 +232,16 @@ bb57:                                             ; preds = %bb53
   br i1 undef, label %bb61, label %bb83
 
 bb61:                                             ; preds = %bb57
-  %tmp446 = getelementptr inbounds %struct.SV** %tmp380, i64 undef ; <%struct.SV**> [#uses=1]
+  %tmp446 = getelementptr inbounds %struct.SV*, %struct.SV** %tmp380, i64 undef ; <%struct.SV**> [#uses=1]
   %tmp447 = load %struct.SV*, %struct.SV** %tmp446, align 8    ; <%struct.SV*> [#uses=1]
-  %tmp448 = getelementptr inbounds %struct.SV* %tmp447, i64 0, i32 0 ; <i8**> [#uses=1]
+  %tmp448 = getelementptr inbounds %struct.SV, %struct.SV* %tmp447, i64 0, i32 0 ; <i8**> [#uses=1]
   %tmp449 = load i8*, i8** %tmp448, align 8            ; <i8*> [#uses=1]
   %tmp450 = bitcast i8* %tmp449 to i8**           ; <i8**> [#uses=1]
   %tmp451 = load i8*, i8** %tmp450, align 8            ; <i8*> [#uses=1]
   br i1 undef, label %bb.nph28, label %bb79
 
 bb.nph28:                                         ; preds = %bb61
-  %scevgep66 = getelementptr i8* %tmp451, i64 undef ; <i8*> [#uses=0]
+  %scevgep66 = getelementptr i8, i8* %tmp451, i64 undef ; <i8*> [#uses=0]
   unreachable
 
 bb79:                                             ; preds = %bb61
@@ -253,21 +253,21 @@ bb83:                                             ; preds = %bb57, %bb53
 entry.bb1_crit_edge.i23:                          ; preds = %bb83
   %.pre1.i22 = load %union.ANY*, %union.ANY** @PL_savestack, align 8 ; <%union.ANY*> [#uses=2]
   %tmp620 = load %struct.SV**, %struct.SV*** @PL_curpad, align 8 ; <%struct.SV**> [#uses=1]
-  %tmp621 = getelementptr inbounds %union.ANY* %.pre1.i22, i64 undef, i32 0 ; <i8**> [#uses=1]
+  %tmp621 = getelementptr inbounds %union.ANY, %union.ANY* %.pre1.i22, i64 undef, i32 0 ; <i8**> [#uses=1]
   %tmp622 = bitcast %struct.SV** %tmp620 to i8*   ; <i8*> [#uses=1]
   store i8* %tmp622, i8** %tmp621, align 8
-  %tmp625 = getelementptr inbounds %union.ANY* %.pre1.i22, i64 undef, i32 0 ; <i8**> [#uses=1]
+  %tmp625 = getelementptr inbounds %union.ANY, %union.ANY* %.pre1.i22, i64 undef, i32 0 ; <i8**> [#uses=1]
   store i8* bitcast (%struct.SV*** @PL_curpad to i8*), i8** %tmp625, align 8
-  %tmp634 = getelementptr inbounds %struct.SV** %tmp380, i64 undef ; <%struct.SV**> [#uses=1]
+  %tmp634 = getelementptr inbounds %struct.SV*, %struct.SV** %tmp380, i64 undef ; <%struct.SV**> [#uses=1]
   %tmp635 = load %struct.SV*, %struct.SV** %tmp634, align 8    ; <%struct.SV*> [#uses=1]
   %tmp636 = bitcast %struct.SV* %tmp635 to %struct.XPVAV** ; <%struct.XPVAV**> [#uses=1]
   %tmp637 = load %struct.XPVAV*, %struct.XPVAV** %tmp636, align 8 ; <%struct.XPVAV*> [#uses=1]
-  %tmp638 = getelementptr inbounds %struct.XPVAV* %tmp637, i64 0, i32 0 ; <i8**> [#uses=1]
+  %tmp638 = getelementptr inbounds %struct.XPVAV, %struct.XPVAV* %tmp637, i64 0, i32 0 ; <i8**> [#uses=1]
   %tmp639 = load i8*, i8** %tmp638, align 8            ; <i8*> [#uses=1]
   %tmp640 = bitcast i8* %tmp639 to %struct.SV**   ; <%struct.SV**> [#uses=2]
   store %struct.SV** %tmp640, %struct.SV*** @PL_curpad, align 8
   %tmp646 = load %struct.SV*, %struct.SV** %tmp640, align 8    ; <%struct.SV*> [#uses=1]
-  %tmp664 = getelementptr inbounds %struct.PERL_CONTEXT* %tmp90, i64 undef, i32 1, i32 0, i32 7, i32 0, i32 4 ; <%struct.OP**> [#uses=1]
+  %tmp664 = getelementptr inbounds %struct.PERL_CONTEXT, %struct.PERL_CONTEXT* %tmp90, i64 undef, i32 1, i32 0, i32 7, i32 0, i32 4 ; <%struct.OP**> [#uses=1]
   %.c4 = bitcast %struct.SV* %tmp646 to %struct.OP* ; <%struct.OP*> [#uses=1]
   store %struct.OP* %.c4, %struct.OP** %tmp664
   unreachable
@@ -324,7 +324,7 @@ entry:
 
 bb.i:                                             ; preds = %entry
   %tmp64 = bitcast %struct.SV* %tmp53 to %struct.CV* ; <%struct.CV*> [#uses=1]
-  %tmp76 = getelementptr inbounds %struct.CV* %tmp64, i64 0, i32 0 ; <%struct.XPVCV**> [#uses=1]
+  %tmp76 = getelementptr inbounds %struct.CV, %struct.CV* %tmp64, i64 0, i32 0 ; <%struct.XPVCV**> [#uses=1]
   br i1 undef, label %bb26, label %bb25
 
 bb1.i:                                            ; preds = %entry
@@ -335,7 +335,7 @@ bb25:                                             ; preds = %bb.i
 
 bb26:                                             ; preds = %bb25, %bb.i
   %tmp86 = load %struct.XPVCV*, %struct.XPVCV** %tmp76, align 8   ; <%struct.XPVCV*> [#uses=1]
-  %tmp87 = getelementptr inbounds %struct.XPVCV* %tmp86, i64 0, i32 10 ; <void (%struct.CV*)**> [#uses=1]
+  %tmp87 = getelementptr inbounds %struct.XPVCV, %struct.XPVCV* %tmp86, i64 0, i32 10 ; <void (%struct.CV*)**> [#uses=1]
   store void (%struct.CV*)* @XS_MD5_digest, void (%struct.CV*)** %tmp87, align 8
   br i1 undef, label %bb30, label %bb28
 

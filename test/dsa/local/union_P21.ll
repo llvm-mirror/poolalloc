@@ -23,20 +23,20 @@ entry:
   %"alloca point" = bitcast i32 0 to i32          ; <i32> [#uses=0]
   %0 = call noalias i8* @malloc(i64 4) nounwind   ; <i8*> [#uses=1]
   %1 = bitcast i8* %0 to i32*                     ; <i32*> [#uses=1]
-  %2 = getelementptr inbounds %union.UnionType* %obj, i32 0, i32 0 ; <i32**> [#uses=1]
+  %2 = getelementptr inbounds %union.UnionType, %union.UnionType* %obj, i32 0, i32 0 ; <i32**> [#uses=1]
   store i32* %1, i32** %2, align 8
-  %3 = getelementptr inbounds %union.UnionType* %obj, i32 0, i32 0 ; <i32**> [#uses=1]
+  %3 = getelementptr inbounds %union.UnionType, %union.UnionType* %obj, i32 0, i32 0 ; <i32**> [#uses=1]
   %4 = bitcast i32** %3 to %struct.StructType*    ; <%struct.StructType*> [#uses=1]
-  %5 = getelementptr inbounds %struct.StructType* %4, i32 0, i32 1 ; <i32*> [#uses=1]
+  %5 = getelementptr inbounds %struct.StructType, %struct.StructType* %4, i32 0, i32 1 ; <i32*> [#uses=1]
   %6 = load i32, i32* %5, align 4                      ; <i32> [#uses=1]
   store i32 %6, i32* %d, align 4
   %7 = call noalias i8* @malloc(i64 4) nounwind   ; <i8*> [#uses=1]
   %8 = bitcast i8* %7 to i32*                     ; <i32*> [#uses=1]
-  %9 = getelementptr inbounds %union.UnionType* %obj1, i32 0, i32 0 ; <i32**> [#uses=1]
+  %9 = getelementptr inbounds %union.UnionType, %union.UnionType* %obj1, i32 0, i32 0 ; <i32**> [#uses=1]
   store i32* %8, i32** %9, align 8
-  %10 = getelementptr inbounds %union.UnionType* %obj1, i32 0, i32 0 ; <i32**> [#uses=1]
+  %10 = getelementptr inbounds %union.UnionType, %union.UnionType* %obj1, i32 0, i32 0 ; <i32**> [#uses=1]
   %11 = bitcast i32** %10 to %struct.StructType*  ; <%struct.StructType*> [#uses=1]
-  %12 = getelementptr inbounds %struct.StructType* %11, i32 0, i32 0 ; <i32*> [#uses=1]
+  %12 = getelementptr inbounds %struct.StructType, %struct.StructType* %11, i32 0, i32 0 ; <i32*> [#uses=1]
   %13 = load i32, i32* %12, align 8                    ; <i32> [#uses=1]
   store i32 %13, i32* %e, align 4
   br label %return

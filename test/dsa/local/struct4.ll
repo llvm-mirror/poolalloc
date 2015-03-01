@@ -20,11 +20,11 @@ entry:
   %d = alloca i32                                 ; <i32*> [#uses=1]
   %"alloca point" = bitcast i32 0 to i32          ; <i32> [#uses=0]
   store i32 5, i32* %x, align 4
-  %1 = getelementptr inbounds %struct.R* %r, i32 0, i32 0 ; <i32**> [#uses=1]
+  %1 = getelementptr inbounds %struct.R, %struct.R* %r, i32 0, i32 0 ; <i32**> [#uses=1]
   store i32* %x, i32** %1, align 8
-  %2 = getelementptr inbounds %struct.R* %r, i32 0, i32 1 ; <i32**> [#uses=1]
+  %2 = getelementptr inbounds %struct.R, %struct.R* %r, i32 0, i32 1 ; <i32**> [#uses=1]
   store i32* %y, i32** %2, align 8
-  %3 = getelementptr inbounds %struct.R* %r, i32 0, i32 2 ; <i8**> [#uses=1]
+  %3 = getelementptr inbounds %struct.R, %struct.R* %r, i32 0, i32 2 ; <i8**> [#uses=1]
   store i8* %c, i8** %3, align 8
   %r1 = bitcast %struct.R* %r to i32**            ; <i32**> [#uses=1]
   store i32** %r1, i32*** %p, align 8

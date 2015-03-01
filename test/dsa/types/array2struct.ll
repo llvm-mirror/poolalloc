@@ -24,7 +24,7 @@ bb2.i:                                            ; preds = %bb8
   br label %random_nasko.exit
 
 random_nasko.exit:                                ; preds = %bb2.i, %bb8
-  %tmp81moda7 = getelementptr [21 x %struct..0tnode]* bitcast (%0* @tree to [21 x %struct..0tnode]*), i64 0, i64 undef, i32 3, i64 undef ; <i32*> [#uses=0]
+  %tmp81moda7 = getelementptr [21 x %struct..0tnode], [21 x %struct..0tnode]* bitcast (%0* @tree to [21 x %struct..0tnode]*), i64 0, i64 undef, i32 3, i64 undef ; <i32*> [#uses=0]
   ret i32 1
 
 bb10:                                             ; preds = %entry

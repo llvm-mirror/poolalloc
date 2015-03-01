@@ -18,11 +18,11 @@ define fastcc void @InitEval() nounwind {
 
 InstIntFunc.exit17:                               ; preds = %bb.i16, %InstIntFunc.exit20
   %tmp79 = tail call fastcc %struct.TypHeader* @NewBag(i32 16, i64 8) nounwind ; <%struct.TypHeader*> [#uses=2]
-  %tmp80 = getelementptr inbounds %struct.TypHeader* %tmp79, i64 0, i32 1 ; <%struct.TypHeader***> [#uses=1]
+  %tmp80 = getelementptr inbounds %struct.TypHeader, %struct.TypHeader* %tmp79, i64 0, i32 1 ; <%struct.TypHeader***> [#uses=1]
   %tmp81 = load %struct.TypHeader**, %struct.TypHeader*** %tmp80, align 8 ; <%struct.TypHeader**> [#uses=1]
   store %struct.TypHeader* bitcast (%struct.TypHeader* (%struct.TypHeader*)* @FunIsBound to %struct.TypHeader*), %struct.TypHeader** %tmp81
   %tmp82 = tail call fastcc %struct.TypHeader* @FindIdent(i8* getelementptr inbounds ([8 x i8]* @.str8302, i64 0, i64 0)) nounwind ; <%struct.TypHeader*> [#uses=1]
-  %tmp83 = getelementptr inbounds %struct.TypHeader* %tmp82, i64 0, i32 1 ; <%struct.TypHeader***> [#uses=1]
+  %tmp83 = getelementptr inbounds %struct.TypHeader, %struct.TypHeader* %tmp82, i64 0, i32 1 ; <%struct.TypHeader***> [#uses=1]
   %tmp84 = load %struct.TypHeader**, %struct.TypHeader*** %tmp83, align 8 ; <%struct.TypHeader**> [#uses=1]
   br i1 undef, label %InstIntFunc.exit14, label %bb.i13
 
@@ -110,11 +110,11 @@ bb.i5.i409:                                       ; preds = %InstIntFunc.exit9.i
 
 InstIntFunc.exit6.i410:                           ; preds = %bb.i5.i409, %InstIntFunc.exit9.i407
   %tmp215 = tail call fastcc %struct.TypHeader* @NewBag(i32 16, i64 8) nounwind ; <%struct.TypHeader*> [#uses=2]
-  %tmp216 = getelementptr inbounds %struct.TypHeader* %tmp215, i64 0, i32 1 ; <%struct.TypHeader***> [#uses=1]
+  %tmp216 = getelementptr inbounds %struct.TypHeader, %struct.TypHeader* %tmp215, i64 0, i32 1 ; <%struct.TypHeader***> [#uses=1]
   %tmp217 = load %struct.TypHeader**, %struct.TypHeader*** %tmp216, align 8 ; <%struct.TypHeader**> [#uses=1]
   store %struct.TypHeader* bitcast (%struct.TypHeader* (%struct.TypHeader*)* @FunCoeffsCyc to %struct.TypHeader*), %struct.TypHeader** %tmp217
   %tmp218 = tail call fastcc %struct.TypHeader* @FindIdent(i8* getelementptr inbounds ([10 x i8]* @.str4251, i64 0, i64 0)) nounwind ; <%struct.TypHeader*> [#uses=1]
-  %tmp219 = getelementptr inbounds %struct.TypHeader* %tmp218, i64 0, i32 1 ; <%struct.TypHeader***> [#uses=1]
+  %tmp219 = getelementptr inbounds %struct.TypHeader, %struct.TypHeader* %tmp218, i64 0, i32 1 ; <%struct.TypHeader***> [#uses=1]
   %tmp220 = load %struct.TypHeader**, %struct.TypHeader*** %tmp219, align 8 ; <%struct.TypHeader**> [#uses=1]
   br i1 undef, label %InstIntFunc.exit3.i413, label %bb.i2.i412
 
@@ -235,7 +235,7 @@ bb5:                                              ; preds = %entry
 
 bb8:                                              ; preds = %entry
   %tmp24 = tail call fastcc %struct.TypHeader* @NewBag(i32 78, i64 0) nounwind ; <%struct.TypHeader*> [#uses=1]
-  %tmp26 = getelementptr inbounds %struct.TypHeader* %tmp24, i64 0, i32 1 ; <%struct.TypHeader***> [#uses=1]
+  %tmp26 = getelementptr inbounds %struct.TypHeader, %struct.TypHeader* %tmp24, i64 0, i32 1 ; <%struct.TypHeader***> [#uses=1]
   %tmp27 = load %struct.TypHeader**, %struct.TypHeader*** %tmp26, align 8 ; <%struct.TypHeader**> [#uses=1]
   %tmp29 = bitcast %struct.TypHeader** %tmp27 to i8* ; <i8*> [#uses=1]
   %tmp30 = tail call i8* @strncat(i8* %tmp29, i8* %name, i64 undef) nounwind ; <i8*> [#uses=0]
@@ -251,7 +251,7 @@ bb8:                                              ; preds = %entry
 
 bb10:                                             ; preds = %bb8, %entry
   %tmp28 = load %struct.TypHeader*, %struct.TypHeader** @HdIdenttab, align 8 ; <%struct.TypHeader*> [#uses=1]
-  %tmp32 = getelementptr inbounds %struct.TypHeader* %tmp28, i64 0, i32 1 ; <%struct.TypHeader***> [#uses=1]
+  %tmp32 = getelementptr inbounds %struct.TypHeader, %struct.TypHeader* %tmp28, i64 0, i32 1 ; <%struct.TypHeader***> [#uses=1]
   %tmp33 = load %struct.TypHeader**, %struct.TypHeader*** %tmp32, align 8 ; <%struct.TypHeader**> [#uses=1]
   br label %bb12
 
@@ -259,7 +259,7 @@ bb11:                                             ; preds = %bb13
   br label %bb12
 
 bb12:                                             ; preds = %bb11, %bb10
-  %tmp36 = getelementptr inbounds %struct.TypHeader** %tmp33, i64 undef ; <%struct.TypHeader**> [#uses=1]
+  %tmp36 = getelementptr inbounds %struct.TypHeader*, %struct.TypHeader** %tmp33, i64 undef ; <%struct.TypHeader**> [#uses=1]
   %tmp37 = load %struct.TypHeader*, %struct.TypHeader** %tmp36, align 8 ; <%struct.TypHeader*> [#uses=2]
   br i1 undef, label %bb19, label %bb13
 
