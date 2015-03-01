@@ -21,11 +21,11 @@ entry:
   store i32 123456, i32* %2, align 4
   %3 = getelementptr inbounds %union.UnionType* %obj, i32 0, i32 0 ; <[100 x i32*]*> [#uses=1]
   %4 = getelementptr inbounds [100 x i32*]* %3, i64 0, i64 3 ; <i32**> [#uses=1]
-  %5 = load i32** %4, align 8                     ; <i32*> [#uses=1]
+  %5 = load i32*, i32** %4, align 8                     ; <i32*> [#uses=1]
   store i32* %5, i32** %c, align 8
   br label %return
 
 return:                                           ; preds = %entry
-  %retval1 = load i32* %retval                    ; <i32> [#uses=1]
+  %retval1 = load i32, i32* %retval                    ; <i32> [#uses=1]
   ret i32 %retval1
 }

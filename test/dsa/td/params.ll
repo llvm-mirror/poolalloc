@@ -57,22 +57,22 @@ entry:
   %"alloca point" = bitcast i32 0 to i32          ; <i32> [#uses=0]
   store i32** %a2, i32*** %a2_addr
   store i32** %b2, i32*** %b2_addr
-  %1 = load i32*** %a2_addr, align 8              ; <i32**> [#uses=1]
-  %2 = load i32** %1, align 8                     ; <i32*> [#uses=1]
+  %1 = load i32**, i32*** %a2_addr, align 8              ; <i32**> [#uses=1]
+  %2 = load i32*, i32** %1, align 8                     ; <i32*> [#uses=1]
   store i32* %2, i32** %temp, align 8
-  %3 = load i32*** %b2_addr, align 8              ; <i32**> [#uses=1]
-  %4 = load i32** %3, align 8                     ; <i32*> [#uses=1]
+  %3 = load i32**, i32*** %b2_addr, align 8              ; <i32**> [#uses=1]
+  %4 = load i32*, i32** %3, align 8                     ; <i32*> [#uses=1]
   store i32* %4, i32** %temp1, align 8
-  %5 = load i32** %temp1, align 8                 ; <i32*> [#uses=1]
-  %6 = load i32* %5, align 4                      ; <i32> [#uses=1]
-  %7 = load i32** %temp, align 8                  ; <i32*> [#uses=1]
-  %8 = load i32* %7, align 4                      ; <i32> [#uses=1]
+  %5 = load i32*, i32** %temp1, align 8                 ; <i32*> [#uses=1]
+  %6 = load i32, i32* %5, align 4                      ; <i32> [#uses=1]
+  %7 = load i32*, i32** %temp, align 8                  ; <i32*> [#uses=1]
+  %8 = load i32, i32* %7, align 4                      ; <i32> [#uses=1]
   %9 = icmp slt i32 %6, %8                        ; <i1> [#uses=1]
   br i1 %9, label %bb, label %bb1
 
 bb:                                               ; preds = %entry
-  %10 = load i32*** %b2_addr, align 8             ; <i32**> [#uses=1]
-  %11 = load i32** %10, align 8                   ; <i32*> [#uses=1]
+  %10 = load i32**, i32*** %b2_addr, align 8             ; <i32**> [#uses=1]
+  %11 = load i32*, i32** %10, align 8                   ; <i32*> [#uses=1]
   store i32* %11, i32** %0, align 8
   br label %bb2
 
@@ -81,18 +81,18 @@ bb1:                                              ; preds = %entry
   %13 = bitcast i8* %12 to i32*                   ; <i32*> [#uses=1]
   store i32* %13, i32** %temp2, align 8
   store i32** %temp2, i32*** %a2_addr, align 8
-  %14 = load i32*** %a2_addr, align 8             ; <i32**> [#uses=1]
-  %15 = load i32** %14, align 8                   ; <i32*> [#uses=1]
+  %14 = load i32**, i32*** %a2_addr, align 8             ; <i32**> [#uses=1]
+  %15 = load i32*, i32** %14, align 8                   ; <i32*> [#uses=1]
   store i32* %15, i32** %0, align 8
   br label %bb2
 
 bb2:                                              ; preds = %bb1, %bb
-  %16 = load i32** %0, align 8                    ; <i32*> [#uses=1]
+  %16 = load i32*, i32** %0, align 8                    ; <i32*> [#uses=1]
   store i32* %16, i32** %retval, align 8
   br label %return
 
 return:                                           ; preds = %bb2
-  %retval3 = load i32** %retval                   ; <i32*> [#uses=1]
+  %retval3 = load i32*, i32** %retval                   ; <i32*> [#uses=1]
   ret i32* %retval3
 }
 

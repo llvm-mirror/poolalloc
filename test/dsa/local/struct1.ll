@@ -20,24 +20,24 @@ entry:
   %2 = call noalias i8* @malloc(i64 16) nounwind  ; <i8*> [#uses=1]
   %3 = bitcast i8* %2 to %struct.StructType*      ; <%struct.StructType*> [#uses=1]
   store %struct.StructType* %3, %struct.StructType** %s1, align 8
-  %4 = load %struct.StructType** %s1, align 8     ; <%struct.StructType*> [#uses=1]
+  %4 = load %struct.StructType*, %struct.StructType** %s1, align 8     ; <%struct.StructType*> [#uses=1]
   %5 = getelementptr inbounds %struct.StructType* %4, i32 0, i32 0 ; <i32*> [#uses=1]
   store i32 10, i32* %5, align 8
-  %6 = load %struct.StructType** %s1, align 8     ; <%struct.StructType*> [#uses=1]
+  %6 = load %struct.StructType*, %struct.StructType** %s1, align 8     ; <%struct.StructType*> [#uses=1]
   %7 = getelementptr inbounds %struct.StructType* %6, i32 0, i32 1 ; <i32**> [#uses=1]
-  %8 = load i32** %tmp, align 8                   ; <i32*> [#uses=1]
+  %8 = load i32*, i32** %tmp, align 8                   ; <i32*> [#uses=1]
   store i32* %8, i32** %7, align 8
-  %9 = load %struct.StructType** %s1, align 8     ; <%struct.StructType*> [#uses=1]
+  %9 = load %struct.StructType*, %struct.StructType** %s1, align 8     ; <%struct.StructType*> [#uses=1]
   %10 = getelementptr inbounds %struct.StructType* %9, i32 0, i32 0 ; <i32*> [#uses=1]
   store i32* %10, i32** %c, align 8
-  %11 = load %struct.StructType** %s1, align 8    ; <%struct.StructType*> [#uses=2]
+  %11 = load %struct.StructType*, %struct.StructType** %s1, align 8    ; <%struct.StructType*> [#uses=2]
   %12 = getelementptr inbounds %struct.StructType* %s2, i32 0, i32 0 ; <i32*> [#uses=1]
   %13 = getelementptr inbounds %struct.StructType* %11, i32 0, i32 0 ; <i32*> [#uses=1]
-  %14 = load i32* %13, align 8                    ; <i32> [#uses=1]
+  %14 = load i32, i32* %13, align 8                    ; <i32> [#uses=1]
   store i32 %14, i32* %12, align 8
   %15 = getelementptr inbounds %struct.StructType* %s2, i32 0, i32 1 ; <i32**> [#uses=1]
   %16 = getelementptr inbounds %struct.StructType* %11, i32 0, i32 1 ; <i32**> [#uses=1]
-  %17 = load i32** %16, align 8                   ; <i32*> [#uses=1]
+  %17 = load i32*, i32** %16, align 8                   ; <i32*> [#uses=1]
   store i32* %17, i32** %15, align 8
   br label %return
 

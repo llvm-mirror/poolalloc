@@ -26,12 +26,12 @@ entry:
   %6 = getelementptr inbounds %union.UnionType* %obj, i32 0, i32 0 ; <%struct.StructType1*> [#uses=1]
   %7 = bitcast %struct.StructType1* %6 to %struct.StructType2* ; <%struct.StructType2*> [#uses=1]
   %8 = getelementptr inbounds %struct.StructType2* %7, i32 0, i32 1 ; <i16*> [#uses=1]
-  %9 = load i16* %8, align 4                      ; <i16> [#uses=1]
+  %9 = load i16, i16* %8, align 4                      ; <i16> [#uses=1]
   store i16 %9, i16* %x, align 2
   %10 = getelementptr inbounds %union.UnionType* %obj, i32 0, i32 0 ; <%struct.StructType1*> [#uses=1]
   %11 = bitcast %struct.StructType1* %10 to %struct.StructType2* ; <%struct.StructType2*> [#uses=1]
   %12 = getelementptr inbounds %struct.StructType2* %11, i32 0, i32 2 ; <i16*> [#uses=1]
-  %13 = load i16* %12, align 2                    ; <i16> [#uses=1]
+  %13 = load i16, i16* %12, align 2                    ; <i16> [#uses=1]
   store i16 %13, i16* %y, align 2
   br label %return
 

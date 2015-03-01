@@ -25,11 +25,11 @@ entry:
   %2 = getelementptr inbounds %union.UnionType* %obj, i32 0, i32 0 ; <[100 x %struct.StructType]*> [#uses=1]
   %3 = getelementptr inbounds [100 x %struct.StructType]* %2, i64 0, i64 0 ; <%struct.StructType*> [#uses=1]
   %4 = getelementptr inbounds %struct.StructType* %3, i32 0, i32 0 ; <%struct.StructType**> [#uses=1]
-  %5 = load %struct.StructType** %4, align 8      ; <%struct.StructType*> [#uses=1]
+  %5 = load %struct.StructType*, %struct.StructType** %4, align 8      ; <%struct.StructType*> [#uses=1]
   store %struct.StructType* %5, %struct.StructType** %ptr, align 8
   br label %return
 
 return:                                           ; preds = %entry
-  %retval1 = load i32* %retval                    ; <i32> [#uses=1]
+  %retval1 = load i32, i32* %retval                    ; <i32> [#uses=1]
   ret i32 %retval1
 }

@@ -24,7 +24,7 @@ target triple = "x86_64-unknown-linux-gnu"
 
 define internal i32 @takesPointer(i32* nocapture %ptr) nounwind readonly {
 entry:
-  %0 = load i32* %ptr, align 4                    ; <i32> [#uses=1]
+  %0 = load i32, i32* %ptr, align 4                    ; <i32> [#uses=1]
   ret i32 %0
 }
 

@@ -55,9 +55,9 @@ entry:
   %ptr = tail call i32* ()* @getPointer() nounwind
   %ptrExtern = tail call i32* (...)* @getPointerExtern() nounwind
   %ptrViaExtern = tail call i32* ()* @getPointerViaExtern() nounwind
-  %val1 = load i32* %ptr, align 4
-  %val2 = load i32* %ptrExtern, align 4
-  %val3 = load i32* %ptrViaExtern, align 4
+  %val1 = load i32, i32* %ptr, align 4
+  %val2 = load i32, i32* %ptrExtern, align 4
+  %val3 = load i32, i32* %ptrViaExtern, align 4
   %sum_partial = add i32 %val1, %val2
   %sum = add i32 %sum_partial, %val3
   ret i32 %sum

@@ -14,14 +14,14 @@ entry:
   %1 = call noalias i8* @malloc(i64 4) nounwind   ; <i8*> [#uses=1]
   %2 = bitcast i8* %1 to i32*                     ; <i32*> [#uses=1]
   store i32* %2, i32** %a2, align 8
-  %3 = load i32** %a2, align 8                    ; <i32*> [#uses=1]
+  %3 = load i32*, i32** %a2, align 8                    ; <i32*> [#uses=1]
   store i32* %3, i32** %0, align 8
-  %4 = load i32** %0, align 8                     ; <i32*> [#uses=1]
+  %4 = load i32*, i32** %0, align 8                     ; <i32*> [#uses=1]
   store i32* %4, i32** %retval, align 8
   br label %return
 
 return:                                           ; preds = %entry
-  %retval1 = load i32** %retval                   ; <i32*> [#uses=1]
+  %retval1 = load i32*, i32** %retval                   ; <i32*> [#uses=1]
   ret i32* %retval1
 }
 

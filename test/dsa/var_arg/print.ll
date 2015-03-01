@@ -25,7 +25,7 @@ entry:
   %ap1 = bitcast [1 x %struct.__va_list_tag]* %ap to %struct.__va_list_tag* ; <%struct.__va_list_tag*> [#uses=1]
   %ap12 = bitcast %struct.__va_list_tag* %ap1 to i8* ; <i8*> [#uses=1]
   call void @llvm.va_start(i8* %ap12)
-  %1 = load i8** %fmt_addr, align 8               ; <i8*> [#uses=1]
+  %1 = load i8*, i8** %fmt_addr, align 8               ; <i8*> [#uses=1]
   %ap3 = bitcast [1 x %struct.__va_list_tag]* %ap to %struct.__va_list_tag* ; <%struct.__va_list_tag*> [#uses=1]
   %2 = call i32 @vprintf(i8* noalias %1, %struct.__va_list_tag* %ap3) nounwind ; <i32> [#uses=0]
   %ap4 = bitcast [1 x %struct.__va_list_tag]* %ap to %struct.__va_list_tag* ; <%struct.__va_list_tag*> [#uses=1]
@@ -55,7 +55,7 @@ entry:
   store i32* %1, i32** %x, align 8
   call void (i8*, ...)* @generic_sendmsg(i8* getelementptr inbounds ([22 x i8]* @.str, i64 0, i64 0), i32 1234, i32 1234, double 1.232200e+02, double 1.234500e+02) nounwind
   call void (i8*, ...)* @generic_sendmsg(i8* getelementptr inbounds ([12 x i8]* @.str1, i64 0, i64 0), i8* getelementptr inbounds ([5 x i8]* @.str2, i64 0, i64 0), i8* getelementptr inbounds ([4 x i8]* @.str3, i64 0, i64 0), i8* getelementptr inbounds ([8 x i8]* @.str4, i64 0, i64 0)) nounwind
-  %2 = load i32** %x, align 8                     ; <i32*> [#uses=1]
+  %2 = load i32*, i32** %x, align 8                     ; <i32*> [#uses=1]
   call void (i8*, ...)* @generic_sendmsg(i8* getelementptr inbounds ([15 x i8]* @.str5, i64 0, i64 0), i8* getelementptr inbounds ([5 x i8]* @.str2, i64 0, i64 0), i8* getelementptr inbounds ([4 x i8]* @.str3, i64 0, i64 0), i8* getelementptr inbounds ([8 x i8]* @.str4, i64 0, i64 0), i32* %2) nounwind
   br label %return
 

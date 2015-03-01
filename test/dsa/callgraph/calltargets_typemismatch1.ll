@@ -17,16 +17,16 @@ entry:
   %0 = alloca i32*                                ; <i32**> [#uses=2]
   %"alloca point" = bitcast i32 0 to i32          ; <i32> [#uses=0]
   store float %f, float* %f_addr
-  %1 = load float* %f_addr, align 4               ; <float> [#uses=1]
+  %1 = load float, float* %f_addr, align 4               ; <float> [#uses=1]
   %2 = fpext float %1 to double                   ; <double> [#uses=1]
   %3 = call i32 (i8*, ...)* @printf(i8* noalias getelementptr inbounds ([4 x i8]* @.str, i64 0, i64 0), double %2) nounwind ; <i32> [#uses=0]
   store i32* null, i32** %0, align 8
-  %4 = load i32** %0, align 8                     ; <i32*> [#uses=1]
+  %4 = load i32*, i32** %0, align 8                     ; <i32*> [#uses=1]
   store i32* %4, i32** %retval, align 8
   br label %return
 
 return:                                           ; preds = %entry
-  %retval1 = load i32** %retval                   ; <i32*> [#uses=1]
+  %retval1 = load i32*, i32** %retval                   ; <i32*> [#uses=1]
   ret i32* %retval1
 }
 
@@ -39,15 +39,15 @@ entry:
   %0 = alloca i32*                                ; <i32**> [#uses=2]
   %"alloca point" = bitcast i32 0 to i32          ; <i32> [#uses=0]
   store double %d, double* %d_addr
-  %1 = load double* %d_addr, align 8              ; <double> [#uses=1]
+  %1 = load double, double* %d_addr, align 8              ; <double> [#uses=1]
   %2 = call i32 (i8*, ...)* @printf(i8* noalias getelementptr inbounds ([4 x i8]* @.str1, i64 0, i64 0), double %1) nounwind ; <i32> [#uses=0]
   store i32* null, i32** %0, align 8
-  %3 = load i32** %0, align 8                     ; <i32*> [#uses=1]
+  %3 = load i32*, i32** %0, align 8                     ; <i32*> [#uses=1]
   store i32* %3, i32** %retval, align 8
   br label %return
 
 return:                                           ; preds = %entry
-  %retval1 = load i32** %retval                   ; <i32*> [#uses=1]
+  %retval1 = load i32*, i32** %retval                   ; <i32*> [#uses=1]
   ret i32* %retval1
 }
 
@@ -58,8 +58,8 @@ entry:
   store i32* (double)* @A, i32* (double)** @FP, align 8
   store i32* (double)* bitcast (i32* (float)* @B to i32* (double)*), i32* (double)** @FP, align 8
   store double 5.000000e+00, double* %d, align 8
-  %0 = load i32* (double)** @FP, align 8          ; <i32* (double)*> [#uses=1]
-  %1 = load double* %d, align 8                   ; <double> [#uses=1]
+  %0 = load i32* (double)*, i32* (double)** @FP, align 8          ; <i32* (double)*> [#uses=1]
+  %1 = load double, double* %d, align 8                   ; <double> [#uses=1]
   %2 = call i32* %0(double %1) nounwind           ; <i32*> [#uses=0]
   br label %return
 

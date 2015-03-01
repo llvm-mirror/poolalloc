@@ -20,18 +20,18 @@ entry:
   %0 = call noalias i8* @malloc(i64 4) nounwind   ; <i8*> [#uses=1]
   %1 = bitcast i8* %0 to i32*                     ; <i32*> [#uses=1]
   store i32* %1, i32** %x, align 8
-  %2 = load i8** %fp_addr, align 8                ; <i8*> [#uses=1]
+  %2 = load i8*, i8** %fp_addr, align 8                ; <i8*> [#uses=1]
   %3 = bitcast i8* %2 to i32* (i8*)**             ; <i32* (i8*)**> [#uses=1]
   store i32* (i8*)** %3, i32* (i8*)*** %fp1, align 8
-  %4 = load i32* (i8*)*** %fp1, align 8           ; <i32* (i8*)**> [#uses=1]
-  %5 = load i32* (i8*)** %4, align 8              ; <i32* (i8*)*> [#uses=1]
-  %6 = load i32** %x, align 8                     ; <i32*> [#uses=1]
+  %4 = load i32* (i8*)**, i32* (i8*)*** %fp1, align 8           ; <i32* (i8*)**> [#uses=1]
+  %5 = load i32* (i8*)*, i32* (i8*)** %4, align 8              ; <i32* (i8*)*> [#uses=1]
+  %6 = load i32*, i32** %x, align 8                     ; <i32*> [#uses=1]
   %7 = bitcast i32* %6 to i8*                     ; <i8*> [#uses=1]
   %8 = call i32* %5(i8* %7) nounwind              ; <i32*> [#uses=0]
   br label %return
 
 return:                                           ; preds = %entry
-  %retval1 = load i32** %retval                   ; <i32*> [#uses=1]
+  %retval1 = load i32*, i32** %retval                   ; <i32*> [#uses=1]
   ret i32* %retval1
 }
 
@@ -46,7 +46,7 @@ entry:
   br label %return
 
 return:                                           ; preds = %entry
-  %retval1 = load i32** %retval                   ; <i32*> [#uses=1]
+  %retval1 = load i32*, i32** %retval                   ; <i32*> [#uses=1]
   ret i32* %retval1
 }
 
@@ -59,7 +59,7 @@ entry:
   br label %return
 
 return:                                           ; preds = %entry
-  %retval1 = load i32** %retval                   ; <i32*> [#uses=1]
+  %retval1 = load i32*, i32** %retval                   ; <i32*> [#uses=1]
   ret i32* %retval1
 }
 
@@ -75,13 +75,13 @@ entry:
   store i32* (i8*)* @B, i32* (i8*)** %fp1, align 8
   store i32* (i8*)* @C, i32* (i8*)** %fp1, align 8
   store i32* (i8*)* @D, i32* (i8*)** %fp1, align 8
-  %0 = load i32* (i8*)** %fp, align 8             ; <i32* (i8*)*> [#uses=1]
-  %1 = load i32* (i8*)** %fp1, align 8            ; <i32* (i8*)*> [#uses=1]
+  %0 = load i32* (i8*)*, i32* (i8*)** %fp, align 8             ; <i32* (i8*)*> [#uses=1]
+  %1 = load i32* (i8*)*, i32* (i8*)** %fp1, align 8            ; <i32* (i8*)*> [#uses=1]
   %2 = bitcast i32* (i8*)* %1 to i8*              ; <i8*> [#uses=1]
   %3 = call i32* %0(i8* %2) nounwind              ; <i32*> [#uses=0]
   br label %return
 
 return:                                           ; preds = %entry
-  %retval1 = load i32** %retval                   ; <i32*> [#uses=1]
+  %retval1 = load i32*, i32** %retval                   ; <i32*> [#uses=1]
   ret i32* %retval1
 }

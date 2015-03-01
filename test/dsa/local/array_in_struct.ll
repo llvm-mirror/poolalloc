@@ -21,21 +21,21 @@ entry:
   %r2 = alloca float                              ; <float*> [#uses=1]
   %"alloca point" = bitcast i32 0 to i32          ; <i32> [#uses=0]
   %0 = call i32 (i8*, ...)* @scanf(i8* noalias getelementptr inbounds ([4 x i8]* @.str, i64 0, i64 0), i32* %z) nounwind ; <i32> [#uses=0]
-  %1 = load i32* %z, align 4                      ; <i32> [#uses=1]
+  %1 = load i32, i32* %z, align 4                      ; <i32> [#uses=1]
   %2 = getelementptr inbounds %struct.sType* %arr, i32 0, i32 1 ; <[10 x i32]*> [#uses=1]
   %3 = sext i32 %1 to i64                         ; <i64> [#uses=1]
   %4 = getelementptr inbounds [10 x i32]* %2, i64 0, i64 %3 ; <i32*> [#uses=1]
-  %5 = load i32* %4, align 4                      ; <i32> [#uses=1]
+  %5 = load i32, i32* %4, align 4                      ; <i32> [#uses=1]
   store i32 %5, i32* %t, align 4
   %6 = getelementptr inbounds %struct.sType* %arr, i32 0, i32 2 ; <i32*> [#uses=1]
-  %7 = load i32* %6, align 4                      ; <i32> [#uses=1]
+  %7 = load i32, i32* %6, align 4                      ; <i32> [#uses=1]
   store i32 %7, i32* %r, align 4
   %8 = getelementptr inbounds %struct.sType* %arr, i32 0, i32 1 ; <[10 x i32]*> [#uses=1]
   %9 = getelementptr inbounds [10 x i32]* %8, i64 0, i64 5 ; <i32*> [#uses=1]
-  %10 = load i32* %9, align 4                     ; <i32> [#uses=1]
+  %10 = load i32, i32* %9, align 4                     ; <i32> [#uses=1]
   store i32 %10, i32* %r1, align 4
   %11 = getelementptr inbounds %struct.sType* %arr, i32 0, i32 0 ; <i32*> [#uses=1]
-  %12 = load i32* %11, align 4                    ; <i32> [#uses=1]
+  %12 = load i32, i32* %11, align 4                    ; <i32> [#uses=1]
   %13 = sitofp i32 %12 to float                   ; <float> [#uses=1]
   store float %13, float* %r2, align 4
   br label %return

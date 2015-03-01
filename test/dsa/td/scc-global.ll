@@ -46,7 +46,7 @@ entry:
 }
 
 define internal void @C(void (i32**)* %FP, i32** %ptr) {
-  %addr = load i32** %ptr
+  %addr = load i32*, i32** %ptr
   call void %FP(i32** null)
   ret void
 }

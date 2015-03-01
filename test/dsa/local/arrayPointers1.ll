@@ -21,8 +21,8 @@ entry:
   br label %bb1
 
 bb:                                               ; preds = %bb1
-  %0 = load i32* %i, align 4                      ; <i32> [#uses=1]
-  %1 = load i32* %ncolumns, align 4               ; <i32> [#uses=1]
+  %0 = load i32, i32* %i, align 4                      ; <i32> [#uses=1]
+  %1 = load i32, i32* %ncolumns, align 4               ; <i32> [#uses=1]
   %2 = sext i32 %1 to i64                         ; <i64> [#uses=1]
   %3 = mul i64 %2, 4                              ; <i64> [#uses=1]
   %4 = call noalias i8* @malloc(i64 %3) nounwind  ; <i8*> [#uses=1]
@@ -30,14 +30,14 @@ bb:                                               ; preds = %bb1
   %6 = sext i32 %0 to i64                         ; <i64> [#uses=1]
   %7 = getelementptr inbounds [10 x i32*]* %array, i64 0, i64 %6 ; <i32**> [#uses=1]
   store i32* %5, i32** %7, align 8
-  %8 = load i32* %i, align 4                      ; <i32> [#uses=1]
+  %8 = load i32, i32* %i, align 4                      ; <i32> [#uses=1]
   %9 = add nsw i32 %8, 1                          ; <i32> [#uses=1]
   store i32 %9, i32* %i, align 4
   br label %bb1
 
 bb1:                                              ; preds = %bb, %entry
-  %10 = load i32* %i, align 4                     ; <i32> [#uses=1]
-  %11 = load i32* %nrows, align 4                 ; <i32> [#uses=1]
+  %10 = load i32, i32* %i, align 4                     ; <i32> [#uses=1]
+  %11 = load i32, i32* %nrows, align 4                 ; <i32> [#uses=1]
   %12 = icmp slt i32 %10, %11                     ; <i1> [#uses=1]
   br i1 %12, label %bb, label %bb2
 
@@ -50,37 +50,37 @@ bb3:                                              ; preds = %bb7
   br label %bb5
 
 bb4:                                              ; preds = %bb5
-  %13 = load i32* %i, align 4                     ; <i32> [#uses=1]
+  %13 = load i32, i32* %i, align 4                     ; <i32> [#uses=1]
   %14 = sext i32 %13 to i64                       ; <i64> [#uses=1]
   %15 = getelementptr inbounds [10 x i32*]* %array, i64 0, i64 %14 ; <i32**> [#uses=1]
-  %16 = load i32** %15, align 8                   ; <i32*> [#uses=1]
-  %17 = load i32* %i, align 4                     ; <i32> [#uses=1]
-  %18 = load i32* %j, align 4                     ; <i32> [#uses=1]
+  %16 = load i32*, i32** %15, align 8                   ; <i32*> [#uses=1]
+  %17 = load i32, i32* %i, align 4                     ; <i32> [#uses=1]
+  %18 = load i32, i32* %j, align 4                     ; <i32> [#uses=1]
   %19 = add nsw i32 %17, %18                      ; <i32> [#uses=1]
-  %20 = load i32* %j, align 4                     ; <i32> [#uses=1]
+  %20 = load i32, i32* %j, align 4                     ; <i32> [#uses=1]
   %21 = sext i32 %20 to i64                       ; <i64> [#uses=1]
   %22 = getelementptr inbounds i32* %16, i64 %21  ; <i32*> [#uses=1]
   store i32 %19, i32* %22, align 1
-  %23 = load i32* %j, align 4                     ; <i32> [#uses=1]
+  %23 = load i32, i32* %j, align 4                     ; <i32> [#uses=1]
   %24 = add nsw i32 %23, 1                        ; <i32> [#uses=1]
   store i32 %24, i32* %j, align 4
   br label %bb5
 
 bb5:                                              ; preds = %bb4, %bb3
-  %25 = load i32* %j, align 4                     ; <i32> [#uses=1]
-  %26 = load i32* %ncolumns, align 4              ; <i32> [#uses=1]
+  %25 = load i32, i32* %j, align 4                     ; <i32> [#uses=1]
+  %26 = load i32, i32* %ncolumns, align 4              ; <i32> [#uses=1]
   %27 = icmp slt i32 %25, %26                     ; <i1> [#uses=1]
   br i1 %27, label %bb4, label %bb6
 
 bb6:                                              ; preds = %bb5
-  %28 = load i32* %i, align 4                     ; <i32> [#uses=1]
+  %28 = load i32, i32* %i, align 4                     ; <i32> [#uses=1]
   %29 = add nsw i32 %28, 1                        ; <i32> [#uses=1]
   store i32 %29, i32* %i, align 4
   br label %bb7
 
 bb7:                                              ; preds = %bb6, %bb2
-  %30 = load i32* %i, align 4                     ; <i32> [#uses=1]
-  %31 = load i32* %nrows, align 4                 ; <i32> [#uses=1]
+  %30 = load i32, i32* %i, align 4                     ; <i32> [#uses=1]
+  %31 = load i32, i32* %nrows, align 4                 ; <i32> [#uses=1]
   %32 = icmp slt i32 %30, %31                     ; <i1> [#uses=1]
   br i1 %32, label %bb3, label %bb8
 

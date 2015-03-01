@@ -33,7 +33,7 @@ define internal void @callIndirectExternFunc() nounwind {
 entry:
   %0 = alloca i32* ()*
   store i32* ()* @externFunc2, i32* ()** %0
-  %fp = load i32* ()** %0
+  %fp = load i32* ()*, i32* ()** %0
   %res = call i32* ()* %fp() nounwind
   ret void
 }
@@ -55,7 +55,7 @@ entry:
   %3 = call i32* ()* ()* @externFunc3() nounwind
   store i32* ()* %3, i32* ()** %0
   store i32* ()* @externFunc4, i32* ()** %0
-  %res = load i32* ()** %0
+  %res = load i32* ()*, i32* ()** %0
   ret i32* ()* %res
 }
 

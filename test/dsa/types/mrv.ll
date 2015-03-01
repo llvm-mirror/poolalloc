@@ -53,17 +53,17 @@ entry:
   store float 1.000000e+00, float* %3, align 4
   %4 = bitcast %struct.S* %s to %0*               ; <%0*> [#uses=1]
   %elt = getelementptr inbounds %0* %4, i32 0, i32 0 ; <double*> [#uses=1]
-  %val = load double* %elt                        ; <double> [#uses=1]
+  %val = load double, double* %elt                        ; <double> [#uses=1]
   %5 = bitcast %struct.S* %s to %0*               ; <%0*> [#uses=1]
   %elt1 = getelementptr inbounds %0* %5, i32 0, i32 1 ; <float*> [#uses=1]
-  %val2 = load float* %elt1                       ; <float> [#uses=1]
+  %val2 = load float, float* %elt1                       ; <float> [#uses=1]
   call void @_Z3foo1S(double %val, float %val2) nounwind
   store i32 0, i32* %0, align 4
-  %6 = load i32* %0, align 4                      ; <i32> [#uses=1]
+  %6 = load i32, i32* %0, align 4                      ; <i32> [#uses=1]
   store i32 %6, i32* %retval, align 4
   br label %return
 
 return:                                           ; preds = %entry
-  %retval3 = load i32* %retval                    ; <i32> [#uses=1]
+  %retval3 = load i32, i32* %retval                    ; <i32> [#uses=1]
   ret i32 %retval3
 }

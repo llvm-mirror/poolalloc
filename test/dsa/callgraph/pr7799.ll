@@ -36,7 +36,7 @@ entry:
   %0 = sext i32 %argc to i64                      ; <i64> [#uses=1]
   %1 = getelementptr inbounds [2 x %struct.combo]* @farray, i64 0, i64 %0 ; <%struct.combo*> [#uses=1]
   %2 = getelementptr inbounds %struct.combo* %1, i32 0, i32 1 ; <i32 (i32)**> [#uses=1]
-  %3 = load i32 (i32)** %2, align 8               ; <i32 (i32)*> [#uses=1]
+  %3 = load i32 (i32)*, i32 (i32)** %2, align 8               ; <i32 (i32)*> [#uses=1]
   %4 = call i32 %3(i32 %argc) nounwind            ; <i32> [#uses=1]
   br label %return
 

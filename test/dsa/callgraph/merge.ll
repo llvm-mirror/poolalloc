@@ -47,7 +47,7 @@ entry:
   store void ()* @B, void ()** %fp, align 8
   store void ()* @A, void ()** %fp1, align 8
   store void ()* @D, void ()** %fp, align 8
-  %0 = load void ()** %fp, align 8                ; <void ()*> [#uses=1]
+  %0 = load void ()*, void ()** %fp, align 8                ; <void ()*> [#uses=1]
   call void %0() nounwind
   br label %return
 

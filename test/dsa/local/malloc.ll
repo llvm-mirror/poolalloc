@@ -19,15 +19,15 @@ entry:
   %"alloca point" = bitcast i32 0 to i32          ; <i32> [#uses=0]
   %c = call noalias i8* @malloc(i64 100) nounwind ; <i8*> [#uses=1]
   store i8* %c, i8** %b, align 8
-  %d = load i8** %b, align 8                      ; <i8*> [#uses=1]
+  %d = load i8*, i8** %b, align 8                      ; <i8*> [#uses=1]
   call void @free(i8* %d) nounwind
   store i32 0, i32* %a, align 4
-  %e = load i32* %a, align 4                      ; <i32> [#uses=1]
+  %e = load i32, i32* %a, align 4                      ; <i32> [#uses=1]
   store i32 %e, i32* %retval, align 4
   br label %return
 
 return:                                           ; preds = %entry
-  %retval1 = load i32* %retval                    ; <i32> [#uses=1]
+  %retval1 = load i32, i32* %retval                    ; <i32> [#uses=1]
   ret i32 %retval1
 }
 

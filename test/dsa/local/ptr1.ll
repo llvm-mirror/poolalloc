@@ -21,8 +21,8 @@ entry:
   store i32 20, i32* %a1, align 4
   store i32* %a, i32** %b, align 8
   store i32* %a1, i32** %b1, align 8
-  %0 = load i32* %a, align 4                      ; <i32> [#uses=1]
-  %1 = load i32* %a1, align 4                     ; <i32> [#uses=1]
+  %0 = load i32, i32* %a, align 4                      ; <i32> [#uses=1]
+  %1 = load i32, i32* %a1, align 4                     ; <i32> [#uses=1]
   %2 = icmp sgt i32 %0, %1                        ; <i1> [#uses=1]
   br i1 %2, label %bb, label %bb1
 
@@ -35,11 +35,11 @@ bb1:                                              ; preds = %entry
   br label %bb2
 
 bb2:                                              ; preds = %bb1, %bb
-  %3 = load i32*** %c, align 8                    ; <i32**> [#uses=1]
-  %4 = load i32** %3, align 8                     ; <i32*> [#uses=1]
+  %3 = load i32**, i32*** %c, align 8                    ; <i32**> [#uses=1]
+  %4 = load i32*, i32** %3, align 8                     ; <i32*> [#uses=1]
   store i32* %4, i32** %d, align 8
-  %5 = load i32** %d, align 8                     ; <i32*> [#uses=1]
-  %6 = load i32* %5, align 4                      ; <i32> [#uses=1]
+  %5 = load i32*, i32** %d, align 8                     ; <i32*> [#uses=1]
+  %6 = load i32, i32* %5, align 4                      ; <i32> [#uses=1]
   store i32 %6, i32* %e, align 4
   br label %return
 

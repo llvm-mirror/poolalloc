@@ -38,7 +38,7 @@ define i8* @indirect(i8* (i8*) * %fp, i8* %ptr) {
 
 define i32 @main(i32 %argc, i8** nocapture %argv) nounwind {
   ; Conjure some i8*
-  %ptr = load i8** %argv, align 8
+  %ptr = load i8*, i8** %argv, align 8
 
   ; %fooptr = %ptr
   %fooptr = call i8* @indirect(i8* (i8*)* @foo, i8* %ptr)

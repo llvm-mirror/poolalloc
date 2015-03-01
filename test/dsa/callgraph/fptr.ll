@@ -33,12 +33,12 @@ entry:
   %F = alloca void (i8*)*                         ; <void (i8*)**> [#uses=3]
   %"alloca point" = bitcast i32 0 to i32          ; <i32> [#uses=0]
   store void (i8*)* bitcast (void (void (i8*)**)* @A to void (i8*)*), void (i8*)** %F, align 8
-  %0 = load void (i8*)** %F, align 8              ; <void (i8*)*> [#uses=1]
+  %0 = load void (i8*)*, void (i8*)** %F, align 8              ; <void (i8*)*> [#uses=1]
   %F1 = bitcast void (i8*)** %F to i8*            ; <i8*> [#uses=1]
   call void %0(i8* %F1) nounwind
   br label %return
 
 return:                                           ; preds = %entry
-  %retval2 = load i32* %retval                    ; <i32> [#uses=1]
+  %retval2 = load i32, i32* %retval                    ; <i32> [#uses=1]
   ret i32 %retval2
 }

@@ -28,12 +28,12 @@ entry:
   store i32 %a, i32* %a_addr
   %1 = call noalias i8* @malloc(i64 32) nounwind  ; <i8*> [#uses=1]
   store i8* %1, i8** %0, align 8
-  %2 = load i8** %0, align 8                      ; <i8*> [#uses=1]
+  %2 = load i8*, i8** %0, align 8                      ; <i8*> [#uses=1]
   store i8* %2, i8** %retval, align 8
   br label %return
 
 return:                                           ; preds = %entry
-  %retval1 = load i8** %retval                    ; <i8*> [#uses=1]
+  %retval1 = load i8*, i8** %retval                    ; <i8*> [#uses=1]
   ret i8* %retval1
 }
 
@@ -42,7 +42,7 @@ entry:
   %f_addr = alloca i8* (i32)*                     ; <i8* (i32)**> [#uses=2]
   %"alloca point" = bitcast i32 0 to i32          ; <i32> [#uses=0]
   store i8* (i32)* %f, i8* (i32)** %f_addr
-  %0 = load i8* (i32)** %f_addr, align 8          ; <i8* (i32)*> [#uses=1]
+  %0 = load i8* (i32)*, i8* (i32)** %f_addr, align 8          ; <i8* (i32)*> [#uses=1]
   %1 = call i8* %0(i32 32) nounwind               ; <i8*> [#uses=0]
   br label %return
 
@@ -55,17 +55,17 @@ entry:
   %retval = alloca i32*                           ; <i32**> [#uses=2]
   %0 = alloca i32*                                ; <i32**> [#uses=2]
   %"alloca point" = bitcast i32 0 to i32          ; <i32> [#uses=0]
-  %1 = load i8* (i32)** @fp, align 8              ; <i8* (i32)*> [#uses=1]
+  %1 = load i8* (i32)*, i8* (i32)** @fp, align 8              ; <i8* (i32)*> [#uses=1]
   call void @mergingFunc(i8* (i32)* %1) nounwind
   %2 = call noalias i8* @malloc(i64 32) nounwind  ; <i8*> [#uses=1]
   %3 = bitcast i8* %2 to i32*                     ; <i32*> [#uses=1]
   store i32* %3, i32** %0, align 8
-  %4 = load i32** %0, align 8                     ; <i32*> [#uses=1]
+  %4 = load i32*, i32** %0, align 8                     ; <i32*> [#uses=1]
   store i32* %4, i32** %retval, align 8
   br label %return
 
 return:                                           ; preds = %entry
-  %retval1 = load i32** %retval                   ; <i32*> [#uses=1]
+  %retval1 = load i32*, i32** %retval                   ; <i32*> [#uses=1]
   ret i32* %retval1
 }
 

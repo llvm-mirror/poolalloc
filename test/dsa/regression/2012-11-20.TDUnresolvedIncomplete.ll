@@ -35,29 +35,29 @@ define i8* @foo(i8* %ptr) nounwind {
 ; Call foo with ptr
 define void @direct(i8* %ptr) {
   %retptr = call i8* @foo(i8* %ptr)
-  %val = load i8* %retptr
+  %val = load i8, i8* %retptr
   ret void
 }
 
 ; Same, but using indirect fp not resolved until inlined into main
 define void @indirect(i8* (i8*)* %fp, i8* %ptr) {
   %retptr = call i8* %fp(i8* %ptr)
-  %val = load i8* %retptr
+  %val = load i8, i8* %retptr
   ret void
 }
 
 ; Same, but using indirect fp not resolved until inlined into main
 ; with an additional level of indirection
 define void @indirect2(i8* (i8*)** %fpp, i8* %ptr) {
-  %fp = load i8* (i8*)** %fpp
+  %fp = load i8* (i8*)*, i8* (i8*)** %fpp
   %retptr = call i8* %fp(i8* %ptr)
-  %val = load i8* %retptr
+  %val = load i8, i8* %retptr
   ret void
 }
 
 define i32 @main(i32 %argc, i8** nocapture %argv) nounwind {
   ; Conjure some i8*
-  %ptr = load i8** %argv, align 8
+  %ptr = load i8*, i8** %argv, align 8
 
   call void @direct(i8* %ptr)
 

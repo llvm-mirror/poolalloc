@@ -35,21 +35,21 @@ entry:
   %r1 = bitcast %struct.R* %r to %struct.T*       ; <%struct.T*> [#uses=1]
   store %struct.T* %r1, %struct.T** %p, align 8
   %s2 = bitcast %struct.S* %s to %struct.T*       ; <%struct.T*> [#uses=2]
-  %4 = load %struct.T** %p, align 8               ; <%struct.T*> [#uses=2]
+  %4 = load %struct.T*, %struct.T** %p, align 8               ; <%struct.T*> [#uses=2]
   %5 = getelementptr inbounds %struct.T* %4, i32 0, i32 0 ; <i32**> [#uses=1]
   %6 = getelementptr inbounds %struct.T* %s2, i32 0, i32 0 ; <i32**> [#uses=1]
-  %7 = load i32** %6, align 8                     ; <i32*> [#uses=1]
+  %7 = load i32*, i32** %6, align 8                     ; <i32*> [#uses=1]
   store i32* %7, i32** %5, align 8
   %8 = getelementptr inbounds %struct.T* %4, i32 0, i32 1 ; <i32**> [#uses=1]
   %9 = getelementptr inbounds %struct.T* %s2, i32 0, i32 1 ; <i32**> [#uses=1]
-  %10 = load i32** %9, align 8                    ; <i32*> [#uses=1]
+  %10 = load i32*, i32** %9, align 8                    ; <i32*> [#uses=1]
   store i32* %10, i32** %8, align 8
   store i32 0, i32* %0, align 4
-  %11 = load i32* %0, align 4                     ; <i32> [#uses=1]
+  %11 = load i32, i32* %0, align 4                     ; <i32> [#uses=1]
   store i32 %11, i32* %retval, align 4
   br label %return
 
 return:                                           ; preds = %entry
-  %retval4 = load i32* %retval                    ; <i32> [#uses=1]
+  %retval4 = load i32, i32* %retval                    ; <i32> [#uses=1]
   ret i32 %retval4
 }

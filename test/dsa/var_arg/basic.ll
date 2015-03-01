@@ -51,15 +51,15 @@ entry:
   %ap5 = bitcast [1 x %struct.__va_list_tag]* %ap to %struct.__va_list_tag* ; <%struct.__va_list_tag*> [#uses=1]
   %ap56 = bitcast %struct.__va_list_tag* %ap5 to i8* ; <i8*> [#uses=1]
   call void @llvm.va_end(i8* %ap56)
-  %3 = load i32** %val, align 8                   ; <i32*> [#uses=1]
-  %4 = load i32* %3, align 4                      ; <i32> [#uses=1]
+  %3 = load i32*, i32** %val, align 8                   ; <i32*> [#uses=1]
+  %4 = load i32, i32* %3, align 4                      ; <i32> [#uses=1]
   store i32 %4, i32* %0, align 4
-  %5 = load i32* %0, align 4                      ; <i32> [#uses=1]
+  %5 = load i32, i32* %0, align 4                      ; <i32> [#uses=1]
   store i32 %5, i32* %retval, align 4
   br label %return
 
 return:                                           ; preds = %entry
-  %retval7 = load i32* %retval                    ; <i32> [#uses=1]
+  %retval7 = load i32, i32* %retval                    ; <i32> [#uses=1]
   ret i32 %retval7
 }
 
@@ -79,14 +79,14 @@ entry:
   store i8 97, i8* %stack_val1, align 1
   %1 = call i32 (i32, ...)* @get(i32 0, i32* %stack_val, i8* %stack_val1) nounwind ; <i32> [#uses=1]
   store i32 %1, i32* %ret, align 4
-  %2 = load i32* %ret, align 4                    ; <i32> [#uses=1]
+  %2 = load i32, i32* %ret, align 4                    ; <i32> [#uses=1]
   %3 = sub nsw i32 %2, 5                          ; <i32> [#uses=1]
   store i32 %3, i32* %0, align 4
-  %4 = load i32* %0, align 4                      ; <i32> [#uses=1]
+  %4 = load i32, i32* %0, align 4                      ; <i32> [#uses=1]
   store i32 %4, i32* %retval, align 4
   br label %return
 
 return:                                           ; preds = %entry
-  %retval1 = load i32* %retval                    ; <i32> [#uses=1]
+  %retval1 = load i32, i32* %retval                    ; <i32> [#uses=1]
   ret i32 %retval1
 }

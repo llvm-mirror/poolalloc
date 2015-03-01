@@ -18,15 +18,15 @@ entry:
   %1 = call noalias i8* @malloc(i64 4) nounwind   ; <i8*> [#uses=1]
   %2 = bitcast i8* %1 to i32*                     ; <i32*> [#uses=1]
   store i32* %2, i32** %a2, align 8
-  %3 = load i32** %a2, align 8                    ; <i32*> [#uses=1]
+  %3 = load i32*, i32** %a2, align 8                    ; <i32*> [#uses=1]
   store i32 10, i32* %3, align 4
-  %4 = load i32** %a2, align 8                    ; <i32*> [#uses=1]
-  %5 = load i32* %4, align 4                      ; <i32> [#uses=1]
+  %4 = load i32*, i32** %a2, align 8                    ; <i32*> [#uses=1]
+  %5 = load i32, i32* %4, align 4                      ; <i32> [#uses=1]
   %6 = icmp sgt i32 %5, 5                         ; <i1> [#uses=1]
   br i1 %6, label %bb, label %bb1
 
 bb:                                               ; preds = %entry
-  %7 = load i32** %a2, align 8                    ; <i32*> [#uses=1]
+  %7 = load i32*, i32** %a2, align 8                    ; <i32*> [#uses=1]
   store i32* %7, i32** %0, align 8
   br label %bb2
 
@@ -34,17 +34,17 @@ bb1:                                              ; preds = %entry
   %8 = call noalias i8* @malloc(i64 4) nounwind   ; <i8*> [#uses=1]
   %9 = bitcast i8* %8 to i32*                     ; <i32*> [#uses=1]
   store i32* %9, i32** %b2, align 8
-  %10 = load i32** %b2, align 8                   ; <i32*> [#uses=1]
+  %10 = load i32*, i32** %b2, align 8                   ; <i32*> [#uses=1]
   store i32* %10, i32** %0, align 8
   br label %bb2
 
 bb2:                                              ; preds = %bb1, %bb
-  %11 = load i32** %0, align 8                    ; <i32*> [#uses=1]
+  %11 = load i32*, i32** %0, align 8                    ; <i32*> [#uses=1]
   store i32* %11, i32** %retval, align 8
   br label %return
 
 return:                                           ; preds = %bb2
-  %retval3 = load i32** %retval                   ; <i32*> [#uses=1]
+  %retval3 = load i32*, i32** %retval                   ; <i32*> [#uses=1]
   ret i32* %retval3
 }
 

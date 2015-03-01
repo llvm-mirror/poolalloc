@@ -58,32 +58,32 @@ entry:
   %6 = call noalias i8* @malloc(i64 4) nounwind   ; <i8*> [#uses=1]
   %7 = bitcast i8* %6 to i32*                     ; <i32*> [#uses=1]
   store i32* %7, i32** %heap_d, align 8
-  %8 = load i32* %stack_c, align 4                ; <i32> [#uses=1]
+  %8 = load i32, i32* %stack_c, align 4                ; <i32> [#uses=1]
   store i32 %8, i32* %stack_b, align 4
-  %9 = load i32** %heap_c, align 8                ; <i32*> [#uses=1]
-  %10 = load i32* %9, align 4                     ; <i32> [#uses=1]
-  %11 = load i32** %heap_b, align 8               ; <i32*> [#uses=1]
+  %9 = load i32*, i32** %heap_c, align 8                ; <i32*> [#uses=1]
+  %10 = load i32, i32* %9, align 4                     ; <i32> [#uses=1]
+  %11 = load i32*, i32** %heap_b, align 8               ; <i32*> [#uses=1]
   store i32 %10, i32* %11, align 4
-  %12 = load i32* @global_c, align 4              ; <i32> [#uses=1]
+  %12 = load i32, i32* @global_c, align 4              ; <i32> [#uses=1]
   store i32 %12, i32* @global_b, align 4
-  %13 = load i32* @global_d, align 4              ; <i32> [#uses=1]
+  %13 = load i32, i32* @global_d, align 4              ; <i32> [#uses=1]
   store i32 %13, i32* %stack_d, align 4
-  %14 = load i32** %heap_d, align 8               ; <i32*> [#uses=1]
-  %15 = load i32* %14, align 4                    ; <i32> [#uses=1]
+  %14 = load i32*, i32** %heap_d, align 8               ; <i32*> [#uses=1]
+  %15 = load i32, i32* %14, align 4                    ; <i32> [#uses=1]
   store i32 %15, i32* @global_d, align 4
-  %16 = load i32** %heap_d, align 8               ; <i32*> [#uses=1]
-  %17 = load i32* %stack_d, align 4               ; <i32> [#uses=1]
+  %16 = load i32*, i32** %heap_d, align 8               ; <i32*> [#uses=1]
+  %17 = load i32, i32* %stack_d, align 4               ; <i32> [#uses=1]
   store i32 %17, i32* %16, align 4
-  %18 = load i32** %heap_a, align 8               ; <i32*> [#uses=1]
+  %18 = load i32*, i32** %heap_a, align 8               ; <i32*> [#uses=1]
   %19 = bitcast i32* %18 to i8*                   ; <i8*> [#uses=1]
   call void @free(i8* %19) nounwind
-  %20 = load i32** %heap_b, align 8               ; <i32*> [#uses=1]
+  %20 = load i32*, i32** %heap_b, align 8               ; <i32*> [#uses=1]
   %21 = bitcast i32* %20 to i8*                   ; <i8*> [#uses=1]
   call void @free(i8* %21) nounwind
-  %22 = load i32** %heap_c, align 8               ; <i32*> [#uses=1]
+  %22 = load i32*, i32** %heap_c, align 8               ; <i32*> [#uses=1]
   %23 = bitcast i32* %22 to i8*                   ; <i8*> [#uses=1]
   call void @free(i8* %23) nounwind
-  %24 = load i32** %heap_d, align 8               ; <i32*> [#uses=1]
+  %24 = load i32*, i32** %heap_d, align 8               ; <i32*> [#uses=1]
   %25 = bitcast i32* %24 to i8*                   ; <i8*> [#uses=1]
   call void @free(i8* %25) nounwind
   br label %return

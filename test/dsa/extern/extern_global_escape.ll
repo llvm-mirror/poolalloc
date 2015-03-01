@@ -23,7 +23,7 @@ target triple = "x86_64-unknown-linux-gnu"
 ; RUN: dsaopt %s -dsa-td -analyze -verify-flags "externallyVisible:ptr+E-I"
 define void @externallyVisible(i32** %ptr) nounwind {
 entry:
-  %0 = load i32** %ptr, align 8
+  %0 = load i32*, i32** %ptr, align 8
   store i32* %0, i32** @globalptr, align 8
   ret void
 }
@@ -35,7 +35,7 @@ entry:
 define void @usesGlobalPtr() nounwind {
 entry:
   %ptr = alloca i32*                              ; <i32**> [#uses=1]
-  %0 = load i32** @globalptr, align 8             ; <i32*> [#uses=1]
+  %0 = load i32*, i32** @globalptr, align 8             ; <i32*> [#uses=1]
   store i32* %0, i32** %ptr, align 8
   ret void
 }

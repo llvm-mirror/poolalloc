@@ -23,8 +23,8 @@ entry:
   %a_addr = alloca i32**                          ; <i32***> [#uses=2]
   %"alloca point" = bitcast i32 0 to i32          ; <i32> [#uses=0]
   store i32** %a, i32*** %a_addr
-  %0 = load i32** @G, align 8                     ; <i32*> [#uses=1]
-  %1 = load i32*** %a_addr, align 8               ; <i32**> [#uses=1]
+  %0 = load i32*, i32** @G, align 8                     ; <i32*> [#uses=1]
+  %1 = load i32**, i32*** %a_addr, align 8               ; <i32**> [#uses=1]
   store i32* %0, i32** %1, align 8
   br label %return
 
@@ -56,10 +56,10 @@ entry:
   %a = alloca i32*                                ; <i32**> [#uses=2]
   %val = alloca i32                               ; <i32*> [#uses=1]
   %"alloca point" = bitcast i32 0 to i32          ; <i32> [#uses=0]
-  %0 = load i32** @G, align 8                     ; <i32*> [#uses=1]
+  %0 = load i32*, i32** @G, align 8                     ; <i32*> [#uses=1]
   store i32* %0, i32** %a, align 8
-  %1 = load i32** %a, align 8                     ; <i32*> [#uses=1]
-  %2 = load i32* %1, align 4                      ; <i32> [#uses=1]
+  %1 = load i32*, i32** %a, align 8                     ; <i32*> [#uses=1]
+  %2 = load i32, i32* %1, align 4                      ; <i32> [#uses=1]
   store i32 %2, i32* %val, align 4
   br label %return
 
@@ -76,7 +76,7 @@ entry:
   %f_addr = alloca void (i32**)*                  ; <void (i32**)**> [#uses=2]
   %"alloca point" = bitcast i32 0 to i32          ; <i32> [#uses=0]
   store void (i32**)* %f, void (i32**)** %f_addr
-  %0 = load void (i32**)** %f_addr, align 8       ; <void (i32**)*> [#uses=1]
+  %0 = load void (i32**)*, void (i32**)** %f_addr, align 8       ; <void (i32**)*> [#uses=1]
   call void @external(void (i32**)* %0) nounwind
   br label %return
 
@@ -100,7 +100,7 @@ entry:
   %f = alloca void (i32**)*                       ; <void (i32**)**> [#uses=2]
   %"alloca point" = bitcast i32 0 to i32          ; <i32> [#uses=0]
   store void (i32**)* @C, void (i32**)** %f, align 8
-  %0 = load void (i32**)** %f, align 8            ; <void (i32**)*> [#uses=1]
+  %0 = load void (i32**)*, void (i32**)** %f, align 8            ; <void (i32**)*> [#uses=1]
   call void @externalize(void (i32**)* %0) nounwind
   call void @B() nounwind
   call void @B2() nounwind

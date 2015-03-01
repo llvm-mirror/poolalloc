@@ -20,7 +20,7 @@ entry:
   %buffer_addr = alloca i8*                       ; <i8**> [#uses=2]
   %"alloca point" = bitcast i32 0 to i32          ; <i32> [#uses=0]
   store i8* %buffer, i8** %buffer_addr
-  %0 = load i8** %buffer_addr, align 8            ; <i8*> [#uses=1]
+  %0 = load i8*, i8** %buffer_addr, align 8            ; <i8*> [#uses=1]
   %1 = getelementptr inbounds i8* %0, i64 0       ; <i8*> [#uses=1]
   store i8 97, i8* %1, align 1
   br label %return

@@ -7,7 +7,7 @@ target triple = "x86_64-unknown-linux-gnu"
 
 define i64 @main(i32 %argc, i8** %argv) uwtable {
 entry:
-  %fptr = load i64()** @FP
+  %fptr = load i64()*, i64()** @FP
   %0 = call i64 %fptr()
   ret i64 %0
 }

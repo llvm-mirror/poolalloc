@@ -25,7 +25,7 @@ for.body.lr.ph:                                   ; preds = %entry
   %gp_offset_p = getelementptr inbounds [1 x %struct.__va_list_tag]* %vl, i64 0, i64 0, i32 0
   %0 = getelementptr inbounds [1 x %struct.__va_list_tag]* %vl, i64 0, i64 0, i32 3
   %overflow_arg_area_p = getelementptr inbounds [1 x %struct.__va_list_tag]* %vl, i64 0, i64 0, i32 2
-  %gp_offset.pre = load i32* %gp_offset_p, align 16
+  %gp_offset.pre = load i32, i32* %gp_offset_p, align 16
   br label %for.body
 
 for.body:                                         ; preds = %vaarg.end, %for.body.lr.ph
@@ -36,7 +36,7 @@ for.body:                                         ; preds = %vaarg.end, %for.bod
   br i1 %fits_in_gp, label %vaarg.in_reg, label %vaarg.in_mem
 
 vaarg.in_reg:                                     ; preds = %for.body
-  %reg_save_area = load i8** %0, align 16
+  %reg_save_area = load i8*, i8** %0, align 16
   %1 = sext i32 %gp_offset to i64
   %2 = getelementptr i8* %reg_save_area, i64 %1
   %3 = add i32 %gp_offset, 8
@@ -44,7 +44,7 @@ vaarg.in_reg:                                     ; preds = %for.body
   br label %vaarg.end
 
 vaarg.in_mem:                                     ; preds = %for.body
-  %overflow_arg_area = load i8** %overflow_arg_area_p, align 8
+  %overflow_arg_area = load i8*, i8** %overflow_arg_area_p, align 8
   %overflow_arg_area.next = getelementptr i8* %overflow_arg_area, i64 8
   store i8* %overflow_arg_area.next, i8** %overflow_arg_area_p, align 8
   br label %vaarg.end
@@ -53,7 +53,7 @@ vaarg.end:                                        ; preds = %vaarg.in_mem, %vaar
   %gp_offset39 = phi i32 [ %3, %vaarg.in_reg ], [ %gp_offset, %vaarg.in_mem ]
   %vaarg.addr.in = phi i8* [ %2, %vaarg.in_reg ], [ %overflow_arg_area, %vaarg.in_mem ]
   %vaarg.addr = bitcast i8* %vaarg.addr.in to i32*
-  %4 = load i32* %vaarg.addr, align 4
+  %4 = load i32, i32* %vaarg.addr, align 4
   %add = add nsw i32 %4, %result.034
   %inc = add nsw i32 %i.033, 1
   %exitcond36 = icmp eq i32 %inc, %n
@@ -68,7 +68,7 @@ for.body9.lr.ph:                                  ; preds = %for.end
   %gp_offset_p12 = getelementptr inbounds [1 x %struct.__va_list_tag]* %vl, i64 0, i64 0, i32 0
   %5 = getelementptr inbounds [1 x %struct.__va_list_tag]* %vl, i64 0, i64 0, i32 3
   %overflow_arg_area_p18 = getelementptr inbounds [1 x %struct.__va_list_tag]* %vl, i64 0, i64 0, i32 2
-  %gp_offset13.pre = load i32* %gp_offset_p12, align 16
+  %gp_offset13.pre = load i32, i32* %gp_offset_p12, align 16
   br label %for.body9
 
 for.body9:                                        ; preds = %vaarg.end21, %for.body9.lr.ph
@@ -79,7 +79,7 @@ for.body9:                                        ; preds = %vaarg.end21, %for.b
   br i1 %fits_in_gp14, label %vaarg.in_reg15, label %vaarg.in_mem17
 
 vaarg.in_reg15:                                   ; preds = %for.body9
-  %reg_save_area16 = load i8** %5, align 16
+  %reg_save_area16 = load i8*, i8** %5, align 16
   %6 = sext i32 %gp_offset13 to i64
   %7 = getelementptr i8* %reg_save_area16, i64 %6
   %8 = add i32 %gp_offset13, 8
@@ -87,7 +87,7 @@ vaarg.in_reg15:                                   ; preds = %for.body9
   br label %vaarg.end21
 
 vaarg.in_mem17:                                   ; preds = %for.body9
-  %overflow_arg_area19 = load i8** %overflow_arg_area_p18, align 8
+  %overflow_arg_area19 = load i8*, i8** %overflow_arg_area_p18, align 8
   %overflow_arg_area.next20 = getelementptr i8* %overflow_arg_area19, i64 8
   store i8* %overflow_arg_area.next20, i8** %overflow_arg_area_p18, align 8
   br label %vaarg.end21
@@ -96,7 +96,7 @@ vaarg.end21:                                      ; preds = %vaarg.in_mem17, %va
   %gp_offset1337 = phi i32 [ %8, %vaarg.in_reg15 ], [ %gp_offset13, %vaarg.in_mem17 ]
   %vaarg.addr22.in = phi i8* [ %7, %vaarg.in_reg15 ], [ %overflow_arg_area19, %vaarg.in_mem17 ]
   %vaarg.addr22 = bitcast i8* %vaarg.addr22.in to i32*
-  %9 = load i32* %vaarg.addr22, align 4
+  %9 = load i32, i32* %vaarg.addr22, align 4
   %add23 = add nsw i32 %9, %result.131
   %inc25 = add nsw i32 %i.130, 1
   %exitcond = icmp eq i32 %inc25, %n

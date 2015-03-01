@@ -16,17 +16,17 @@ entry:
   %t = alloca i32                                 ; <i32*> [#uses=1]
   %t1 = alloca i32                                ; <i32*> [#uses=1]
   %"alloca point" = bitcast i32 0 to i32          ; <i32> [#uses=0]
-  %0 = load i32* %z, align 4                      ; <i32> [#uses=1]
+  %0 = load i32, i32* %z, align 4                      ; <i32> [#uses=1]
   %1 = sext i32 %0 to i64                         ; <i64> [#uses=1]
   %2 = getelementptr inbounds [10 x %struct.sType]* %arr, i64 0, i64 %1 ; <%struct.sType*> [#uses=1]
   %3 = getelementptr inbounds %struct.sType* %2, i32 0, i32 1 ; <i32*> [#uses=1]
-  %4 = load i32* %3, align 4                      ; <i32> [#uses=1]
+  %4 = load i32, i32* %3, align 4                      ; <i32> [#uses=1]
   store i32 %4, i32* %t, align 4
-  %5 = load i32* %z, align 4                      ; <i32> [#uses=1]
+  %5 = load i32, i32* %z, align 4                      ; <i32> [#uses=1]
   %6 = sext i32 %5 to i64                         ; <i64> [#uses=1]
   %7 = getelementptr inbounds [10 x %struct.sType]* %arr, i64 0, i64 %6 ; <%struct.sType*> [#uses=1]
   %8 = getelementptr inbounds %struct.sType* %7, i32 0, i32 0 ; <i32*> [#uses=1]
-  %9 = load i32* %8, align 4                      ; <i32> [#uses=1]
+  %9 = load i32, i32* %8, align 4                      ; <i32> [#uses=1]
   store i32 %9, i32* %t1, align 4
   br label %return
 

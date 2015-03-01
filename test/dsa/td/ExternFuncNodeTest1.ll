@@ -21,7 +21,7 @@ declare noalias i8* @malloc(i64) nounwind
 
 define void @main() nounwind {
 entry:
-  %0 = load i8* (i32)** @fp, align 8              ; <i8* (i32)*> [#uses=1]
+  %0 = load i8* (i32)*, i8* (i32)** @fp, align 8              ; <i8* (i32)*> [#uses=1]
   %1 = call i8* %0(i32 32) nounwind               ; <i8*> [#uses=0]
   br label %return
 

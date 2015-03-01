@@ -29,7 +29,7 @@ entry:
 ;RUN: dsaopt %s -dsa-td -analyze -verify-flags "takesPointer:ptr+E-I"
 define i32 @takesPointer(i32* %ptr) nounwind {
 entry:
-  %0 = load i32* %ptr, align 4                    ; <i32> [#uses=1]
+  %0 = load i32, i32* %ptr, align 4                    ; <i32> [#uses=1]
   ret i32 %0
 }
 
@@ -47,7 +47,7 @@ entry:
 ;RUN: dsaopt %s -dsa-td -analyze -verify-flags "takesPointerInternal:ptr-IE"
 define internal i32 @takesPointerInternal(i32* %ptr) nounwind {
 entry:
-  %0 = load i32* %ptr, align 4                    ; <i32> [#uses=1]
+  %0 = load i32, i32* %ptr, align 4                    ; <i32> [#uses=1]
   ret i32 %0
 }
 
