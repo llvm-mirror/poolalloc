@@ -414,23 +414,36 @@ FORCE:
 
 lit.site.cfg: FORCE
 	@echo "Making Poolalloc/DSA 'lit.site.cfg' file..."
-	@$(ECHOPATH) s=@TARGET_TRIPLE@=$(TARGET_TRIPLE)=g > lit.tmp
+	@$(ECHOPATH) s=@LLVM_HOST_TRIPLE@=$(HOST_TRIPLE)=g > lit.tmp
+	@$(ECHOPATH) s=@TARGET_TRIPLE@=$(TARGET_TRIPLE)=g >> lit.tmp
 	@$(ECHOPATH) s=@LLVM_SOURCE_DIR@=$(LLVM_SRC_ROOT)=g >> lit.tmp
 	@$(ECHOPATH) s=@LLVM_BINARY_DIR@=$(LLVM_OBJ_ROOT)=g >> lit.tmp
+	@$(ECHOPATH) s=@LLVM_TOOLS_DIR@=$(LLVMToolDir)=g >> lit.tmp
+	@$(ECHOPATH) s=@LLVM_LIBRARY_DIR@=$(LibDir)=g >> lit.tmp
 	@$(ECHOPATH) s=@PROJ_SRC_ROOT@=$(PROJ_SRC_ROOT)=g >> lit.tmp
 	@$(ECHOPATH) s=@PROJ_OBJ_ROOT@=$(PROJ_OBJ_ROOT)=g >> lit.tmp
-	@$(ECHOPATH) s=@LLVM_TOOLS_DIR@=$(LLVMToolDir)=g >> lit.tmp
 	@$(ECHOPATH) s=@SHLIBDIR@=$(SharedLibDir)=g >> lit.tmp
 	@$(ECHOPATH) s=@SHLIBEXT@=$(SHLIBEXT)=g >> lit.tmp
+	@$(ECHOPATH) s=@EXEEXT@=$(EXEEXT)=g >> lit.tmp
 	@$(ECHOPATH) s=@PYTHON_EXECUTABLE@=$(PYTHON)=g >> lit.tmp
-	@$(ECHOPATH) s,@OCAMLOPT@,$(OCAMLOPT) -cc \\\\\"$(CXX_FOR_OCAMLOPT)\\\\\" -I $(LibDir)/ocaml,g >> lit.tmp
+	@$(ECHOPATH) s=@GOLD_EXECUTABLE@=ld=g >> lit.tmp
+	@$(ECHOPATH) s=@OCAMLFIND@=$(OCAMLFIND)=g >> lit.tmp
+	@$(ECHOPATH) s!@OCAMLFLAGS@!$(addprefix -cclib ,$(LDFLAGS))!g >> lit.tmp
+	@$(ECHOPATH) s=@HAVE_OCAMLOPT@=$(HAVE_OCAMLOPT)=g >> lit.tmp
+	@$(ECHOPATH) s=@HAVE_OCAML_OUNIT@=$(HAVE_OCAML_OUNIT)=g >> lit.tmp
+	@$(ECHOPATH) s=@GO_EXECUTABLE@=$(GO)=g >> lit.tmp
+	@$(ECHOPATH) s!@HOST_CC@!$(CC)!g >> lit.tmp
+	@$(ECHOPATH) s!@HOST_CXX@!$(CXX)!g >> lit.tmp
+	@$(ECHOPATH) s!@HOST_LDFLAGS@!$(LDFLAGS)!g >> lit.tmp
 	@$(ECHOPATH) s=@ENABLE_SHARED@=$(ENABLE_SHARED)=g >> lit.tmp
 	@$(ECHOPATH) s=@ENABLE_ASSERTIONS@=$(ENABLE_ASSERTIONS)=g >> lit.tmp
 	@$(ECHOPATH) s=@TARGETS_TO_BUILD@=$(TARGETS_TO_BUILD)=g >> lit.tmp
 	@$(ECHOPATH) s=@LLVM_BINDINGS@=$(BINDINGS_TO_BUILD)=g >> lit.tmp
 	@$(ECHOPATH) s=@HOST_OS@=$(HOST_OS)=g >> lit.tmp
 	@$(ECHOPATH) s=@HOST_ARCH@=$(HOST_ARCH)=g >> lit.tmp
-	@sed -f lit.tmp $(PROJ_SRC_ROOT)/test/lit.site.cfg.in > $@
+	@$(ECHOPATH) s=@HAVE_LIBZ@=$(HAVE_LIBZ)=g >> lit.tmp
+	@$(ECHOPATH) s=@HAVE_DIA_SDK@=0=g >> lit.tmp
+	@sed -f lit.tmp $(PROJ_SRC_DIR)/lit.site.cfg.in > $@
 	@-rm -f lit.tmp
 
 #Run the lit tests for this project
