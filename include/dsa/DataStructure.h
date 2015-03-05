@@ -21,8 +21,8 @@
 #include "dsa/AllocatorIdentification.h"
 
 #include "llvm/Pass.h"
-#include "llvm/IR/DataLayout.h"
 #include "llvm/IR/CallSite.h"
+#include "llvm/IR/Module.h"
 #include "llvm/ADT/EquivalenceClasses.h"
 #include "llvm/ADT/DenseSet.h"
 
@@ -165,7 +165,6 @@ public:
   /// getAnalysisUsage - This obviously provides a data structure graph.
   ///
   virtual void getAnalysisUsage(AnalysisUsage &AU) const {
-    AU.addRequired<DataLayoutPass>();
     AU.setPreservesAll();
   }
 };
@@ -188,7 +187,6 @@ public:
   /// getAnalysisUsage - This obviously provides a data structure graph.
   ///
   virtual void getAnalysisUsage(AnalysisUsage &AU) const {
-    AU.addRequired<DataLayoutPass>();
     AU.addRequired<AddressTakenAnalysis>();
     AU.setPreservesAll();
   }

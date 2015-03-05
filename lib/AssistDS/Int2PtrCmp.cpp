@@ -45,7 +45,7 @@ using namespace PatternMatch;
 //  false - The module was not modified.
 //
 bool Int2PtrCmp::runOnModule(Module& M) {
-  TD = &getAnalysis<DataLayoutPass>().getDataLayout();
+  const DataLayout &TD = M.getDataLayout();
   for (Module::iterator F = M.begin(); F != M.end(); ++F) {
     for (Function::iterator B = F->begin(), FE = F->end(); B != FE; ++B) {      
       for (BasicBlock::iterator I = B->begin(), BE = B->end(); I != BE;) {
@@ -71,8 +71,8 @@ bool Int2PtrCmp::runOnModule(Module& M) {
           if (Constant *RHSC = dyn_cast<Constant>(Op1)) {
             if (Instruction *LHSI = dyn_cast<Instruction>(Op0)){
               if(LHSI->getOpcode() == Instruction::IntToPtr) {
-                if (RHSC->isNullValue() && TD &&
-                    TD->getIntPtrType(RHSC->getContext(), 0) ==
+                if (RHSC->isNullValue() &&
+                    TD.getIntPtrType(RHSC->getContext(), 0) ==
                     LHSI->getOperand(0)->getType()){
                   ICmpInst *CI_new = new ICmpInst(CI, CI->getPredicate(), LHSI->getOperand(0),
                                                   Constant::getNullValue(LHSI->getOperand(0)->getType()));

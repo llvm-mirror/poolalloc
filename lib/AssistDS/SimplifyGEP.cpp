@@ -19,7 +19,7 @@
 #include "llvm/Support/FormattedStream.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/IR/Constants.h"
-#include "llvm/IR/DataLayout.h"
+#include "llvm/IR/Module.h"
 #include "llvm/IR/Operator.h"
 
 #include <vector>
@@ -75,7 +75,7 @@ static void preprocess(Module& M) {
 //  false - The module was not modified.
 //
 bool SimplifyGEP::runOnModule(Module& M) {
-  TD = &getAnalysis<DataLayoutPass>().getDataLayout();
+  const DataLayout &TD = M.getDataLayout();
   preprocess(M);
   for (Module::iterator F = M.begin(); F != M.end(); ++F){
     for (Function::iterator B = F->begin(), FE = F->end(); B != FE; ++B) {      
@@ -133,9 +133,9 @@ bool SimplifyGEP::runOnModule(Module& M) {
             // into:  %t1 = getelementptr [2 x i32]* %str, i32 0, i32 %V; bitcast
             Type *SrcElTy = StrippedPtrTy->getElementType();
             Type *ResElTy=cast<PointerType>(PtrOp->getType())->getElementType();
-            if (TD && SrcElTy->isArrayTy() &&
-                TD->getTypeAllocSize(cast<ArrayType>(SrcElTy)->getElementType()) ==
-                TD->getTypeAllocSize(ResElTy)) {
+            if (SrcElTy->isArrayTy() &&
+                TD.getTypeAllocSize(cast<ArrayType>(SrcElTy)->getElementType()) ==
+                TD.getTypeAllocSize(ResElTy)) {
               Value *Idx[2];
               Idx[0] = Constant::getNullValue(Type::getInt32Ty(GEP->getContext()));
               Idx[1] = GEP->getOperand(1);
@@ -151,9 +151,9 @@ bool SimplifyGEP::runOnModule(Module& M) {
             //   (where tmp = 8*tmp2) into:
             // getelementptr [100 x double]* %arr, i32 0, i32 %tmp2; bitcast
 
-            if (TD && SrcElTy->isArrayTy() && ResElTy->isIntegerTy(8)) {
+            if (SrcElTy->isArrayTy() && ResElTy->isIntegerTy(8)) {
               uint64_t ArrayEltSize =
-                TD->getTypeAllocSize(cast<ArrayType>(SrcElTy)->getElementType());
+                TD.getTypeAllocSize(cast<ArrayType>(SrcElTy)->getElementType());
 
               // Check to see if "tmp" is a scale by a multiple of ArrayEltSize.  We
               // allow either a mul, shift, or constant here.

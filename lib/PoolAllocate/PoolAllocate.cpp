@@ -23,7 +23,6 @@
 #include "poolalloc/RuntimeChecks.h"
 #include "llvm/IR/Attributes.h"
 #include "llvm/IR/Constants.h"
-#include "llvm/IR/DataLayout.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Module.h"
@@ -217,8 +216,6 @@ void PoolAllocate::getAnalysisUsage(AnalysisUsage &AU) const {
   // Preserve the pool information across passes
   if (lie_preserve_passes == LIE_PRESERVE_ALL)
     AU.setPreservesAll();
-
-  AU.addRequired<DataLayoutPass>();
 }
 
 bool PoolAllocate::runOnModule(Module &M) {

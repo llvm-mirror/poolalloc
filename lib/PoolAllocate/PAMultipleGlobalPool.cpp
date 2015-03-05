@@ -21,7 +21,6 @@
 #include "poolalloc/PoolAllocate.h"
 
 #include "llvm/IR/Constants.h"
-#include "llvm/IR/DataLayout.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Module.h"
@@ -74,7 +73,6 @@ castTo (Value * V, Type * Ty, const std::string & Name, Instruction * InsertPt) 
 }
 
 void PoolAllocateMultipleGlobalPool::getAnalysisUsage(AnalysisUsage &AU) const {
-  AU.addRequired<DataLayoutPass>();
   assert(0 && "PoolAllocateMultipleGlobalPool doesn't work! Needs Steensgard-like analysis, which was removed!");
   //AU.addRequiredTransitive<SteensgaardDataStructures>();
   // It is a big lie.
@@ -96,7 +94,7 @@ bool PoolAllocateMultipleGlobalPool::runOnModule(Module &M) {
   Graphs = NULL;
   assert (Graphs && "No DSA pass available!\n");
 
-  const DataLayout & TD = getAnalysis<DataLayoutPass>().getDataLayout();
+  const DataLayout & TD = M.getDataLayout();
 
   // Add the pool* prototypes to the module
   AddPoolPrototypes(&M);

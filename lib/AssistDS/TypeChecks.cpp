@@ -153,7 +153,7 @@ bool TypeChecks::runOnModule(Module &M) {
   bool modified = false; // Flags whether we modified the module.
   bool transformIndirectCalls = true;
 
-  TD = &getAnalysis<DataLayoutPass>().getDataLayout();
+  TD = &M.getDataLayout();
   addrAnalysis = &getAnalysis<AddressTakenAnalysis>();
 
   // Create the necessary prototypes

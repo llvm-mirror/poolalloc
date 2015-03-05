@@ -17,7 +17,6 @@
 #include "dsa/TypeSafety.h"
 
 #include "llvm/Pass.h"
-#include "llvm/IR/DataLayout.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/CallSite.h"
 

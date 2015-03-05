@@ -19,7 +19,6 @@
 #include "dsa/CallTargets.h"
 #include "poolalloc/PoolAllocate.h"
 #include "llvm/IR/Constants.h"
-#include "llvm/IR/DataLayout.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Module.h"
@@ -70,7 +69,6 @@ castTo (Value * V, Type * Ty, std::string Name, Instruction * InsertPt) {
 }
 
 void PoolAllocateSimple::getAnalysisUsage(AnalysisUsage &AU) const {
-  AU.addRequired<DataLayoutPass>();
   // Get the Target Data information and the Graphs
   if (CompleteDSA) {
     AU.addRequiredTransitive<EQTDDataStructures>();
@@ -131,7 +129,7 @@ bool PoolAllocateSimple::runOnModule(Module &M) {
     Graphs = &getAnalysis<BasicDataStructures>();
   }
   assert (Graphs && "No DSA pass available!\n");
-  const DataLayout & TD = getAnalysis<DataLayoutPass>().getDataLayout();
+  const DataLayout & TD = M.getDataLayout();
 
   // Add the pool* prototypes to the module
   AddPoolPrototypes(&M);

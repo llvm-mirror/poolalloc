@@ -22,7 +22,6 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/InstVisitor.h"
-#include "llvm/IR/DataLayout.h"
 
 using namespace llvm;
 
@@ -39,9 +38,6 @@ namespace llvm {
     private:
       // Access to analysis pass which finds targets of indirect function calls
       dsa::CallTargetFinder<EQTDDataStructures> *CTF;
-
-      // Access to the target data analysis pass
-      const DataLayout * TD;
 
       // Worklist of call sites to transform
       std::vector<Instruction *> Worklist;
@@ -63,7 +59,6 @@ namespace llvm {
 
       virtual void getAnalysisUsage(AnalysisUsage &AU) const {
         AU.addRequired<dsa::CallTargetFinder<EQTDDataStructures> >();
-        AU.addRequired<DataLayoutPass>();
       }
 
       // Visitor methods for analyzing instructions

@@ -395,12 +395,6 @@ Devirtualize::runOnModule (Module & M) {
   //
   CTF = &getAnalysis<dsa::CallTargetFinder<EQTDDataStructures> >();
 
-  //
-  // Get information on the target system.
-  //
-  //
-  TD = &getAnalysis<DataLayoutPass>().getDataLayout();
-
   // Visit all of the call instructions in this function and record those that
   // are indirect function calls.
   //
