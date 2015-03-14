@@ -7,7 +7,7 @@ target triple = "x86_64-unknown-linux-gnu"
 
 %struct.parse_table = type { i8*, i32 ()* }
 
-@table = internal global [2 x %struct.parse_table] [%struct.parse_table { i8* getelementptr inbounds ([6 x i8]* @.str, i64 0, i64 0), i32 ()* @func1 }, %struct.parse_table { i8* getelementptr inbounds ([6 x i8]* @.str1, i64 0, i64 0), i32 ()* @func2 }], align 32 ; <[2 x %struct.parse_table]*> [#uses=2]
+@table = internal global [2 x %struct.parse_table] [%struct.parse_table { i8* getelementptr inbounds ([6 x i8], [6 x i8]* @.str, i64 0, i64 0), i32 ()* @func1 }, %struct.parse_table { i8* getelementptr inbounds ([6 x i8], [6 x i8]* @.str1, i64 0, i64 0), i32 ()* @func2 }], align 32 ; <[2 x %struct.parse_table]*> [#uses=2]
 @.str = private constant [6 x i8] c"name1\00", align 1 ; <[6 x i8]*> [#uses=1]
 @.str1 = private constant [6 x i8] c"name2\00", align 1 ; <[6 x i8]*> [#uses=1]
 

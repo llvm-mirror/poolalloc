@@ -14,11 +14,11 @@ target triple = "x86_64-unknown-linux-gnu"
 
 @ob = internal global %struct.BaseClass zeroinitializer ; <%struct.BaseClass*> [#uses=2]
 @_ZTV9BaseClass = internal constant [4 x i32 (...)*] [i32 (...)* null, i32 (...)* bitcast (%struct.__class_type_info_pseudo* @_ZTI9BaseClass to i32 (...)*), i32 (...)* bitcast (void (%struct.BaseClass*)* @_ZN9BaseClass10myFunctionEv to i32 (...)*), i32 (...)* bitcast (void (%struct.BaseClass*)* @_ZN9BaseClass14calledFunctionEv to i32 (...)*)], align 32 ; <[4 x i32 (...)*]*> [#uses=1]
-@_ZTI9BaseClass = internal constant %struct.__class_type_info_pseudo { %struct.__type_info_pseudo { i8* inttoptr (i64 add (i64 ptrtoint ([0 x i32 (...)*]* @_ZTVN10__cxxabiv117__class_type_infoE to i64), i64 16) to i8*), i8* getelementptr inbounds ([11 x i8]* @_ZTS9BaseClass, i64 0, i64 0) } }, align 16 ; <%struct.__class_type_info_pseudo*> [#uses=2]
+@_ZTI9BaseClass = internal constant %struct.__class_type_info_pseudo { %struct.__type_info_pseudo { i8* inttoptr (i64 add (i64 ptrtoint ([0 x i32 (...)*]* @_ZTVN10__cxxabiv117__class_type_infoE to i64), i64 16) to i8*), i8* getelementptr inbounds ([11 x i8], [11 x i8]* @_ZTS9BaseClass, i64 0, i64 0) } }, align 16 ; <%struct.__class_type_info_pseudo*> [#uses=2]
 @_ZTVN10__cxxabiv117__class_type_infoE = external constant [0 x i32 (...)*] ; <[0 x i32 (...)*]*> [#uses=1]
 @_ZTS9BaseClass = internal constant [11 x i8] c"9BaseClass\00" ; <[11 x i8]*> [#uses=1]
 @_ZTV13DerivedClass1 = internal constant [4 x i32 (...)*] [i32 (...)* null, i32 (...)* bitcast (%struct.__si_class_type_info_pseudo* @_ZTI13DerivedClass1 to i32 (...)*), i32 (...)* bitcast (void (%struct.DerivedClass1*)* @_ZN13DerivedClass110myFunctionEv to i32 (...)*), i32 (...)* bitcast (void (%struct.DerivedClass1*)* @_ZN13DerivedClass114calledFunctionEv to i32 (...)*)], align 32 ; <[4 x i32 (...)*]*> [#uses=1]
-@_ZTI13DerivedClass1 = internal constant %struct.__si_class_type_info_pseudo { %struct.__type_info_pseudo { i8* inttoptr (i64 add (i64 ptrtoint ([0 x i32 (...)*]* @_ZTVN10__cxxabiv120__si_class_type_infoE to i64), i64 16) to i8*), i8* getelementptr inbounds ([16 x i8]* @_ZTS13DerivedClass1, i64 0, i64 0) }, %"struct.std::type_info"* bitcast (%struct.__class_type_info_pseudo* @_ZTI9BaseClass to %"struct.std::type_info"*) }, align 16 ; <%struct.__si_class_type_info_pseudo*> [#uses=1]
+@_ZTI13DerivedClass1 = internal constant %struct.__si_class_type_info_pseudo { %struct.__type_info_pseudo { i8* inttoptr (i64 add (i64 ptrtoint ([0 x i32 (...)*]* @_ZTVN10__cxxabiv120__si_class_type_infoE to i64), i64 16) to i8*), i8* getelementptr inbounds ([16 x i8], [16 x i8]* @_ZTS13DerivedClass1, i64 0, i64 0) }, %"struct.std::type_info"* bitcast (%struct.__class_type_info_pseudo* @_ZTI9BaseClass to %"struct.std::type_info"*) }, align 16 ; <%struct.__si_class_type_info_pseudo*> [#uses=1]
 @_ZTVN10__cxxabiv120__si_class_type_infoE = external constant [0 x i32 (...)*] ; <[0 x i32 (...)*]*> [#uses=1]
 @_ZTS13DerivedClass1 = internal constant [16 x i8] c"13DerivedClass1\00", align 16 ; <[16 x i8]*> [#uses=1]
 @derivedObject1 = internal global %struct.DerivedClass1 zeroinitializer ; <%struct.DerivedClass1*> [#uses=1]
@@ -136,7 +136,7 @@ entry:
   store %struct.BaseClass* %this, %struct.BaseClass** %this_addr
   %0 = load %struct.BaseClass*, %struct.BaseClass** %this_addr, align 8 ; <%struct.BaseClass*> [#uses=1]
   %1 = getelementptr inbounds %struct.BaseClass, %struct.BaseClass* %0, i32 0, i32 0 ; <i32 (...)***> [#uses=1]
-  store i32 (...)** getelementptr inbounds ([4 x i32 (...)*]* @_ZTV9BaseClass, i64 0, i64 2), i32 (...)*** %1, align 8
+  store i32 (...)** getelementptr inbounds ([4 x i32 (...)*], [4 x i32 (...)*]* @_ZTV9BaseClass, i64 0, i64 2), i32 (...)*** %1, align 8
   br label %return
 
 return:                                           ; preds = %entry
@@ -150,7 +150,7 @@ entry:
   store %struct.BaseClass* %this, %struct.BaseClass** %this_addr
   %0 = load %struct.BaseClass*, %struct.BaseClass** %this_addr, align 8 ; <%struct.BaseClass*> [#uses=1]
   %1 = getelementptr inbounds %struct.BaseClass, %struct.BaseClass* %0, i32 0, i32 0 ; <i32 (...)***> [#uses=1]
-  store i32 (...)** getelementptr inbounds ([4 x i32 (...)*]* @_ZTV9BaseClass, i64 0, i64 2), i32 (...)*** %1, align 8
+  store i32 (...)** getelementptr inbounds ([4 x i32 (...)*], [4 x i32 (...)*]* @_ZTV9BaseClass, i64 0, i64 2), i32 (...)*** %1, align 8
   br label %return
 
 return:                                           ; preds = %entry
@@ -168,7 +168,7 @@ entry:
   %2 = load %struct.DerivedClass1*, %struct.DerivedClass1** %this_addr, align 8 ; <%struct.DerivedClass1*> [#uses=1]
   %3 = getelementptr inbounds %struct.DerivedClass1, %struct.DerivedClass1* %2, i32 0, i32 0 ; <%struct.BaseClass*> [#uses=1]
   %4 = getelementptr inbounds %struct.BaseClass, %struct.BaseClass* %3, i32 0, i32 0 ; <i32 (...)***> [#uses=1]
-  store i32 (...)** getelementptr inbounds ([4 x i32 (...)*]* @_ZTV13DerivedClass1, i64 0, i64 2), i32 (...)*** %4, align 8
+  store i32 (...)** getelementptr inbounds ([4 x i32 (...)*], [4 x i32 (...)*]* @_ZTV13DerivedClass1, i64 0, i64 2), i32 (...)*** %4, align 8
   br label %return
 
 return:                                           ; preds = %entry

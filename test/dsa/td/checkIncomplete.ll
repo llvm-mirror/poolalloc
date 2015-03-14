@@ -31,7 +31,7 @@ return:                                           ; preds = %entry
 
 define void @main() nounwind {
 entry:
-  call void @print(i8* getelementptr inbounds ([30 x i8]* @buf, i64 0, i64 0)) nounwind
+  call void @print(i8* getelementptr inbounds ([30 x i8], [30 x i8]* @buf, i64 0, i64 0)) nounwind
   br label %return
 
 return:                                           ; preds = %entry

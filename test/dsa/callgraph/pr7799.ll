@@ -6,7 +6,7 @@ target triple = "x86_64-unknown-linux-gnu"
 
 %struct.combo = type { i8*, i32 (i32)* }
 
-@farray = internal global [2 x %struct.combo] [%struct.combo { i8* getelementptr inbounds ([6 x i8]* @.str, i64 0, i64 0), i32 (i32)* @a }, %struct.combo { i8* getelementptr inbounds ([7 x i8]* @.str1, i64 0, i64 0), i32 (i32)* @b }], align 32 ; <[2 x %struct.combo]*> [#uses=1]
+@farray = internal global [2 x %struct.combo] [%struct.combo { i8* getelementptr inbounds ([6 x i8], [6 x i8]* @.str, i64 0, i64 0), i32 (i32)* @a }, %struct.combo { i8* getelementptr inbounds ([7 x i8], [7 x i8]* @.str1, i64 0, i64 0), i32 (i32)* @b }], align 32 ; <[2 x %struct.combo]*> [#uses=1]
 @.str = private constant [6 x i8] c"first\00", align 1 ; <[6 x i8]*> [#uses=1]
 @.str1 = private constant [7 x i8] c"second\00", align 1 ; <[7 x i8]*> [#uses=1]
 

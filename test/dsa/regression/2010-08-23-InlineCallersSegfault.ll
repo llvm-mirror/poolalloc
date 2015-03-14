@@ -152,7 +152,7 @@ _ZN10mrInstance9SetMatrixERK19ggHRigidBodyMatrix3S2_.exit.i: ; preds = %bb12.i
 bb16.i:                                           ; preds = %_ZN10mrInstance9SetMatrixERK19ggHRigidBodyMatrix3S2_.exit.i
   %11 = call i8* @_Znwm(i64 136) nounwind         ; <i8*> [#uses=3]
   %12 = bitcast i8* %11 to i32 (...)***           ; <i32 (...)***> [#uses=1]
-  store i32 (...)** getelementptr inbounds ([9 x i32 (...)*]* @_ZTV16mrSurfaceTexture, i64 0, i64 2), i32 (...)*** %12, align 8
+  store i32 (...)** getelementptr inbounds ([9 x i32 (...)*], [9 x i32 (...)*]* @_ZTV16mrSurfaceTexture, i64 0, i64 2), i32 (...)*** %12, align 8
   %13 = getelementptr inbounds i8, i8* %11, i64 8     ; <i8*> [#uses=1]
   %14 = bitcast i8* %13 to %struct.ggBRDF**       ; <%struct.ggBRDF**> [#uses=1]
   store %struct.ggBRDF* %10, %struct.ggBRDF** %14, align 8

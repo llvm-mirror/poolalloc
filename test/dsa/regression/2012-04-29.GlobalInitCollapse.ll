@@ -6,5 +6,5 @@ target triple = "x86_64-unknown-linux-gnu"
 
 %struct.IntPair = type { i32, i32 }
 
-@ptr = global i8* getelementptr (i8* bitcast (i32* getelementptr inbounds (%struct.IntPair* @ip, i64 0, i32 1) to i8*), i64 2), align 8
+@ptr = global i8* getelementptr (i8, i8* bitcast (i32* getelementptr inbounds (%struct.IntPair, %struct.IntPair* @ip, i64 0, i32 1) to i8*), i64 2), align 8
 @ip = global %struct.IntPair { i32 5, i32 10 }, align 4
