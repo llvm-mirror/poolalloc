@@ -106,8 +106,8 @@ bool SimplifyGEP::runOnModule(Module& M) {
               if (CATy->getElementType() == StrippedPtrTy->getElementType()) {
                 // -> GEP i8* X, ...
                 SmallVector<Value*, 8> Idx(GEP->idx_begin()+1, GEP->idx_end());
-                GetElementPtrInst *Res =
-                  GetElementPtrInst::Create(StrippedPtr, Idx, GEP->getName(), GEP);
+                GetElementPtrInst *Res = GetElementPtrInst::Create(
+                    nullptr, StrippedPtr, Idx, GEP->getName(), GEP);
                 Res->setIsInBounds(GEP->isInBounds());
                 GEP->replaceAllUsesWith(Res);
                 continue;
@@ -139,8 +139,8 @@ bool SimplifyGEP::runOnModule(Module& M) {
               Value *Idx[2];
               Idx[0] = Constant::getNullValue(Type::getInt32Ty(GEP->getContext()));
               Idx[1] = GEP->getOperand(1);
-              Value *NewGEP = GetElementPtrInst::Create(StrippedPtr, Idx,
-                                                        GEP->getName(), GEP);
+              Value *NewGEP = GetElementPtrInst::Create(
+                  nullptr, StrippedPtr, Idx, GEP->getName(), GEP);
               // V and GEP are both pointer types --> BitCast
               GEP->replaceAllUsesWith(new BitCastInst(NewGEP, GEP->getType(), GEP->getName(), GEP));
               continue;
@@ -198,8 +198,8 @@ bool SimplifyGEP::runOnModule(Module& M) {
                 Value *Idx[2];
                 Idx[0] = Constant::getNullValue(Type::getInt32Ty(GEP->getContext()));
                 Idx[1] = NewIdx;
-                Value *NewGEP = GetElementPtrInst::Create(StrippedPtr, Idx,
-                                                          GEP->getName(), GEP);
+                Value *NewGEP = GetElementPtrInst::Create(
+                    nullptr, StrippedPtr, Idx, GEP->getName(), GEP);
                 GEP->replaceAllUsesWith(new BitCastInst(NewGEP, GEP->getType(), GEP->getName(), GEP));
                 continue;
               }

@@ -910,8 +910,9 @@ void FuncTransform::visitCallSite(CallSite& CS) {
     //
     const DSCallGraph & callGraph = Graphs.getCallGraph();
 
-    DSCallGraph::callee_iterator I = callGraph.callee_begin(OrigInst);
-    for (; I != callGraph.callee_end(OrigInst); ++I) {
+    CallSite OrigCS(OrigInst);
+    DSCallGraph::callee_iterator I = callGraph.callee_begin(OrigCS);
+    for (; I != callGraph.callee_end(OrigCS); ++I) {
       for(DSCallGraph::scc_iterator sccii = callGraph.scc_begin(*I),
                            sccee = callGraph.scc_end(*I); sccii != sccee; ++sccii){
         if(SM.find(SM.getLeaderForGlobal(*sccii)) == SM.end())
@@ -993,7 +994,7 @@ void FuncTransform::visitCallSite(CallSite& CS) {
 
 #ifndef NDEBUG
     // Verify that all potential callees at call site have the same DS graph.
-    DSCallGraph::callee_iterator E = Graphs.getCallGraph().callee_end(OrigInst);
+    DSCallGraph::callee_iterator E = Graphs.getCallGraph().callee_end(OrigCS);
     for (; I != E; ++I) {
       const Function * F = *I;
       assert (F);

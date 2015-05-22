@@ -610,7 +610,7 @@ void TypeChecks::addTypeMap(Module &M) {
                                           CA,
                                           "");
   GV->setInitializer(CA);
-  Constant *C = ConstantExpr::getGetElementPtr(GV,Indices);
+  Constant *C = ConstantExpr::getGetElementPtr(nullptr, GV,Indices);
   Values[0] = C;
 
   // For each used type, create a new entry. 
@@ -632,7 +632,7 @@ void TypeChecks::addTypeMap(Module &M) {
                                             CA,
                                             "");
     GV->setInitializer(CA);
-    Constant *C = ConstantExpr::getGetElementPtr(GV, Indices);
+    Constant *C = ConstantExpr::getGetElementPtr(nullptr, GV, Indices);
     Values[TI->second]= C;
   }
 
@@ -1529,7 +1529,7 @@ bool TypeChecks::visitCallSite(Module &M, CallSite CS) {
           return true;
         }
 
-      case Intrinsic::memset:
+      case Intrinsic::memset:{
         Value *BCI = castTo(CS.getArgument(0), VoidPtrTy, "", I);
         std::vector<Value *> Args;
         Args.push_back(BCI);
@@ -1538,6 +1538,10 @@ bool TypeChecks::visitCallSite(Module &M, CallSite CS) {
         Args.push_back(getTagCounter());
         CallInst::Create(trackInitInst, Args, "", I);
         return true;
+      }
+      default:
+        // Unhandled intrinsic, do nothing. (??)
+        return false;
       }
     } else if (F->getName().str() == std::string("_ZNKSs5c_strEv")) { //c_str
       std::vector<Value *>Args;
