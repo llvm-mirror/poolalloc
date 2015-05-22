@@ -64,7 +64,7 @@ entry:
 ;RUN: dsaopt %s -dsa-td -analyze -verify-flags "checkExterns:get+E-I"
 ;RUN: dsaopt %s -dsa-td -analyze -verify-flags "checkExterns:take+E-I"
 define void @checkExterns() nounwind {
-  %get = tail call i32* ()* @getPointerExtern() nounwind ; <i32*> [#uses=0]
+  %get = tail call i32* () @getPointerExtern() nounwind ; <i32*> [#uses=0]
   %1 = tail call noalias i8* @malloc(i64 4) nounwind ; <i8*> [#uses=2]
   %take = bitcast i8* %1 to i32*                     ; <i32*> [#uses=1]
   tail call void @takesPointerExtern(i32* %take) nounwind
@@ -78,7 +78,7 @@ define void @checkExterns() nounwind {
 ;RUN: dsaopt %s -dsa-td -analyze -verify-flags "checkExternals:take-IE"
 define void @checkExternals() nounwind {
 entry:
-  %get = tail call i32* ()* @getPointer() nounwind ; <i32*> [#uses=0]
+  %get = tail call i32* () @getPointer() nounwind ; <i32*> [#uses=0]
   %0 = tail call noalias i8* @malloc(i64 4) nounwind ; <i8*> [#uses=2]
   %take = bitcast i8* %0 to i32*                     ; <i32*> [#uses=1]
   tail call i32 @takesPointer(i32* %take) nounwind
@@ -92,7 +92,7 @@ entry:
 ;RUN: dsaopt %s -dsa-td -analyze -verify-flags "checkInternals:take-IE"
 define void @checkInternals() nounwind {
 entry:
-  %get = tail call i32* ()* @getPointerInternal() nounwind ; <i32*> [#uses=0]
+  %get = tail call i32* () @getPointerInternal() nounwind ; <i32*> [#uses=0]
   %0 = tail call noalias i8* @malloc(i64 4) nounwind ; <i8*> [#uses=2]
   %take = bitcast i8* %0 to i32*                     ; <i32*> [#uses=1]
   tail call i32 @takesPointerInternal(i32* %take) nounwind

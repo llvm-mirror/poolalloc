@@ -51,7 +51,7 @@ bb:                                               ; preds = %bb4
   store i32 %12, i32* %13, align 4
   %14 = getelementptr inbounds %union.mips_format_t, %union.mips_format_t* %ia, i32 0, i32 0 ; <i32*> [#uses=1]
   %15 = load i32, i32* %14, align 4                    ; <i32> [#uses=1]
-  %16 = call i32 (i8*, ...)* @printf(i8* noalias getelementptr inbounds ([18 x i8], [18 x i8]* @.str, i64 0, i64 0), i32 %15) nounwind ; <i32> [#uses=0]
+  %16 = call i32 (i8*, ...) @printf(i8* noalias getelementptr inbounds ([18 x i8], [18 x i8]* @.str, i64 0, i64 0), i32 %15) nounwind ; <i32> [#uses=0]
   %17 = getelementptr inbounds %union.mips_format_t, %union.mips_format_t* %ia, i32 0, i32 0 ; <i32*> [#uses=1]
   %18 = bitcast i32* %17 to %0*                   ; <%0*> [#uses=1]
   %19 = getelementptr inbounds %0, %0* %18, i32 0, i32 0 ; <i16*> [#uses=1]
@@ -60,7 +60,7 @@ bb:                                               ; preds = %bb4
   %22 = lshr i32 %21, 26                          ; <i32> [#uses=1]
   %23 = trunc i32 %22 to i6                       ; <i6> [#uses=1]
   %24 = zext i6 %23 to i32                        ; <i32> [#uses=1]
-  %25 = call i32 (i8*, ...)* @printf(i8* noalias getelementptr inbounds ([12 x i8], [12 x i8]* @.str1, i64 0, i64 0), i32 %24) nounwind ; <i32> [#uses=0]
+  %25 = call i32 (i8*, ...) @printf(i8* noalias getelementptr inbounds ([12 x i8], [12 x i8]* @.str1, i64 0, i64 0), i32 %24) nounwind ; <i32> [#uses=0]
   %26 = getelementptr inbounds %union.mips_format_t, %union.mips_format_t* %ia, i32 0, i32 0 ; <i32*> [#uses=1]
   %27 = bitcast i32* %26 to %0*                   ; <%0*> [#uses=1]
   %28 = getelementptr inbounds %0, %0* %27, i32 0, i32 0 ; <i16*> [#uses=1]
@@ -79,7 +79,7 @@ bb:                                               ; preds = %bb4
   %41 = lshr i32 %40, 27                          ; <i32> [#uses=1]
   %42 = trunc i32 %41 to i5                       ; <i5> [#uses=1]
   %43 = zext i5 %42 to i32                        ; <i32> [#uses=1]
-  %44 = call i32 (i8*, ...)* @printf(i8* noalias getelementptr inbounds ([15 x i8], [15 x i8]* @.str2, i64 0, i64 0), i32 %43, i32 %34) nounwind ; <i32> [#uses=0]
+  %44 = call i32 (i8*, ...) @printf(i8* noalias getelementptr inbounds ([15 x i8], [15 x i8]* @.str2, i64 0, i64 0), i32 %43, i32 %34) nounwind ; <i32> [#uses=0]
   %45 = getelementptr inbounds %union.mips_format_t, %union.mips_format_t* %ia, i32 0, i32 0 ; <i32*> [#uses=1]
   %46 = bitcast i32* %45 to %0*                   ; <%0*> [#uses=1]
   %47 = getelementptr inbounds %0, %0* %46, i32 0, i32 0 ; <i16*> [#uses=1]
@@ -114,7 +114,7 @@ bb1:                                              ; preds = %bb
   %73 = lshr i16 %72, 11                          ; <i16> [#uses=1]
   %74 = trunc i16 %73 to i5                       ; <i5> [#uses=1]
   %75 = zext i5 %74 to i32                        ; <i32> [#uses=1]
-  %76 = call i32 (i8*, ...)* @printf(i8* noalias getelementptr inbounds ([24 x i8], [24 x i8]* @.str3, i64 0, i64 0), i32 %75, i32 %68, i32 %60) nounwind ; <i32> [#uses=0]
+  %76 = call i32 (i8*, ...) @printf(i8* noalias getelementptr inbounds ([24 x i8], [24 x i8]* @.str3, i64 0, i64 0), i32 %75, i32 %68, i32 %60) nounwind ; <i32> [#uses=0]
   br label %bb3
 
 bb2:                                              ; preds = %bb
@@ -123,7 +123,7 @@ bb2:                                              ; preds = %bb
   %79 = getelementptr inbounds %0, %0* %78, i32 0, i32 0 ; <i16*> [#uses=1]
   %80 = load i16, i16* %79, align 1                    ; <i16> [#uses=1]
   %81 = sext i16 %80 to i32                       ; <i32> [#uses=1]
-  %82 = call i32 (i8*, ...)* @printf(i8* noalias getelementptr inbounds ([11 x i8], [11 x i8]* @.str4, i64 0, i64 0), i32 %81) nounwind ; <i32> [#uses=0]
+  %82 = call i32 (i8*, ...) @printf(i8* noalias getelementptr inbounds ([11 x i8], [11 x i8]* @.str4, i64 0, i64 0), i32 %81) nounwind ; <i32> [#uses=0]
   br label %bb3
 
 bb3:                                              ; preds = %bb2, %bb1

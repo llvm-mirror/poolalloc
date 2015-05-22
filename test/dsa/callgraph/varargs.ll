@@ -171,7 +171,7 @@ entry:
   %retval = alloca i32                            ; <i32*> [#uses=2]
   %0 = alloca i32                                 ; <i32*> [#uses=2]
   %"alloca point" = bitcast i32 0 to i32          ; <i32> [#uses=0]
-  call void (i32, ...)* @assign(i32 2, void ()* @A, void ()* @B) nounwind
+  call void (i32, ...) @assign(i32 2, void ()* @A, void ()* @B) nounwind
   store i32 1, i32* %0, align 4
   %1 = load i32, i32* %0, align 4                      ; <i32> [#uses=1]
   store i32 %1, i32* %retval, align 4

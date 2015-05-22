@@ -11,7 +11,7 @@ target triple = "x86_64-unknown-linux-gnu"
 
 define %struct.regmatcher* @compile(i8* %expr) nounwind {
   entry:
-    %0 = call %struct.node* (...)* bitcast (%struct.node* ()* @end_node to %struct.node* (...)*)() nounwind ; <%struct.node*> [#uses=0]
+    %0 = call %struct.node* (...) bitcast (%struct.node* ()* @end_node to %struct.node* (...)*)() nounwind ; <%struct.node*> [#uses=0]
       unreachable
 }
 

@@ -59,7 +59,7 @@ bb:                                               ; preds = %bb3
   %4 = getelementptr inbounds %struct.parse_table, %struct.parse_table* %3, i32 0, i32 0 ; <i8**> [#uses=1]
   %5 = load i8*, i8** %4, align 8                      ; <i8*> [#uses=1]
   %6 = load i8*, i8** %s_addr, align 8                 ; <i8*> [#uses=1]
-  %7 = call i32 (...)* bitcast (i32 (i8*, i8*)* @strcmp to i32 (...)*)(i8* %5, i8* %6) nounwind readonly ; <i32> [#uses=1]
+  %7 = call i32 (...) bitcast (i32 (i8*, i8*)* @strcmp to i32 (...)*)(i8* %5, i8* %6) nounwind readonly ; <i32> [#uses=1]
   %8 = icmp eq i32 %7, 0                          ; <i1> [#uses=1]
   br i1 %8, label %bb1, label %bb2
 
@@ -111,7 +111,7 @@ entry:
   %0 = load i8**, i8*** %argv_addr, align 8             ; <i8**> [#uses=1]
   %1 = getelementptr inbounds i8*, i8** %0, i64 1      ; <i8**> [#uses=1]
   %2 = load i8*, i8** %1, align 1                      ; <i8*> [#uses=1]
-  %3 = call i32 ()* (i8*)* @find_p_func(i8* %2) nounwind ; <i32 ()*> [#uses=1]
+  %3 = call i32 ()* (i8*) @find_p_func(i8* %2) nounwind ; <i32 ()*> [#uses=1]
   store i32 ()* %3, i32 ()** %parse_func, align 8
   %4 = load i32 ()*, i32 ()** %parse_func, align 8         ; <i32 ()*> [#uses=1]
   %5 = icmp ne i32 ()* %4, null                   ; <i1> [#uses=1]

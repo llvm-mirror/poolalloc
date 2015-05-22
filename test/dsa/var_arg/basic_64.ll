@@ -109,7 +109,7 @@ entry:
   %ret = alloca i32                               ; <i32*> [#uses=2]
   %"alloca point" = bitcast i32 0 to i32          ; <i32> [#uses=0]
   store i32 5, i32* %stack_val, align 4
-  %1 = call i32 (i32, ...)* @get(i32 0, i32* %stack_val) nounwind ; <i32> [#uses=1]
+  %1 = call i32 (i32, ...) @get(i32 0, i32* %stack_val) nounwind ; <i32> [#uses=1]
   store i32 %1, i32* %ret, align 4
   %2 = load i32, i32* %ret, align 4                    ; <i32> [#uses=1]
   %3 = sub nsw i32 %2, 5                          ; <i32> [#uses=1]

@@ -34,7 +34,7 @@ entry:
   %0 = alloca i32* ()*
   store i32* ()* @externFunc2, i32* ()** %0
   %fp = load i32* ()*, i32* ()** %0
-  %res = call i32* ()* %fp() nounwind
+  %res = call i32* () %fp() nounwind
   ret void
 }
 
@@ -50,9 +50,9 @@ declare i32* @externFunc4() nounwind
 define i32* ()* @getExternFP() nounwind {
 entry:
   %0 = alloca i32* ()*
-  %1 = call i32* ()* ()* @externFunc3() nounwind
-  %2 = call i32* ()* %1()
-  %3 = call i32* ()* ()* @externFunc3() nounwind
+  %1 = call i32* ()* () @externFunc3() nounwind
+  %2 = call i32* () %1()
+  %3 = call i32* ()* () @externFunc3() nounwind
   store i32* ()* %3, i32* ()** %0
   store i32* ()* @externFunc4, i32* ()** %0
   %res = load i32* ()*, i32* ()** %0
@@ -66,7 +66,7 @@ entry:
 ;RUN: dsaopt %s -dsa-eqtd -analyze -check-callees=callThroughExternFP,getExternFP,externFunc4
 define void @callThroughExternFP() nounwind {
 entry:
-  %0 = call i32* ()* ()* @getExternFP() nounwind
+  %0 = call i32* ()* () @getExternFP() nounwind
   %1 = call i32* %0() nounwind
   ret void
 }

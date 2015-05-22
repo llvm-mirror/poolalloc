@@ -114,8 +114,8 @@ declare void @llvm.va_end(i8*) nounwind
 
 define i32 @main() nounwind uwtable {
 entry:
-  %call = tail call i32 (i32, ...)* @sum(i32 5, i32 1, i32 2, i32 3, i32 4, i32 5)
-  %call1 = tail call i32 (i8*, ...)* @printf(i8* getelementptr inbounds ([4 x i8], [4 x i8]* @.str, i64 0, i64 0), i32 %call) nounwind
+  %call = tail call i32 (i32, ...) @sum(i32 5, i32 1, i32 2, i32 3, i32 4, i32 5)
+  %call1 = tail call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([4 x i8], [4 x i8]* @.str, i64 0, i64 0), i32 %call) nounwind
   ret i32 0
 }
 

@@ -20,7 +20,7 @@ entry:
   %r1 = alloca i32                                ; <i32*> [#uses=1]
   %r2 = alloca float                              ; <float*> [#uses=1]
   %"alloca point" = bitcast i32 0 to i32          ; <i32> [#uses=0]
-  %0 = call i32 (i8*, ...)* @scanf(i8* noalias getelementptr inbounds ([4 x i8], [4 x i8]* @.str, i64 0, i64 0), i32* %z) nounwind ; <i32> [#uses=0]
+  %0 = call i32 (i8*, ...) @scanf(i8* noalias getelementptr inbounds ([4 x i8], [4 x i8]* @.str, i64 0, i64 0), i32* %z) nounwind ; <i32> [#uses=0]
   %1 = load i32, i32* %z, align 4                      ; <i32> [#uses=1]
   %2 = getelementptr inbounds %struct.sType, %struct.sType* %arr, i32 0, i32 1 ; <[10 x i32]*> [#uses=1]
   %3 = sext i32 %1 to i64                         ; <i64> [#uses=1]

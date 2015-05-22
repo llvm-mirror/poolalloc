@@ -35,7 +35,7 @@ target triple = "x86_64-unknown-linux-gnu"
 ;RUN: dsaopt %s -dsa-local -analyze -verify-flags "getPointerViaExtern:ptr+E"
 define i32* @getPointerViaExtern() nounwind {
 entry:
-  %ptr = tail call i32* (...)* @getPointerExtern() nounwind ; <i32*> [#uses=1]
+  %ptr = tail call i32* (...) @getPointerExtern() nounwind ; <i32*> [#uses=1]
   ret i32* %ptr
 }
 
@@ -52,9 +52,9 @@ declare noalias i8* @malloc(i64) nounwind
 
 define i32 @main(i32 %argc, i8** nocapture %argv) nounwind {
 entry:
-  %ptr = tail call i32* ()* @getPointer() nounwind
-  %ptrExtern = tail call i32* (...)* @getPointerExtern() nounwind
-  %ptrViaExtern = tail call i32* ()* @getPointerViaExtern() nounwind
+  %ptr = tail call i32* () @getPointer() nounwind
+  %ptrExtern = tail call i32* (...) @getPointerExtern() nounwind
+  %ptrViaExtern = tail call i32* () @getPointerViaExtern() nounwind
   %val1 = load i32, i32* %ptr, align 4
   %val2 = load i32, i32* %ptrExtern, align 4
   %val3 = load i32, i32* %ptrViaExtern, align 4

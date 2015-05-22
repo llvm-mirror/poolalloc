@@ -30,7 +30,7 @@ entry:
 
 define i32 @main(i32 %argc, i8** nocapture %argv) nounwind {
 entry:
-  %ptr = tail call i32* (...)* @getPointerExtern() nounwind
+  %ptr = tail call i32* (...) @getPointerExtern() nounwind
   %0 = tail call i32 @takesPointer(i32* %ptr) nounwind
   ret i32 %0
 }
