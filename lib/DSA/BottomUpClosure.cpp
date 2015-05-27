@@ -632,11 +632,9 @@ void BUDataStructures::calculateGraph(DSGraph* Graph) {
   DSGraph::FunctionListTy &AuxCallsList = Graph->getAuxFunctionCalls();
   TempFCs.swap(AuxCallsList);
 
-  for(DSGraph::FunctionListTy::iterator I = TempFCs.begin(), E = TempFCs.end();
-      I != E; ++I) {
+  for (auto &CS : TempFCs) {
     DEBUG(Graph->AssertGraphOK(); Graph->getGlobalsGraph()->AssertGraphOK());
 
-    DSCallSite &CS = *I;
 
     // Fast path for noop calls.  Note that we don't care about merging globals
     // in the callee with nodes in the caller here.
@@ -676,9 +674,7 @@ void BUDataStructures::calculateGraph(DSGraph* Graph) {
 
     DSGraph *GI;
 
-    for (FuncSet::iterator I = CalledFuncs.begin(), E = CalledFuncs.end();
-         I != E; ++I) {
-      const Function *Callee = *I;
+    for (auto *Callee : CalledFuncs) {
       // Get the data structure graph for the called function.
 
       GI = getDSGraph(*Callee);  // Graph to inline
