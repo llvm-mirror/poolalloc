@@ -196,7 +196,7 @@ public:
 
   void dump();
 
-  void assertSCCRoot(const llvm::Function* F) {
+  void assertSCCRoot(const llvm::Function* F) const {
     assert(F == SCCs.getLeaderValue(F) && "Not Leader?");
   }
 
