@@ -162,6 +162,17 @@ void CallTargetFinder<dsa>::print(llvm::raw_ostream &O, const Module *M) const
   template<class dsa>
 bool CallTargetFinder<dsa>::runOnModule(Module &M) {
   findIndTargets(M);
+
+  // Sort callees alphabetically, remove duplicates
+  for(auto &i: IndMap) {
+    auto &callees = i.second;
+    std::sort(callees.begin(), callees.end(),
+              [](const Function *a, const Function *b) {
+                return a->getName() < b->getName();
+              });
+    std::unique(callees.begin(), callees.end());
+  }
+
   return false;
 }
 
