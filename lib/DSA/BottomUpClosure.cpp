@@ -660,8 +660,7 @@ void BUDataStructures::calculateGraph(DSGraph* Graph) {
       if (CS.isIndirectCall())
         ++NumIndUnresolved;
       // Remember that we could not resolve this yet!
-      DSGraph::FunctionListTy::iterator S = I++;
-      AuxCallsList.splice(AuxCallsList.end(), TempFCs, S);
+      AuxCallsList.push_back(CS);
       continue;
     }
     // If we get to this point, we know the callees, and can inline.
