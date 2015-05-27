@@ -621,12 +621,11 @@ static bool checkNotCallees(llvm::raw_ostream &O, const Module *M,
   const DSCallGraph callgraph = DS->getCallGraph();
   FuncSetTy analysisCallees = getCalleesFor(caller, callgraph);
 
-  if (std::includes(analysisCallees.begin(), analysisCallees.end(),
-                    notCallees.begin(), notCallees.end())) {
-    FuncSetTy invalid;
-    std::set_intersection(analysisCallees.begin(), analysisCallees.end(),
-                          notCallees.begin(), notCallees.end(),
-                          std::inserter(invalid, invalid.begin()));
+  FuncSetTy invalid;
+  std::set_intersection(analysisCallees.begin(), analysisCallees.end(),
+                        notCallees.begin(), notCallees.end(),
+                        std::inserter(invalid, invalid.begin()));
+  if (!invalid.empty()) {
     errs() << "ERROR: Callgraph check failed for: \t" << caller->getName() << "\n";
     errs() << "              Analysis says calls: \t";
     printCallees(analysisCallees, errs()); errs() << "\n";
