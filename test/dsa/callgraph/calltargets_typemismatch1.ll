@@ -19,7 +19,7 @@ entry:
   store float %f, float* %f_addr
   %1 = load float, float* %f_addr, align 4               ; <float> [#uses=1]
   %2 = fpext float %1 to double                   ; <double> [#uses=1]
-  %3 = call i32 (i8*, ...)* @printf(i8* noalias getelementptr inbounds ([4 x i8], [4 x i8]* @.str, i64 0, i64 0), double %2) nounwind ; <i32> [#uses=0]
+  %3 = call i32 (i8*, ...) @printf(i8* noalias getelementptr inbounds ([4 x i8], [4 x i8]* @.str, i64 0, i64 0), double %2) nounwind ; <i32> [#uses=0]
   store i32* null, i32** %0, align 8
   %4 = load i32*, i32** %0, align 8                     ; <i32*> [#uses=1]
   store i32* %4, i32** %retval, align 8
@@ -40,7 +40,7 @@ entry:
   %"alloca point" = bitcast i32 0 to i32          ; <i32> [#uses=0]
   store double %d, double* %d_addr
   %1 = load double, double* %d_addr, align 8              ; <double> [#uses=1]
-  %2 = call i32 (i8*, ...)* @printf(i8* noalias getelementptr inbounds ([4 x i8], [4 x i8]* @.str1, i64 0, i64 0), double %1) nounwind ; <i32> [#uses=0]
+  %2 = call i32 (i8*, ...) @printf(i8* noalias getelementptr inbounds ([4 x i8], [4 x i8]* @.str1, i64 0, i64 0), double %1) nounwind ; <i32> [#uses=0]
   store i32* null, i32** %0, align 8
   %3 = load i32*, i32** %0, align 8                     ; <i32*> [#uses=1]
   store i32* %3, i32** %retval, align 8
