@@ -150,7 +150,7 @@ void CallTargetFinder<dsa>::print(llvm::raw_ostream &O, const Module *M) const
         O << cs.getInstruction()->getParent()->getParent()->getName().str() << " "
           << cs.getInstruction()->getName().str() << " ";
       }
-      O << ii->first.getInstruction() << ":";
+      O << *ii->first.getInstruction() << ":";
       for (std::vector<const Function*>::const_iterator i = ii->second.begin(),
              e = ii->second.end(); i != e; ++i) {
         O << " " << (*i)->getName().str();
@@ -164,15 +164,18 @@ bool CallTargetFinder<dsa>::runOnModule(Module &M) {
   findIndTargets(M);
 
   // Sort callees alphabetically, remove duplicates
-  for(auto &i: IndMap) {
+  for (auto &i : IndMap) {
     auto &callees = i.second;
-    auto FuncNameCmp = [](const Function *a, const Function *b) {
-      return a->getName() < b->getName();
-    };
 
-    std::sort(callees.begin(), callees.end(), FuncNameCmp);
-    callees.erase(std::unique(callees.begin(), callees.end(), FuncNameCmp),
-                  callees.end());
+    // Sort as Function*, remove duplicates
+    std::sort(callees.begin(), callees.end());
+    callees.erase(std::unique(callees.begin(), callees.end()), callees.end());
+
+    // Sort by name for easier reading:
+    std::sort(callees.begin(), callees.end(),
+              [](const Function *a, const Function *b) {
+                return a->getName() < b->getName();
+              });
   }
 
   return false;
