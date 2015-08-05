@@ -1,7 +1,7 @@
 dnl **************************************************************************
 dnl * Initialize
 dnl **************************************************************************
-AC_INIT([[[Pool Allocation]]],[[[1.0]]],[llvmbugs@cs.uiuc.edu])
+AC_INIT([[[Pool Allocation]]],[[[1.0]]],[llvm-bugs@lists.llvm.org])
 
 dnl Identify where LLVM source tree is
 LLVM_SRC_ROOT="`(cd $srcdir/../..; pwd)`"

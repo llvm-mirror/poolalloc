@@ -16,7 +16,7 @@ target triple = "x86_64-unknown-linux-gnu"
 ; Function foo, actually accepts an object of struct S. But as
 ; per calling conventions, the value is passed in registers, after
 ; conversion to a float and a double.
-; See http://lists.cs.uiuc.edu/pipermail/llvmdev/2010-January/028986.html
+; See http://lists.llvm.org/pipermail/llvm-dev/2010-January/028986.html
 
 %0 = type { double, float }
 %struct.S = type { float, float, float }
